@@ -1,0 +1,15 @@
+{
+  "role": "Product Manager",
+  "questions": [
+    { "type": "technical", "text": "How would you prioritize a backlog when engineering capacity is fixed and every stakeholder thinks their request is P0?", "ideal_answer_notes": "Prioritization framework (RICE/ICE), transparent criteria, stakeholder alignment." },
+    { "type": "technical", "text": "Walk me through how you'd define success metrics for a new feature before launch.", "ideal_answer_notes": "North-star metric, leading vs lagging indicators, guardrail metrics." },
+    { "type": "technical", "text": "How would you decide whether to build, buy, or partner for a new capability?", "ideal_answer_notes": "Cost/time tradeoffs, strategic differentiation, maintenance burden." },
+    { "type": "technical", "text": "Describe how you'd run and interpret an A/B test for a pricing change.", "ideal_answer_notes": "Hypothesis, sample size/power, guardrail metrics, statistical vs practical significance." },
+    { "type": "technical", "text": "How do you scope an MVP for an ambiguous, high-uncertainty problem?", "ideal_answer_notes": "Riskiest-assumption-first thinking, cutting scope without cutting value, fast feedback loops." },
+    { "type": "behavioral", "text": "Tell me about a time you had to say no to a feature request from a senior stakeholder.", "ideal_answer_notes": "Diplomatic pushback, data-backed reasoning, relationship preserved." },
+    { "type": "behavioral", "text": "Describe a time a launch didn't go as planned. What did you do?", "ideal_answer_notes": "Ownership, root-cause analysis, communication to stakeholders, concrete follow-up." },
+    { "type": "behavioral", "text": "Tell me about a time you had to align engineering, design, and sales around a single roadmap.", "ideal_answer_notes": "Cross-functional facilitation, conflict resolution, shared success metric." },
+    { "type": "behavioral", "text": "Describe a decision you made with incomplete data. How did you decide, and how did it turn out?", "ideal_answer_notes": "Structured judgment under uncertainty, willingness to revisit the decision." },
+    { "type": "behavioral", "text": "Tell me about a time you used customer feedback to change the direction of a product.", "ideal_answer_notes": "Listening process, weighing feedback against strategy, measurable outcome." }
+  ]
+}

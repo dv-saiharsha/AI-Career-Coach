@@ -1,0 +1,26 @@
+version: '3.8'
+# Not required for local development — the backend uses a local SQLite file by default,
+# and both apps run fine with plain `uvicorn` / `npm run dev` (see README).
+# Kept here as a starting point if you later containerize; add a Dockerfile to each
+# service directory before running `docker-compose up`.
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - backend_data:/app/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

@@ -1,0 +1,15 @@
+{
+  "role": "Backend Engineer",
+  "questions": [
+    { "type": "technical", "text": "How would you design a rate limiter for a public API?", "ideal_answer_notes": "Token bucket/sliding window, storage (Redis), per-user vs global limits, graceful degradation." },
+    { "type": "technical", "text": "Walk me through how you'd debug a service whose p99 latency suddenly doubled.", "ideal_answer_notes": "Metrics/tracing, recent deploys, DB query plans, connection pool exhaustion, GC pauses." },
+    { "type": "technical", "text": "How do you ensure data consistency when two services need to update related data across a network call?", "ideal_answer_notes": "Sagas/outbox pattern, idempotency keys, eventual consistency, compensating transactions." },
+    { "type": "technical", "text": "Explain how you'd design a database schema for a system with high write throughput and needs historical auditing.", "ideal_answer_notes": "Append-only/event sourcing considerations, indexing tradeoffs, partitioning." },
+    { "type": "technical", "text": "How would you roll out a breaking API change without downtime for existing clients?", "ideal_answer_notes": "Versioning, feature flags, backward-compatible migrations, deprecation timelines." },
+    { "type": "behavioral", "text": "Tell me about a time you had to fix a production incident under pressure.", "ideal_answer_notes": "Calm triage, clear communication, root cause, follow-up prevention." },
+    { "type": "behavioral", "text": "Describe a time you disagreed with a technical decision made by a senior engineer.", "ideal_answer_notes": "Respectful pushback, evidence-based argument, resolution." },
+    { "type": "behavioral", "text": "Tell me about a project where requirements changed significantly midway through.", "ideal_answer_notes": "Adaptability, replanning, communicating impact to stakeholders." },
+    { "type": "behavioral", "text": "Describe a time you had to leave code worse than you found it because of a deadline. How did you handle the tech debt?", "ideal_answer_notes": "Pragmatism, documenting shortcuts, follow-up plan." },
+    { "type": "behavioral", "text": "Tell me about a time you mentored or helped a teammate who was stuck.", "ideal_answer_notes": "Teaching approach, patience, measurable improvement in teammate's ability." }
+  ]
+}

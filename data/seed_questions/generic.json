@@ -1,0 +1,15 @@
+{
+  "role": "generic",
+  "questions": [
+    { "type": "technical", "text": "Walk me through a technical project you're most proud of and the decisions that made it succeed.", "ideal_answer_notes": "Clear problem framing, key technical tradeoffs, measurable impact." },
+    { "type": "technical", "text": "How do you approach debugging a problem you've never seen before?", "ideal_answer_notes": "Structured hypothesis testing, isolating variables, using logs/metrics." },
+    { "type": "technical", "text": "How do you decide when a solution is 'good enough' to ship versus needing more polish?", "ideal_answer_notes": "Risk assessment, user impact, iterative delivery mindset." },
+    { "type": "technical", "text": "Describe how you evaluate tradeoffs between speed of delivery and long-term quality.", "ideal_answer_notes": "Context-dependent judgment, communicating tradeoffs to stakeholders." },
+    { "type": "technical", "text": "How do you keep your skills current in a fast-moving field?", "ideal_answer_notes": "Concrete learning habits, applying new knowledge to real work." },
+    { "type": "behavioral", "text": "Tell me about a time you resolved a conflict with a teammate or stakeholder.", "ideal_answer_notes": "Empathy, direct communication, concrete resolution." },
+    { "type": "behavioral", "text": "Describe a time you failed at something important. What did you learn?", "ideal_answer_notes": "Ownership without excessive self-criticism, concrete lesson applied later." },
+    { "type": "behavioral", "text": "Tell me about a time you had to work under a tight deadline with limited resources.", "ideal_answer_notes": "Prioritization, scope negotiation, outcome." },
+    { "type": "behavioral", "text": "Describe a situation where you had to influence someone without direct authority over them.", "ideal_answer_notes": "Persuasion through evidence and relationship-building, outcome." },
+    { "type": "behavioral", "text": "Tell me about a time you received tough feedback. How did you respond?", "ideal_answer_notes": "Non-defensive listening, concrete behavior change." }
+  ]
+}

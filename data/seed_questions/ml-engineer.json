@@ -1,0 +1,15 @@
+{
+  "role": "ML Engineer",
+  "questions": [
+    { "type": "technical", "text": "How would you design a training pipeline that needs to retrain a model automatically as new data arrives?", "ideal_answer_notes": "Scheduled/triggered retraining, data validation, versioning, automated evaluation gates before deploy." },
+    { "type": "technical", "text": "Walk me through how you'd serve a model in production and handle a sudden 10x traffic spike.", "ideal_answer_notes": "Autoscaling, batching, model quantization/distillation, caching, load shedding." },
+    { "type": "technical", "text": "How do you detect and respond to model drift in production?", "ideal_answer_notes": "Monitoring input/output distributions, shadow deployments, alerting thresholds, retraining triggers." },
+    { "type": "technical", "text": "Explain the tradeoffs between batch inference and real-time inference for a recommendation system.", "ideal_answer_notes": "Latency vs freshness vs cost, precomputation, hybrid approaches." },
+    { "type": "technical", "text": "How would you version datasets and models so an experiment is fully reproducible?", "ideal_answer_notes": "Data/model registries, experiment tracking (e.g. MLflow), pinned dependencies and seeds." },
+    { "type": "behavioral", "text": "Tell me about a time a model performed well offline but failed in production. What happened?", "ideal_answer_notes": "Root-cause (train/serve skew, leakage), diagnosis process, fix and prevention." },
+    { "type": "behavioral", "text": "Describe a time you had to balance model accuracy against latency or cost constraints.", "ideal_answer_notes": "Tradeoff reasoning, stakeholder alignment, measurable outcome." },
+    { "type": "behavioral", "text": "Tell me about a time you worked closely with data scientists to productionize a model.", "ideal_answer_notes": "Collaboration style, translating research code into production-grade systems." },
+    { "type": "behavioral", "text": "Describe an incident where a production ML system broke. How did you respond?", "ideal_answer_notes": "Incident response, rollback strategy, postmortem, follow-up safeguards." },
+    { "type": "behavioral", "text": "Tell me about a time you pushed back on shipping a model that wasn't ready.", "ideal_answer_notes": "Judgment under pressure, communicating risk clearly, outcome." }
+  ]
+}

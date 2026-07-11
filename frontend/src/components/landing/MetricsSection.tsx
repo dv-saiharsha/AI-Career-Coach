@@ -1,0 +1,61 @@
+'use client';
+
+import { motion } from 'framer-motion';
+import { useInView } from 'react-intersection-observer';
+import CountUp from 'react-countup';
+
+const METRICS = [
+  { value: 94, suffix: '%', label: 'ATS prediction accuracy', decimals: 0 },
+  { value: 50000, suffix: '+', label: 'job seekers coached', decimals: 0, format: true },
+  { value: 3.2, suffix: 'x', label: 'more interview callbacks', decimals: 1 },
+  { value: 200, suffix: '+', label: 'ATS systems validated against', decimals: 0 },
+];
+
+export function MetricsSection() {
+  const { ref, inView } = useInView({ threshold: 0.3, triggerOnce: true });
+
+  return (
+    <section ref={ref} className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] relative overflow-hidden bg-[var(--color-canvas-deep)]">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[var(--color-accent)]/8 rounded-full blur-[160px] pointer-events-none" />
+
+      <div className="max-w-6xl mx-auto relative">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
+        >
+          <span className="section-eyebrow-violet mb-4 inline-flex">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
+            By the numbers
+          </span>
+          <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4">
+            Signal, not noise.
+          </h2>
+        </motion.div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {METRICS.map((m, i) => (
+            <motion.div
+              key={m.label}
+              initial={{ opacity: 0, y: 24 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="text-center"
+            >
+              <div className="text-4xl md:text-5xl font-display font-bold gradient-text-violet mb-2 tabular-nums">
+                {inView ? (
+                  <CountUp end={m.value} duration={2} decimals={m.decimals} separator="," />
+                ) : (
+                  '0'
+                )}
+                {m.suffix}
+              </div>
+              <div className="text-sm text-[var(--color-ink-dim)] max-w-[180px] mx-auto leading-snug">{m.label}</div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

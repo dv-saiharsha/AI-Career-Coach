@@ -1,0 +1,15 @@
+{
+  "role": "Frontend Engineer",
+  "questions": [
+    { "type": "technical", "text": "How would you diagnose and fix a React app that's re-rendering far more than necessary?", "ideal_answer_notes": "React DevTools profiler, memoization (useMemo/useCallback/React.memo), state colocation." },
+    { "type": "technical", "text": "Explain how you'd optimize the initial load time of a large single-page application.", "ideal_answer_notes": "Code splitting, lazy loading, bundle analysis, caching, critical CSS." },
+    { "type": "technical", "text": "How do you approach making a complex interactive component accessible to keyboard and screen reader users?", "ideal_answer_notes": "Semantic HTML, ARIA roles/labels, focus management, testing with a screen reader." },
+    { "type": "technical", "text": "Walk me through how you'd design state management for a form with many interdependent fields.", "ideal_answer_notes": "Local vs global state, derived state, validation strategy, avoiding prop drilling." },
+    { "type": "technical", "text": "How would you handle a race condition where two async requests can update the same UI state out of order?", "ideal_answer_notes": "Request cancellation, sequence tokens, optimistic UI with reconciliation." },
+    { "type": "behavioral", "text": "Tell me about a time you pushed back on a design that would have hurt performance or accessibility.", "ideal_answer_notes": "Collaborative pushback, data/evidence, outcome for users." },
+    { "type": "behavioral", "text": "Describe a time you inherited a messy frontend codebase. What did you do?", "ideal_answer_notes": "Prioritization, incremental refactor, balancing delivery with cleanup." },
+    { "type": "behavioral", "text": "Tell me about a time you worked closely with a designer to ship a polished feature.", "ideal_answer_notes": "Collaboration style, attention to detail, handling design-engineering tension." },
+    { "type": "behavioral", "text": "Describe a bug that was especially hard to reproduce. How did you track it down?", "ideal_answer_notes": "Systematic debugging, browser/device differences, persistence." },
+    { "type": "behavioral", "text": "Tell me about a time you had to learn a new framework or tool quickly for a project.", "ideal_answer_notes": "Learning approach, applying it under time pressure, outcome." }
+  ]
+}

@@ -1,0 +1,30 @@
+# Environment files
+.env
+.env.local
+*.env
+!.env.example
+
+# Backend (Python)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/*.db
+backend/*.db-journal
+*.pyc
+
+# Frontend (Node/Next.js) — frontend/ has its own .gitignore for its internals,
+# this covers the case of running commands from the repo root too
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Claude Code local (machine-specific) settings
+.claude/settings.local.json

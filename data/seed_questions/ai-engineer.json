@@ -1,0 +1,15 @@
+{
+  "role": "AI Engineer",
+  "questions": [
+    { "type": "technical", "text": "How would you reduce hallucinations in an LLM-powered feature that answers questions from a knowledge base?", "ideal_answer_notes": "RAG with grounded citations, retrieval quality, prompt constraints, output validation." },
+    { "type": "technical", "text": "Walk me through how you'd design a RAG pipeline end to end.", "ideal_answer_notes": "Chunking strategy, embedding model choice, vector store, retrieval + reranking, prompt assembly." },
+    { "type": "technical", "text": "How do you evaluate the quality of an LLM-generated output when there's no single correct answer?", "ideal_answer_notes": "LLM-as-judge, rubric-based human eval, golden test sets, regression testing on prompts." },
+    { "type": "technical", "text": "How would you control cost and latency in an application that makes many LLM calls per request?", "ideal_answer_notes": "Caching, prompt/response size limits, model tiering, batching, streaming." },
+    { "type": "technical", "text": "Describe how you'd design tool use / function calling for an agent so it fails safely.", "ideal_answer_notes": "Schema validation, sandboxing, timeouts, retries, human-in-the-loop for risky actions." },
+    { "type": "behavioral", "text": "Tell me about a time an LLM feature you built produced an unexpected or wrong output in front of users. What did you do?", "ideal_answer_notes": "Incident handling, guardrails added afterward, communication with stakeholders." },
+    { "type": "behavioral", "text": "Describe a time you had to explain the limitations of an AI feature to a non-technical stakeholder.", "ideal_answer_notes": "Managing expectations, translating uncertainty into concrete guardrails." },
+    { "type": "behavioral", "text": "Tell me about a time you iterated on a prompt or pipeline many times before it was reliable enough to ship.", "ideal_answer_notes": "Systematic iteration, eval-driven development, patience with ambiguity." },
+    { "type": "behavioral", "text": "Describe a situation where you had to choose between a faster, cheaper model and a more capable, expensive one.", "ideal_answer_notes": "Tradeoff framing tied to product requirements and user impact." },
+    { "type": "behavioral", "text": "Tell me about a time you collaborated with product or design on an AI feature's UX around uncertainty.", "ideal_answer_notes": "Cross-functional communication, designing for AI limitations transparently." }
+  ]
+}

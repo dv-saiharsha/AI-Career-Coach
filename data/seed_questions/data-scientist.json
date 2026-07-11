@@ -1,0 +1,15 @@
+{
+  "role": "Data Scientist",
+  "questions": [
+    { "type": "technical", "text": "Walk me through how you'd handle a dataset with significant class imbalance for a binary classification problem.", "ideal_answer_notes": "Mentions resampling (SMOTE/undersampling), class weights, and choosing metrics like PR-AUC/F1 over accuracy." },
+    { "type": "technical", "text": "How would you detect and address multicollinearity in a regression model?", "ideal_answer_notes": "VIF scores, correlation matrices, dropping or combining features, regularization (Ridge/Lasso)." },
+    { "type": "technical", "text": "Explain the bias-variance tradeoff and how it shows up when tuning a model.", "ideal_answer_notes": "Underfitting vs overfitting, learning curves, regularization, cross-validation." },
+    { "type": "technical", "text": "How do you validate that an A/B test result is statistically significant and not due to chance?", "ideal_answer_notes": "p-values, confidence intervals, power analysis, multiple-testing correction." },
+    { "type": "technical", "text": "Describe your process for feature engineering when working with time-series data.", "ideal_answer_notes": "Lag features, rolling windows, seasonality decomposition, avoiding leakage from future data." },
+    { "type": "behavioral", "text": "Tell me about a time your analysis contradicted a stakeholder's assumption. How did you handle it?", "ideal_answer_notes": "Data-backed communication, empathy, concrete outcome." },
+    { "type": "behavioral", "text": "Describe a project where the data was messy or incomplete. How did you move forward?", "ideal_answer_notes": "Pragmatic data cleaning decisions, documenting assumptions, iterative delivery." },
+    { "type": "behavioral", "text": "Tell me about a time you had to explain a complex model to a non-technical audience.", "ideal_answer_notes": "Simplification without losing accuracy, use of visuals/analogies." },
+    { "type": "behavioral", "text": "Describe a time you disagreed with a teammate's modeling approach. What did you do?", "ideal_answer_notes": "Respectful debate, evidence-based resolution, outcome for the project." },
+    { "type": "behavioral", "text": "Tell me about a project that didn't go as planned. What did you learn?", "ideal_answer_notes": "Ownership, root-cause reflection, concrete change in future practice." }
+  ]
+}
