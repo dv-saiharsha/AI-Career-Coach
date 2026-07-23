@@ -1,81 +1,24 @@
 import axios from 'axios'
+import { createClient } from './supabase/client'
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api',
 })
 
-const TOKEN_KEY = 'aicc_token'
-const USER_KEY = 'aicc_user'
-
-export interface AuthUser {
-  id: number
-  email: string
-}
-
-export function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function getStoredUser(): AuthUser | null {
-  if (typeof window === 'undefined') return null
-  const raw = localStorage.getItem(USER_KEY)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as AuthUser
-  } catch {
-    return null
-  }
-}
-
-function setSession(token: string, user: AuthUser) {
-  localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
-}
-
-export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
-}
-
-apiClient.interceptors.request.use((config) => {
-  const token = getToken()
-  if (token) {
+// Auth (session, login/register/logout) lives entirely in AuthContext now,
+// backed by Supabase — this file only attaches the current Supabase
+// session's access token to requests against our own FastAPI backend.
+apiClient.interceptors.request.use(async (config) => {
+  const supabase = createClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (session?.access_token) {
     config.headers = config.headers ?? {}
-    config.headers.Authorization = `Bearer ${token}`
+    config.headers.Authorization = `Bearer ${session.access_token}`
   }
   return config
 })
-
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      clearSession()
-    }
-    return Promise.reject(error)
-  },
-)
-
-interface AuthResponse {
-  access_token: string
-  token_type: string
-  user: AuthUser
-}
-
-export const register = async (email: string, password: string): Promise<AuthUser> => {
-  const response = await apiClient.post<AuthResponse>('/auth/register', { email, password })
-  setSession(response.data.access_token, response.data.user)
-  return response.data.user
-}
-
-export const login = async (email: string, password: string): Promise<AuthUser> => {
-  const response = await apiClient.post<AuthResponse>('/auth/login', { email, password })
-  setSession(response.data.access_token, response.data.user)
-  return response.data.user
-}
-
-export const logout = () => clearSession()
 
 export interface KeywordFrequency {
   keyword: string
@@ -162,6 +105,18 @@ export const evaluateInterviewAnswer = async (payload: {
   answer_text: string
 }): Promise<InterviewFeedback> => {
   const response = await apiClient.post('/interview/evaluate', payload)
+  return response.data
+}
+
+export interface ModelAnswer {
+  ideal_answer: string
+  example: string
+  plain_explanation: string
+  key_points: string[]
+}
+
+export const getInterviewModelAnswer = async (questionId: number): Promise<ModelAnswer> => {
+  const response = await apiClient.post('/interview/model-answer', { question_id: questionId })
   return response.data
 }
 

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -7,7 +8,9 @@ from app.core.database import Base
 class InterviewSession(Base):
     __tablename__ = "interview_sessions"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # References auth.users(id) in Supabase Postgres — see resume.py's
+    # ResumeAnalysis.user_id for why this isn't an SQLAlchemy-level FK.
+    user_id = Column(UUID(as_uuid=False), nullable=False, index=True)
     role = Column(String, nullable=False)
     seniority = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

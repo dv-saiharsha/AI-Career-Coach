@@ -4,8 +4,8 @@ import { LandingNav } from '../../components/landing/LandingNav';
 import Footer from '../../components/Footer';
 
 export const metadata: Metadata = {
-  title: 'How It Works — AI Career Coach',
-  description: 'A step-by-step walkthrough of the AI Career Coach workflow.',
+  title: 'How It Works — Zenith',
+  description: 'A step-by-step walkthrough of the Zenith workflow.',
 };
 
 export default function HowItWorksPage() {

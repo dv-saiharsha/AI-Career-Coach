@@ -1,0 +1,164 @@
+'use client'
+
+import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { ArrowRight, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { ZenithMark } from '../../components/ZenithMark'
+import { createClient } from '../../lib/supabase/client'
+
+export default function ResetPassword() {
+  const router = useRouter()
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'done'>('idle')
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      setStatus('error')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      setStatus('error')
+      return
+    }
+    setStatus('loading')
+    setError('')
+    const supabase = createClient()
+    const { error: updateError } = await supabase.auth.updateUser({ password })
+    if (updateError) {
+      setError(updateError.message)
+      setStatus('error')
+      return
+    }
+    setStatus('done')
+    setTimeout(() => router.replace('/dashboard'), 1500)
+  }
+
+  return (
+    <div className="min-h-screen bg-[var(--color-canvas)] flex items-center justify-center px-4 py-16 relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[380px] bg-[var(--color-accent)]/8 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex justify-center mb-8"
+        >
+          <Link href="/" className="flex items-center gap-2.5">
+            <ZenithMark className="w-8 h-8" />
+            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+          </Link>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="bg-[var(--color-canvas-raise)]/80 backdrop-blur-xl border border-[var(--color-canvas-line)] rounded-2xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.5)]"
+        >
+          {status === 'done' ? (
+            <div className="text-center py-4">
+              <div className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5">
+                <CheckCircle2 className="w-7 h-7 text-[var(--color-accent)]" />
+              </div>
+              <h1 className="text-xl font-display font-semibold text-[var(--color-ink)] mb-2">Password updated</h1>
+              <p className="text-sm text-[var(--color-ink-dim)]">Taking you to your dashboard...</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-7">
+                <h1 className="text-2xl font-display font-semibold text-[var(--color-ink)] mb-2">Set a new password</h1>
+                <p className="text-sm text-[var(--color-ink-dim)]">Choose a new password for your account.</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="password" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
+                    New password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                      className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
+                    Confirm new password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
+                    <input
+                      id="confirmPassword"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Repeat your password"
+                      className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {status === 'error' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/25 rounded-xl text-sm text-[#EF4444]"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={status === 'loading'}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white py-3 rounded-xl font-semibold text-sm hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.3)] mt-2"
+                >
+                  {status === 'loading' ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      Update password
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            </>
+          )}
+        </motion.div>
+      </div>
+    </div>
+  )
+}

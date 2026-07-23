@@ -4,15 +4,27 @@ import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowRight, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { ZenithMark } from '../../components/ZenithMark'
+import { createClient } from '../../lib/supabase/client'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'sent'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle')
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setStatus('loading')
-    await new Promise(r => setTimeout(r, 1000))
+    setError('')
+    const supabase = createClient()
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+    })
+    if (resetError) {
+      setError(resetError.message)
+      setStatus('error')
+      return
+    }
     setStatus('sent')
   }
 
@@ -38,8 +50,8 @@ export default function ForgotPassword() {
           className="flex justify-center mb-8"
         >
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[var(--color-accent)] to-[var(--color-accent-light)] shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.4)]" />
-            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">AI Career Coach</span>
+            <ZenithMark className="w-8 h-8" />
+            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
           </Link>
         </motion.div>
 
@@ -99,6 +111,16 @@ export default function ForgotPassword() {
                   </div>
                 </div>
 
+                {status === 'error' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/25 rounded-xl text-sm text-[#EF4444]"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
                 <button
                   type="submit"
                   disabled={status === 'loading'}
@@ -106,7 +128,7 @@ export default function ForgotPassword() {
                 >
                   {status === 'loading' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
                       Sending...
                     </>
                   ) : (

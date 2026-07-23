@@ -1,13 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.database import Base, engine
-from app.models import interview, resume, user  # noqa: F401 — registers models with Base
 from app.modules.auth.router import router as auth_router
 from app.modules.interview_coach.router import router as interview_router
 from app.modules.resume_analyzer.router import router as resume_router
 
-app = FastAPI(title="AI Career Coach API")
+app = FastAPI(title="Zenith API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,11 +15,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.on_event("startup")
-def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
-
+# Schema is now owned by Alembic migrations (see backend/alembic/), not
+# create_all — run `alembic upgrade head` against the Supabase Postgres DB
+# instead of relying on app startup to create tables.
 
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(resume_router, prefix="/api/resume", tags=["Resume Analyzer"])

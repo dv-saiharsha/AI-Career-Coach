@@ -58,10 +58,12 @@ function SeniorityField({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    name: user?.email?.split('@')[0] ?? '',
+    firstName: user?.firstName ?? '',
+    lastName: user?.lastName ?? '',
     email: user?.email ?? '',
     role: 'Software Engineer',
     seniority: 'Senior',
@@ -69,15 +71,25 @@ export default function ProfilePage() {
     bio: '',
   });
 
+  const fullName = `${form.firstName} ${form.lastName}`.trim();
+
   const completeness = useMemo(() => {
-    const fields = [form.name, form.role, form.seniority, form.targetRole, form.bio];
+    const fields = [form.firstName, form.lastName, form.role, form.seniority, form.targetRole, form.bio];
     const filled = fields.filter((f) => f && f.trim().length > 0).length;
     return Math.round((filled / fields.length) * 100);
   }, [form]);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Only first/last name are real, Supabase-backed fields today — role,
+      // seniority, target role, and bio have no backend field to persist to yet.
+      await updateProfile({ firstName: form.firstName.trim(), lastName: form.lastName.trim() });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -108,15 +120,15 @@ export default function ProfilePage() {
         <div className="px-6 pb-6 -mt-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div className="flex items-end gap-4">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dim)] flex items-center justify-center text-2xl font-display font-bold text-white ring-4 ring-[var(--color-canvas-raise)] shadow-[0_0_30px_rgba(var(--color-accent-rgb),0.4)]">
-                {form.name[0]?.toUpperCase() ?? 'U'}
+              <div className="w-20 h-20 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-2xl font-display font-medium text-white ring-4 ring-[var(--color-canvas-raise)]">
+                {form.firstName[0]?.toUpperCase() ?? 'U'}
               </div>
               <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] flex items-center justify-center text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)]/40 transition-colors">
                 <Camera className="w-3.5 h-3.5" />
               </button>
             </div>
             <div className="pb-1">
-              <div className="text-base font-semibold text-[var(--color-ink)] font-display">{form.name || 'Your Name'}</div>
+              <div className="text-base font-semibold text-[var(--color-ink)] font-display">{fullName || 'Your Name'}</div>
               <div className="text-sm text-[var(--color-ink-faint)]">{form.email}</div>
             </div>
           </div>
@@ -157,26 +169,38 @@ export default function ProfilePage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Full Name</label>
+            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">First Name</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
               <input
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                value={form.firstName}
+                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
                 className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Email</label>
+            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Last Name</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
               <input
-                value={form.email}
-                disabled
-                className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink-faint)] cursor-not-allowed"
+                value={form.lastName}
+                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
               />
             </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Email</label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
+            <input
+              value={form.email}
+              disabled
+              className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink-faint)] cursor-not-allowed"
+            />
           </div>
         </div>
 
@@ -231,9 +255,14 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <button onClick={handleSave} className="btn-brand">
+        <button onClick={handleSave} disabled={saving} className="btn-brand disabled:opacity-60 disabled:cursor-not-allowed">
           <AnimatePresence mode="wait" initial={false}>
-            {saved ? (
+            {saving ? (
+              <motion.span key="saving" className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                Saving...
+              </motion.span>
+            ) : saved ? (
               <motion.span
                 key="saved"
                 initial={{ opacity: 0, y: -4 }}

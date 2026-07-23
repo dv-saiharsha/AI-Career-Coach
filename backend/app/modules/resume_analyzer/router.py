@@ -5,9 +5,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.resume import ResumeAnalysis
-from app.models.user import User
 from app.modules.resume_analyzer.report import build_report_pdf, build_updated_resume_pdf
 from app.modules.resume_analyzer.services import analyze_resume_against_job
 from app.schemas.resume import AnalysisResultSchema, GenerateResumeRequestSchema, ResumeHistoryItemSchema
@@ -20,7 +19,7 @@ async def analyze_resume(
     resume: UploadFile = File(...),
     job_description: str = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     content = await resume.read()
     try:
@@ -36,6 +35,7 @@ async def analyze_resume(
         ats_score=result["ats_score"],
         result_json=json.dumps(result),
         resume_text=resume_text,
+        resume_file_bytes=content,
     )
     db.add(record)
     db.commit()
@@ -45,7 +45,7 @@ async def analyze_resume(
 
 
 @router.get("/history", response_model=list[ResumeHistoryItemSchema])
-def list_analyses(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_analyses(db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)):
     rows = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == current_user.id)
@@ -65,7 +65,7 @@ def list_analyses(db: Session = Depends(get_db), current_user: User = Depends(ge
 
 @router.get("/report/{analysis_id}")
 def download_report(
-    analysis_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    analysis_id: int, db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     record = (
         db.query(ResumeAnalysis)
@@ -89,7 +89,7 @@ def generate_updated_resume(
     analysis_id: int,
     payload: GenerateResumeRequestSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     record = (
         db.query(ResumeAnalysis)

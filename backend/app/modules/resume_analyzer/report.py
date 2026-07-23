@@ -1,6 +1,7 @@
 import textwrap
 from io import BytesIO
 
+import fitz  # PyMuPDF
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
@@ -25,7 +26,7 @@ def build_report_pdf(record, result: dict) -> bytes:
         c.drawString(1 * inch, y, text)
         y -= gap
 
-    line("AI Career Coach - Resume Feedback Report", size=16, bold=True, gap=26)
+    line("Zenith - Resume Feedback Report", size=16, bold=True, gap=26)
     line(f"Resume: {record.resume_filename}")
     line(f"Generated: {record.created_at.strftime('%Y-%m-%d %H:%M')}")
     y -= 6
@@ -50,9 +51,151 @@ def build_report_pdf(record, result: dict) -> bytes:
     return buffer.getvalue()
 
 
-def build_updated_resume_pdf(record, full_name: str, skills_to_add: list[str]) -> bytes:
-    """Rebuilds the candidate's resume text as a clean PDF, with the staged
-    missing skills appended as a clearly-labeled new section."""
+# ── "Tailor my resume" — overlay new skills onto the candidate's own PDF ───
+# The goal is zero visible change to the original document except the added
+# skills: same fonts, same layout, same page. PyMuPDF can only safely reuse
+# its 14 built-in base fonts for freshly inserted text (an arbitrary embedded
+# font from the source PDF isn't reliably reusable by name), so size, color,
+# and position are matched exactly to the surrounding text; the typeface
+# itself falls back to a clean sans-serif rather than risk broken glyphs.
+
+_SKILLS_HEADINGS = {
+    "technical skills", "core skills", "key skills", "skills & technologies",
+    "skills and technologies", "skills", "technologies", "areas of expertise",
+}
+_SECTION_HEADINGS = _SKILLS_HEADINGS | {
+    "experience", "work experience", "professional experience", "projects",
+    "education", "certifications", "certification", "research papers",
+    "publications", "achievements", "summary", "objective", "awards",
+    "additional skills (added by zenith)",
+}
+
+
+def _wrap_to_width(text: str, fontname: str, fontsize: float, max_width: float) -> list[str]:
+    words = text.split(" ")
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or fitz.get_text_length(candidate, fontname=fontname, fontsize=fontsize) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _find_skills_heading(page) -> fitz.Rect | None:
+    for block in page.get_text("dict")["blocks"]:
+        for line in block.get("lines", []):
+            text = "".join(span["text"] for span in line["spans"]).strip()
+            if text.lower().strip(" :._-") in _SKILLS_HEADINGS:
+                return fitz.Rect(line["bbox"])
+    return None
+
+
+def _overlay_skills_onto_pdf(original_bytes: bytes, skills_to_add: list[str]) -> bytes | None:
+    """Inserts the missing skills directly below the resume's existing
+    skills section, matching size/color/position. Returns None (caller
+    falls back) if no skills section is found or there's no room to add
+    to it without overlapping the next section."""
+    if not skills_to_add:
+        return None
+    try:
+        doc = fitz.open(stream=original_bytes, filetype="pdf")
+    except Exception:
+        return None
+
+    try:
+        for page in doc:
+            heading_rect = _find_skills_heading(page)
+            if heading_rect is None:
+                continue
+
+            content_bottom = heading_rect.y1
+            next_heading_top = page.rect.height
+            body_font_size, body_color, left_x = 10.0, (0, 0, 0), heading_rect.x0
+            sampled_body_font = False
+
+            for block in page.get_text("dict")["blocks"]:
+                for line in block.get("lines", []):
+                    bbox = fitz.Rect(line["bbox"])
+                    if bbox.y0 <= heading_rect.y1 + 1:
+                        continue
+                    text = "".join(span["text"] for span in line["spans"]).strip()
+                    norm = text.lower().strip(" :._-")
+                    if norm in _SECTION_HEADINGS:
+                        next_heading_top = min(next_heading_top, bbox.y0)
+                        continue
+                    if bbox.y0 < next_heading_top:
+                        content_bottom = max(content_bottom, bbox.y1)
+                        left_x = min(left_x, bbox.x0)
+                        if not sampled_body_font and line["spans"]:
+                            span = line["spans"][0]
+                            body_font_size = span.get("size", body_font_size)
+                            color_int = span.get("color", 0) or 0
+                            body_color = (
+                                ((color_int >> 16) & 255) / 255,
+                                ((color_int >> 8) & 255) / 255,
+                                (color_int & 255) / 255,
+                            )
+                            sampled_body_font = True
+
+            line_height = body_font_size * 1.35
+            available_height = next_heading_top - content_bottom - 4  # small buffer, never touch next section
+            max_new_lines = max(0, int(available_height // line_height))
+            if max_new_lines == 0:
+                return None
+
+            max_width = max(120.0, (page.rect.width - 0.75 * 72) - left_x)
+            wrapped = _wrap_to_width("+ " + ", ".join(skills_to_add), "helv", body_font_size, max_width)
+            wrapped = wrapped[:max_new_lines]
+            if not wrapped:
+                return None
+
+            y = content_bottom + line_height
+            for wrapped_line in wrapped:
+                page.insert_text((left_x, y), wrapped_line, fontname="helv", fontsize=body_font_size, color=body_color)
+                y += line_height
+
+            out = BytesIO()
+            doc.save(out)
+            return out.getvalue()
+
+        return None  # no skills-section heading found anywhere in the document
+    finally:
+        doc.close()
+
+
+def _append_addendum_to_last_page(original_bytes: bytes, skills_to_add: list[str]) -> bytes | None:
+    """Fallback when there's no room in the skills section itself: a small,
+    matching-style line in the bottom margin of the last page — still the
+    real original document, just not literally inside that section."""
+    try:
+        doc = fitz.open(stream=original_bytes, filetype="pdf")
+    except Exception:
+        return None
+    try:
+        page = doc[-1]
+        x, size = 54.0, 8.5
+        y = page.rect.height - 28
+        max_width = page.rect.width - 2 * x
+        text = "+ Additional matched skills: " + ", ".join(skills_to_add)
+        for wrapped_line in _wrap_to_width(text, "helv", size, max_width):
+            page.insert_text((x, y), wrapped_line, fontname="helv", fontsize=size, color=(0.35, 0.35, 0.35))
+            y += size * 1.35
+        out = BytesIO()
+        doc.save(out)
+        return out.getvalue()
+    finally:
+        doc.close()
+
+
+def _build_resume_pdf_from_text(record, full_name: str, skills_to_add: list[str]) -> bytes:
+    """Last-resort fallback for records with no stored original PDF (scans
+    made before this feature existed) — rebuilds from extracted text."""
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=LETTER)
     width, height = LETTER
@@ -70,7 +213,7 @@ def build_updated_resume_pdf(record, full_name: str, skills_to_add: list[str]) -
         y -= gap
 
     line(full_name, size=18, bold=True, gap=24)
-    line(f"Updated by AI Career Coach - {record.created_at.strftime('%Y-%m-%d')}", size=9, gap=22)
+    line(f"Updated by Zenith - {record.created_at.strftime('%Y-%m-%d')}", size=9, gap=22)
 
     for paragraph in (record.resume_text or "").split("\n"):
         if not paragraph.strip():
@@ -81,9 +224,23 @@ def build_updated_resume_pdf(record, full_name: str, skills_to_add: list[str]) -
 
     if skills_to_add:
         y -= 10
-        line("Additional Skills (added by AI Career Coach)", size=12, bold=True, gap=18, color="#6D28D9")
+        line("Additional Skills (added by Zenith)", size=12, bold=True, gap=18, color="#6D28D9")
         for skill in skills_to_add:
             line(f"  + {skill}", size=10, gap=14, color="#6D28D9")
 
     c.save()
     return buffer.getvalue()
+
+
+def build_updated_resume_pdf(record, full_name: str, skills_to_add: list[str]) -> bytes:
+    original = record.resume_file_bytes
+    if original and not skills_to_add:
+        return original  # nothing to add — return the exact original, unmodified
+    if original:
+        overlaid = _overlay_skills_onto_pdf(original, skills_to_add)
+        if overlaid:
+            return overlaid
+        addended = _append_addendum_to_last_page(original, skills_to_add)
+        if addended:
+            return addended
+    return _build_resume_pdf_from_text(record, full_name, skills_to_add)

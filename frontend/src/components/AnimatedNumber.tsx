@@ -1,18 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion'
 
 export default function AnimatedNumber({ value, duration = 1400 }: { value: number; duration?: number }) {
+  const reduce = usePrefersReducedMotion()
   const [display, setDisplay] = useState(0)
   const ref = useRef<HTMLSpanElement>(null)
   const started = useRef(false)
 
   useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduce) {
-      setDisplay(value)
-      return
-    }
+    if (reduce) return
 
     const node = ref.current
     if (!node) return
@@ -39,7 +37,7 @@ export default function AnimatedNumber({ value, duration = 1400 }: { value: numb
       return () => io.disconnect()
     }
     run()
-  }, [value, duration])
+  }, [value, duration, reduce])
 
-  return <span ref={ref}>{display}</span>
+  return <span ref={ref}>{reduce ? value : display}</span>
 }

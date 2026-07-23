@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion'
 
 const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<'
 
@@ -17,19 +18,17 @@ export default function ScrambleText({
   onDone?: () => void
   className?: string
 }) {
+  const reduce = usePrefersReducedMotion()
   const [display, setDisplay] = useState(text)
   const done = useRef(false)
 
   useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduce) {
-      setDisplay(text)
       onDone?.()
       return
     }
 
     let raf = 0
-    let startTimeout: ReturnType<typeof setTimeout>
 
     const run = () => {
       const start = performance.now()
@@ -58,12 +57,12 @@ export default function ScrambleText({
       raf = requestAnimationFrame(tick)
     }
 
-    startTimeout = setTimeout(run, delay)
+    const startTimeout = setTimeout(run, delay)
     return () => {
       clearTimeout(startTimeout)
       cancelAnimationFrame(raf)
     }
-  }, [text, duration, delay, onDone])
+  }, [text, duration, delay, onDone, reduce])
 
-  return <span className={className}>{display}</span>
+  return <span className={className}>{reduce ? text : display}</span>
 }

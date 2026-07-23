@@ -1,4 +1,4 @@
-# AI Career Coach
+# Zenith
 
 ## Problem Statement
 Job seekers need an integrated tool to beat ATS systems and prepare for interviews. Combining resume analysis and interactive interview coaching provides a cohesive platform to secure their target roles.

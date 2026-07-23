@@ -219,7 +219,7 @@ export default function AchievementsPage() {
                 className="glass-card relative flex flex-col items-center text-center gap-3 p-5 opacity-90"
               >
                 <span
-                  className="absolute top-3 right-3 text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/[0.03] border border-[var(--color-canvas-line)] text-[var(--color-ink-faint)]"
+                  className="absolute top-3 right-3 text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] text-[var(--color-ink-faint)]"
                 >
                   {tier}
                 </span>

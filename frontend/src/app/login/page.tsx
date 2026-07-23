@@ -1,6 +1,5 @@
 'use client'
 
-import axios from 'axios'
 import { Suspense, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -8,6 +7,7 @@ import { motion } from 'framer-motion'
 import { Eye, EyeOff, ArrowRight, Mail, Lock } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { AuthShowcase } from '../../components/auth/AuthShowcase'
+import { ZenithMark } from '../../components/ZenithMark'
 
 export default function Login() {
   return (
@@ -37,8 +37,7 @@ function LoginForm() {
       await login(email, password)
       router.replace(from)
     } catch (err) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.detail : null
-      setError(message || 'Could not sign in. Check your email and password.')
+      setError(err instanceof Error ? err.message : 'Could not sign in. Check your email and password.')
       setStatus('error')
     }
   }
@@ -68,8 +67,8 @@ function LoginForm() {
           className="flex justify-center mb-8 lg:hidden"
         >
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[var(--color-accent)] to-[var(--color-accent-light)] shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.4)]" />
-            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">AI Career Coach</span>
+            <ZenithMark className="w-8 h-8" />
+            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
           </Link>
         </motion.div>
 
@@ -81,7 +80,7 @@ function LoginForm() {
         >
           <div className="mb-7">
             <h1 className="text-2xl font-display font-semibold text-[var(--color-ink)] mb-2">Welcome back</h1>
-            <p className="text-sm text-[var(--color-ink-dim)]">Sign in to your AI Career Coach account</p>
+            <p className="text-sm text-[var(--color-ink-dim)]">Sign in to your Zenith account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -152,7 +151,7 @@ function LoginForm() {
             >
               {status === 'loading' ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
                   Signing in...
                 </>
               ) : (

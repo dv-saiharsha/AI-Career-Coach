@@ -2,18 +2,25 @@
 
 import { motion } from 'framer-motion'
 import { Sun, Moon } from 'lucide-react'
-import { useTheme } from '../lib/ThemeContext'
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 
 export default function ThemeToggle({ className = '' }: { className?: string }) {
-  const { theme, toggleTheme } = useTheme()
-  const isDark = theme === 'dark'
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard next-themes hydration guard
+    setMounted(true)
+  }, [])
+
+  const isDark = !mounted || resolvedTheme !== 'light'
 
   return (
     <button
       type="button"
       role="switch"
       aria-checked={!isDark}
-      onClick={toggleTheme}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       className={`relative w-[52px] h-[28px] rounded-full shrink-0 border transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)] ${className}`}
       style={{

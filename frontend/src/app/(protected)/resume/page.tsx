@@ -1,38 +1,46 @@
 'use client'
 
-import { useRef, useState, type DragEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import * as Tabs from '@radix-ui/react-tabs'
 import {
   Upload, FileText, CheckCircle2, AlertCircle,
-  Sparkles, Download, RotateCcw, ChevronRight, Info,
-  GitCompare, Hash,
+  Sparkles, RotateCcw, ChevronRight, Info,
+  GitCompare, Hash, Check, X, ScanLine,
 } from 'lucide-react'
-import AnimatedNumber from '../../../components/AnimatedNumber'
-import Loader from '../../../components/Loader'
+import Waveform from '../../../components/Waveform'
 import {
   analyzeResume,
   generateImprovedResume,
   type AnalysisResult,
 } from '../../../lib/apiClient'
-import { useAccentPalette } from '../../../lib/useAccentPalette'
+import { usePrefersReducedMotion } from '../../../lib/usePrefersReducedMotion'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 type GenStatus = 'idle' | 'loading' | 'done' | 'error'
-type ResultTab = 'diff' | 'suggestions' | 'keywords'
+type ResultTab = 'missing' | 'suggestions' | 'keywords'
 
-function scoreColor(score: number, palette: ReturnType<typeof useAccentPalette>) {
-  if (score >= 80) return palette.accent
-  if (score >= 60) return '#F59E0B'
-  return '#EF4444'
-}
+const EASE = [0.22, 1, 0.36, 1] as const
 
-function scoreLabel(score: number) {
-  if (score >= 80) return 'Strong match'
-  if (score >= 60) return 'Needs work'
-  return 'Low match'
-}
+const STAGES = [
+  'Receiving your resume',
+  'Extracting skills & keywords',
+  'Cross-referencing the job description',
+  'Calculating your match score',
+]
+
+// Short, specific status lines that cycle under the stage checklist so the
+// screen never looks stalled during the several-second analysis call.
+const FLAVOR_LINES = [
+  'Parsing PDF structure…',
+  'Reading section headers…',
+  'Identifying technical skills…',
+  'Comparing keyword density…',
+  'Weighing section relevance…',
+  'Scoring against ATS heuristics…',
+  'Finalizing your report…',
+]
 
 const containerVariants: Variants = {
   hidden: {},
@@ -40,35 +48,65 @@ const containerVariants: Variants = {
 }
 const itemVariants: Variants = {
   hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } },
 }
 
 export default function ResumeAnalyzer() {
-  const palette = useAccentPalette()
+  const reduce = usePrefersReducedMotion()
   const [file, setFile] = useState<File | null>(null)
   const [jobDescription, setJobDescription] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
+  const [autoStage, setAutoStage] = useState(0)
+  const [flavorIndex, setFlavorIndex] = useState(0)
+  const [pasteNotice, setPasteNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set())
   const [fullName, setFullName] = useState('')
   const [genStatus, setGenStatus] = useState<GenStatus>('idle')
   const [genError, setGenError] = useState('')
-  const [resultTab, setResultTab] = useState<ResultTab>('diff')
+  const [resultTab, setResultTab] = useState<ResultTab>('missing')
+
+  // Staged progress narrative: there are no incremental backend progress
+  // events for analysis, so this steps through the named stages on a timer
+  // and holds at the final one until the response actually returns.
+  useEffect(() => {
+    if (status !== 'loading') return
+    const id = setInterval(() => {
+      setAutoStage((prev) => Math.min(STAGES.length - 1, prev + 1))
+    }, 900)
+    return () => clearInterval(id)
+  }, [status])
+
+  useEffect(() => {
+    if (status !== 'loading') return
+    setFlavorIndex(0)
+    const id = setInterval(() => {
+      setFlavorIndex((prev) => Math.min(FLAVOR_LINES.length - 1, prev + 1))
+    }, 1400)
+    return () => clearInterval(id)
+  }, [status])
+
+  const loadingStage = status !== 'loading' ? 0 : autoStage
+
+  const ACCEPTED_TYPES = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  ]
 
   const pickFile = (f: File | null) => {
     if (!f) return
-    if (f.type !== 'application/pdf') {
-      setError('That file is not a PDF. Export your resume as a PDF and upload it again.')
+    const ext = f.name.toLowerCase().split('.').pop()
+    if (!ACCEPTED_TYPES.includes(f.type) && ext !== 'pdf' && ext !== 'docx') {
+      setError('Only PDF and Word (.docx) resumes are accepted. Please upload your resume in one of those formats.')
       setStatus('error')
       return
     }
     if (f.size > 10 * 1024 * 1024) {
-      setError('That PDF is over 10 MB. Try a version without embedded images.')
+      setError('That file is over 10 MB. Try a version without embedded images.')
       setStatus('error')
       return
     }
@@ -81,18 +119,28 @@ export default function ResumeAnalyzer() {
     pickFile(e.dataTransfer.files?.[0] ?? null)
   }
 
+  const handleJobDescriptionPaste = () => {
+    window.setTimeout(() => {
+      const length = jobDescription.length
+      if (length > 0) {
+        setPasteNotice(`Pasted ${length.toLocaleString()} characters`)
+        window.setTimeout(() => setPasteNotice(null), 2500)
+      }
+    }, 0)
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!file) { setError('Add your resume before scanning.'); setStatus('error'); return }
-    setStatus('loading'); setError(''); setUploadProgress(0)
+    setStatus('loading'); setError(''); setAutoStage(0)
     try {
       const fd = new FormData()
       fd.append('resume', file)
       fd.append('job_description', jobDescription)
-      const data = await analyzeResume(fd, setUploadProgress)
+      const data = await analyzeResume(fd)
       setResult(data)
       setStatus('success')
-      setResultTab('diff')
+      setResultTab('missing')
       setSelectedSkills(new Set(data.missing_skills))
     } catch {
       setError('Could not reach the scan service. Check that the API is running and try again.')
@@ -124,12 +172,9 @@ export default function ResumeAnalyzer() {
   const reset = () => {
     setFile(null); setJobDescription(''); setResult(null)
     setError(''); setStatus('idle'); setSelectedSkills(new Set())
-    setFullName(''); setGenStatus('idle'); setGenError(''); setResultTab('diff'); setUploadProgress(0)
+    setFullName(''); setGenStatus('idle'); setGenError(''); setResultTab('missing'); setAutoStage(0)
   }
 
-  const phase: 'uploading' | 'analyzing' | null =
-    status !== 'loading' ? null : uploadProgress < 100 ? 'uploading' : 'analyzing'
-  const stageIndex = status === 'success' ? 2 : phase === 'analyzing' ? 1 : file || phase === 'uploading' ? 0 : -1
   const maxKeywordFreq = result
     ? Math.max(1, ...result.keyword_analysis.map(k => k.frequency))
     : 1
@@ -141,551 +186,532 @@ export default function ResumeAnalyzer() {
   const scoreDelta = result && projectedScore !== null ? Math.round(projectedScore - result.ats_score) : 0
 
   return (
-    <div className="max-w-6xl relative">
-      <div className="pointer-events-none absolute -top-24 right-0 w-[440px] h-[440px] bg-[var(--color-accent)]/5 rounded-full blur-[150px] -z-10" />
+    <div className="max-w-6xl mx-auto">
+      <AnimatePresence mode="wait">
+        {status === 'loading' && (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="min-h-[60vh] flex items-center justify-center"
+          >
+            <div className="card px-8 py-10 max-w-[440px] w-full">
+              <div className="eyebrow mb-6 justify-center flex items-center gap-2">
+                <ScanLine strokeWidth={1.5} className="w-3.5 h-3.5" />
+                Scanning your document
+              </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mb-8"
-      >
-        <span className="section-eyebrow-violet mb-3 inline-flex">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
-          Resume Diagnostics
-        </span>
-        <h1 className="text-2xl md:text-3xl font-display font-semibold text-[var(--color-ink)] mt-3 mb-2">Know before you apply</h1>
-        <p className="text-sm text-[var(--color-ink-dim)] leading-relaxed max-w-xl">
-          Drop in your resume and the job description — we&apos;ll show you exactly what the ATS
-          sees, what it flags, and what to fix, then hand you a resume that&apos;s already fixed.
-        </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[440px_1fr] gap-6 items-start">
-        <form onSubmit={handleSubmit} className="glass-card p-6 flex flex-col gap-5">
-          <div>
-            <label className="block text-xs font-mono tracking-wider uppercase text-[var(--color-ink-dim)] mb-2">
-              Resume (PDF)
-            </label>
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
-              className={`cursor-pointer rounded-xl border-2 border-dashed px-6 py-8 text-center transition-all ${
-                dragOver
-                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5 scale-[1.01]'
-                  : file
-                  ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5'
-                  : 'border-[var(--color-canvas-line)] bg-[var(--color-canvas)] hover:border-[var(--color-ink-faint)]'
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                className="hidden"
-                onChange={e => pickFile(e.target.files?.[0] ?? null)}
-              />
-              {file ? (
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[var(--color-accent)]/15 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4 text-[var(--color-accent)]" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-medium text-[var(--color-ink)]">{file.name}</div>
-                    <div className="text-xs text-[var(--color-ink-faint)]">
-                      {(file.size / 1024).toFixed(0)} KB — click to replace
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-6 h-6 text-[var(--color-ink-faint)] mx-auto mb-2" />
-                  <div className="text-sm text-[var(--color-ink-dim)]">Drop your resume here</div>
-                  <div className="text-xs text-[var(--color-ink-faint)] mt-1">or click to browse — PDF, up to 10 MB</div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-mono tracking-wider uppercase text-[var(--color-ink-dim)] mb-2">
-              Job Description
-            </label>
-            <textarea
-              value={jobDescription}
-              onChange={e => setJobDescription(e.target.value)}
-              placeholder="Paste the job posting you are targeting..."
-              rows={7}
-              className="input-field resize-y"
-            />
-          </div>
-
-          <AnimatePresence>
-            {status === 'error' && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5 overflow-hidden"
+              {/* Document silhouette with a repeating scan beam sweeping down it */}
+              <div
+                className="relative mx-auto mb-7 w-[104px] h-[132px] rounded-[6px] overflow-hidden"
+                style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-canvas-line)' }}
+                aria-hidden="true"
               >
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <button
-              type="submit"
-              disabled={status === 'loading'}
-              className="btn-violet w-fit disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {status === 'loading' ? (
-                <>
-                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Scanning...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Scan Resume
-                </>
-              )}
-            </button>
-            <PipelineStages current={stageIndex} />
-          </div>
-        </form>
-
-        <div>
-          <AnimatePresence mode="wait">
-            {(status === 'idle' || status === 'error') && (
-              <motion.div
-                key="idle"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-card px-8 py-16 text-center"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-6 h-6 text-[var(--color-accent)]/60" />
+                <div className="absolute inset-0 flex flex-col gap-[7px] p-3 pt-4">
+                  {[0.85, 0.65, 0.95, 0.55, 0.75, 0.4, 0.9, 0.6].map((w, i) => (
+                    <div
+                      key={i}
+                      className="h-[3px] rounded-full"
+                      style={{ width: `${w * 100}%`, background: 'var(--color-canvas-line)' }}
+                    />
+                  ))}
                 </div>
-                <p className="text-sm text-[var(--color-ink-faint)] max-w-xs mx-auto leading-relaxed">
-                  Your ATS score, skill diff, and fix list will appear here once you scan a resume.
-                </p>
-              </motion.div>
-            )}
-
-            {phase === 'uploading' && (
-              <motion.div
-                key="uploading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-card p-7"
-              >
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-                    <span className="text-xs font-mono uppercase tracking-widest text-[var(--color-accent-lighter)]">Uploading resume…</span>
-                  </div>
-                  <span className="text-2xl font-display font-bold text-[var(--color-ink)] tabular-nums">{uploadProgress}%</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-[var(--color-canvas-line-soft)] overflow-hidden">
+                {!reduce && (
                   <motion.div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-lighter)]"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${uploadProgress}%` }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="absolute left-0 right-0 h-9"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 35%, transparent) 50%, transparent)',
+                    }}
+                    initial={{ top: '-20%' }}
+                    animate={{ top: '110%' }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
                   />
-                </div>
-                <p className="text-xs text-[var(--color-ink-faint)] mt-4">
-                  Sending {file?.name} ({file ? (file.size / 1024).toFixed(0) : 0} KB) to the scan service…
-                </p>
-              </motion.div>
-            )}
-
-            {phase === 'analyzing' && (
-              <motion.div
-                key="analyzing"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="glass-card p-7 relative overflow-hidden"
-              >
-                <motion.div
-                  className="absolute left-0 right-0 h-28 bg-gradient-to-b from-transparent via-[var(--color-accent)]/[0.08] to-transparent pointer-events-none"
-                  initial={{ top: '-30%' }}
-                  animate={{ top: '130%' }}
-                  transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
+                )}
+                <div
+                  className="absolute inset-0"
+                  style={{ boxShadow: 'inset 0 0 24px color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
                 />
-                <div className="relative z-10 flex flex-col items-center">
-                  <div className="flex items-center gap-2 mb-2 self-start">
-                    <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-                    <span className="text-xs font-mono uppercase tracking-widest text-[var(--color-accent-lighter)]">Scanning resume…</span>
-                  </div>
-                  <div className="h-24 flex items-center justify-center -my-2">
-                    <Loader />
-                  </div>
-                  <div className="flex flex-col gap-3.5 w-full mt-3">
-                    {['Parsing PDF content', 'Matching against job description', 'Scoring keywords & skills'].map((step, i) => (
-                      <div key={step} className="flex items-center gap-3 text-sm text-[var(--color-ink-dim)]">
-                        <span
-                          className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse shrink-0"
-                          style={{ animationDelay: `${i * 200}ms` }}
-                        />
-                        {step}
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                {STAGES.map((label, i) => {
+                  const done = i < loadingStage
+                  const current = i === loadingStage
+                  return (
+                    <div key={label} className="flex items-center gap-3">
+                      <span className="relative flex items-center justify-center w-4 h-4 shrink-0">
+                        {done ? (
+                          <Check strokeWidth={2} className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                        ) : (
+                          <span
+                            className="block w-[7px] h-[7px] rounded-full"
+                            style={{ background: current ? 'var(--color-accent)' : 'var(--color-canvas-line)' }}
+                          />
+                        )}
+                        {current && !reduce && (
+                          <motion.span
+                            className="absolute w-[7px] h-[7px] rounded-full"
+                            style={{ background: 'var(--color-accent)' }}
+                            animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
+                            transition={{ duration: 1.1, repeat: Infinity, ease: 'easeOut' }}
+                          />
+                        )}
+                      </span>
+                      <span
+                        className="text-[13px] font-medium transition-colors"
+                        style={{ color: done || current ? 'var(--color-ink)' : 'var(--color-ink-faint)' }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="mt-6 pt-5 border-t border-[var(--color-canvas-line)] h-5">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={flavorIndex}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-xs font-mono text-[var(--color-ink-faint)] text-center"
+                  >
+                    {FLAVOR_LINES[flavorIndex]}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {status === 'success' && result && (
+          <motion.div
+            key="results"
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="space-y-5"
+          >
+            <motion.div variants={itemVariants} className="flex items-center justify-between">
+              <div>
+                <span className="eyebrow mb-2 inline-flex">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
+                  ATS Match Score
+                </span>
+                <h1 className="text-2xl md:text-3xl font-display italic font-medium text-[var(--color-ink)] mt-2">Here&apos;s how you match up.</h1>
+              </div>
+              <button
+                onClick={reset}
+                className="btn-ghost flex items-center gap-1.5"
+              >
+                <RotateCcw strokeWidth={1.5} className="w-3.5 h-3.5" />
+                Run new scan
+              </button>
+            </motion.div>
+
+            <motion.div variants={itemVariants}>
+              <Waveform
+                score={result.ats_score}
+                subtitle={`${result.matched_skills.length} skills matched · ${result.missing_skills.length} missing · ${result.extracted_skills.length} decoded from your resume.`}
+              />
+            </motion.div>
+
+            <AnimatePresence mode="wait">
+              {selectedSkills.size > 0 && projectedScore !== null && (
+                <motion.div
+                  key="projected"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.25 }}
+                  className="flex items-center gap-2.5 card px-4 py-3"
+                >
+                  <span className="text-xs text-[var(--color-ink-dim)]">Projected after fixes:</span>
+                  <span className="text-sm font-display font-medium text-[var(--color-ink)] tabular-nums">{projectedScore}%</span>
+                  {scoreDelta !== 0 && (
+                    <span className="text-xs font-mono text-[var(--color-accent)] tabular-nums">
+                      ({scoreDelta > 0 ? '+' : ''}{scoreDelta} pts)
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono text-[var(--color-ink-faint)] ml-auto">
+                    {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''} staged
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Result tabs */}
+            <motion.div variants={itemVariants}>
+              <Tabs.Root value={resultTab} onValueChange={v => setResultTab(v as ResultTab)}>
+                <Tabs.List className="flex items-center gap-5 mb-4 border-b border-[var(--color-canvas-line)]">
+                  <Tabs.Trigger
+                    value="missing"
+                    className="flex items-center gap-2 pb-3 eyebrow text-[var(--color-ink-faint)] border-b-2 border-transparent data-[state=active]:text-[var(--color-ink)] data-[state=active]:border-[var(--color-accent)] transition-colors"
+                  >
+                    <GitCompare strokeWidth={1.5} className="w-3.5 h-3.5" />
+                    Missing skills
+                  </Tabs.Trigger>
+                  {result.suggestions.length > 0 && (
+                    <Tabs.Trigger
+                      value="suggestions"
+                      className="flex items-center gap-2 pb-3 eyebrow text-[var(--color-ink-faint)] border-b-2 border-transparent data-[state=active]:text-[var(--color-ink)] data-[state=active]:border-[var(--color-accent)] transition-colors"
+                    >
+                      <Info strokeWidth={1.5} className="w-3.5 h-3.5" />
+                      Suggestions
+                    </Tabs.Trigger>
+                  )}
+                  {result.keyword_analysis.length > 0 && (
+                    <Tabs.Trigger
+                      value="keywords"
+                      className="flex items-center gap-2 pb-3 eyebrow text-[var(--color-ink-faint)] border-b-2 border-transparent data-[state=active]:text-[var(--color-ink)] data-[state=active]:border-[var(--color-accent)] transition-colors"
+                    >
+                      <Hash strokeWidth={1.5} className="w-3.5 h-3.5" />
+                      Keyword analysis
+                    </Tabs.Trigger>
+                  )}
+                </Tabs.List>
+
+                <Tabs.Content value="missing" className="card p-6">
+                  <p className="text-xs text-[var(--color-ink-dim)] mb-4">
+                    Matched skills are confirmed in your resume. Click a flagged skill to stage it for the improved resume.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {result.matched_skills.map(skill => (
+                      <div
+                        key={skill}
+                        className="flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-[10px] border-l-[3px]"
+                        style={{ borderLeftColor: 'var(--color-signal-high)', background: 'var(--color-canvas)' }}
+                      >
+                        <Check strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-[var(--color-signal-high)]" />
+                        <span className="text-sm font-medium text-[var(--color-ink)]">{skill}</span>
                       </div>
                     ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {status === 'success' && result && (
-              <motion.div
-                key="results"
-                variants={containerVariants}
-                initial="hidden"
-                animate="show"
-                className="space-y-5"
-              >
-                {/* Score card */}
-                <motion.div variants={itemVariants} className="glass-card-violet p-6 md:p-7">
-                  <div className="flex items-center justify-between mb-5">
-                    <span className="text-[11px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)]">ats_score.json</span>
-                    <button
-                      onClick={reset}
-                      className="flex items-center gap-1.5 text-xs text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] transition-colors"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Scan another
-                    </button>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-7">
-                    <div className="flex flex-col items-center gap-2 shrink-0">
-                      <ScoreRing score={result.ats_score} />
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)]">Original score</span>
-                    </div>
-
-                    <div className="flex-1 w-full">
-                      <div
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full mb-4 border"
-                        style={{
-                          color: scoreColor(result.ats_score, palette),
-                          backgroundColor: `${scoreColor(result.ats_score, palette)}1a`,
-                          borderColor: `${scoreColor(result.ats_score, palette)}33`,
-                        }}
-                      >
-                        {scoreLabel(result.ats_score)}
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 mb-3">
-                        {[
-                          { label: 'Matched', value: result.matched_skills.length, color: palette.accent },
-                          { label: 'Missing', value: result.missing_skills.length, color: '#EF4444' },
-                          { label: 'Extracted', value: result.extracted_skills.length, color: palette.inkDim },
-                        ].map(stat => (
-                          <div key={stat.label} className="bg-[var(--color-canvas)] border border-[var(--color-canvas-line-soft)] rounded-xl px-3 py-2.5 text-center">
-                            <div className="text-lg font-display font-bold tabular-nums" style={{ color: stat.color }}>
-                              {stat.value}
-                            </div>
-                            <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mt-0.5">
-                              {stat.label}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <AnimatePresence mode="wait">
-                        {selectedSkills.size > 0 && projectedScore !== null ? (
-                          <motion.div
-                            key="diff"
-                            initial={{ opacity: 0, y: -6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.25 }}
-                            className="flex items-center gap-2.5 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/25 rounded-xl px-3.5 py-2.5"
-                          >
-                            <span className="text-xs text-[var(--color-ink-dim)]">Projected after fixes:</span>
-                            <span className="text-sm font-display font-bold text-[var(--color-ink)] tabular-nums">{projectedScore}%</span>
-                            {scoreDelta !== 0 && (
-                              <span className="text-xs font-semibold text-[var(--color-accent-lighter)] tabular-nums">
-                                ({scoreDelta > 0 ? '+' : ''}{scoreDelta} pts)
-                              </span>
-                            )}
-                            <span className="text-[10px] text-[var(--color-ink-faint)] ml-auto">
-                              {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''} staged
-                            </span>
-                          </motion.div>
-                        ) : (
-                          <motion.p
-                            key="hint"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="text-xs text-[var(--color-ink-faint)]"
-                          >
-                            Stage a missing skill in the diff below to see your projected score.
-                          </motion.p>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Result tabs */}
-                <motion.div variants={itemVariants}>
-                  <Tabs.Root value={resultTab} onValueChange={v => setResultTab(v as ResultTab)}>
-                    <Tabs.List className="flex items-center gap-1 mb-3 overflow-x-auto pb-1">
-                      <Tabs.Trigger
-                        value="diff"
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-white/5 data-[state=active]:border-[var(--color-canvas-line)] data-[state=active]:text-[var(--color-ink)] data-[state=active]:bg-[var(--color-canvas-raise)]"
-                      >
-                        <GitCompare className="w-3.5 h-3.5" />
-                        Skill Diff
-                      </Tabs.Trigger>
-                      {result.suggestions.length > 0 && (
-                        <Tabs.Trigger
-                          value="suggestions"
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-white/5 data-[state=active]:border-[var(--color-canvas-line)] data-[state=active]:text-[var(--color-ink)] data-[state=active]:bg-[var(--color-canvas-raise)]"
+                    {result.missing_skills.map(skill => {
+                      const selected = selectedSkills.has(skill)
+                      return (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => toggleSkill(skill)}
+                          className="flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-[10px] border-l-[3px] w-full text-left transition-colors"
+                          style={{
+                            borderLeftColor: selected ? 'var(--color-signal-high)' : 'var(--color-signal-low)',
+                            background: 'var(--color-canvas)',
+                          }}
                         >
-                          <Info className="w-3.5 h-3.5" />
-                          Suggestions
-                        </Tabs.Trigger>
-                      )}
-                      {result.keyword_analysis.length > 0 && (
-                        <Tabs.Trigger
-                          value="keywords"
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-white/5 data-[state=active]:border-[var(--color-canvas-line)] data-[state=active]:text-[var(--color-ink)] data-[state=active]:bg-[var(--color-canvas-raise)]"
-                        >
-                          <Hash className="w-3.5 h-3.5" />
-                          Keywords
-                        </Tabs.Trigger>
-                      )}
-                    </Tabs.List>
-
-                    <Tabs.Content value="diff" className="glass-card p-6">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)]">skills.diff</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-[var(--color-ink-faint)]" />
-                          <span className="w-2 h-2 rounded-full bg-[var(--color-ink-faint)]" />
-                          <span className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
-                        </div>
-                      </div>
-                      <p className="text-xs text-[var(--color-ink-faint)] mb-4">
-                        Matched skills are confirmed in your resume. Click a flagged skill to stage it for the improved resume.
-                      </p>
-                      <div className="font-mono text-xs md:text-sm leading-loose">
-                        {result.matched_skills.map(skill => (
-                          <div key={skill} className="flex items-center gap-2.5">
-                            <span className="text-[var(--color-accent)] select-none w-3 text-center shrink-0">+</span>
-                            <span className="lint-ok text-[var(--color-ink-subtle)]">{skill}</span>
-                          </div>
-                        ))}
-                        {result.missing_skills.map(skill => {
-                          const selected = selectedSkills.has(skill)
-                          return (
-                            <button
-                              key={skill}
-                              type="button"
-                              onClick={() => toggleSkill(skill)}
-                              className="flex items-center gap-2.5 w-full text-left group"
-                            >
-                              <span className={`select-none w-3 text-center shrink-0 ${selected ? 'text-[var(--color-accent)]' : 'text-red-400'}`}>
-                                {selected ? '+' : '-'}
-                              </span>
-                              <span className={selected ? 'lint-ok text-[var(--color-ink-subtle)]' : 'lint-err text-[var(--color-ink-faint)] group-hover:text-[var(--color-ink-subtle)]'}>
-                                {skill}
-                              </span>
-                              {selected && (
-                                <span className="text-[10px] font-sans text-[var(--color-accent-light)] ml-1 shrink-0">staged for fix</span>
-                              )}
-                            </button>
-                          )
-                        })}
-                        {result.matched_skills.length === 0 && result.missing_skills.length === 0 && (
-                          <p className="text-[var(--color-ink-faint)] font-sans">No skill data returned for this scan.</p>
-                        )}
-                      </div>
-                    </Tabs.Content>
-
-                    {result.suggestions.length > 0 && (
-                      <Tabs.Content value="suggestions" className="glass-card p-6">
-                        <ul className="space-y-4">
-                          {result.suggestions.map((s, i) => (
-                            <li
-                              key={i}
-                              className="flex items-start gap-3 text-sm text-[var(--color-ink-subtle)] leading-relaxed border-l-2 border-[var(--color-canvas-line)] pl-3.5"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-accent-light)] mt-0.5 shrink-0" />
-                              {s}
-                            </li>
-                          ))}
-                        </ul>
-                      </Tabs.Content>
+                          {selected
+                            ? <Check strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-[var(--color-signal-high)]" />
+                            : <X strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-[var(--color-signal-low)]" />}
+                          <span className="text-sm font-medium text-[var(--color-ink)]">{skill}</span>
+                          {selected && (
+                            <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-accent)] ml-auto shrink-0">staged for fix</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                    {result.matched_skills.length === 0 && result.missing_skills.length === 0 && (
+                      <p className="text-sm text-[var(--color-ink-faint)]">No skill data returned for this scan.</p>
                     )}
+                  </div>
+                </Tabs.Content>
 
-                    {result.keyword_analysis.length > 0 && (
-                      <Tabs.Content value="keywords" className="glass-card p-6">
-                        <div className="space-y-3">
+                {result.suggestions.length > 0 && (
+                  <Tabs.Content value="suggestions" className="card p-6">
+                    <ol className="space-y-4">
+                      {result.suggestions.map((s, i) => (
+                        <li
+                          key={i}
+                          className="flex items-start gap-3 text-sm text-[var(--color-ink-subtle)] leading-relaxed"
+                        >
+                          <span className="font-mono text-[11px] text-[var(--color-ink-faint)] shrink-0 pt-0.5">{String(i + 1).padStart(2, '0')}</span>
+                          {s}
+                        </li>
+                      ))}
+                    </ol>
+                  </Tabs.Content>
+                )}
+
+                {result.keyword_analysis.length > 0 && (
+                  <Tabs.Content value="keywords" className="card p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div>
+                        <div className="eyebrow text-[10px] mb-3">Present</div>
+                        <div className="flex flex-wrap gap-2">
                           {[...result.keyword_analysis]
+                            .filter(k => k.present)
                             .sort((a, b) => b.frequency - a.frequency)
                             .map(k => (
-                              <div key={k.keyword} className="flex items-center gap-3">
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${k.present ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-ink-faint)]'}`} />
-                                <span className="text-xs font-mono text-[var(--color-ink-subtle)] w-36 truncate shrink-0">{k.keyword}</span>
-                                <div className="flex-1 h-1.5 bg-[var(--color-canvas-line-soft)] rounded-full overflow-hidden">
-                                  <motion.div
-                                    className="h-full rounded-full"
-                                    style={{ backgroundColor: k.present ? palette.accent : palette.inkFaint }}
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${(k.frequency / maxKeywordFreq) * 100}%` }}
-                                    transition={{ duration: 0.6, ease: 'easeOut' }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-mono text-[var(--color-ink-faint)] w-5 text-right shrink-0">{k.frequency}</span>
-                              </div>
+                              <span
+                                key={k.keyword}
+                                className="chip"
+                                style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+                              >
+                                {k.keyword}
+                                <span className="text-[var(--color-ink-faint)]">({k.frequency})</span>
+                              </span>
                             ))}
+                          {result.keyword_analysis.filter(k => k.present).length === 0 && (
+                            <p className="text-sm text-[var(--color-ink-faint)]">No matched keywords.</p>
+                          )}
                         </div>
-                      </Tabs.Content>
-                    )}
-                  </Tabs.Root>
-                </motion.div>
-
-                {/* Generate improved resume */}
-                <motion.div variants={itemVariants} className="glass-card-violet p-6">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="w-4 h-4 text-[var(--color-accent)]" />
-                    <span className="text-sm font-semibold text-[var(--color-ink)]">Update My Resume</span>
-                  </div>
-                  <p className="text-xs text-[var(--color-ink-faint)] mb-5 ml-6">
-                    One click: we merge your {selectedSkills.size} staged skill
-                    {selectedSkills.size !== 1 ? 's' : ''} into your original resume text
-                    {projectedScore !== null && selectedSkills.size > 0 ? ` (→ ${projectedScore}% projected)` : ''} and hand you back a ready-to-send PDF.
-                  </p>
-
-                  <div className="flex flex-col sm:flex-row gap-3 items-start">
-                    <input
-                      value={fullName}
-                      onChange={e => setFullName(e.target.value)}
-                      placeholder="Your Full Name (e.g. John Doe)"
-                      className="input-field flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleGenerate}
-                      disabled={genStatus === 'loading' || selectedSkills.size === 0}
-                      className="btn-violet whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    >
-                      {genStatus === 'loading' ? (
-                        <>
-                          <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-4 h-4" />
-                          Update &amp; Download Resume
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  <AnimatePresence>
-                    {genStatus === 'done' && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-3 flex items-center gap-2 text-sm text-[var(--color-accent)]"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Your updated resume has been downloaded!
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  {genError && (
-                    <div className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">
-                      {genError}
+                      </div>
+                      <div>
+                        <div className="eyebrow text-[10px] mb-3">Missing</div>
+                        <div className="flex flex-wrap gap-2">
+                          {[...result.keyword_analysis]
+                            .filter(k => !k.present)
+                            .sort((a, b) => b.frequency - a.frequency)
+                            .map(k => (
+                              <span
+                                key={k.keyword}
+                                className="chip"
+                                style={{ borderColor: 'var(--color-signal-low)', color: 'var(--color-signal-low)' }}
+                              >
+                                {k.keyword}
+                                <span className="text-[var(--color-ink-faint)]">({k.frequency})</span>
+                              </span>
+                            ))}
+                          {result.keyword_analysis.filter(k => !k.present).length === 0 && (
+                            <p className="text-sm text-[var(--color-ink-faint)]">No missing keywords.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                    <p className="text-[10px] font-mono text-[var(--color-ink-faint)] mt-4">
+                      Frequency counted across {maxKeywordFreq >= 1 ? 'the job description' : 'the job description (no matches found)'}.
+                    </p>
+                  </Tabs.Content>
+                )}
+              </Tabs.Root>
+            </motion.div>
+
+            {/* Generate improved resume */}
+            <motion.div variants={itemVariants} className="card p-6">
+              <div className="eyebrow mb-1">Tailor my resume</div>
+              <p className="text-sm text-[var(--color-ink-dim)] mb-5">
+                {selectedSkills.size > 0 ? (
+                  <>
+                    You&apos;ve staged {selectedSkills.size} missing skill
+                    {selectedSkills.size !== 1 ? 's' : ''} above
+                    {projectedScore !== null ? ` (→ ${projectedScore}% projected)` : ''}. Click below and
+                    we&apos;ll add them to your resume&apos;s existing skills section — same layout, same
+                    formatting, no rebuild from scratch.
+                  </>
+                ) : (
+                  <>Select the missing skills you actually have from the list above, then tailor your resume to include them.</>
+                )}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <input
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="Your full name (e.g. John Doe)"
+                  className="input-field flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={genStatus === 'loading' || selectedSkills.size === 0}
+                  className="btn-primary whitespace-nowrap"
+                >
+                  {genStatus === 'loading' ? (
+                    <>
+                      <span className="w-4 h-4 rounded-full border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] animate-spin" />
+                      Tailoring…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles strokeWidth={1.5} className="w-4 h-4" />
+                      Tailor my resume
+                    </>
                   )}
+                </button>
+              </div>
 
-                  <div className="mt-4 flex items-center gap-2">
-                    <Link
-                      href="/interview"
-                      className="text-xs text-[var(--color-ink-faint)] hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
-                    >
-                      Practice the interview next
-                      <ChevronRight className="w-3 h-3" />
-                    </Link>
+              <AnimatePresence>
+                {genStatus === 'done' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 flex items-center gap-2 text-sm text-[var(--color-accent)]"
+                  >
+                    <CheckCircle2 strokeWidth={1.5} className="w-4 h-4" />
+                    Your tailored resume has been downloaded.
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {genError && (
+                <div className="mt-3 flex items-start gap-2 text-sm text-[var(--color-error)] border-l-[3px] border-[var(--color-error)] pl-3 py-1">
+                  <AlertCircle strokeWidth={1.5} className="w-4 h-4 mt-0.5 shrink-0" />
+                  {genError}
+                </div>
+              )}
+
+              <div className="mt-4">
+                <Link
+                  href="/interview"
+                  className="text-xs text-[var(--color-ink-faint)] hover:text-[var(--color-accent)] transition-colors inline-flex items-center gap-1"
+                >
+                  Practice the interview next
+                  <ChevronRight strokeWidth={1.5} className="w-3 h-3" />
+                </Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {(status === 'idle' || status === 'error') && (
+          <motion.div
+            key="input"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+          >
+            <div className="mb-8">
+              <span className="eyebrow mb-3 inline-flex">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
+                Resume Analyzer
+              </span>
+              <h1 className="text-2xl md:text-3xl font-display italic font-medium text-[var(--color-ink)] mt-3 mb-2">See what the scanner sees.</h1>
+              <p className="text-sm text-[var(--color-ink-dim)] leading-relaxed max-w-xl">
+                Drop in your resume and the job description — we&apos;ll decode exactly what the ATS
+                is scanning for, what&apos;s missing, and how to close the gap.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <form onSubmit={handleSubmit} className="card p-6 flex flex-col gap-5">
+                <div>
+                  <label className="eyebrow mb-2 block">
+                    Resume (PDF or DOCX)
+                  </label>
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
+                    className="cursor-pointer rounded-[16px] px-6 py-8 text-center transition-colors"
+                    style={{
+                      border: dragOver
+                        ? '1px solid var(--color-accent)'
+                        : `1px dashed var(--color-canvas-line)`,
+                      background: dragOver ? 'var(--color-accent-tint)' : 'transparent',
+                      boxShadow: dragOver ? 'var(--glow-signal)' : 'none',
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
+                      className="hidden"
+                      onChange={e => pickFile(e.target.files?.[0] ?? null)}
+                    />
+                    {file ? (
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-[var(--color-accent-tint)] flex items-center justify-center shrink-0">
+                          <FileText strokeWidth={1.5} className="w-4 h-4 text-[var(--color-accent)]" />
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-medium text-[var(--color-ink)] font-mono">{file.name}</div>
+                          <div className="text-xs text-[var(--color-ink-faint)] font-mono">
+                            {(file.size / 1024).toFixed(0)} KB
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setFile(null) }}
+                          aria-label="Remove file"
+                          className="text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] transition-colors ml-1"
+                        >
+                          <X strokeWidth={1.5} className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload strokeWidth={1.5} className="w-6 h-6 text-[var(--color-ink-faint)] mx-auto mb-2" />
+                        <div className="text-sm text-[var(--color-ink-dim)]">Drop your resume here</div>
+                        <div className="text-xs text-[var(--color-ink-faint)] mt-1">or click to browse — PDF or Word (.docx), up to 10 MB</div>
+                      </>
+                    )}
                   </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    </div>
-  )
-}
+                </div>
 
-/* ─── Score Ring ──────────────────────────────────────────────── */
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="eyebrow">
+                      Job Description
+                    </label>
+                    <AnimatePresence>
+                      {pasteNotice && (
+                        <motion.span
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="text-[10px] font-mono text-[var(--color-accent)]"
+                        >
+                          {pasteNotice}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  <textarea
+                    value={jobDescription}
+                    onChange={e => setJobDescription(e.target.value)}
+                    onPaste={handleJobDescriptionPaste}
+                    placeholder="Paste the job posting you are targeting..."
+                    rows={7}
+                    className="input-field resize-y"
+                    style={{ minHeight: 320 }}
+                  />
+                  <div className="text-[10px] font-mono text-[var(--color-ink-faint)] text-right mt-1.5">
+                    {jobDescription.length.toLocaleString()} characters
+                  </div>
+                </div>
 
-function ScoreRing({ score, size = 152 }: { score: number; size?: number }) {
-  const palette = useAccentPalette()
-  const stroke = 10
-  const r = (size - stroke) / 2
-  const c = 2 * Math.PI * r
-  const color = scoreColor(score, palette)
+                <AnimatePresence>
+                  {status === 'error' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="flex items-start gap-2 text-sm text-[var(--color-error)] border-l-[3px] border-[var(--color-error)] pl-3 py-1.5 overflow-hidden"
+                    >
+                      <AlertCircle strokeWidth={1.5} className="w-4 h-4 mt-0.5 shrink-0" />
+                      {error}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={palette.inkFaint} strokeWidth={stroke} />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          initial={{ strokeDashoffset: c }}
-          animate={{ strokeDashoffset: c * (1 - Math.min(100, Math.max(0, score)) / 100) }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="text-4xl font-display font-bold tabular-nums leading-none" style={{ color }}>
-          <AnimatedNumber value={Math.round(score)} />
-        </div>
-        <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mt-1.5">/ 100</div>
-      </div>
-    </div>
-  )
-}
+                <button
+                  type="submit"
+                  disabled={!file}
+                  className="btn-primary w-fit"
+                >
+                  Run the scan
+                </button>
+              </form>
 
-/* ─── Pipeline Stages ─────────────────────────────────────────── */
-
-function PipelineStages({ current }: { current: number }) {
-  const stages = ['Upload', 'Parse', 'Score']
-  return (
-    <div className="flex items-center gap-2">
-      {stages.map((label, i) => (
-        <div key={label} className="flex items-center gap-2">
-          <span className={`stage-dot ${i <= current ? 'stage-dot--active' : ''}`} />
-          <span className={`text-[10px] font-mono uppercase tracking-widest ${i <= current ? 'text-[var(--color-accent-lighter)]' : 'text-[var(--color-ink-faint)]'}`}>
-            {label}
-          </span>
-          {i < stages.length - 1 && <span className="w-4 h-px bg-[var(--color-canvas-line)]" />}
-        </div>
-      ))}
+              <div className="card px-8 py-16 text-center">
+                <div className="w-14 h-14 rounded-full bg-[var(--color-accent-tint)] flex items-center justify-center mx-auto mb-4">
+                  <FileText strokeWidth={1.5} className="w-6 h-6 text-[var(--color-accent)]" />
+                </div>
+                <p className="text-sm text-[var(--color-ink-faint)] max-w-xs mx-auto leading-relaxed">
+                  Run a scan to see your signal strength, the skill gaps, and exactly what to fix.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

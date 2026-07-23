@@ -1,34 +1,24 @@
-'use client'
-
-import { useEffect, type ReactNode } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { useAuth } from '../../lib/AuthContext'
+import { redirect } from 'next/navigation'
+import type { ReactNode } from 'react'
+import { createClient } from '../../lib/supabase/server'
 import { DashboardNav } from '../../components/DashboardNav'
+import { ProtectedTransition } from './ProtectedTransition'
 
-export default function ProtectedLayout({ children }: { children: ReactNode }) {
-  const { user, ready } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
+// middleware.ts already redirects unauthenticated requests before any React
+// rendering happens (the primary gate, with no flicker). This is a second,
+// defense-in-depth check — getClaims() verifies the JWT signature directly
+// rather than trusting a cookie's mere presence.
+export default async function ProtectedLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getClaims()
 
-  useEffect(() => {
-    if (ready && !user) {
-      router.replace(`/login?from=${encodeURIComponent(pathname)}`)
-    }
-  }, [ready, user, router, pathname])
-
-  if (!ready || !user) return null
+  if (error || !data?.claims) {
+    redirect('/login')
+  }
 
   return (
     <DashboardNav>
-      <motion.div
-        key={pathname}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {children}
-      </motion.div>
+      <ProtectedTransition>{children}</ProtectedTransition>
     </DashboardNav>
   )
 }

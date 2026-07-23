@@ -4,51 +4,60 @@ import { useMemo, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import { FileSearch, MessageSquareCode, Trophy, Check } from 'lucide-react';
+import { UploadCloud, ClipboardList, MessageSquareCode, Trophy, Check } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-const ROAD_HEIGHT = 560;
+const ROAD_HEIGHT = 720;
 const CENTER_X = 60;
 const AMPLITUDE = 42;
 
 const CHECKPOINTS = [
   {
-    key: 'predict',
+    key: 'upload',
     num: '01',
-    title: 'Predict',
-    icon: FileSearch,
-    body: 'Know before you apply.',
+    title: 'Upload Resume',
+    icon: UploadCloud,
+    body: 'Drop in your PDF or DOCX.',
     topPct: 6,
   },
   {
-    key: 'practice',
+    key: 'jd',
     num: '02',
-    title: 'Practice',
-    icon: MessageSquareCode,
-    body: 'Rehearse the room.',
-    topPct: 50,
+    title: 'Paste Job Description',
+    icon: ClipboardList,
+    body: 'We match it line by line.',
+    topPct: 35.33,
   },
   {
-    key: 'land',
+    key: 'practice',
     num: '03',
-    title: 'Land',
+    title: 'Practice Interview',
+    icon: MessageSquareCode,
+    body: 'Rehearse the room.',
+    topPct: 64.67,
+  },
+  {
+    key: 'hired',
+    num: '04',
+    title: 'Get Hired',
     icon: Trophy,
     body: 'Walk in ready.',
     topPct: 94,
   },
 ];
 
-// x(f) = CENTER_X + A*sin(2π(f-f0)/period) — chosen so x == CENTER_X exactly
-// at each checkpoint fraction (0.06, 0.50, 0.94 are evenly spaced by 0.44).
-const F0 = 0.06;
-const PERIOD = 0.88;
+// x(f) = CENTER_X + A*sin(2π(f-f0)/period) — period is twice the (even) gap
+// between checkpoint fractions, so x == CENTER_X exactly at every checkpoint.
+const F0 = CHECKPOINTS[0].topPct / 100;
+const GAP = (CHECKPOINTS[CHECKPOINTS.length - 1].topPct - CHECKPOINTS[0].topPct) / 100 / (CHECKPOINTS.length - 1);
+const PERIOD = GAP * 2;
 function roadX(fraction: number) {
   return CENTER_X + AMPLITUDE * Math.sin((2 * Math.PI * (fraction - F0)) / PERIOD);
 }
 
 function buildRoadPath() {
-  const samples = 48;
+  const samples = 64;
   const pts: string[] = [];
   for (let i = 0; i <= samples; i++) {
     const f = i / samples;
@@ -60,13 +69,27 @@ function buildRoadPath() {
 }
 
 function CheckpointCard({ cp }: { cp: (typeof CHECKPOINTS)[number] }) {
-  if (cp.key === 'predict') {
+  if (cp.key === 'upload') {
+    return (
+      <div className="glass-card-violet px-4 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/12 flex items-center justify-center shrink-0">
+          <UploadCloud className="w-4 h-4 text-[var(--color-accent)]" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-[var(--color-ink-subtle)] truncate">harshith_resume.pdf</p>
+          <p className="text-[10px] text-[var(--color-accent-lighter)]">Uploaded &middot; ready to scan</p>
+        </div>
+      </div>
+    );
+  }
+  if (cp.key === 'jd') {
     return (
       <div className="glass-card-violet px-4 py-3">
         <p className="font-mono text-xs text-[var(--color-ink-subtle)] leading-relaxed">
-          &bull; <span className="lint-err">Responsible for</span> checkout services.
+          Looking for a <span className="lint-ok">React</span> engineer with{' '}
+          <span className="lint-ok">TypeScript</span> and <span className="lint-err">GraphQL</span> experience.
         </p>
-        <div className="lint-comment mt-1.5 text-[10px]">{'// weak verb, ATS-penalized'}</div>
+        <div className="lint-comment mt-1.5 text-[10px]">{'// 2 of 3 keywords matched'}</div>
       </div>
     );
   }
@@ -100,7 +123,7 @@ function CheckpointCard({ cp }: { cp: (typeof CHECKPOINTS)[number] }) {
       </div>
       <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
         <Check className="w-3.5 h-3.5" />
-        Ready
+        Hired
       </div>
     </div>
   );
@@ -171,7 +194,7 @@ export function FeatureReveal() {
   }, { scope: roadRef });
 
   return (
-    <section id="how-it-works" className="relative bg-[var(--color-canvas)] py-24 px-4 overflow-hidden">
+    <section id="how-it-works" className="relative bg-[var(--color-canvas)] py-24 px-4 overflow-hidden border-t border-[var(--color-canvas-line-soft)]">
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[var(--color-accent)]/6 rounded-full blur-[180px] pointer-events-none" />
 
       <div className="max-w-3xl mx-auto relative text-center mb-16">
@@ -180,9 +203,9 @@ export function FeatureReveal() {
           How it works
         </span>
         <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4 mb-5">
-          Three checkpoints.
+          Four steps.
           <br />
-          <span className="gradient-text-violet">One outcome.</span>
+          <span className="gradient-text-violet">One offer.</span>
         </h2>
         <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto">
           Scroll through the road below — every stage lights up as you reach it.

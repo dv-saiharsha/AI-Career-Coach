@@ -45,7 +45,7 @@ export function CTASection() {
             </h2>
 
             <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto mb-10 leading-relaxed">
-              Join 50,000+ candidates who&apos;ve used AI Career Coach to get more interviews and
+              Join 50,000+ candidates who&apos;ve used Zenith to get more interviews and
               ace them. Start analyzing your resume for free — no credit card required.
             </p>
 

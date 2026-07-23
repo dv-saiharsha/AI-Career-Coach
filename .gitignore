@@ -13,6 +13,12 @@ backend/*.db
 backend/*.db-journal
 *.pyc
 
+# ATS training data (resumes you paste in, generated CSV, cached LLM labels) —
+# local only, never committed. Seed job descriptions live in backend/scripts/
+# instead (version-controlled, hand-authored, no PII).
+backend/data/*
+!backend/data/.gitkeep
+
 # Frontend (Node/Next.js) — frontend/ has its own .gitignore for its internals,
 # this covers the case of running commands from the repo root too
 frontend/node_modules/
@@ -20,6 +26,14 @@ frontend/.next/
 frontend/out/
 frontend/*.tsbuildinfo
 frontend/next-env.d.ts
+
+# Stray root-level npm install — the real frontend deps live in frontend/.
+# A package.json/node_modules got created at the repo root by accident; kept
+# out of git so the huge node_modules never lands and the multi-lockfile
+# confusion doesn't spread (the bundler root is pinned in next.config.ts).
+/node_modules/
+/package.json
+/package-lock.json
 
 # OS / editor
 .DS_Store

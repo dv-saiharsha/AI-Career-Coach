@@ -46,7 +46,28 @@
       "PowerShell(Stop-Process -Id 10288 -Force -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Process -Id 10288 -ErrorAction SilentlyContinue)",
       "Bash(node check_round4.mjs)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(node check_404.mjs)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(grep -Hm1 ^description: '/d/AI Career Coach/.claude/skills/*/SKILL.md')",
+      "Bash(curl -s http://localhost:3000/resume --max-time 10 > /tmp/resume_page.html *)",
+      "Bash(mkdir -p \"/c/Users/harsh/AppData/Local/Temp/claude/d--AI-Career-Coach/740419b3-e535-4945-89f3-81f85a9ad4b6/scratchpad/pw\")",
+      "Read(//c/Users/harsh/AppData/Local/Temp/claude/d--AI-Career-Coach/740419b3-e535-4945-89f3-81f85a9ad4b6/scratchpad/**)",
+      "Read(//c/Users/harsh/AppData/Local/Temp/claude/d--AI-Career-Coach/740419b3-e535-4945-89f3-81f85a9ad4b6/scratchpad/pw/**)",
+      "Bash(node verify.mjs)",
+      "Bash(node spotcheck.mjs)",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '\\\\''*next dev*'\\\\'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }')",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "PowerShell(8556,12212,14740 | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1; try { Invoke-WebRequest -Uri http://localhost:3000 -TimeoutSec 3 -UseBasicParsing | Out-Null; \"still up\" } catch { \"stopped\" })",
+      "Bash(node audit.mjs)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

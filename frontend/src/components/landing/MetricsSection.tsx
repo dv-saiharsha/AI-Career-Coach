@@ -30,7 +30,7 @@ export function MetricsSection() {
             By the numbers
           </span>
           <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4">
-            Signal, not noise.
+            Your score is one upload away.
           </h2>
         </motion.div>
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Mail, Globe, MessageCircle } from 'lucide-react';
+import { ZenithMark } from './ZenithMark';
 
 const LINKS = {
   Product: [
@@ -27,7 +28,7 @@ const LINKS = {
 const SOCIALS = [
   { icon: Globe, href: '#', label: 'Website' },
   { icon: MessageCircle, href: '#', label: 'Community' },
-  { icon: Mail, href: 'mailto:hello@aicareercoach.ai', label: 'Email' },
+  { icon: Mail, href: 'mailto:hello@zenith.ai', label: 'Email' },
 ];
 
 export default function Footer() {
@@ -38,8 +39,8 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4 group">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[var(--color-accent)] to-[var(--color-accent-light)]" />
-              <span className="font-display font-semibold text-[var(--color-ink)] text-[15px]">AI Career Coach</span>
+              <ZenithMark className="w-7 h-7" />
+              <span className="font-display font-semibold text-[var(--color-ink)] text-[15px]">Zenith</span>
             </Link>
             <p className="text-sm text-[var(--color-ink-faint)] leading-relaxed mb-5">
               AI-powered resume analysis and interview practice for the modern job seeker.
@@ -78,7 +79,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="flex flex-col md:flex-row items-center justify-between pt-8 border-t border-[var(--color-canvas-line-soft)] gap-4">
           <p className="text-xs text-[var(--color-ink-faint)]">
-            Â© {new Date().getFullYear()} AI Career Coach. All rights reserved.
+            © {new Date().getFullYear()} Zenith. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             <span className="text-xs text-[var(--color-ink-faint)]">Made with precision for job seekers worldwide</span>

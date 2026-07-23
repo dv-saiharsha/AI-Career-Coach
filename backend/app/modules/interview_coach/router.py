@@ -2,14 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
-from app.models.user import User
-from app.modules.interview_coach.services import evaluate_answer, generate_questions
+from app.modules.interview_coach.services import evaluate_answer, generate_questions, model_answer
 from app.schemas.interview import (
     EvaluationRequestSchema,
     FeedbackSchema,
     InterviewHistoryItemSchema,
+    ModelAnswerRequestSchema,
+    ModelAnswerSchema,
     QuestionRequestSchema,
     QuestionsResponseSchema,
 )
@@ -21,7 +22,7 @@ router = APIRouter()
 def create_questions(
     req: QuestionRequestSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     raw_questions = generate_questions(req.role, req.seniority)
 
@@ -51,7 +52,7 @@ def create_questions(
 def evaluate(
     req: EvaluationRequestSchema,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     question = (
         db.query(InterviewQuestion)
@@ -78,8 +79,26 @@ def evaluate(
     return result
 
 
+@router.post("/model-answer", response_model=ModelAnswerSchema)
+def get_model_answer(
+    req: ModelAnswerRequestSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    row = (
+        db.query(InterviewQuestion, InterviewSession)
+        .join(InterviewSession, InterviewQuestion.session_id == InterviewSession.id)
+        .filter(InterviewQuestion.id == req.question_id, InterviewSession.user_id == current_user.id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Question not found")
+    question, session = row
+    return model_answer(question.text, question.question_type, session.role, session.seniority)
+
+
 @router.get("/history", response_model=list[InterviewHistoryItemSchema])
-def history(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def history(db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)):
     sessions = (
         db.query(InterviewSession)
         .filter(InterviewSession.user_id == current_user.id)

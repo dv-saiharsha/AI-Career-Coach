@@ -172,7 +172,7 @@ export default function SettingsPage() {
               className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 activeSection === id
                   ? id === 'danger'
-                    ? 'text-[#EF4444]'
+                    ? 'text-[var(--color-error)]'
                     : 'text-[var(--color-ink)]'
                   : 'text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
               }`}
@@ -180,7 +180,7 @@ export default function SettingsPage() {
               {activeSection === id && (
                 <motion.span
                   layoutId="settings-active-pill"
-                  className={`absolute inset-0 rounded-xl ${id === 'danger' ? 'bg-[#EF4444]/10' : 'bg-[var(--color-accent)]/10'}`}
+                  className={`absolute inset-0 rounded-xl ${id === 'danger' ? 'bg-[var(--color-error)]/10' : 'bg-[var(--color-accent)]/10'}`}
                   transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                 />
               )}
@@ -269,8 +269,8 @@ export default function SettingsPage() {
 
             {activeSection === 'danger' && (
               <div className="space-y-5">
-                <h2 className="text-base font-semibold text-[#EF4444]">Danger Zone</h2>
-                <div className="p-4 bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-xl">
+                <h2 className="text-base font-semibold text-[var(--color-error)]">Danger Zone</h2>
+                <div className="p-4 bg-[var(--color-error)]/5 border border-[var(--color-error)]/20 rounded-xl">
                   <div className="text-sm font-medium text-[var(--color-ink)] mb-1">Delete Account</div>
                   <div className="text-xs text-[var(--color-ink-dim)] mb-4">
                     Permanently delete your account and all associated data. This action cannot be undone.
@@ -278,7 +278,7 @@ export default function SettingsPage() {
 
                   <DialogPrimitive.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
                     <DialogPrimitive.Trigger asChild>
-                      <button className="flex items-center gap-2 bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/25 px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#EF4444]/20 transition-colors">
+                      <button className="flex items-center gap-2 bg-[var(--color-error)]/10 text-[var(--color-error)] border border-[var(--color-error)]/25 px-4 py-2 rounded-xl text-sm font-medium hover:bg-[var(--color-error)]/20 transition-colors">
                         <Trash2 className="w-4 h-4" />
                         Delete my account
                       </button>
@@ -304,8 +304,8 @@ export default function SettingsPage() {
                               exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%' }}
                               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                             >
-                              <div className="w-11 h-11 rounded-full bg-[#EF4444]/10 border border-[#EF4444]/25 flex items-center justify-center mb-4">
-                                <TriangleAlert className="w-5 h-5 text-[#EF4444]" />
+                              <div className="w-11 h-11 rounded-full bg-[var(--color-error)]/10 border border-[var(--color-error)]/25 flex items-center justify-center mb-4">
+                                <TriangleAlert className="w-5 h-5 text-[var(--color-error)]" />
                               </div>
                               <DialogPrimitive.Title className="text-base font-semibold text-[var(--color-ink)] mb-1.5">
                                 Delete your account?
@@ -323,7 +323,7 @@ export default function SettingsPage() {
                                 <button
                                   onClick={handleDelete}
                                   disabled={deleting}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#EF4444] text-[var(--color-ink)] hover:bg-[#DC2626] transition-colors disabled:opacity-60"
+                                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[var(--color-error)] text-white hover:bg-[var(--color-error-dim)] transition-colors disabled:opacity-60"
                                 >
                                   {deleting ? (
                                     <>

@@ -4,7 +4,7 @@ import { LandingNav } from '../../components/landing/LandingNav';
 import Footer from '../../components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Pricing — AI Career Coach',
+  title: 'Pricing — Zenith',
   description: 'Simple, transparent pricing for AI Resume Analyzer and Interview Coach.',
 };
 

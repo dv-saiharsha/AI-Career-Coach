@@ -31,6 +31,17 @@ class FeedbackSchema(BaseModel):
     sample_answer: Optional[str] = None
 
 
+class ModelAnswerRequestSchema(BaseModel):
+    question_id: int
+
+
+class ModelAnswerSchema(BaseModel):
+    ideal_answer: str
+    example: str
+    plain_explanation: str
+    key_points: List[str] = []
+
+
 class InterviewHistoryItemSchema(BaseModel):
     id: int
     role: str

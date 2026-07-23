@@ -21,8 +21,8 @@ const TEAM: {
   {
     name: 'Venkata Sai Harshith Danda',
     role: 'Founder & Frontend Engineer & AI Engineer',
-    blurb: 'The original idea behind AI Career Coach. Designs and builds every pixel of the UI and frontend.',
-    bio: "AI Career Coach started as Venkata Sai's idea — the whole product, from the particle hero to the resume diagnostics, was designed and built by him. He owns the entire frontend: every screen, animation, and interaction in the app.",
+    blurb: 'The original idea behind Zenith. Designs and builds every pixel of the UI and frontend.',
+    bio: "Zenith started as Venkata Sai's idea — the whole product, from the particle hero to the resume diagnostics, was designed and built by him. He owns the entire frontend: every screen, animation, and interaction in the app.",
     responsibilities: ['Product direction', 'UI/UX design', 'Frontend architecture (Next.js/React)', 'Motion & interaction design'],
     initials: 'VS',
     from: '#8B5CF6',
@@ -33,7 +33,7 @@ const TEAM: {
     name: 'Varma Tamada',
     role: 'Backend Engineer & Data Engineer',
     blurb: 'Owns the backend and everything related to data storage and persistence.',
-    bio: 'Varma owns the backend end-to-end — the API layer, business logic, and everything related to how AI Career Coach stores and serves data, from resume analyses to interview history.',
+    bio: 'Varma owns the backend end-to-end — the API layer, business logic, and everything related to how Zenith stores and serves data, from resume analyses to interview history.',
     responsibilities: ['API design (FastAPI)', 'Database & data storage', 'Backend architecture', 'Data pipelines'],
     initials: 'V',
     from: '#7C3AED',
@@ -55,7 +55,7 @@ const TEAM: {
     name: 'Kamal Ravula',
     role: 'Security Engineer ',
     blurb: 'Implements authentication, data protection, and security across the platform.',
-    bio: "Kamal is responsible for keeping the platform and its users safe — authentication, data protection, and security practices across every layer of AI Career Coach.",
+    bio: "Kamal is responsible for keeping the platform and its users safe — authentication, data protection, and security practices across every layer of Zenith.",
     responsibilities: ['Authentication & authorization', 'Data protection & encryption', 'Security audits', 'Vulnerability management'],
     initials: 'K',
     from: '#A78BFA',
@@ -76,8 +76,8 @@ const TEAM: {
   {
     name: 'Shiva Valluri',
     role: 'Marketing Lead',
-    blurb: 'Drives growth, positioning, and marketing for AI Career Coach.',
-    bio: 'Shiva drives how the world finds out about AI Career Coach — positioning, growth strategy, content, and everything marketing-related for the product.',
+    blurb: 'Drives growth, positioning, and marketing for Zenith.',
+    bio: 'Shiva drives how the world finds out about Zenith — positioning, growth strategy, content, and everything marketing-related for the product.',
     responsibilities: ['Growth strategy', 'Brand & positioning', 'Content & campaigns', 'User acquisition'],
     initials: 'S',
     from: '#C4B5FD',
@@ -99,6 +99,8 @@ export function TeamSection() {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [failedPhotos, setFailedPhotos] = useState<Set<string>>(new Set());
+  const markPhotoFailed = (src: string) => setFailedPhotos((prev) => new Set(prev).add(src));
   const activeMember = openIndex !== null ? TEAM[openIndex] : null;
 
   const advance = useCallback((dir: 1 | -1) => {
@@ -166,14 +168,19 @@ export function TeamSection() {
                   onClick={() => (isCenter ? setOpenIndex(i) : setActive(i))}
                   className="block w-full text-left rounded-3xl overflow-hidden border border-[var(--color-canvas-line)] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)]"
                 >
-                  {/* Photo area — real photo if provided, else gradient + initials */}
+                  {/* Photo area — real photo if provided and loadable, else gradient + initials */}
                   <div
                     className="relative h-[300px] flex items-center justify-center"
-                    style={member.photo ? undefined : { background: `linear-gradient(160deg, ${member.from}55, ${member.to}dd)` }}
+                    style={member.photo && !failedPhotos.has(member.photo) ? undefined : { background: `linear-gradient(160deg, ${member.from}55, ${member.to}dd)` }}
                   >
-                    {member.photo ? (
+                    {member.photo && !failedPhotos.has(member.photo) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={member.photo} alt={member.name} className="absolute inset-0 w-full h-full object-cover" />
+                      <img
+                        src={member.photo}
+                        alt={member.name}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={() => markPhotoFailed(member.photo!)}
+                      />
                     ) : (
                       <>
                         <div
@@ -264,11 +271,16 @@ export function TeamSection() {
               <>
                 <div
                   className="relative h-40 flex items-center justify-center"
-                  style={activeMember.photo ? undefined : { background: `linear-gradient(160deg, ${activeMember.from}55, ${activeMember.to}dd)` }}
+                  style={activeMember.photo && !failedPhotos.has(activeMember.photo) ? undefined : { background: `linear-gradient(160deg, ${activeMember.from}55, ${activeMember.to}dd)` }}
                 >
-                  {activeMember.photo ? (
+                  {activeMember.photo && !failedPhotos.has(activeMember.photo) ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={activeMember.photo} alt={activeMember.name} className="absolute inset-0 w-full h-full object-cover" />
+                    <img
+                      src={activeMember.photo}
+                      alt={activeMember.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={() => markPhotoFailed(activeMember.photo!)}
+                    />
                   ) : (
                     <span className="font-display font-bold text-[var(--color-ink)]/25 text-[70px] leading-none select-none">
                       {activeMember.initials}

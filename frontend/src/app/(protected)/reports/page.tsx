@@ -103,7 +103,7 @@ export default function ReportsPage() {
         </div>
         <Link
           href="/resume"
-          className="flex items-center gap-2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.25)]"
+          className="btn-primary"
         >
           <Plus className="w-4 h-4" />
           New Analysis
@@ -223,7 +223,7 @@ export default function ReportsPage() {
                         Download
                       </DropdownMenu.Item>
                       <DropdownMenu.Separator className="h-px bg-[var(--color-canvas-line)] my-1.5" />
-                      <DropdownMenu.Item className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-ink-dim)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors outline-none cursor-pointer">
+                      <DropdownMenu.Item className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-ink-dim)] hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors outline-none cursor-pointer">
                         <Trash2 className="w-3.5 h-3.5" />
                         Delete
                       </DropdownMenu.Item>

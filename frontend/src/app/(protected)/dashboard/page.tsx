@@ -102,7 +102,7 @@ export default function DashboardPage() {
             Dashboard
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-[var(--color-ink)] leading-tight">
-            {greeting}, <span className="gradient-text-violet">{user?.email?.split('@')[0] ?? 'there'}</span>
+            {greeting}, <span className="gradient-text-violet">{user?.firstName || 'there'}</span>
           </h1>
           <p className="text-sm text-[var(--color-ink-dim)] mt-1.5">
             Here&apos;s your career progress overview.

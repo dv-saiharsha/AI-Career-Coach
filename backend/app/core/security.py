@@ -1,42 +1,34 @@
-import hashlib
-import hmac
-import os
-from datetime import datetime, timedelta, timezone
-
 import jwt
+from jwt import PyJWKClient
+from jwt.exceptions import PyJWKClientError
 
 from app.core.config import settings
 
-# PBKDF2-SHA256 is stdlib-only (no bcrypt/cryptography build step needed on Windows).
-_HASH_ITERATIONS = 260_000
+# Supabase now recommends asymmetric signing keys (JWKS) over the legacy
+# shared HS256 secret (see Settings -> JWT in the Supabase dashboard — new
+# projects default to signing keys; older projects may still be on the
+# legacy secret only, which has no usable JWKS entry). We try JWKS first
+# and fall back to the shared secret so this works either way without
+# needing to know in advance which mode a given project is in.
+_EXPECTED_AUDIENCE = "authenticated"
+_jwks_client: PyJWKClient | None = None
 
 
-def hash_password(password: str) -> str:
-    salt = os.urandom(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _HASH_ITERATIONS)
-    return f"{salt.hex()}${digest.hex()}"
+def _get_jwks_client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json")
+    return _jwks_client
 
 
-def verify_password(password: str, stored: str) -> bool:
+def verify_supabase_token(token: str) -> dict:
+    """Validates a Supabase-issued access token and returns its claims
+    (sub = user UUID, email, ...). Raises jwt.PyJWTError subclasses on
+    failure — PyJWKClientError (no matching/reachable JWKS key) included."""
     try:
-        salt_hex, digest_hex = stored.split("$")
-    except ValueError:
-        return False
-    salt = bytes.fromhex(salt_hex)
-    expected = bytes.fromhex(digest_hex)
-    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _HASH_ITERATIONS)
-    return hmac.compare_digest(actual, expected)
-
-
-def create_access_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": subject, "exp": expire}
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-
-def decode_access_token(token: str) -> str:
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    subject = payload.get("sub")
-    if subject is None:
-        raise jwt.InvalidTokenError("Token missing subject")
-    return subject
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+        return jwt.decode(token, signing_key.key, algorithms=["RS256", "ES256"], audience=_EXPECTED_AUDIENCE)
+    except PyJWKClientError:
+        if not settings.SUPABASE_JWT_SECRET:
+            raise
+        return jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"], audience=_EXPECTED_AUDIENCE)

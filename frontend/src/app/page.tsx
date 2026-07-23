@@ -1,10 +1,12 @@
 import { LandingNav } from "../components/landing/LandingNav";
 import { HeroSection } from "../components/landing/HeroSection";
 import { TrustedSection } from "../components/landing/TrustedSection";
+import { FeaturesGrid } from "../components/landing/FeaturesGrid";
 import { FeatureReveal } from "../components/landing/FeatureReveal";
-import { MetricsSection } from "../components/landing/MetricsSection";
 import { ProductShowcase } from "../components/landing/ProductShowcase";
+import { MetricsSection } from "../components/landing/MetricsSection";
 import { TeamSection } from "../components/landing/TeamSection";
+import { TestimonialsSection } from "../components/landing/TestimonialsSection";
 import { PricingSection } from "../components/landing/PricingSection";
 import { FAQSection } from "../components/landing/FAQSection";
 import { CTASection } from "../components/landing/CTASection";
@@ -16,10 +18,12 @@ export default function Home() {
       <LandingNav />
       <HeroSection />
       <TrustedSection />
+      <FeaturesGrid />
       <FeatureReveal />
-      <MetricsSection />
       <ProductShowcase />
+      <MetricsSection />
       <TeamSection />
+      <TestimonialsSection />
       <PricingSection />
       <FAQSection />
       <CTASection />

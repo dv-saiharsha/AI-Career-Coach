@@ -1,25 +1,25 @@
 'use client'
 
-import axios from 'axios'
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, ArrowRight, Mail, Lock, CheckCircle2 } from 'lucide-react'
+import { Eye, EyeOff, ArrowRight, Mail, Lock, CheckCircle2, User } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { AuthShowcase } from '../../components/auth/AuthShowcase'
 import { useAccentPalette } from '../../lib/useAccentPalette'
+import { ZenithMark } from '../../components/ZenithMark'
 
 export default function Register() {
   const { register } = useAuth()
-  const router = useRouter()
   const palette = useAccentPalette()
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'sent'>('idle')
   const [error, setError] = useState('')
 
   const passwordStrength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : 3
@@ -41,11 +41,12 @@ export default function Register() {
     setStatus('loading')
     setError('')
     try {
-      await register(email, password)
-      router.replace('/dashboard')
+      await register(email, password, firstName.trim(), lastName.trim())
+      // Supabase requires email confirmation before a session exists — no
+      // active session to send them into /dashboard with yet.
+      setStatus('sent')
     } catch (err) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.detail : null
-      setError(message || 'Could not create account. Try a different email.')
+      setError(err instanceof Error ? err.message : 'Could not create account. Try a different email.')
       setStatus('error')
     }
   }
@@ -75,8 +76,8 @@ export default function Register() {
           className="flex justify-center mb-8 lg:hidden"
         >
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[var(--color-accent)] to-[var(--color-accent-light)] shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.4)]" />
-            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">AI Career Coach</span>
+            <ZenithMark className="w-8 h-8" />
+            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
           </Link>
         </motion.div>
 
@@ -86,6 +87,22 @@ export default function Register() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="bg-[var(--color-canvas-raise)]/80 backdrop-blur-xl border border-[var(--color-canvas-line)] rounded-2xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.5)]"
         >
+          {status === 'sent' ? (
+            <div className="text-center py-4">
+              <div className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5">
+                <CheckCircle2 className="w-7 h-7 text-[var(--color-accent)]" />
+              </div>
+              <h1 className="text-xl font-display font-semibold text-[var(--color-ink)] mb-2">Check your email</h1>
+              <p className="text-sm text-[var(--color-ink-dim)] mb-6">
+                We sent a confirmation link to <strong className="text-[var(--color-ink)]">{email}</strong>. Click it
+                to activate your account and sign in.
+              </p>
+              <Link href="/login" className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors">
+                Back to sign in
+              </Link>
+            </div>
+          ) : (
+          <>
           <div className="mb-7">
             <h1 className="text-2xl font-display font-semibold text-[var(--color-ink)] mb-2">Claim your edge</h1>
             <p className="text-sm text-[var(--color-ink-dim)]">Free to start. No credit card. Just a sharper resume and a sharper interview.</p>
@@ -102,6 +119,45 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="firstName" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
+                  First name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
+                  <input
+                    id="firstName"
+                    type="text"
+                    required
+                    autoComplete="given-name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="John"
+                    className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="lastName" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
+                  Last name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
+                  <input
+                    id="lastName"
+                    type="text"
+                    required
+                    autoComplete="family-name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Doe"
+                    className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div>
               <label htmlFor="email" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
                 Email address
@@ -206,7 +262,7 @@ export default function Register() {
             >
               {status === 'loading' ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
                   Creating account...
                 </>
               ) : (
@@ -224,6 +280,8 @@ export default function Register() {
               <Link href="#" className="text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] transition-colors">Privacy Policy</Link>.
             </p>
           </form>
+          </>
+          )}
         </motion.div>
 
         <motion.p

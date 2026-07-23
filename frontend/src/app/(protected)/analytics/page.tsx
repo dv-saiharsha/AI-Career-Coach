@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
                 <stop offset="100%" stopColor={violet} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="#1e1e1e" strokeDasharray="3 3" />
+            <CartesianGrid vertical={false} stroke={palette.inkFaint} strokeOpacity={0.25} strokeDasharray="3 3" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
             <YAxis hide domain={[0, 100]} />
             <Tooltip content={<TrendTooltip />} cursor={{ stroke: palette.inkFaint, strokeWidth: 1 }} />
@@ -210,13 +210,13 @@ export default function AnalyticsPage() {
           <p className="text-xs text-[var(--color-ink-faint)] mb-4">Average score across practiced topics</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={SKILL_BREAKDOWN} layout="vertical" margin={{ top: 0, right: 34, left: 0, bottom: 0 }}>
-              <CartesianGrid horizontal={false} stroke="#1e1e1e" strokeDasharray="3 3" />
+              <CartesianGrid horizontal={false} stroke={palette.inkFaint} strokeOpacity={0.25} strokeDasharray="3 3" />
               <XAxis type="number" domain={[0, 100]} hide />
               <YAxis
                 type="category"
                 dataKey="skill"
                 width={112}
-                tick={{ fontSize: 12, fill: '#FAFAFA' }}
+                tick={{ fontSize: 12, fill: palette.inkDim }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -243,7 +243,7 @@ export default function AnalyticsPage() {
           <p className="text-xs text-[var(--color-ink-faint)] mb-4">Interview sessions per month</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={MONTHLY_SESSIONS} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="#1e1e1e" strokeDasharray="3 3" />
+              <CartesianGrid vertical={false} stroke={palette.inkFaint} strokeOpacity={0.25} strokeDasharray="3 3" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
               <YAxis hide domain={[0, 'dataMax + 2']} />
               <Tooltip content={<SessionsTooltip />} cursor={{ fill: 'rgba(var(--color-accent-rgb),0.06)' }} />
