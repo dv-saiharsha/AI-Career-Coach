@@ -38,6 +38,7 @@ from seed_job_descriptions import SEED_JOB_DESCRIPTIONS  # noqa: E402
 
 RESUMES_DIR = Path(__file__).resolve().parent.parent / "data" / "raw" / "resumes"
 LABELS_CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "raw" / "labels"
+GENERATED_JDS_PATH = Path(__file__).resolve().parent.parent / "data" / "raw" / "generated_jds.json"
 OUTPUT_CSV = Path(__file__).resolve().parent.parent / "data" / "training_data.csv"
 
 PLACEHOLDER_MARKER = "PLACEHOLDER — NOT YET FILLED IN"
@@ -83,6 +84,43 @@ def build_pairs(resumes: list[dict]) -> list[dict]:
     return pairs
 
 
+def load_generated_jds() -> list[dict]:
+    """Reads the large generated JD set (generate_job_descriptions.py output)."""
+    if not GENERATED_JDS_PATH.exists():
+        return []
+    return json.loads(GENERATED_JDS_PATH.read_text(encoding="utf-8"))
+
+
+def build_sampled_pairs(resumes: list[dict], jds: list[dict], per_jd: int = 4) -> list[dict]:
+    """Pairs each generated JD with a *quality-spanning* set of in-role resumes,
+    rather than the full cross. The existing seed pairs already supply abundant
+    low/cross-role examples; these new pairs deliberately add the high/mid
+    in-role examples the dataset is short on, fixing the class imbalance."""
+    by_key: dict[tuple[str, str], dict] = {(r["role"], r["tier"]): r for r in resumes}
+    pairs = []
+    for i, jd in enumerate(jds):
+        role = jd["role"]
+        # Alternate resume variants across JDs so all six in-role resumes get used.
+        a, b = ("", "-b") if i % 2 == 0 else ("-b", "")
+        wanted_tiers = [f"strong{a}", f"partial{b}", f"weak{a}", f"strong{b}"][:per_jd]
+        for tier in wanted_tiers:
+            resume = by_key.get((role, tier))
+            if not resume:
+                continue
+            pairs.append(
+                {
+                    "resume_role": resume["role"],
+                    "resume_tier": resume["tier"],
+                    "resume_text": resume["text"],
+                    "jd_id": jd["id"],
+                    "jd_role": role,
+                    "job_description": jd["text"],
+                    "in_role": True,
+                }
+            )
+    return pairs
+
+
 def estimate_cost(pairs: list[dict]) -> tuple[int, float]:
     total_input_chars = sum(len(p["resume_text"][:8000]) + len(p["job_description"][:4000]) for p in pairs)
     est_input_tokens = total_input_chars // 4
@@ -111,6 +149,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--confirm", action="store_true", help="Actually call the LLM and write training_data.csv")
     parser.add_argument("--limit", type=int, default=None, help="Only label the first N pairs (smoke test)")
+    parser.add_argument("--per-jd", type=int, default=4, help="In-role resumes paired with each generated JD")
     args = parser.parse_args()
 
     resumes, skipped = load_resumes()
@@ -125,17 +164,37 @@ def main():
         print("Fill in at least one placeholder file (delete the '#'-prefixed header, paste resume text) and rerun.")
         return
 
-    pairs = build_pairs(resumes)
+    # Seed pairs: full cross of the 17 hand-authored JDs (mostly already cached).
+    # Sampled pairs: each generated JD x a quality-spanning in-role resume set.
+    seed_pairs = build_pairs(resumes)
+    generated_jds = load_generated_jds()
+    sampled_pairs = build_sampled_pairs(resumes, generated_jds, per_jd=args.per_jd)
+
+    # Combine and de-dupe by (resume, jd) content so nothing is labeled twice.
+    seen: set[str] = set()
+    pairs = []
+    for p in seed_pairs + sampled_pairs:
+        k = cache_key(p["resume_text"], p["job_description"])
+        if k in seen:
+            continue
+        seen.add(k)
+        pairs.append(p)
+
     if args.limit:
         pairs = pairs[: args.limit]
 
-    est_tokens, est_cost = estimate_cost(pairs)
+    uncached_pairs = [
+        p for p in pairs
+        if not (LABELS_CACHE_DIR / f"{cache_key(p['resume_text'], p['job_description'])}.json").exists()
+    ]
+    already_cached = len(pairs) - len(uncached_pairs)
+    _, est_cost = estimate_cost(uncached_pairs)
     in_role = sum(1 for p in pairs if p["in_role"])
-    print(f"Resumes provided: {len(resumes)} (across {len({r['role'] for r in resumes})} roles)")
-    print(f"Job descriptions: {len(SEED_JOB_DESCRIPTIONS)}")
-    print(f"Pairs to label:   {len(pairs)}  ({in_role} in-role, {len(pairs) - in_role} cross-role)")
-    print(f"Estimated tokens: ~{est_tokens:,}")
-    print(f"Estimated cost:   ~${est_cost:.2f} (claude-sonnet-5 intro pricing)")
+    print(f"Resumes: {len(resumes)}  |  Seed JDs: {len(SEED_JOB_DESCRIPTIONS)}  |  Generated JDs: {len(generated_jds)}")
+    print(f"Total pairs:      {len(pairs)}  ({in_role} in-role, {len(pairs) - in_role} cross-role)")
+    print(f"Already cached:   {already_cached} (free)")
+    print(f"New to label:     {len(uncached_pairs)}")
+    print(f"Estimated cost:   ~${est_cost:.2f} for the new pairs (claude-sonnet-5 intro pricing)")
     print()
 
     if not args.confirm:

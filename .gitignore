@@ -19,6 +19,11 @@ backend/*.db-journal
 backend/data/*
 !backend/data/.gitkeep
 
+# Trained ATS model binary — regenerate locally via scripts/train_ats_model.py.
+# Metadata (accuracy, dataset size, training date) stays tracked — it's the
+# small, useful record of what's currently deployed.
+backend/app/ml/models/*.joblib
+
 # Frontend (Node/Next.js) — frontend/ has its own .gitignore for its internals,
 # this covers the case of running commands from the repo root too
 frontend/node_modules/

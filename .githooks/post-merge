@@ -1,0 +1,48 @@
+#!/bin/sh
+# Runs automatically after `git pull` / `git merge`, once each teammate has
+# done the one-time setup: `git config core.hooksPath .githooks` (see
+# README.md "Working as a team"). Reinstalls dependencies when the pulled
+# changes touched them, so nobody has to remember "did requirements.txt
+# change? better reinstall" after every pull.
+#
+# Database migrations are deliberately NOT auto-applied here — this project's
+# Supabase database is shared across the team, so schema changes stay a
+# reviewed, manual step rather than something a `git pull` can trigger.
+
+changed_files=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null)
+
+if [ -z "$changed_files" ]; then
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+
+echo "post-merge: checking for dependency/schema changes..."
+
+if echo "$changed_files" | grep -q '^backend/requirements\.txt$'; then
+  echo "  backend/requirements.txt changed -> reinstalling Python dependencies"
+  if [ -f "$repo_root/backend/.venv/Scripts/python.exe" ]; then
+    "$repo_root/backend/.venv/Scripts/python.exe" -m pip install -r "$repo_root/backend/requirements.txt"
+  elif [ -f "$repo_root/backend/.venv/bin/python" ]; then
+    "$repo_root/backend/.venv/bin/python" -m pip install -r "$repo_root/backend/requirements.txt"
+  else
+    echo "  No backend/.venv found yet -- create one first (see README setup steps),"
+    echo "  then run: pip install -r backend/requirements.txt"
+  fi
+fi
+
+if echo "$changed_files" | grep -qE '^frontend/(package\.json|package-lock\.json)$'; then
+  echo "  frontend package.json/lockfile changed -> reinstalling npm dependencies"
+  (cd "$repo_root/frontend" && npm install)
+fi
+
+if echo "$changed_files" | grep -q '^backend/alembic/versions/'; then
+  echo ""
+  echo "  NOTE: new database migration(s) were pulled. The Supabase database is"
+  echo "  shared, so migrations are never auto-applied. Review the migration,"
+  echo "  then run:"
+  echo "    cd backend && .venv\\Scripts\\python.exe -m alembic upgrade head"
+  echo ""
+fi
+
+echo "post-merge: done."
