@@ -61,7 +61,7 @@ function TestimonialCard({ t }: { t: (typeof TESTIMONIALS)[number] }) {
         </Avatar>
         <div>
           <div className="text-sm font-semibold text-foreground">{t.name}</div>
-          <div className="text-xs text-muted">{t.role}</div>
+          <div className="text-xs text-ink-dim">{t.role}</div>
         </div>
       </div>
     </div>

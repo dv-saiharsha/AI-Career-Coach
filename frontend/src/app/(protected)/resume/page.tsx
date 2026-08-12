@@ -16,6 +16,9 @@ import {
   type AnalysisResult,
 } from '../../../lib/apiClient'
 import { usePrefersReducedMotion } from '../../../lib/usePrefersReducedMotion'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 type GenStatus = 'idle' | 'loading' | 'done' | 'error'
@@ -304,13 +307,10 @@ export default function ResumeAnalyzer() {
                 </span>
                 <h1 className="text-2xl md:text-3xl font-display italic font-medium text-[var(--color-ink)] mt-2">Here&apos;s how you match up.</h1>
               </div>
-              <button
-                onClick={reset}
-                className="btn-ghost flex items-center gap-1.5"
-              >
-                <RotateCcw strokeWidth={1.5} className="w-3.5 h-3.5" />
+              <Button variant="ghost" size="sm" onClick={reset}>
+                <RotateCcw strokeWidth={1.5} />
                 Run new scan
-              </button>
+              </Button>
             </motion.div>
 
             <motion.div variants={itemVariants}>
@@ -393,14 +393,16 @@ export default function ResumeAnalyzer() {
                     {result.missing_skills.map(skill => {
                       const selected = selectedSkills.has(skill)
                       return (
-                        <button
+                        <Button
                           key={skill}
                           type="button"
+                          variant="ghost"
                           onClick={() => toggleSkill(skill)}
-                          className="flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-[10px] border-l-[3px] w-full text-left transition-colors"
+                          aria-pressed={selected}
+                          className="h-auto w-full justify-start gap-2.5 rounded-[10px] border-l-[3px] py-2.5 pl-3 pr-4 text-left"
                           style={{
-                            borderLeftColor: selected ? 'var(--color-signal-high)' : 'var(--color-signal-low)',
-                            background: 'var(--color-canvas)',
+                            borderLeftColor: selected ? 'var(--success)' : 'var(--danger)',
+                            background: 'var(--canvas)',
                           }}
                         >
                           {selected
@@ -410,7 +412,7 @@ export default function ResumeAnalyzer() {
                           {selected && (
                             <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-accent)] ml-auto shrink-0">staged for fix</span>
                           )}
-                        </button>
+                        </Button>
                       )
                     })}
                     {result.matched_skills.length === 0 && result.missing_skills.length === 0 && (
@@ -507,17 +509,22 @@ export default function ResumeAnalyzer() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 items-start">
-                <input
+                <label htmlFor="fullName" className="sr-only">
+                  Your full name
+                </label>
+                <Input
+                  id="fullName"
+                  autoComplete="name"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   placeholder="Your full name (e.g. John Doe)"
-                  className="input-field flex-1"
+                  className="flex-1"
                 />
-                <button
+                <Button
                   type="button"
                   onClick={handleGenerate}
                   disabled={genStatus === 'loading' || selectedSkills.size === 0}
-                  className="btn-primary whitespace-nowrap"
+                  className="whitespace-nowrap"
                 >
                   {genStatus === 'loading' ? (
                     <>
@@ -530,7 +537,7 @@ export default function ResumeAnalyzer() {
                       Tailor my resume
                     </>
                   )}
-                </button>
+                </Button>
               </div>
 
               <AnimatePresence>
@@ -608,7 +615,9 @@ export default function ResumeAnalyzer() {
                       boxShadow: dragOver ? 'var(--glow-signal)' : 'none',
                     }}
                   >
-                    <input
+                    {/* Visually hidden — the styled dropzone above is the
+                        real affordance; this is what it delegates to. */}
+                    <Input
                       ref={fileInputRef}
                       type="file"
                       accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
@@ -626,14 +635,16 @@ export default function ResumeAnalyzer() {
                             {(file.size / 1024).toFixed(0)} KB
                           </div>
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={(e) => { e.stopPropagation(); setFile(null) }}
                           aria-label="Remove file"
-                          className="text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] transition-colors ml-1"
+                          className="ml-1"
                         >
-                          <X strokeWidth={1.5} className="w-4 h-4" />
-                        </button>
+                          <X strokeWidth={1.5} />
+                        </Button>
                       </div>
                     ) : (
                       <>
@@ -663,13 +674,12 @@ export default function ResumeAnalyzer() {
                       )}
                     </AnimatePresence>
                   </div>
-                  <textarea
+                  <Textarea
                     value={jobDescription}
                     onChange={e => setJobDescription(e.target.value)}
                     onPaste={handleJobDescriptionPaste}
-                    placeholder="Paste the job posting you are targeting..."
+                    placeholder="Paste the job posting you are targeting…"
                     rows={7}
-                    className="input-field resize-y"
                     style={{ minHeight: 320 }}
                   />
                   <div className="text-[10px] font-mono text-[var(--color-ink-faint)] text-right mt-1.5">
@@ -691,13 +701,9 @@ export default function ResumeAnalyzer() {
                   )}
                 </AnimatePresence>
 
-                <button
-                  type="submit"
-                  disabled={!file}
-                  className="btn-primary w-fit"
-                >
+                <Button type="submit" disabled={!file} className="w-fit">
                   Run the scan
-                </button>
+                </Button>
               </form>
 
               <div className="card px-8 py-16 text-center">

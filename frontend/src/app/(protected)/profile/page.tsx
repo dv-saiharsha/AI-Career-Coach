@@ -18,6 +18,11 @@ import {
   CircleCheckBig,
 } from 'lucide-react';
 import { useAuth } from '../../../lib/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Field } from '@/components/ui/field';
+import { Spinner } from '@/components/ui/spinner';
 
 const SENIORITY_LEVELS = ['Entry', 'Mid-Level', 'Senior', 'Staff', 'Principal', 'Executive'];
 
@@ -113,19 +118,26 @@ export default function ProfilePage() {
         <div className="relative h-20 bg-gradient-to-r from-[var(--color-accent)]/25 via-[var(--color-accent-dim)]/15 to-transparent">
           <div
             className="absolute inset-0 opacity-70"
-            style={{ background: 'radial-gradient(circle at 15% 60%, rgba(var(--color-accent-rgb),0.35), transparent 60%)' }}
+            style={{ background: 'radial-gradient(circle at 15% 60%, rgba(var(--glow-rgb),0.13), transparent 60%)' }}
           />
         </div>
 
         <div className="px-6 pb-6 -mt-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div className="flex items-end gap-4">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-2xl font-display font-medium text-white ring-4 ring-[var(--color-canvas-raise)]">
+              {/* text-on-accent, not text-white: in dark mode the accent is
+                  cream, so white here would be invisible. */}
+              <div className="flex size-20 items-center justify-center rounded-full bg-accent font-display text-2xl font-medium text-on-accent ring-4 ring-canvas-raise">
                 {form.firstName[0]?.toUpperCase() ?? 'U'}
               </div>
-              <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] flex items-center justify-center text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)]/40 transition-colors">
-                <Camera className="w-3.5 h-3.5" />
-              </button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Change profile photo"
+                className="absolute -bottom-1 -right-1 size-8 bg-canvas-raise"
+              >
+                <Camera className="size-3.5" />
+              </Button>
             </div>
             <div className="pb-1">
               <div className="text-base font-semibold text-[var(--color-ink)] font-display">{fullName || 'Your Name'}</div>
@@ -167,53 +179,47 @@ export default function ProfilePage() {
       >
         <h2 className="text-sm font-semibold text-[var(--color-ink)]">Personal Information</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">First Name</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-              <input
-                value={form.firstName}
-                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
-                className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Last Name</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-              <input
-                value={form.lastName}
-                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
-                className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Email</label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-            <input
-              value={form.email}
-              disabled
-              className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink-faint)] cursor-not-allowed"
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field label="First name" htmlFor="firstName">
+            <Input
+              id="firstName"
+              autoComplete="given-name"
+              value={form.firstName}
+              onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+              startAdornment={<User />}
             />
-          </div>
+          </Field>
+          <Field label="Last name" htmlFor="lastName">
+            <Input
+              id="lastName"
+              autoComplete="family-name"
+              value={form.lastName}
+              onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+              startAdornment={<User />}
+            />
+          </Field>
         </div>
 
-        <div>
-          <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Bio</label>
-          <textarea
+        <Field label="Email" htmlFor="email" hint="Your sign-in address cannot be changed here.">
+          <Input
+            id="email"
+            type="email"
+            value={form.email}
+            disabled
+            startAdornment={<Mail />}
+          />
+        </Field>
+
+        <Field label="Bio" htmlFor="bio">
+          <Textarea
+            id="bio"
             value={form.bio}
             onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
-            placeholder="Tell us about your career goals..."
+            placeholder="Tell us about your career goals…"
             rows={3}
-            className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl px-4 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] transition-colors resize-none"
+            className="resize-none"
           />
-        </div>
+        </Field>
       </motion.div>
 
       {/* Career details */}
@@ -225,42 +231,39 @@ export default function ProfilePage() {
       >
         <h2 className="text-sm font-semibold text-[var(--color-ink)]">Career Details</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Current Role</label>
-            <div className="relative">
-              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-              <input
-                value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-                className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Seniority</label>
-            <SeniorityField value={form.seniority} onChange={(v) => setForm((f) => ({ ...f, seniority: v }))} />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">Target Role</label>
-          <div className="relative">
-            <Target className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-            <input
-              value={form.targetRole}
-              onChange={(e) => setForm((f) => ({ ...f, targetRole: e.target.value }))}
-              className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field label="Current role" htmlFor="role">
+            <Input
+              id="role"
+              autoComplete="organization-title"
+              value={form.role}
+              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+              startAdornment={<Briefcase />}
             />
-          </div>
+          </Field>
+          <Field label="Seniority" htmlFor="seniority">
+            <SeniorityField
+              value={form.seniority}
+              onChange={(v) => setForm((f) => ({ ...f, seniority: v }))}
+            />
+          </Field>
         </div>
 
-        <button onClick={handleSave} disabled={saving} className="btn-brand disabled:opacity-60 disabled:cursor-not-allowed">
+        <Field label="Target role" htmlFor="targetRole">
+          <Input
+            id="targetRole"
+            value={form.targetRole}
+            onChange={(e) => setForm((f) => ({ ...f, targetRole: e.target.value }))}
+            startAdornment={<Target />}
+          />
+        </Field>
+
+        <Button onClick={handleSave} disabled={saving} aria-busy={saving || undefined}>
           <AnimatePresence mode="wait" initial={false}>
             {saving ? (
               <motion.span key="saving" className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                Saving...
+                <Spinner className="text-on-accent" label="Saving" />
+                Saving…
               </motion.span>
             ) : saved ? (
               <motion.span
@@ -286,7 +289,7 @@ export default function ProfilePage() {
               </motion.span>
             )}
           </AnimatePresence>
-        </button>
+        </Button>
       </motion.div>
     </div>
   );

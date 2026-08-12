@@ -56,7 +56,7 @@ export function AuthShowcase({ mode = 'register' }: { mode?: Mode }) {
 
       <Link href="/" className="relative z-10 flex items-center gap-2.5 w-fit">
         <ZenithMark className="w-8 h-8" />
-        <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+        <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
       </Link>
 
       <div className="relative z-10">

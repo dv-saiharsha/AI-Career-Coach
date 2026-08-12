@@ -9,6 +9,7 @@ import { useGSAP } from '@gsap/react';
 import { ProductShowcase } from '../../components/landing/ProductShowcase';
 import { CTASection } from '../../components/landing/CTASection';
 import { useAccentPalette } from '../../lib/useAccentPalette';
+import { spring, springSoft } from '@/lib/motion';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -112,32 +113,67 @@ function StepCard({ step, color, index }: {
   const { ref, inView } = useInView({ threshold: 0.2, triggerOnce: true });
 
   return (
+    /* Choreographed reveal: the node lands first, its card follows a beat
+       later, so the eye tracks down the rail instead of seeing whole rows pop
+       at once. Springs rather than durations, so a fast scroll settles
+       cleanly instead of restarting. */
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, x: -24 }}
-      animate={inView ? { opacity: 1, x: 0 } : {}}
-      transition={{ duration: 0.5, delay: index * 0.07 }}
-      className="grid grid-cols-[auto,1fr] gap-5 items-start group relative"
+      initial="hidden"
+      animate={inView ? 'show' : 'hidden'}
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: 0.09, delayChildren: index * 0.05 } },
+      }}
+      className="group relative grid grid-cols-[auto_1fr] items-start gap-6"
     >
-      {/* Step number */}
-      <div
-        className="relative w-14 h-14 shrink-0 rounded-xl flex items-center justify-center text-xs font-mono font-bold border group-hover:scale-105 transition-transform z-10 bg-[var(--color-canvas-deep)]"
-        style={{ backgroundColor: `${color}12`, borderColor: `${color}30`, color }}
+      {/* Step number — sits on the rail, so its background must be fully
+          opaque. An 8-digit hex tint here would let the line show through the
+          numeral; color-mix keeps the tint but stays solid. */}
+      <motion.div
+        variants={{
+          hidden: { opacity: 0, scale: 0.6 },
+          show: { opacity: 1, scale: 1, transition: spring },
+        }}
+        className="relative z-10 flex size-14 shrink-0 items-center justify-center rounded-xl border font-mono text-sm font-semibold tabular-nums transition-transform duration-200 group-hover:scale-105"
+        style={{
+          background: `color-mix(in srgb, ${color} 12%, var(--canvas))`,
+          borderColor: `color-mix(in srgb, ${color} 30%, var(--canvas))`,
+          color,
+        }}
       >
         {step.num}
-      </div>
+      </motion.div>
 
       {/* Content */}
-      <div className="glass-card-hover p-5">
-        <h3 className="font-display font-semibold text-[var(--color-ink)] mb-2">{step.title}</h3>
-        <p className="text-sm text-[var(--color-ink-dim)] leading-relaxed mb-3">{step.desc}</p>
+      <motion.div
+        variants={{
+          hidden: { opacity: 0, y: 18 },
+          show: { opacity: 1, y: 0, transition: springSoft },
+        }}
+        className="glass-card-hover p-5"
+      >
+        <motion.h3
+          variants={{
+            hidden: { opacity: 0, y: 8 },
+            show: { opacity: 1, y: 0, transition: springSoft },
+          }}
+          className="mb-2 font-semibold tracking-tight text-ink"
+        >
+          {step.title}
+        </motion.h3>
+        <p className="mb-3 text-sm leading-relaxed text-ink-dim">{step.desc}</p>
         <div
-          className="text-xs font-mono p-3 rounded-lg leading-relaxed"
-          style={{ backgroundColor: `${color}08`, color: color, border: `1px solid ${color}20` }}
+          className="rounded-lg p-3 font-mono text-xs leading-relaxed"
+          style={{
+            background: `color-mix(in srgb, ${color} 7%, var(--canvas-raise))`,
+            border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`,
+            color,
+          }}
         >
           {step.detail}
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -172,21 +208,40 @@ function PhaseBlock({ phase }: { phase: Phase }) {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.4 }}
-        className="flex items-center gap-4 mb-8"
+        /* Same column geometry as StepCard, so the phase badge, the step
+           badges, and the rail all sit on one 28px axis. */
+        className="mb-10 grid grid-cols-[auto_1fr] items-center gap-6"
       >
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-bold"
-          style={{ backgroundColor: `${phase.color}20`, color: phase.color }}
-        >
-          {phase.phase.split(' ')[1]}
-        </div>
-        <div>
-          <div className="text-xs font-mono uppercase tracking-widest" style={{ color: phase.color }}>
-            {phase.phase}
+        <div className="flex w-14 justify-center">
+          <div
+            className="flex size-8 items-center justify-center rounded-full font-mono text-xs font-semibold tabular-nums"
+            style={{
+              background: `color-mix(in srgb, ${phase.color} 18%, var(--canvas))`,
+              color: phase.color,
+            }}
+          >
+            {phase.phase.split(' ')[1]}
           </div>
-          <div className="font-display font-semibold text-[var(--color-ink)] text-xl">{phase.title}</div>
         </div>
-        <div className="flex-1 h-px" style={{ backgroundColor: `${phase.color}20` }} />
+
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <div className="flex flex-col gap-1">
+            <span
+              className="font-mono text-xs uppercase tracking-widest"
+              style={{ color: phase.color }}
+            >
+              {phase.phase}
+            </span>
+            <h2 className="text-xl font-semibold tracking-tight text-ink">{phase.title}</h2>
+          </div>
+          {/* Rule is a sibling of the text, not centred against it, so it can
+              never cross the title. */}
+          <div
+            aria-hidden="true"
+            className="mt-2 h-px min-w-16 flex-1"
+            style={{ background: `color-mix(in srgb, ${phase.color} 22%, transparent)` }}
+          />
+        </div>
       </motion.div>
 
       {/* Steps with scroll-linked progress rail */}
@@ -236,7 +291,7 @@ export function HowItWorksClient() {
       </section>
 
       {/* Phase sections */}
-      <section className="px-4 pb-24">
+      <section className="relative overflow-hidden px-4 pb-24">
         <div className="max-w-4xl mx-auto space-y-20">
           {PHASES.map((phase) => (
             <PhaseBlock key={phase.phase} phase={phase} />

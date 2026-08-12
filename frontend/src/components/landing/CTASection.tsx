@@ -9,7 +9,7 @@ export function CTASection() {
   const { ref, inView } = useInView({ threshold: 0.2, triggerOnce: true });
 
   return (
-    <section className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)] relative overflow-hidden">
+    <section className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)] relative overflow-hidden">
       {/* Calm drifting wisps — "everything under control" */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute bottom-0 left-[20%] w-32 h-64 bg-[var(--color-accent)]/[0.06] rounded-full blur-3xl animate-float-slow" />
@@ -52,7 +52,7 @@ export function CTASection() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/register"
-                className="group flex items-center gap-2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white px-8 py-4 rounded-full font-semibold text-base hover:scale-[1.03] active:scale-[0.97] transition-all shadow-[0_0_30px_rgba(var(--color-accent-rgb),0.45)]"
+                className="group flex items-center gap-2 rounded-full bg-accent px-8 py-4 text-base font-medium text-on-accent shadow-[var(--glow-signal)] transition-all hover:scale-[1.02] hover:shadow-[var(--shadow-raised)] active:scale-[0.98]"
               >
                 <Sparkles className="w-4 h-4" />
                 Start free

@@ -6,6 +6,7 @@ import { useInView } from 'react-intersection-observer';
 import { Check, Zap, Building2, Sparkles, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAccentPalette } from '../../lib/useAccentPalette';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function buildPlans(palette: ReturnType<typeof useAccentPalette>) { return [
   {
@@ -79,7 +80,7 @@ export function PricingSection() {
   const PLANS = buildPlans(palette);
 
   return (
-    <section id="pricing" className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)]">
+    <section id="pricing" className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)]">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-accent)]/[0.03] to-transparent pointer-events-none" />
 
       <div className="max-w-6xl mx-auto">
@@ -94,7 +95,7 @@ export function PricingSection() {
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
             Pricing
           </span>
-          <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4 mb-5">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4 mb-5">
             Simple, transparent
             <br />
             <span className="gradient-text-violet">pricing</span>
@@ -104,32 +105,40 @@ export function PricingSection() {
           </p>
 
           {/* Monthly / Annual toggle */}
-          <div className="inline-flex items-center gap-3 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-full p-1.5">
-            <button
-              onClick={() => setAnnual(false)}
-              aria-pressed={!annual}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                !annual ? 'bg-[var(--color-accent)] text-[var(--color-ink)]' : 'text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              aria-pressed={annual}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                annual ? 'bg-[var(--color-accent)] text-[var(--color-ink)]' : 'text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
-              }`}
-            >
-              Annual
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${annual ? 'bg-white/20' : 'bg-[var(--color-accent)]/15 text-[var(--color-accent-lighter)]'}`}>
-                Save 20%
-              </span>
-            </button>
-          </div>
+          <Tabs
+            value={annual ? 'annual' : 'monthly'}
+            onValueChange={(v) => setAnnual(v === 'annual')}
+          >
+            <TabsList aria-label="Billing period" className="p-1.5">
+              <TabsTrigger value="monthly" className="h-9 px-4">
+                Monthly
+              </TabsTrigger>
+              <TabsTrigger value="annual" className="h-9 px-4">
+                Annual
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    annual ? 'bg-on-accent/20 text-on-accent' : 'bg-canvas-line text-ink-dim'
+                  }`}
+                >
+                  Save 20%
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* Mobile: a manually-swiped, scroll-snapped rail — same side-by-side
+            reading as the team carousel, but driven entirely by the user's
+            finger. No timer, no auto-advance. CSS scroll-snap means native
+            momentum and no JS in the scroll path.
+            md and up: the plans fit abreast, so it reverts to a plain grid.
+            Vertical padding on the rail leaves room for the "Most Popular"
+            badge, which overflow-x would otherwise clip. */}
+        <div
+          role="group"
+          aria-label="Pricing plans"
+          className="flex snap-x snap-mandatory gap-4 overflow-x-auto py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:py-0"
+        >
           {PLANS.map((plan, i) => {
             const Icon = plan.icon;
             const price = plan.monthly === null ? 'Custom' : plan.monthly === 0 ? 'Free' : `$${(annual ? plan.annual : plan.monthly)?.toFixed(annual ? 2 : 0)}`;
@@ -140,14 +149,14 @@ export function PricingSection() {
                 initial={{ opacity: 0, y: 32 }}
                 animate={inView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                className={`relative flex flex-col rounded-2xl p-7 border transition-all duration-300 ${
+                className={`relative flex w-[84vw] max-w-sm shrink-0 snap-center flex-col rounded-2xl border p-7 transition-all duration-300 md:w-auto md:max-w-none md:shrink ${
                   plan.highlight
-                    ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-canvas))] border-[var(--color-accent)]/40 shadow-[0_0_60px_rgba(var(--color-accent-rgb),0.15)]'
+                    ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-canvas))] border-[var(--color-accent)]/40 shadow-[var(--shadow-raised)]'
                     : 'bg-[var(--color-canvas-raise)] border-[var(--color-canvas-line-soft)] hover:border-[var(--color-canvas-line)]'
                 }`}
               >
                 {plan.highlight && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-on-accent text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
                     Most Popular
                   </div>
                 )}
@@ -188,7 +197,7 @@ export function PricingSection() {
                   href={plan.href}
                   className={`flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all ${
                     plan.highlight
-                      ? 'bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.35)] hover:shadow-[0_0_30px_rgba(var(--color-accent-rgb),0.55)] hover:scale-[1.02]'
+                      ? 'bg-accent text-on-accent shadow-[var(--glow-signal)] hover:shadow-[var(--shadow-raised)] hover:scale-[1.02]'
                       : 'border border-[var(--color-canvas-line)] text-[var(--color-ink)] hover:bg-[var(--color-canvas-raise)] hover:border-[var(--color-ink-faint)]'
                   }`}
                 >

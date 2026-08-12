@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Briefcase, Building2, Clock, ExternalLink, MapPin, Search, Sparkles } from 'lucide-react'
 import { getJobs, type JobFeed, type WorkMode } from '../../../lib/jobsData'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const MODE_FILTERS = ['All', 'Remote', 'Hybrid', 'On-site'] as const
 type ModeFilter = (typeof MODE_FILTERS)[number]
@@ -86,30 +88,31 @@ export default function JobsPage() {
         transition={{ delay: 0.15 }}
         className="flex flex-col sm:flex-row gap-3"
       >
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-          <input
+        <div className="flex-1">
+          <label htmlFor="job-search" className="sr-only">
+            Search jobs
+          </label>
+          <Input
+            id="job-search"
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search title, company, or skill..."
-            className="w-full bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+            placeholder="Search title, company, or skill…"
+            startAdornment={<Search />}
           />
         </div>
-        <div className="flex gap-1.5">
-          {MODE_FILTERS.map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                mode === m
-                  ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] border-[var(--color-accent)]'
-                  : 'bg-transparent text-[var(--color-ink-dim)] border-[var(--color-canvas-line)] hover:text-[var(--color-ink)]'
-              }`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+
+        {/* Work-mode filter. Tabs gives roving-focus keyboard nav and the
+            shared pill for free — this used to be four unlinked buttons. */}
+        <Tabs value={mode} onValueChange={(v) => setMode(v as ModeFilter)}>
+          <TabsList aria-label="Filter by work mode">
+            {MODE_FILTERS.map((m) => (
+              <TabsTrigger key={m} value={m}>
+                {m}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </motion.div>
 
       {/* Listings */}

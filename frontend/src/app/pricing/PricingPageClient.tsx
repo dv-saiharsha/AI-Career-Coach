@@ -84,7 +84,7 @@ export function PricingPageClient() {
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
             Pricing
           </span>
-          <h1 className="text-5xl md:text-7xl font-display font-semibold tracking-tight mt-4 mb-5">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-display font-semibold tracking-tight mt-4 mb-5">
             Invest in your career.
             <br />
             <span className="gradient-text-violet">Cancel anytime.</span>
@@ -98,7 +98,7 @@ export function PricingPageClient() {
       <PricingSection />
 
       {/* Full comparison table */}
-      <section className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)]">
+      <section className="relative overflow-hidden py-24 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)]">
         <div className="max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -111,7 +111,7 @@ export function PricingPageClient() {
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
               Compare plans
             </span>
-            <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4">
               Every feature, side by side.
             </h2>
           </motion.div>
@@ -123,8 +123,11 @@ export function PricingPageClient() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="glass-card overflow-hidden"
           >
+            {/* The comparison grid is wider than a phone. It scrolls inside its
+                own container so the page body never scrolls horizontally. */}
+            <div className="overflow-x-auto">
             {/* Column headers */}
-            <div className="grid grid-cols-[1.4fr,1fr,1fr,1fr] border-b border-[var(--color-canvas-line-soft)]">
+            <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr] min-w-[560px] border-b border-[var(--color-canvas-line-soft)]">
               <div className="p-4 text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] self-center">Feature</div>
               {PLAN_COLUMNS.map(({ name, icon: Icon, color, highlight }) => (
                 <div
@@ -146,7 +149,7 @@ export function PricingPageClient() {
                 {group.rows.map((row) => (
                   <div
                     key={row.feature}
-                    className="grid grid-cols-[1.4fr,1fr,1fr,1fr] border-b border-[var(--color-canvas)] last:border-b-0 hover:bg-[var(--color-canvas-raise)] transition-colors"
+                    className="grid grid-cols-[1.4fr_1fr_1fr_1fr] min-w-[560px] border-b border-[var(--color-canvas)] last:border-b-0 hover:bg-[var(--color-canvas-raise)] transition-colors"
                   >
                     <div className="p-4 text-sm text-[var(--color-ink-dim)] self-center">{row.feature}</div>
                     <div className="p-4 flex items-center justify-center"><Cell value={row.starter} /></div>
@@ -156,6 +159,7 @@ export function PricingPageClient() {
                 ))}
               </div>
             ))}
+            </div>
           </motion.div>
         </div>
       </section>

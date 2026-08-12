@@ -15,7 +15,7 @@ export function MetricsSection() {
   const { ref, inView } = useInView({ threshold: 0.3, triggerOnce: true });
 
   return (
-    <section ref={ref} className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] relative overflow-hidden bg-[var(--color-canvas-deep)]">
+    <section ref={ref} className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] relative overflow-hidden bg-[var(--color-canvas-deep)]">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[var(--color-accent)]/8 rounded-full blur-[160px] pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative">

@@ -7,6 +7,10 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { ZenithMark } from '../../components/ZenithMark'
 import { createClient } from '../../lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Field } from '@/components/ui/field'
+import { SubmitButton, FormError } from '@/components/ui/form-parts'
 
 export default function ResetPassword() {
   const router = useRouter()
@@ -56,7 +60,7 @@ export default function ResetPassword() {
         >
           <Link href="/" className="flex items-center gap-2.5">
             <ZenithMark className="w-8 h-8" />
-            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+            <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
           </Link>
         </motion.div>
 
@@ -64,7 +68,7 @@ export default function ResetPassword() {
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-[var(--color-canvas-raise)]/80 backdrop-blur-xl border border-[var(--color-canvas-line)] rounded-2xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.5)]"
+          className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]"
         >
           {status === 'done' ? (
             <div className="text-center py-4">
@@ -82,78 +86,66 @@ export default function ResetPassword() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="password" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                    New password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="At least 8 characters"
-                      className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                    Confirm new password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                    <input
-                      id="confirmPassword"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Repeat your password"
-                      className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                    />
-                  </div>
-                </div>
-
-                {status === 'error' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/25 rounded-xl text-sm text-[#EF4444]"
-                  >
-                    {error}
-                  </motion.div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={status === 'loading'}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white py-3 rounded-xl font-semibold text-sm hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.3)] mt-2"
+                <Field
+                  label="New password"
+                  htmlFor="password"
+                  hint="At least 8 characters."
+                  required
                 >
-                  {status === 'loading' ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
-                      Updating...
-                    </>
-                  ) : (
-                    <>
-                      Update password
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    startAdornment={<Lock />}
+                    endAdornment={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                        className="-mr-2 size-8"
+                      >
+                        {showPassword ? <EyeOff /> : <Eye />}
+                      </Button>
+                    }
+                  />
+                </Field>
+
+                <Field
+                  label="Confirm new password"
+                  htmlFor="confirmPassword"
+                  error={
+                    confirmPassword.length > 0 && confirmPassword !== password
+                      ? 'Passwords do not match.'
+                      : undefined
+                  }
+                  required
+                >
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat your password"
+                    invalid={confirmPassword.length > 0 && confirmPassword !== password}
+                    startAdornment={<Lock />}
+                  />
+                </Field>
+
+                <FormError message={status === 'error' ? error : null} />
+
+                <SubmitButton loading={status === 'loading'} loadingLabel="Updating…">
+                  Update password
+                  <ArrowRight className="size-4" />
+                </SubmitButton>
               </form>
             </>
           )}

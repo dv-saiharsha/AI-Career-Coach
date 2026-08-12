@@ -16,7 +16,8 @@ import {
   Gauge,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useAccentPalette } from '../../../lib/useAccentPalette';
+import { useAccentPalette, useChartTheme } from '../../../lib/useAccentPalette';
+import { Button } from '@/components/ui/button';
 
 type ReportType = 'Resume' | 'Interview';
 
@@ -40,6 +41,7 @@ const FILTERS = ['All', 'Resume', 'Interview'] as const;
 
 function ScoreRing({ score, size = 40 }: { score: number; size?: number }) {
   const palette = useAccentPalette();
+  const chart = useChartTheme();
   const stroke = 3.5;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -48,7 +50,7 @@ function ScoreRing({ score, size = 40 }: { score: number; size?: number }) {
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#1e1e1e" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={chart.grid} strokeWidth={stroke} />
         <motion.circle
           cx={size / 2}
           cy={size / 2}
@@ -138,7 +140,7 @@ export default function ReportsPage() {
               <Tabs.Trigger
                 key={f}
                 value={f}
-                className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-white/5 data-[state=active]:border-[var(--color-accent)]/20 data-[state=active]:text-[var(--color-accent)] data-[state=active]:bg-[var(--color-accent)]/10"
+                className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-canvas-elevated data-[state=active]:border-[var(--color-accent)]/20 data-[state=active]:text-[var(--color-accent)] data-[state=active]:bg-[var(--color-accent)]/10"
               >
                 {f}
               </Tabs.Trigger>
@@ -200,13 +202,15 @@ export default function ReportsPage() {
 
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger asChild>
-                    <button
+                    <Button
                       type="button"
-                      className="p-2 rounded-lg text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] hover:bg-white/5 transition-colors shrink-0 outline-none"
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label={`Actions for ${report.name}`}
+                      className="shrink-0"
                     >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
+                      <MoreVertical />
+                    </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Portal>
                     <DropdownMenu.Content
@@ -214,7 +218,7 @@ export default function ReportsPage() {
                       sideOffset={6}
                       className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl p-1.5 shadow-[0_16px_50px_rgba(0,0,0,0.6)] min-w-[160px] z-50"
                     >
-                      <DropdownMenu.Item className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] hover:bg-white/5 transition-colors outline-none cursor-pointer">
+                      <DropdownMenu.Item className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] hover:bg-canvas-elevated transition-colors outline-none cursor-pointer">
                         <Eye className="w-3.5 h-3.5" />
                         View report
                       </DropdownMenu.Item>

@@ -1,17 +1,60 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { Eye, EyeOff, ArrowRight, Mail, Lock, CheckCircle2, User } from 'lucide-react'
-import { useAuth } from '../../lib/AuthContext'
-import { AuthShowcase } from '../../components/auth/AuthShowcase'
-import { useAccentPalette } from '../../lib/useAccentPalette'
-import { ZenithMark } from '../../components/ZenithMark'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Eye, EyeOff, ArrowRight, Mail, Lock, CheckCircle2, User, AlertCircle } from 'lucide-react'
+import { useAuth } from '@/lib/AuthContext'
+import { AuthShowcase } from '@/components/auth/AuthShowcase'
+import { ZenithMark } from '@/components/ZenithMark'
+import { AmbientGlow } from '@/components/ui/ambient-glow'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Field } from '@/components/ui/field'
+import { Spinner } from '@/components/ui/spinner'
+import { ease, spring, springSoft, springSnappy } from '@/lib/motion'
+
+/* Strength is scored off length only, matching the original behaviour — the
+   bars and the word always agree, and the word is what carries the meaning
+   for anyone who cannot separate the bar colours. */
+const STRENGTH = [
+  { label: '', color: 'var(--canvas-line)' },
+  { label: 'Weak', color: 'var(--danger)' },
+  { label: 'Good', color: 'var(--warning)' },
+  { label: 'Strong', color: 'var(--success)' },
+] as const
+
+function scorePassword(pw: string) {
+  if (pw.length === 0) return 0
+  if (pw.length < 6) return 1
+  if (pw.length < 10) return 2
+  return 3
+}
+
+function PasswordToggle({
+  shown,
+  onToggle,
+}: {
+  shown: boolean
+  onToggle: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      onClick={onToggle}
+      aria-label={shown ? 'Hide password' : 'Show password'}
+      aria-pressed={shown}
+      className="-mr-2 size-8"
+    >
+      {shown ? <EyeOff /> : <Eye />}
+    </Button>
+  )
+}
 
 export default function Register() {
   const { register } = useAuth()
-  const palette = useAccentPalette()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -22,11 +65,23 @@ export default function Register() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'sent'>('idle')
   const [error, setError] = useState('')
 
-  const passwordStrength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : 3
-  const strengthLabels = ['', 'Weak', 'Good', 'Strong']
-  const strengthColors = ['', '#EF4444', '#F59E0B', palette.accent]
+  const strength = scorePassword(password)
+  const loading = status === 'loading'
 
-  const handleSubmit = async (e: FormEvent) => {
+  /* Validate as the user types, but only complain about a field they have
+     actually filled in — nobody wants an error on an untouched input. */
+  const passwordHint = useMemo(() => {
+    if (!password) return 'At least 8 characters.'
+    if (password.length < 8) return `${8 - password.length} more character(s) needed.`
+    return undefined
+  }, [password])
+
+  const confirmError =
+    confirmPassword.length > 0 && confirmPassword !== password
+      ? 'Passwords do not match.'
+      : undefined
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (password !== confirmPassword) {
       setError('Passwords do not match.')
@@ -46,255 +101,296 @@ export default function Register() {
       // active session to send them into /dashboard with yet.
       setStatus('sent')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create account. Try a different email.')
+      setError(
+        err instanceof Error ? err.message : 'Could not create account. Try a different email.'
+      )
       setStatus('error')
     }
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-canvas)] grid lg:grid-cols-2">
+    <div className="grid min-h-screen bg-canvas lg:grid-cols-2">
       <AuthShowcase mode="register" />
 
-      <div className="relative flex items-center justify-center px-4 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[var(--color-accent)]/8 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-[10%] w-[300px] h-[300px] bg-[var(--color-accent-light)]/5 rounded-full blur-[80px]" />
-          <div
-            className="absolute inset-0 opacity-[0.025]"
-            style={{
-              backgroundImage: 'linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)',
-              backgroundSize: '60px 60px',
-            }}
-          />
-        </div>
+      <div className="grain relative flex items-center justify-center overflow-hidden px-4 py-16">
+        <AmbientGlow />
 
-        <div className="w-full max-w-md relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex justify-center mb-8 lg:hidden"
-        >
-          <Link href="/" className="flex items-center gap-2.5">
-            <ZenithMark className="w-8 h-8" />
-            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
-          </Link>
-        </motion.div>
+        <div className="relative z-10 w-full max-w-md">
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={springSoft}
+            className="mb-8 flex justify-center lg:hidden"
+          >
+            <Link href="/" className="flex items-center gap-2.5">
+              <ZenithMark className="size-8" />
+              <span className="wordmark text-xl tracking-[-0.02em] text-ink">Zenith</span>
+            </Link>
+          </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 24, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-[var(--color-canvas-raise)]/80 backdrop-blur-xl border border-[var(--color-canvas-line)] rounded-2xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.5)]"
-        >
-          {status === 'sent' ? (
-            <div className="text-center py-4">
-              <div className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5">
-                <CheckCircle2 className="w-7 h-7 text-[var(--color-accent)]" />
-              </div>
-              <h1 className="text-xl font-display font-semibold text-[var(--color-ink)] mb-2">Check your email</h1>
-              <p className="text-sm text-[var(--color-ink-dim)] mb-6">
-                We sent a confirmation link to <strong className="text-[var(--color-ink)]">{email}</strong>. Click it
-                to activate your account and sign in.
-              </p>
-              <Link href="/login" className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors">
-                Back to sign in
-              </Link>
-            </div>
-          ) : (
-          <>
-          <div className="mb-7">
-            <h1 className="text-2xl font-display font-semibold text-[var(--color-ink)] mb-2">Claim your edge</h1>
-            <p className="text-sm text-[var(--color-ink-dim)]">Free to start. No credit card. Just a sharper resume and a sharper interview.</p>
-          </div>
-
-          {/* Benefits */}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 mb-6 p-3 bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/15 rounded-xl">
-            {['Free to start', 'No credit card', 'Cancel anytime'].map((b) => (
-              <div key={b} className="flex items-center gap-1.5 text-xs text-[var(--color-accent)]">
-                <CheckCircle2 className="w-3 h-3 shrink-0" />
-                {b}
-              </div>
-            ))}
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="firstName" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                  First name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                  <input
-                    id="firstName"
-                    type="text"
-                    required
-                    autoComplete="given-name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="John"
-                    className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="lastName" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                  Last name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                  <input
-                    id="lastName"
-                    type="text"
-                    required
-                    autoComplete="family-name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Doe"
-                    className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                Email address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] transition-colors"
+          <motion.div
+            layout
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ ...springSoft, delay: 0.08 }}
+            className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              {status === 'sent' ? (
+                <motion.div
+                  key="sent"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={springSoft}
+                  className="py-4 text-center"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {password && (
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="flex gap-1 flex-1">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="h-1 flex-1 rounded-full transition-all"
-                        style={{ backgroundColor: i <= passwordStrength ? strengthColors[passwordStrength] : 'var(--color-canvas-line)' }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-xs" style={{ color: strengthColors[passwordStrength] }}>
-                    {strengthLabels[passwordStrength]}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                <input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat your password"
-                  className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {status === 'error' && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/25 rounded-xl text-sm text-[#EF4444]"
-              >
-                {error}
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={status === 'loading'}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white py-3 rounded-xl font-semibold text-sm hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.3)] mt-2"
-            >
-              {status === 'loading' ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
-                  Creating account...
-                </>
+                  <motion.div
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ ...spring, delay: 0.1 }}
+                    className="mx-auto mb-5 flex size-14 items-center justify-center rounded-full border border-success/25 bg-success/12"
+                  >
+                    <CheckCircle2 className="size-7 text-success" aria-hidden="true" />
+                  </motion.div>
+                  <h1 className="font-display text-2xl tracking-[-0.02em] text-ink">
+                    Check your email
+                  </h1>
+                  <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-ink-dim">
+                    We sent a confirmation link to{' '}
+                    <strong className="font-medium text-ink">{email}</strong>. Click it to activate
+                    your account and sign in.
+                  </p>
+                  <Button asChild variant="outline" className="mt-6">
+                    <Link href="/login">Back to sign in</Link>
+                  </Button>
+                </motion.div>
               ) : (
-                <>
-                  Create free account
-                  <ArrowRight className="w-4 h-4" />
-                </>
+                <motion.div
+                  key="form"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={ease}
+                >
+                  <div className="mb-6">
+                    <h1 className="font-display text-3xl leading-tight tracking-[-0.025em] text-ink">
+                      Claim your edge
+                    </h1>
+                    <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+                      Free to start. No credit card. Just a sharper resume and a sharper interview.
+                    </p>
+                  </div>
+
+                  <ul className="mb-6 flex flex-wrap gap-x-4 gap-y-2 rounded-xl border border-canvas-line bg-canvas-elevated/60 p-3">
+                    {['Free to start', 'No credit card', 'Cancel anytime'].map((b) => (
+                      <li key={b} className="flex items-center gap-1.5 text-xs text-ink-subtle">
+                        <CheckCircle2 className="size-3 shrink-0 text-success" aria-hidden="true" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                      <Field label="First name" htmlFor="firstName" required>
+                        <Input
+                          id="firstName"
+                          required
+                          autoComplete="given-name"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="John"
+                          startAdornment={<User />}
+                        />
+                      </Field>
+                      <Field label="Last name" htmlFor="lastName" required>
+                        <Input
+                          id="lastName"
+                          required
+                          autoComplete="family-name"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          placeholder="Doe"
+                          startAdornment={<User />}
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="Email address" htmlFor="email" required>
+                      <Input
+                        id="email"
+                        type="email"
+                        required
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        startAdornment={<Mail />}
+                      />
+                    </Field>
+
+                    <div>
+                      <Field label="Password" htmlFor="password" hint={passwordHint} required>
+                        <Input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          autoComplete="new-password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="At least 8 characters"
+                          startAdornment={<Lock />}
+                          endAdornment={
+                            <PasswordToggle
+                              shown={showPassword}
+                              onToggle={() => setShowPassword((v) => !v)}
+                            />
+                          }
+                        />
+                      </Field>
+
+                      <AnimatePresence initial={false}>
+                        {password && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={ease}
+                            className="mt-2 flex items-center gap-2 overflow-hidden"
+                          >
+                            <div className="flex flex-1 gap-1" aria-hidden="true">
+                              {[1, 2, 3].map((i) => (
+                                <motion.span
+                                  key={i}
+                                  className="h-1 flex-1 rounded-full"
+                                  initial={false}
+                                  animate={{
+                                    backgroundColor:
+                                      i <= strength
+                                        ? STRENGTH[strength].color
+                                        : 'var(--canvas-line)',
+                                  }}
+                                  transition={springSnappy}
+                                />
+                              ))}
+                            </div>
+                            <span
+                              className="text-xs font-medium"
+                              style={{ color: STRENGTH[strength].color }}
+                            >
+                              {STRENGTH[strength].label}
+                            </span>
+                            <span className="sr-only" aria-live="polite">
+                              Password strength: {STRENGTH[strength].label || 'none'}
+                            </span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <Field
+                      label="Confirm password"
+                      htmlFor="confirmPassword"
+                      error={confirmError}
+                      required
+                    >
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        required
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repeat your password"
+                        invalid={Boolean(confirmError)}
+                        startAdornment={<Lock />}
+                        endAdornment={
+                          <PasswordToggle
+                            shown={showConfirmPassword}
+                            onToggle={() => setShowConfirmPassword((v) => !v)}
+                          />
+                        }
+                      />
+                    </Field>
+
+                    <AnimatePresence initial={false}>
+                      {status === 'error' && error && (
+                        <motion.p
+                          role="alert"
+                          initial={{ opacity: 0, height: 0, y: -6 }}
+                          animate={{ opacity: 1, height: 'auto', y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: -6 }}
+                          transition={ease}
+                          className="flex items-start gap-2 rounded-xl border border-danger/25 bg-danger/10 p-3 text-sm text-danger"
+                        >
+                          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                          {error}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
+                      <AnimatePresence mode="wait" initial={false}>
+                        {loading ? (
+                          <motion.span
+                            key="loading"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={spring}
+                            className="inline-flex items-center gap-2"
+                          >
+                            <Spinner className="text-on-accent" label="Creating account" />
+                            Creating account…
+                          </motion.span>
+                        ) : (
+                          <motion.span
+                            key="idle"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={spring}
+                            className="inline-flex items-center gap-2"
+                          >
+                            Create free account
+                            <ArrowRight className="size-4" />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </Button>
+
+                    <p className="text-center text-xs leading-relaxed text-ink-faint">
+                      By creating an account, you agree to our{' '}
+                      <Link href="#" className="text-ink-dim underline-offset-4 hover:text-ink hover:underline">
+                        Terms of Service
+                      </Link>{' '}
+                      and{' '}
+                      <Link href="#" className="text-ink-dim underline-offset-4 hover:text-ink hover:underline">
+                        Privacy Policy
+                      </Link>
+                      .
+                    </p>
+                  </form>
+                </motion.div>
               )}
-            </button>
+            </AnimatePresence>
+          </motion.div>
 
-            <p className="text-xs text-center text-[var(--color-ink-faint)]">
-              By creating an account, you agree to our{' '}
-              <Link href="#" className="text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] transition-colors">Terms of Service</Link>
-              {' '}and{' '}
-              <Link href="#" className="text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] transition-colors">Privacy Policy</Link>.
-            </p>
-          </form>
-          </>
-          )}
-        </motion.div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="text-center text-sm text-[var(--color-ink-faint)] mt-6"
-        >
-          Already have an account?{' '}
-          <Link href="/login" className="text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors font-medium">
-            Sign in
-          </Link>
-        </motion.p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.28 }}
+            className="mt-6 text-center text-sm text-ink-dim"
+          >
+            Already have an account?{' '}
+            <Link
+              href="/login"
+              className="font-medium text-ink underline-offset-4 transition-colors hover:underline"
+            >
+              Sign in
+            </Link>
+          </motion.p>
         </div>
       </div>
     </div>

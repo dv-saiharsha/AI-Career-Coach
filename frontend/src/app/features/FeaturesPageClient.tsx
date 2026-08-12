@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { MetricsSection } from '../../components/landing/MetricsSection';
 import { CTASection } from '../../components/landing/CTASection';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const RESUME_FEATURES = [
   { icon: FileSearch, title: 'Resume Upload', desc: 'Drag-and-drop or click to upload PDF or DOCX files up to 10MB. Multi-format support with intelligent parsing.', badge: 'Core' },
@@ -112,32 +113,18 @@ export function FeaturesPageClient() {
             transition={{ duration: 0.4 }}
             className="flex items-center justify-center mb-12"
           >
-            <div className="inline-flex items-center gap-1 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-full p-1.5">
-              <button
-                onClick={() => setActiveTab('resume')}
-                aria-pressed={activeTab === 'resume'}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
-                  activeTab === 'resume'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-ink)] shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.35)]'
-                    : 'text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
-                }`}
-              >
-                <FileSearch className="w-4 h-4" />
-                AI Resume Analyzer
-              </button>
-              <button
-                onClick={() => setActiveTab('interview')}
-                aria-pressed={activeTab === 'interview'}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
-                  activeTab === 'interview'
-                    ? 'bg-[var(--color-accent)] text-[var(--color-ink)] shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.35)]'
-                    : 'text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
-                }`}
-              >
-                <MessageSquareCode className="w-4 h-4" />
-                AI Interview Coach
-              </button>
-            </div>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+              <TabsList aria-label="Choose a product" className="p-1.5">
+                <TabsTrigger value="resume" className="h-10 px-5">
+                  <FileSearch />
+                  AI Resume Analyzer
+                </TabsTrigger>
+                <TabsTrigger value="interview" className="h-10 px-5">
+                  <MessageSquareCode />
+                  AI Interview Coach
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </motion.div>
 
           <motion.div

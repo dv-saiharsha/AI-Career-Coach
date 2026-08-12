@@ -16,6 +16,10 @@ import {
   type ModelAnswer,
 } from '../../../lib/apiClient'
 import { usePrefersReducedMotion } from '../../../lib/usePrefersReducedMotion'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Spinner } from '@/components/ui/spinner'
 
 const EASE = [0.22, 1, 0.36, 1] as const
 
@@ -257,12 +261,15 @@ export default function InterviewCoach() {
             }}
           >
             <div className="eyebrow text-[10px] mb-1.5">Custom</div>
-            <input
+            {/* Borderless: the surrounding card is the visible field, so the
+                primitive's own chrome is stripped rather than doubled up. */}
+            <Input
+              aria-label="Custom role"
               value={customRole}
               onChange={e => { setCustomRole(e.target.value); setSelectedRoleKey('custom') }}
               onFocus={() => setSelectedRoleKey('custom')}
               placeholder="Type any role — e.g. Staff Backend Engineer"
-              className="w-full bg-transparent text-sm font-medium text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] placeholder:font-normal focus:outline-none"
+              className="h-auto border-0 bg-transparent px-0 text-sm font-medium shadow-none focus-visible:border-0 focus-visible:shadow-none"
             />
           </motion.div>
         </div>
@@ -272,11 +279,13 @@ export default function InterviewCoach() {
           {SENIORITIES.map(s => {
             const active = seniority === s
             return (
-              <button
+              <Button
                 key={s}
                 type="button"
+                variant="ghost"
+                aria-pressed={active}
                 onClick={() => setSeniority(s)}
-                className="relative px-4 py-1.5 rounded-[4px] text-sm font-medium transition-colors"
+                className="relative h-auto rounded-[4px] px-4 py-1.5 text-sm font-medium hover:bg-transparent"
               >
                 {active && (
                   <motion.span
@@ -288,7 +297,7 @@ export default function InterviewCoach() {
                 <span className={`relative z-10 ${active ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)]'}`}>
                   {s}
                 </span>
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -323,11 +332,11 @@ export default function InterviewCoach() {
           )}
         </AnimatePresence>
 
-        <button
+        <Button
           type="button"
           onClick={handleStart}
           disabled={setupLoading || !resolvedRole}
-          className="btn-primary"
+          aria-busy={setupLoading || undefined}
         >
           {setupLoading ? (
             <>
@@ -337,7 +346,7 @@ export default function InterviewCoach() {
           ) : (
             'Start session'
           )}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -350,10 +359,10 @@ export default function InterviewCoach() {
           <h1 className="text-xl font-display font-medium text-[var(--color-ink)]">{role} · {seniority}</h1>
           <p className="text-sm text-[var(--color-ink-dim)] mt-0.5">{answeredCount} / {questions.length} answered</p>
         </div>
-        <button onClick={reset} className="btn-ghost flex items-center gap-1.5">
-          <RotateCcw strokeWidth={1.5} className="w-3.5 h-3.5" />
+        <Button variant="ghost" size="sm" onClick={reset}>
+          <RotateCcw strokeWidth={1.5} />
           New session
-        </button>
+        </Button>
       </div>
 
       <div className="w-full h-[1.5px] bg-[var(--color-canvas-line)] rounded-full mb-6 overflow-hidden">
@@ -375,14 +384,16 @@ export default function InterviewCoach() {
               const done = byCategory(key).filter(q => q.status === 'answered').length
               const active = activeTab === key
               return (
-                <button
+                <Button
                   key={key}
+                  variant="ghost"
+                  aria-pressed={activeTab === key}
                   onClick={() => {
                     setActiveTab(key)
                     const firstUnanswered = byCategory(key).find(q => q.status !== 'answered')
                     if (firstUnanswered) selectQuestion(firstUnanswered.id)
                   }}
-                  className="flex items-center gap-2 pb-3 eyebrow border-b-2 transition-colors"
+                  className="eyebrow h-auto gap-2 rounded-none border-b-2 pb-3 hover:bg-transparent"
                   style={{
                     color: active ? 'var(--color-ink)' : 'var(--color-ink-faint)',
                     borderBottomColor: active ? 'var(--color-accent)' : 'transparent',
@@ -390,7 +401,7 @@ export default function InterviewCoach() {
                 >
                   {c.label}
                   <span className="font-mono text-[10px] text-[var(--color-ink-faint)]">{done}/{count}</span>
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -429,14 +440,15 @@ export default function InterviewCoach() {
                 <div className="text-xs text-[var(--color-error)] mb-2">{submitError}</div>
               )}
             </AnimatePresence>
-            <textarea
+            <Textarea
               ref={textareaRef}
+              aria-label="Your answer"
               value={answerDraft}
               onChange={e => setAnswerDraft(e.target.value)}
               onKeyDown={handleComposerKeyDown}
               placeholder="Type your answer…"
               rows={2}
-              className="w-full bg-transparent text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none resize-none max-h-[144px] sm:max-h-[144px] overflow-y-auto"
+              className="max-h-[144px] min-h-0 resize-none overflow-y-auto border-0 bg-transparent px-0 py-0 shadow-none focus-visible:border-0 focus-visible:shadow-none"
               disabled={activeQuestion.status === 'evaluating'}
             />
             <div className="flex items-center justify-between mt-2">
@@ -445,14 +457,14 @@ export default function InterviewCoach() {
               </span>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-mono text-[var(--color-ink-faint)]">{answerDraft.length}</span>
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={submitAnswer}
                   disabled={!answerDraft.trim() || activeQuestion.status === 'evaluating'}
-                  className="btn-primary py-2 px-4 text-sm"
                 >
                   Submit answer
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -487,13 +499,16 @@ function ModelAnswerPanel({
 
   return (
     <div className="mt-4">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={handleClick}
-        className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors"
+        aria-expanded={open}
+        className="h-auto gap-1.5 px-0 font-mono text-xs uppercase tracking-widest text-ink-subtle hover:bg-transparent hover:text-ink"
       >
         {open && status === 'loading' ? (
-          <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--color-accent)]/30 border-t-[var(--color-accent)] animate-spin" />
+          <Spinner className="size-3.5" label="Loading" />
         ) : (
           <Lightbulb strokeWidth={1.5} className="w-3.5 h-3.5" />
         )}
@@ -504,7 +519,7 @@ function ModelAnswerPanel({
             : status === 'error'
               ? 'Retry loading answer'
               : 'Show me the answer'}
-      </button>
+      </Button>
 
       {open && status === 'error' && (
         <p className="text-xs text-[var(--color-error)] mt-2">
@@ -604,13 +619,9 @@ const QuestionCard = forwardRef<HTMLDivElement, {
         <p className="text-base text-[var(--color-ink)] leading-relaxed">{question.text}</p>
 
         {question.status === 'unanswered' && !isActive && (
-          <button
-            type="button"
-            onClick={onSelect}
-            className="btn-ghost mt-4"
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={onSelect} className="mt-4">
             Answer this question
-          </button>
+          </Button>
         )}
 
         {/* Always available — learn the ideal answer without having to attempt first */}
@@ -684,16 +695,19 @@ const QuestionCard = forwardRef<HTMLDivElement, {
 
               {question.feedback.sample_answer && (
                 <div className="mb-4">
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setShowSample(v => !v)}
-                    className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] transition-colors"
+                    aria-expanded={showSample}
+                    className="h-auto gap-1.5 px-0 font-mono text-xs uppercase tracking-widest text-ink-dim hover:bg-transparent hover:text-ink"
                   >
                     <motion.span animate={{ rotate: showSample ? 90 : 0 }} transition={{ duration: 0.15 }}>
                       <ChevronRight strokeWidth={1.5} className="w-3.5 h-3.5" />
                     </motion.span>
                     View sample ideal answer
-                  </button>
+                  </Button>
                   <AnimatePresence initial={false}>
                     {showSample && (
                       <motion.div
@@ -716,13 +730,13 @@ const QuestionCard = forwardRef<HTMLDivElement, {
               )}
 
               <div className="flex items-center gap-3">
-                <button type="button" onClick={onNext} className="btn-primary py-2 px-4 text-sm">
+                <Button type="button" size="sm" onClick={onNext}>
                   Next question
-                  <ChevronDown strokeWidth={1.5} className="w-3.5 h-3.5 -rotate-90" />
-                </button>
-                <button type="button" onClick={onEndSession} className="btn-ghost">
+                  <ChevronDown strokeWidth={1.5} className="-rotate-90" />
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={onEndSession}>
                   End session
-                </button>
+                </Button>
               </div>
             </motion.div>
           )}

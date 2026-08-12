@@ -46,7 +46,7 @@ export function HeroJourney() {
             />
           ))}
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-ink-dim">
           <StageIcon className="h-3 w-3" />
           <AnimatePresence mode="wait">
             <motion.span
@@ -161,7 +161,7 @@ export function HeroJourney() {
                 <ScoreRing value={92} size={76} strokeWidth={7} />
                 <div>
                   <div className="text-sm font-semibold text-foreground">ATS Match Score</div>
-                  <div className="mt-1 text-xs text-muted">18/20 keywords matched to the JD</div>
+                  <div className="mt-1 text-xs text-ink-dim">18/20 keywords matched to the JD</div>
                 </div>
               </div>
               <svg viewBox="0 0 140 60" className="h-12 w-36 overflow-visible">
@@ -197,7 +197,9 @@ export function HeroJourney() {
             >
               <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--gradient-brand)' }}>
-                  <MessageSquareCode className="h-4 w-4 text-white" />
+                  {/* on-accent, not white: --gradient-brand starts at --ink,
+                      which is cream in dark mode. */}
+                  <MessageSquareCode className="h-4 w-4 text-on-accent" />
                 </div>
                 <div>
                   <div className="text-xs font-medium text-foreground">Interview Coach</div>

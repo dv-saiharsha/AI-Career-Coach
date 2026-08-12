@@ -44,7 +44,7 @@ export function FeaturesGrid() {
           <h2 className="mt-4 font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             Two tools. One outcome.
           </h2>
-          <p className="mt-5 text-lg leading-relaxed text-muted">
+          <p className="mt-5 text-lg leading-relaxed text-ink-dim">
             Everything you need to go from application to offer — built to catch what a
             recruiter&apos;s scanner catches, and rehearse what they&apos;ll actually ask.
           </p>
@@ -67,10 +67,10 @@ export function FeaturesGrid() {
                     className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl"
                     style={{ background: 'var(--gradient-brand)' }}
                   >
-                    <Icon className="h-6 w-6 text-white" />
+                    <Icon className="h-6 w-6 text-on-accent" />
                   </div>
                   <h3 className="font-display text-2xl font-semibold text-foreground">{group.title}</h3>
-                  <p className="mt-2.5 text-[15px] leading-relaxed text-muted">{group.description}</p>
+                  <p className="mt-2.5 text-[15px] leading-relaxed text-ink-dim">{group.description}</p>
                   <ul className="mt-6 space-y-3">
                     {group.points.map((point) => (
                       <li key={point} className="flex items-center gap-3 text-sm text-foreground">

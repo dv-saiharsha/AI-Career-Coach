@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { useAuth } from '../../../lib/AuthContext';
 import { useAccentPalette } from '../../../lib/useAccentPalette';
+import { ScoreRing } from '@/components/ScoreRing';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -108,9 +109,13 @@ export default function DashboardPage() {
             Here&apos;s your career progress overview.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--color-ink-faint)] shrink-0">
-          <CalendarDays className="w-3.5 h-3.5" />
-          {dateLabel}
+        <div className="flex items-center gap-5 shrink-0">
+          {/* Headline meter: the one number the whole page is about. */}
+          <ScoreRing value={84} size={104} strokeWidth={7} label="ATS" />
+          <div className="flex items-center gap-2 text-xs text-[var(--color-ink-faint)]">
+            <CalendarDays className="w-3.5 h-3.5" />
+            {dateLabel}
+          </div>
         </div>
       </motion.div>
 
@@ -163,7 +168,7 @@ export default function DashboardPage() {
               <Link
                 key={label}
                 href={href}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group"
+                className="flex items-center gap-3 p-3 rounded-xl hover:bg-canvas-elevated transition-colors group"
               >
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110"
@@ -202,7 +207,7 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + i * 0.06, ease: EASE }}
-                className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors"
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-canvas-elevated transition-colors"
               >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ring-1 ring-inset ${
                   session.type === 'resume' ? 'bg-[var(--color-accent)]/15 ring-[var(--color-accent)]/25' : 'bg-[var(--color-accent-light)]/15 ring-[var(--color-accent-light)]/25'

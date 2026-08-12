@@ -173,7 +173,7 @@ export function FeatureReveal() {
               dot.dataset.lit = String(lit);
               gsap.to(dot, {
                 scale: lit ? 1.25 : 1,
-                boxShadow: lit ? '0 0 24px 6px rgba(var(--color-accent-rgb),0.65)' : '0 0 0 rgba(0,0,0,0)',
+                boxShadow: lit ? '0 0 24px 6px rgba(var(--glow-rgb),0.18)' : '0 0 0 rgba(0,0,0,0)',
                 duration: 0.4,
                 ease: 'back.out(2)',
               });
@@ -194,7 +194,7 @@ export function FeatureReveal() {
   }, { scope: roadRef });
 
   return (
-    <section id="how-it-works" className="relative bg-[var(--color-canvas)] py-24 px-4 overflow-hidden border-t border-[var(--color-canvas-line-soft)]">
+    <section id="how-it-works" className="relative bg-[var(--color-canvas)] py-16 md:py-28 lg:py-36 px-4 overflow-hidden border-t border-[var(--color-canvas-line-soft)]">
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[var(--color-accent)]/6 rounded-full blur-[180px] pointer-events-none" />
 
       <div className="max-w-3xl mx-auto relative text-center mb-16">
@@ -230,14 +230,14 @@ export function FeatureReveal() {
             stroke="var(--color-ink)"
             strokeWidth={3}
             strokeLinecap="round"
-            style={{ filter: 'drop-shadow(0 0 6px rgba(var(--color-accent-rgb),0.65))' }}
+            style={{ filter: 'drop-shadow(0 0 6px rgba(var(--glow-rgb),0.18))' }}
           />
         </svg>
         {/* Traveler dot */}
         <div
           ref={travelerRef}
           className="absolute left-0 top-0 w-3 h-3 rounded-full bg-[var(--color-accent-lighter)]"
-          style={{ boxShadow: '0 0 22px 6px rgba(var(--color-accent-rgb),0.85)' }}
+          style={{ boxShadow: '0 0 22px 6px rgba(var(--glow-rgb),0.20)' }}
         />
 
         {CHECKPOINTS.map((cp, i) => {
@@ -251,7 +251,7 @@ export function FeatureReveal() {
                 className="group absolute -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full border-2 flex items-center justify-center bg-[var(--color-canvas-line-soft)] border-[var(--color-canvas-line)] data-[lit=true]:bg-[var(--color-accent)] data-[lit=true]:border-[var(--color-accent-lighter)] transition-colors duration-300 z-10"
                 style={{ top: `${cp.topPct}%`, left: `${CENTER_X}px` }}
               >
-                <Icon className="w-4 h-4 text-[var(--color-ink-dim)] group-data-[lit=true]:text-white transition-colors duration-300" />
+                <Icon className="w-4 h-4 text-[var(--color-ink-dim)] group-data-[lit=true]:text-on-accent transition-colors duration-300" />
               </div>
 
               {/* Label + card — top edge aligned with the dot's center, flows downward */}

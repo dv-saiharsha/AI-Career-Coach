@@ -17,7 +17,7 @@ export function ProductShowcase() {
   ];
 
   return (
-    <section id="product-preview" ref={ref} className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)] overflow-hidden">
+    <section id="product-preview" ref={ref} className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)] overflow-hidden">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-[var(--color-accent)]/6 rounded-full blur-[180px] pointer-events-none" />
 
       <div className="max-w-5xl mx-auto relative">
@@ -43,7 +43,7 @@ export function ProductShowcase() {
           initial={{ opacity: 0, y: 40, scale: 0.97 }}
           animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
           transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          className="relative rounded-2xl overflow-hidden border border-[var(--color-canvas-line)] shadow-[0_40px_120px_-20px_rgba(var(--color-accent-rgb),0.25)]"
+          className="relative rounded-2xl overflow-hidden border border-[var(--color-canvas-line)] shadow-[0_40px_120px_-20px_rgba(var(--glow-rgb),0.12)]"
         >
           {/* Browser chrome */}
           <div className="flex items-center gap-4 bg-[var(--color-canvas-raise)] border-b border-[var(--color-canvas-line)] px-4 py-3">

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Tabs from '@radix-ui/react-tabs'
 import CountUp from 'react-countup'
+import { Button } from '@/components/ui/button'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -38,7 +39,7 @@ import {
   type InterviewHistoryItem,
   type ResumeHistoryItem,
 } from '../../../lib/apiClient'
-import { useAccentPalette } from '../../../lib/useAccentPalette'
+import { useAccentPalette, useChartTheme } from '../../../lib/useAccentPalette'
 
 const FILTERS = ['All', 'Resume', 'Interview'] as const
 type Filter = (typeof FILTERS)[number]
@@ -61,6 +62,7 @@ function formatDate(iso: string) {
 
 function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }) {
   const palette = useAccentPalette()
+  const chart = useChartTheme()
   const stroke = 3.5
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
@@ -70,7 +72,7 @@ function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#1e1e1e" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={chart.grid} strokeWidth={stroke} />
         {score !== null && (
           <motion.circle
             cx={size / 2}
@@ -123,6 +125,7 @@ function TrendCard({
   gradientId: string
 }) {
   const palette = useAccentPalette()
+  const chart = useChartTheme()
   return (
     <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-6">
       <h2 className="text-sm font-semibold text-[var(--color-ink)] mb-1">{title}</h2>
@@ -136,7 +139,7 @@ function TrendCard({
                 <stop offset="100%" stopColor={color} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="#1e1e1e" strokeDasharray="3 3" />
+            <CartesianGrid vertical={false} stroke={chart.grid} strokeDasharray="3 3" />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip content={<TrendTooltip unit={unit} />} cursor={{ stroke: palette.inkFaint, strokeWidth: 1 }} />
@@ -337,7 +340,7 @@ export default function History() {
                       <Tabs.Trigger
                         key={f}
                         value={f}
-                        className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-white/5 data-[state=active]:border-[var(--color-accent)]/20 data-[state=active]:text-[var(--color-accent)] data-[state=active]:bg-[var(--color-accent)]/10"
+                        className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-canvas-elevated data-[state=active]:border-[var(--color-accent)]/20 data-[state=active]:text-[var(--color-accent)] data-[state=active]:bg-[var(--color-accent)]/10"
                       >
                         {f}
                       </Tabs.Trigger>
@@ -410,14 +413,16 @@ export default function History() {
                         <ScoreRing score={item.score} />
 
                         {item.kind === 'resume' ? (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => downloadResumeReport(item.id, `resume-report-${item.id}.pdf`)}
-                            className="p-2 rounded-lg text-[var(--color-ink-faint)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors shrink-0"
                             aria-label="Download report"
+                            className="shrink-0"
                           >
-                            <Download className="w-4 h-4" />
-                          </button>
+                            <Download />
+                          </Button>
                         ) : (
                           <div className="w-8 shrink-0" />
                         )}

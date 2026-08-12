@@ -6,6 +6,9 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { ZenithMark } from '../../components/ZenithMark'
 import { createClient } from '../../lib/supabase/client'
+import { Input } from '@/components/ui/input'
+import { Field } from '@/components/ui/field'
+import { SubmitButton, FormError } from '@/components/ui/form-parts'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -51,7 +54,7 @@ export default function ForgotPassword() {
         >
           <Link href="/" className="flex items-center gap-2.5">
             <ZenithMark className="w-8 h-8" />
-            <span className="font-display font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+            <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
           </Link>
         </motion.div>
 
@@ -59,7 +62,7 @@ export default function ForgotPassword() {
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-[var(--color-canvas-raise)]/80 backdrop-blur-xl border border-[var(--color-canvas-line)] rounded-2xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.5)]"
+          className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]"
         >
           {status === 'sent' ? (
             <motion.div
@@ -72,7 +75,7 @@ export default function ForgotPassword() {
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
-                className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5 shadow-[0_0_24px_rgba(var(--color-accent-rgb),0.25)]"
+                className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5 shadow-[0_0_24px_rgba(var(--glow-rgb),0.12)]"
               >
                 <CheckCircle2 className="w-7 h-7 text-[var(--color-accent)]" />
               </motion.div>
@@ -92,52 +95,26 @@ export default function ForgotPassword() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
-                    Email address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-                    <input
-                      id="email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)] transition-colors"
-                    />
-                  </div>
-                </div>
+                <Field label="Email address" htmlFor="email" required>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    invalid={status === 'error'}
+                    startAdornment={<Mail />}
+                  />
+                </Field>
 
-                {status === 'error' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/25 rounded-xl text-sm text-[#EF4444]"
-                  >
-                    {error}
-                  </motion.div>
-                )}
+                <FormError message={status === 'error' ? error : null} />
 
-                <button
-                  type="submit"
-                  disabled={status === 'loading'}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-dim)] text-white py-3 rounded-xl font-semibold text-sm hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.3)] mt-2"
-                >
-                  {status === 'loading' ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)] rounded-full animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      Send reset link
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                <SubmitButton loading={status === 'loading'} loadingLabel="Sending…">
+                  Send reset link
+                  <ArrowRight className="size-4" />
+                </SubmitButton>
               </form>
             </>
           )}

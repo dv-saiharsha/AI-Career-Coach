@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const TEAM: {
   name: string
@@ -114,7 +115,7 @@ export function TeamSection() {
   }, [paused, openIndex, advance]);
 
   return (
-    <section className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)] overflow-hidden">
+    <section className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)] overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[var(--color-accent)]/8 rounded-full blur-[160px] pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative">
@@ -163,10 +164,11 @@ export function TeamSection() {
                 transition={{ type: 'spring', stiffness: 260, damping: 28 }}
                 style={{ pointerEvents: visible ? 'auto' : 'none' }}
               >
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => (isCenter ? setOpenIndex(i) : setActive(i))}
-                  className="block w-full text-left rounded-3xl overflow-hidden border border-[var(--color-canvas-line)] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)]"
+                  className="block h-auto w-full overflow-hidden rounded-3xl border border-canvas-line p-0 text-left shadow-[var(--shadow-pop)] hover:bg-transparent"
                 >
                   {/* Photo area — real photo if provided and loadable, else gradient + initials */}
                   <div
@@ -209,7 +211,7 @@ export function TeamSection() {
                       {member.role}
                     </span>
                   </div>
-                </button>
+                </Button>
               </motion.div>
             );
           })}
@@ -233,40 +235,53 @@ export function TeamSection() {
 
         {/* Controls */}
         <div className="flex items-center justify-center gap-6 mt-8">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={() => advance(-1)}
             aria-label="Previous team member"
-            className="w-9 h-9 rounded-full border border-[var(--color-canvas-line)] flex items-center justify-center text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)]/40 transition-colors"
           >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+            <ChevronLeft />
+          </Button>
           <div className="flex items-center gap-2">
             {TEAM.map((member, i) => (
-              <button
+              /* The dot is 6px, so the control is padded out to a 44px target
+                 and the dot itself is only the visible part of it. */
+              <Button
                 key={member.name}
                 type="button"
+                variant="ghost"
                 aria-label={`Show ${member.name}`}
+                aria-current={i === active ? 'true' : undefined}
                 onClick={() => setActive(i)}
-                className={`h-1.5 rounded-full transition-all ${i === active ? 'w-6 bg-[var(--color-accent)]' : 'w-1.5 bg-[var(--color-canvas-line)] hover:bg-[var(--color-ink-faint)]'}`}
-              />
+                className="size-11 rounded-full p-0 hover:bg-transparent"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === active ? 'w-6 bg-accent' : 'w-1.5 bg-canvas-line'
+                  }`}
+                />
+              </Button>
             ))}
           </div>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={() => advance(1)}
             aria-label="Next team member"
-            className="w-9 h-9 rounded-full border border-[var(--color-canvas-line)] flex items-center justify-center text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)]/40 transition-colors"
           >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+            <ChevronRight />
+          </Button>
         </div>
       </div>
 
       <Dialog.Root open={openIndex !== null} onOpenChange={(open) => !open && setOpenIndex(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-lg bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-3xl overflow-hidden shadow-[0_40px_120px_-20px_rgba(var(--color-accent-rgb),0.3)] focus:outline-none">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-lg bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-3xl overflow-hidden shadow-[0_40px_120px_-20px_rgba(var(--glow-rgb),0.12)] focus:outline-none">
             {activeMember && (
               <>
                 <div

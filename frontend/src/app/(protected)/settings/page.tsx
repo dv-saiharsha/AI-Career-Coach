@@ -23,6 +23,11 @@ import {
   Check,
   LoaderCircle,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
+import { Spinner } from '@/components/ui/spinner';
+import { springSnappy } from '@/lib/motion';
 
 const SECTIONS = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -99,28 +104,35 @@ function PasswordField({
   onChange: (v: string) => void;
 }) {
   const [visible, setVisible] = useState(false);
+  /* Derive a stable id from the label so the control is properly labelled
+     without every caller having to invent one. */
+  const id = `pw-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
   return (
-    <div>
-      <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">{label}</label>
-      <div className="relative">
-        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)]" />
-        <input
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="••••••••"
-          className="w-full bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-11 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
-        />
-        <button
-          type="button"
-          onClick={() => setVisible((v) => !v)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] transition-colors"
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-    </div>
+    <Field label={label} htmlFor={id}>
+      <Input
+        id={id}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="••••••••"
+        autoComplete="off"
+        startAdornment={<Lock />}
+        endAdornment={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setVisible((v) => !v)}
+            aria-label={visible ? 'Hide password' : 'Show password'}
+            aria-pressed={visible}
+            className="-mr-2 size-8"
+          >
+            {visible ? <EyeOff /> : <Eye />}
+          </Button>
+        }
+      />
+    </Field>
   );
 }
 
@@ -157,7 +169,7 @@ export default function SettingsPage() {
         <p className="text-sm text-[var(--color-ink-dim)]">Manage your account preferences.</p>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[210px,1fr] gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5">
         {/* Sidebar */}
         <motion.div
           initial={{ opacity: 0, x: -12 }}
@@ -166,27 +178,31 @@ export default function SettingsPage() {
           className="glass-card p-2 h-fit md:sticky md:top-6"
         >
           {SECTIONS.map(({ id, label, icon: Icon }) => (
-            <button
+            <Button
               key={id}
+              variant="ghost"
               onClick={() => setActiveSection(id)}
-              className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              aria-current={activeSection === id ? 'true' : undefined}
+              className={`relative w-full justify-start gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-transparent ${
                 activeSection === id
                   ? id === 'danger'
-                    ? 'text-[var(--color-error)]'
-                    : 'text-[var(--color-ink)]'
-                  : 'text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]'
+                    ? 'text-danger'
+                    : 'text-ink'
+                  : 'text-ink-dim hover:text-ink'
               }`}
             >
               {activeSection === id && (
                 <motion.span
                   layoutId="settings-active-pill"
-                  className={`absolute inset-0 rounded-xl ${id === 'danger' ? 'bg-[var(--color-error)]/10' : 'bg-[var(--color-accent)]/10'}`}
-                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  className={`absolute inset-0 rounded-xl ${
+                    id === 'danger' ? 'bg-danger/10' : 'bg-canvas-elevated'
+                  }`}
+                  transition={springSnappy}
                 />
               )}
-              <Icon className="w-4 h-4 shrink-0 relative z-10" />
+              <Icon className="relative z-10 size-4 shrink-0" />
               <span className="relative z-10">{label}</span>
-            </button>
+            </Button>
           ))}
         </motion.div>
 
@@ -246,10 +262,10 @@ export default function SettingsPage() {
                     </div>
                   );
                 })}
-                <button className="btn-brand mt-4">
-                  <Save className="w-4 h-4" />
+                <Button className="mt-4">
+                  <Save />
                   Save preferences
-                </button>
+                </Button>
               </div>
             )}
 
@@ -259,10 +275,10 @@ export default function SettingsPage() {
                 <div className="space-y-4 max-w-sm">
                   <PasswordField label="Current Password" value={currentPassword} onChange={setCurrentPassword} />
                   <PasswordField label="New Password" value={newPassword} onChange={setNewPassword} />
-                  <button className="btn-brand">
-                    <Lock className="w-4 h-4" />
+                  <Button>
+                    <Lock />
                     Update password
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -278,10 +294,13 @@ export default function SettingsPage() {
 
                   <DialogPrimitive.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
                     <DialogPrimitive.Trigger asChild>
-                      <button className="flex items-center gap-2 bg-[var(--color-error)]/10 text-[var(--color-error)] border border-[var(--color-error)]/25 px-4 py-2 rounded-xl text-sm font-medium hover:bg-[var(--color-error)]/20 transition-colors">
-                        <Trash2 className="w-4 h-4" />
+                      <Button
+                        variant="outline"
+                        className="border-danger/25 bg-danger/10 text-danger hover:bg-danger/20"
+                      >
+                        <Trash2 />
                         Delete my account
-                      </button>
+                      </Button>
                     </DialogPrimitive.Trigger>
 
                     <AnimatePresence>
@@ -316,27 +335,26 @@ export default function SettingsPage() {
                               </DialogPrimitive.Description>
                               <div className="flex items-center justify-end gap-3">
                                 <DialogPrimitive.Close asChild>
-                                  <button className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--color-ink-dim)] hover:text-[var(--color-ink)] hover:bg-white/5 transition-colors">
-                                    Cancel
-                                  </button>
+                                  <Button variant="ghost">Cancel</Button>
                                 </DialogPrimitive.Close>
-                                <button
+                                <Button
+                                  variant="destructive"
                                   onClick={handleDelete}
                                   disabled={deleting}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[var(--color-error)] text-white hover:bg-[var(--color-error-dim)] transition-colors disabled:opacity-60"
+                                  aria-busy={deleting || undefined}
                                 >
                                   {deleting ? (
                                     <>
-                                      <LoaderCircle className="w-4 h-4 animate-spin" />
+                                      <Spinner className="text-on-accent" label="Deleting" />
                                       Deleting…
                                     </>
                                   ) : (
                                     <>
-                                      <Trash2 className="w-4 h-4" />
+                                      <Trash2 />
                                       Yes, delete account
                                     </>
                                   )}
-                                </button>
+                                </Button>
                               </div>
                             </motion.div>
                           </DialogPrimitive.Content>
@@ -351,7 +369,7 @@ export default function SettingsPage() {
             {(activeSection === 'appearance' || activeSection === 'privacy') && (
               <div className="flex flex-col items-center justify-center py-14 text-center">
                 <div className="relative w-14 h-14 mb-4">
-                  <div className="absolute inset-0 rounded-full heartbeat-glow" style={{ boxShadow: '0 0 22px 6px rgba(var(--color-accent-rgb),0.25)' }} />
+                  <div className="absolute inset-0 rounded-full heartbeat-glow" style={{ boxShadow: '0 0 22px 6px rgba(var(--glow-rgb),0.12)' }} />
                   <div className="relative w-14 h-14 rounded-full bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 flex items-center justify-center">
                     {activeSection === 'appearance' ? (
                       <Palette className="w-5 h-5 text-[var(--color-accent)]" />

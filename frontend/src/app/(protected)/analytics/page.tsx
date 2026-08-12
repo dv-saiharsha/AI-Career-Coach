@@ -16,7 +16,7 @@ import {
   Tooltip,
   LabelList,
 } from 'recharts';
-import { useAccentPalette } from '../../../lib/useAccentPalette';
+import { useAccentPalette, useChartTheme } from '../../../lib/useAccentPalette';
 
 const SCORE_HISTORY = [
   { month: 'Jul', ats: 72, interview: 68 },
@@ -111,8 +111,11 @@ function SkillTooltip({ active, payload }: SkillTooltipProps) {
 
 export default function AnalyticsPage() {
   const palette = useAccentPalette();
-  const violet = palette.accent;
-  const violetLight = palette.accentLight;
+  const chart = useChartTheme();
+  // Two series need to be *distinguishable*; accent/accentLight are both ink
+  // in this palette, so they resolved to the same colour. Use ramp stops.
+  const violet = chart.data[0];
+  const violetLight = chart.data[2];
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -168,7 +171,7 @@ export default function AnalyticsPage() {
                 <stop offset="100%" stopColor={violet} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke={palette.inkFaint} strokeOpacity={0.25} strokeDasharray="3 3" />
+            <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={1} strokeDasharray="3 3" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
             <YAxis hide domain={[0, 100]} />
             <Tooltip content={<TrendTooltip />} cursor={{ stroke: palette.inkFaint, strokeWidth: 1 }} />
@@ -210,7 +213,7 @@ export default function AnalyticsPage() {
           <p className="text-xs text-[var(--color-ink-faint)] mb-4">Average score across practiced topics</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={SKILL_BREAKDOWN} layout="vertical" margin={{ top: 0, right: 34, left: 0, bottom: 0 }}>
-              <CartesianGrid horizontal={false} stroke={palette.inkFaint} strokeOpacity={0.25} strokeDasharray="3 3" />
+              <CartesianGrid horizontal={false} stroke={chart.grid} strokeOpacity={1} strokeDasharray="3 3" />
               <XAxis type="number" domain={[0, 100]} hide />
               <YAxis
                 type="category"
@@ -243,11 +246,11 @@ export default function AnalyticsPage() {
           <p className="text-xs text-[var(--color-ink-faint)] mb-4">Interview sessions per month</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={MONTHLY_SESSIONS} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke={palette.inkFaint} strokeOpacity={0.25} strokeDasharray="3 3" />
+              <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={1} strokeDasharray="3 3" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
               <YAxis hide domain={[0, 'dataMax + 2']} />
               <Tooltip content={<SessionsTooltip />} cursor={{ fill: 'rgba(var(--color-accent-rgb),0.06)' }} />
-              <Bar dataKey="sessions" radius={[6, 6, 0, 0]} fill={violetLight} maxBarSize={26} isAnimationActive animationDuration={800} />
+              <Bar dataKey="sessions" radius={[6, 6, 0, 0]} fill={chart.data[3]} maxBarSize={26} isAnimationActive animationDuration={800} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>

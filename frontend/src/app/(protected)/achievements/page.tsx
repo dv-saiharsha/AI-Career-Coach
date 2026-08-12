@@ -98,7 +98,7 @@ function StatTile({ icon: Icon, label, value, sub }: { icon: LucideIcon; label: 
 export default function AchievementsPage() {
   const palette = useAccentPalette();
   const TIER_STYLES: Record<Tier, { color: string; glow: string }> = {
-    Common: { color: palette.accent, glow: 'rgba(var(--color-accent-rgb),0.4)' },
+    Common: { color: palette.accent, glow: 'rgba(var(--glow-rgb),0.14)' },
     Rare: { color: palette.accentLight, glow: 'rgba(var(--color-accent-light-rgb),0.4)' },
     Epic: { color: palette.accentLighter, glow: 'rgba(var(--color-accent-lighter-rgb),0.45)' },
   };
