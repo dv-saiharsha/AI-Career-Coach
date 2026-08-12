@@ -1,6 +1,6 @@
 {
-  "trained_at": "2026-07-23T00:45:48.276197+00:00",
-  "dataset_size": 436,
+  "trained_at": "2026-07-25T05:24:35.348096+00:00",
+  "dataset_size": 2066,
   "feature_names": [
     "keyword_overlap_ratio",
     "keyword_matched_count",
@@ -14,18 +14,18 @@
   ],
   "model_type": "GradientBoostingRegressor",
   "cv_folds": 5,
-  "mae": 7.34,
-  "r2": 0.78,
+  "mae": 7.347,
+  "r2": 0.722,
   "mae_warn_threshold": 10.0,
   "feature_importances": {
-    "tfidf_cosine": 0.6416,
-    "keyword_overlap_ratio": 0.1052,
-    "jd_keyword_count": 0.0948,
-    "resume_jd_length_ratio": 0.047,
-    "keyword_matched_count": 0.0459,
-    "quantified_bullet_count": 0.0332,
-    "resume_word_count": 0.0191,
-    "action_verb_count": 0.0131,
-    "section_header_count": 0.0002
+    "tfidf_cosine": 0.4193,
+    "keyword_overlap_ratio": 0.321,
+    "resume_word_count": 0.0662,
+    "keyword_matched_count": 0.0659,
+    "quantified_bullet_count": 0.0455,
+    "jd_keyword_count": 0.0371,
+    "resume_jd_length_ratio": 0.0258,
+    "action_verb_count": 0.0101,
+    "section_header_count": 0.0093
   }
 }

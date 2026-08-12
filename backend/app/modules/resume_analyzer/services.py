@@ -1,21 +1,9 @@
 import io
 import re
-from collections import Counter
 
+from app.core.keywords import keyword_candidates
 from app.core.llm import llm_client
-
-STOPWORDS = {
-    "the", "and", "for", "are", "with", "you", "your", "our", "will", "have", "this",
-    "that", "from", "who", "job", "role", "team", "work", "years", "year", "experience",
-    "ability", "including", "such", "into", "using", "use", "able", "strong", "must",
-    "required", "preferred", "responsibilities", "requirements", "about", "company",
-    "opportunity", "candidate", "candidates", "skills", "skill", "we", "a", "an", "to",
-    "of", "in", "on", "as", "is", "be", "or", "at", "by",
-    # role/title & filler words that ride along with real skill keywords but aren't skills
-    "software", "engineer", "engineering", "developer", "development", "manager",
-    "management", "specialist", "analyst", "lead", "senior", "junior", "position",
-    "hiring", "join", "looking", "seeking", "plus", "great", "excellent", "understanding",
-}
+from app.ml.inference import model_available, predict_score
 
 SYSTEM_PROMPT = (
     "You are an ATS (applicant tracking system) resume screening engine combined with a "
@@ -23,8 +11,9 @@ SYSTEM_PROMPT = (
     "at all — not a job description, cover letter, random document, or unrelated file. "
     "If it is not a resume, set is_resume to false and give the other fields reasonable "
     "empty/zero defaults, since they won't be used. If it is a resume, set is_resume to "
-    "true and score it against the job description the way real ATS keyword matching "
-    "works, then give the candidate specific, actionable feedback."
+    "true and identify matched/missing/extracted skills, a keyword-frequency breakdown, "
+    "and specific, actionable feedback. Do not compute a numeric match score — that is "
+    "handled separately by a dedicated scoring model."
 )
 
 
@@ -64,7 +53,6 @@ ANALYSIS_TOOL_SCHEMA = {
             "type": "boolean",
             "description": "True if the uploaded document is actually a resume/CV, false otherwise",
         },
-        "ats_score": {"type": "number", "description": "Match score from 0-100"},
         "matched_skills": {"type": "array", "items": {"type": "string"}},
         "missing_skills": {"type": "array", "items": {"type": "string"}},
         "extracted_skills": {
@@ -91,7 +79,7 @@ ANALYSIS_TOOL_SCHEMA = {
         },
     },
     "required": [
-        "is_resume", "ats_score", "matched_skills", "missing_skills",
+        "is_resume", "matched_skills", "missing_skills",
         "extracted_skills", "keyword_analysis", "suggestions",
     ],
 }
@@ -115,29 +103,18 @@ def extract_text(filename: str, content: bytes) -> str:
     raise ValueError("Unsupported file type. Upload a PDF or DOCX resume.")
 
 
-def _keyword_candidates(jd_text: str) -> list[str]:
-    """Picks out tokens that read like real skills/tech terms rather than
-    ordinary sentence words: proper nouns (capitalized, not sentence-initial),
-    acronyms (AWS, SQL), and symbol/digit-bearing terms (CI/CD, Node.js, C++)."""
-    counts: Counter[str] = Counter()
-    for sentence in re.split(r"(?<=[.!?])\s+", jd_text):
-        words = re.findall(r"[A-Za-z][A-Za-z0-9+/#.\-]{1,}", sentence)
-        for i, raw in enumerate(words):
-            clean = raw.strip(".,()")
-            lower = clean.lower()
-            if len(clean) <= 2 or lower in STOPWORDS:
-                continue
-            is_acronym = clean.isupper() and len(clean) <= 5
-            has_symbol_or_digit = bool(re.search(r"[0-9+#./]", clean))
-            is_proper_noun = clean[0].isupper() and i > 0
-            if is_acronym or has_symbol_or_digit or is_proper_noun:
-                counts[clean] += 1
-    return [w for w, _ in counts.most_common(25)]
+def _score(resume_text: str, jd_text: str, fallback_ratio: float) -> float:
+    """ats_score always comes from the trained model when one exists — it's
+    deterministic and free, unlike asking the LLM for a number. The keyword-
+    ratio fallback only applies before anyone has ever run train_ats_model.py."""
+    if model_available():
+        return float(predict_score(resume_text, jd_text))
+    return fallback_ratio
 
 
 def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
     resume_lower = resume_text.lower()
-    candidates = _keyword_candidates(jd_text)
+    candidates = keyword_candidates(jd_text)
     matched, missing, keyword_analysis = [], [], []
     for kw in candidates:
         freq = resume_lower.count(kw.lower())
@@ -146,7 +123,7 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
         keyword_analysis.append({"keyword": kw, "present": present, "frequency": freq})
 
     total = len(candidates) or 1
-    ats_score = round(100 * len(matched) / total, 1)
+    ats_score = _score(resume_text, jd_text, round(100 * len(matched) / total, 1))
     suggestions = [
         f'Add or emphasize "{kw}" — it appears in the job description but not your resume.'
         for kw in missing[:6]
@@ -178,7 +155,9 @@ def _llm_analysis(resume_text: str, jd_text: str) -> dict:
     data.setdefault("extracted_skills", [])
     data.setdefault("keyword_analysis", [])
     data.setdefault("suggestions", [])
-    data["ats_score"] = float(data.get("ats_score", 0))
+    # The LLM no longer produces a score at all (see SYSTEM_PROMPT) — the
+    # trained model is the sole, deterministic source of ats_score.
+    data["ats_score"] = _score(resume_text, jd_text, 0.0)
     return data
 
 

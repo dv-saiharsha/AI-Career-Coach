@@ -25,7 +25,7 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from app.modules.resume_analyzer.services import _keyword_candidates
+from app.core.keywords import keyword_candidates
 
 # Strong action verbs that signal results-oriented resume writing.
 ACTION_VERBS = {
@@ -99,7 +99,7 @@ def extract_features(resume_text: str, job_description: str) -> dict:
     resume_text = resume_text or ""
     job_description = job_description or ""
 
-    jd_keywords = _keyword_candidates(job_description)
+    jd_keywords = keyword_candidates(job_description)
     resume_lower = resume_text.lower()
     matched = [kw for kw in jd_keywords if kw.lower() in resume_lower]
     jd_keyword_count = len(jd_keywords)

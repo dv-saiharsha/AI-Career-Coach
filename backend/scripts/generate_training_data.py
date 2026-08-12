@@ -26,6 +26,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -145,12 +146,56 @@ def label_pair(pair: dict) -> dict:
     return result
 
 
+LOCK_PATH = Path(__file__).resolve().parent.parent / "data" / "raw" / ".labeling.lock"
+LOCK_STALE_AFTER_SECONDS = 600  # a live run touches a new label every ~10-15s
+
+
+def acquire_lock() -> None:
+    """Refuses to run if another instance of this script is already labeling —
+    two instances racing on the same uncached pairs means paying for some
+    pairs twice for no benefit (each still labels independently before either
+    checks the cache). Self-heals if the previous run was force-killed (e.g.
+    `taskkill /F`, which skips Python's normal exit/atexit handling) rather
+    than exited cleanly, by treating an old-enough lock as abandoned.
+
+    Uses O_CREAT|O_EXCL (atomic "create only if it doesn't exist") rather than
+    a check-then-write — two processes launched within the same instant both
+    passing a plain `.exists()` check is exactly the race that let duplicate
+    runs slip through and double-bill pairs before this fix."""
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        age = time.time() - LOCK_PATH.stat().st_mtime
+        if age >= LOCK_STALE_AFTER_SECONDS:
+            print(f"Found a stale lock ({age:.0f}s old, likely from a force-stopped run) — clearing it.")
+            LOCK_PATH.unlink(missing_ok=True)
+            return acquire_lock()  # retry the atomic create now that it's gone
+        stale_pid = LOCK_PATH.read_text(encoding="utf-8").strip()
+        print(f"Another labeling run appears to be in progress (PID {stale_pid}, started {age:.0f}s ago).")
+        print(f"If that's not actually running anymore, delete {LOCK_PATH} and rerun.")
+        raise SystemExit(1)
+    else:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+        import atexit
+
+        atexit.register(release_lock)
+
+
+def release_lock() -> None:
+    LOCK_PATH.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--confirm", action="store_true", help="Actually call the LLM and write training_data.csv")
     parser.add_argument("--limit", type=int, default=None, help="Only label the first N pairs (smoke test)")
     parser.add_argument("--per-jd", type=int, default=4, help="In-role resumes paired with each generated JD")
     args = parser.parse_args()
+
+    if args.confirm:
+        acquire_lock()
 
     resumes, skipped = load_resumes()
     if skipped:

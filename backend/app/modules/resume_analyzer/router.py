@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -12,6 +13,17 @@ from app.modules.resume_analyzer.services import analyze_resume_against_job
 from app.schemas.resume import AnalysisResultSchema, GenerateResumeRequestSchema, ResumeHistoryItemSchema
 
 router = APIRouter()
+
+_MODEL_METADATA_PATH = Path(__file__).resolve().parents[3] / "app" / "ml" / "models" / "ats_model_metadata.json"
+
+
+@router.get("/model-info")
+def model_info():
+    """Public-ish diagnostic: when the live scoring model was last trained, on
+    how much data, and its measured accuracy — so this isn't a black box."""
+    if not _MODEL_METADATA_PATH.exists():
+        raise HTTPException(status_code=404, detail="No trained model yet — scores are using the fallback scorer.")
+    return json.loads(_MODEL_METADATA_PATH.read_text(encoding="utf-8"))
 
 
 @router.post("/analyze", response_model=AnalysisResultSchema)
