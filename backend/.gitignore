@@ -1,0 +1,29 @@
+# Most of this is already covered by the root .gitignore. It is repeated here
+# so the protection survives the backend being moved, split into its own repo,
+# or vendored elsewhere — a secret leaking because a path prefix changed is not
+# a failure worth risking to avoid eight duplicated lines.
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Virtualenvs
+.venv/
+venv/
+ENV/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local database used when DB_URL is unset
+*.db
+*.sqlite3
+
+# Trained model artifacts — regenerate with scripts/train_ats_model.py
+app/ml/models/*.joblib

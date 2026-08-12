@@ -22,8 +22,8 @@ graph LR
 - **Trained ATS model** (`backend/app/ml/`): a small, fast regression model trained on LLM-labeled `(resume, job description, score)` pairs — see "ATS scoring model" below. Optional; the LLM/rule-based path above is what the live app uses today.
 
 ## Prerequisites
-- **Python 3.12+**
-- **Node.js 20+** (developed against 24) and npm
+- **Python 3.12+** — not 3.11. `numpy` 2.5.1 declares `requires_python >= 3.12`, so 3.11 fails at install with a misleading "no matching distribution" error.
+- **Node.js 24** (ships npm 11) — 24 is what CI pins and what generated `package-lock.json`. Node 20 is too old for `@supabase/supabase-js` (needs >= 22), and Node 22 ships npm 10, which resolves optional wasm bindings into a different tree and makes `npm ci` fail. Use 24 and `npm ci` works everywhere.
 - **Git**
 - A **Supabase** project (ask a teammate for shared dev credentials, or create your own at [supabase.com](https://supabase.com))
 - An **Anthropic API key** (optional but recommended — [console.anthropic.com](https://console.anthropic.com)); the app works in a degraded mode without one
@@ -41,30 +41,44 @@ graph LR
    git config core.hooksPath .githooks
    ```
 
-3. **Backend:**
+3. **Create your env files from the templates:**
+   ```
+   scripts\setup-env.bat          REM Windows
+   bash scripts/setup-env.sh      # macOS / Linux / Git Bash
+   ```
+   This copies `frontend/.env.local.example` -> `frontend/.env.local` and
+   `backend/.env.example` -> `backend/.env`. It never overwrites a file that
+   already exists, so it is safe to re-run after a pull that adds a new
+   variable. Then fill in the real values — ask a teammate for shared dev
+   credentials rather than creating your own Supabase project, since the
+   database is shared and a fresh project will not have the schema.
+
+4. **Backend:**
    ```
    cd backend
    python -m venv .venv
    .venv\Scripts\activate
    pip install -r requirements.txt
-   copy .env.example .env
    ```
-   Fill in `backend/.env` — `DB_URL` (Supabase Postgres connection string), `SUPABASE_URL`, `ANTHROPIC_API_KEY`. See the comments in `.env.example` for exactly where to find each value in the Supabase/Anthropic dashboards.
+   Fill in `backend/.env` (created in step 3) — `DB_URL` (Supabase Postgres connection string), `SUPABASE_URL`, `ANTHROPIC_API_KEY`. See the comments in `.env.example` for exactly where to find each value in the Supabase/Anthropic dashboards.
 
    Apply the database schema:
    ```
    python -m alembic upgrade head
    ```
 
-4. **Frontend:**
+5. **Frontend:**
    ```
    cd frontend
-   npm install
-   copy .env.local.example .env.local
+   npm ci
    ```
-   Fill in `frontend/.env.local` — `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (same Supabase project as the backend).
+   `npm ci` rather than `npm install`: it installs exactly what `package-lock.json`
+   pins, so everyone gets an identical tree. Use `npm install` only when you are
+   deliberately adding or upgrading a dependency.
 
-5. **Run both servers with one command** from the repo root:
+   Fill in `frontend/.env.local` (created in step 3) — `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (same Supabase project as the backend).
+
+6. **Run both servers with one command** from the repo root:
    ```
    start.bat
    ```
@@ -74,7 +88,7 @@ graph LR
    cd frontend && npm run dev
    ```
 
-6. Open `http://localhost:3000`, register an account (check your email to verify), then use the Resume Analyzer and Interview Coach.
+7. Open `http://localhost:3000`, register an account (check your email to verify), then use the Resume Analyzer and Interview Coach.
 
 ## Running tests
 ```
@@ -90,6 +104,41 @@ cd backend
 - `train_ats_model.py` — trains the model with 5-fold cross-validation and reports honest MAE/R² (also free — no API calls, pure local scikit-learn).
 
 The trained model file (`app/ml/models/*.joblib`) is gitignored — regenerate it locally by running `train_ats_model.py` against `backend/data/training_data.csv` (also gitignored/local; regenerate via the scripts above). `app/ml/models/ats_model_metadata.json` (accuracy, dataset size, training date) *is* tracked, so everyone can see what the last trained run achieved without retraining.
+
+## Continuous integration
+
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml),
+which is what makes `main` safe to pull:
+
+| Job | Steps |
+|-----|-------|
+| **Backend: lint and test** | `ruff check .` then `pytest -q` on Python 3.12 |
+| **Frontend: lint, typecheck and build** | `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build` on Node 24 |
+
+The frontend **build** is the check that matters most — it catches broken
+imports, server/client boundary mistakes, and prerender failures that lint and
+typecheck cannot see.
+
+The build step supplies placeholder Supabase values when repository secrets are
+not configured, so the pipeline is deterministic on forks and for contributors
+without credentials. It never needs real secrets to prove the app compiles.
+
+**Reproduce CI locally before pushing** — these are the exact commands it runs:
+
+```
+cd backend  && ruff check . && pytest -q
+cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
+```
+
+Two gotchas worth knowing, both of which have already bitten this repo:
+
+- Run `pytest`, not only `python -m pytest`. The latter puts the working
+  directory on `sys.path` and can pass when CI's invocation would fail.
+  `backend/pytest.ini` sets `pythonpath` so both now behave the same.
+- `package-lock.json` is platform-sensitive for optional native/wasm packages.
+  If you regenerate it, do so on Linux (or expect CI to disagree with your
+  machine). Prefer `npm ci` for everyday installs so you never regenerate it by
+  accident.
 
 ## Working as a team
 

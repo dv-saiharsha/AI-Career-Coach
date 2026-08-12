@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — real values never, templates always.
+# `.env*` (Next.js default) also swallows .env.local.example, which meant the
+# frontend template was never committed and a fresh clone had nothing for
+# scripts/setup-env.sh to copy. The negations fix that.
 .env*
+!.env.example
+!.env.local.example
 
 # vercel
 .vercel
