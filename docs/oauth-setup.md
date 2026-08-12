@@ -6,6 +6,27 @@ step on this page rather than a bug.
 
 Supported: **Google**, **LinkedIn (OIDC)**, **GitHub**, **Apple**.
 
+## Your callback URL
+
+Paste this into **every** provider console. It is the Supabase callback, not
+the app's — the browser goes provider → Supabase → app.
+
+```
+https://gqotztqonrcrbuzdgyxo.supabase.co/auth/v1/callback
+```
+
+## Check progress at any point
+
+```
+npm run check:oauth
+```
+
+Reports which providers Supabase currently has enabled and whether email
+verification is on. Run it after each provider to confirm the dashboard saved,
+rather than finding out from a failed sign-in.
+
+Baseline: 0/4 enabled, email verification on.
+
 ---
 
 ## 1. The one setting that matters for security
@@ -31,7 +52,7 @@ enable that provider.
 Every provider console needs the **Supabase** callback — not the app's:
 
 ```
-https://<YOUR-PROJECT-REF>.supabase.co/auth/v1/callback
+https://gqotztqonrcrbuzdgyxo.supabase.co/auth/v1/callback
 ```
 
 This trips people up: the browser goes provider → Supabase → app. The app's own
@@ -58,6 +79,12 @@ Set **Site URL** to the production origin.
 Cloud Console → APIs & Services → Credentials → OAuth client ID (Web).
 Authorized redirect URI: the Supabase callback above.
 
+⚠️ An **External** consent screen starts in **Testing**, where only email
+addresses you add as test users can sign in at all (max 100), and issued
+refresh tokens expire after 7 days. It works for you and looks broken for
+everyone else. Click **Publish app** before real users touch it — that is the
+step people miss.
+
 We do **not** send `access_type=offline` or `prompt=consent`. A refresh token is
 only needed to call Google APIs as the user, which Zenith never does, and
 `prompt=consent` forces the consent screen on *every* sign-in — friction for
@@ -73,6 +100,11 @@ unverified logins off they will not link. This is correct behaviour; the error
 copy on `/login` covers it.
 
 ### LinkedIn (OIDC)
+⚠️ Creating a LinkedIn app requires an associated **LinkedIn Page**, and a page
+admin has to verify the app before it works. If you do not already have a
+company page you will need to create one first, and verification is not
+instant — start this one early or leave it until last.
+
 Use **LinkedIn (OIDC)** in Supabase, not the legacy "LinkedIn" entry. In the
 LinkedIn developer app, request the **Sign In with LinkedIn using OpenID
 Connect** product — without it the app returns scope errors at sign-in.
