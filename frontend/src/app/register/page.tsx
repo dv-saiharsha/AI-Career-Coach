@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
+import { SocialAuthGrid } from '@/components/auth/SocialAuthGrid'
 import { ease, spring, springSoft, springSnappy } from '@/lib/motion'
 
 /* Strength is scored off length only, matching the original behaviour — the
@@ -372,6 +373,8 @@ export default function Register() {
                       .
                     </p>
                   </form>
+
+                  <SocialAuthGrid dividerLabel="or sign up with" className="mt-6" />
                 </motion.div>
               )}
             </AnimatePresence>

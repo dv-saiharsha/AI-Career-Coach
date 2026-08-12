@@ -13,7 +13,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
+import { SocialAuthGrid } from '@/components/auth/SocialAuthGrid'
 import { ease, spring, springSoft } from '@/lib/motion'
+
+/* The callback route redirects here with ?error= when a provider flow fails.
+   Mapped to human copy: the raw reason is for logs, not for the person. */
+const OAUTH_ERRORS: Record<string, string> = {
+  oauth_cancelled: 'Sign-in was cancelled. No account was created or changed.',
+  oauth_failed: 'That provider could not complete sign-in. Try again or use your email and password.',
+  oauth_exchange_failed: 'We could not finish signing you in. Please try again.',
+  auth_callback_failed: 'That sign-in link is invalid or has expired. Request a new one.',
+}
 
 export default function Login() {
   return (
@@ -30,8 +40,15 @@ function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [error, setError] = useState('')
+  // Seeded from the URL rather than set in an effect, which would trip the
+  // set-state-in-effect rule and cause a cascading render.
+  const oauthError = searchParams.get('error')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>(
+    oauthError ? 'error' : 'idle'
+  )
+  const [error, setError] = useState(
+    oauthError ? (OAUTH_ERRORS[oauthError] ?? OAUTH_ERRORS.oauth_failed) : ''
+  )
 
   const from = searchParams.get('from') || '/dashboard'
   const loading = status === 'loading'
@@ -184,6 +201,8 @@ function LoginForm() {
                 </AnimatePresence>
               </Button>
             </form>
+
+              <SocialAuthGrid next={from} className="mt-6" />
           </motion.div>
 
           <motion.p
