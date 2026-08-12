@@ -14,16 +14,19 @@ export interface AccentPalette {
   inkFaint: string
 }
 
+/* Light-theme values from the Porcelain & Obsidian palette. These are what
+   SSR and the first paint use, so they must match :root — the old blue
+   defaults flashed a foreign palette before hydration. */
 const FALLBACK: AccentPalette = {
-  accent: '#60A5FA',
-  accentDim: '#2563EB',
-  accentLight: '#93C5FD',
-  accentLighter: '#DBEAFE',
-  signalHigh: '#22C55E',
-  signalMid: '#F59E0B',
-  signalLow: '#EF4444',
-  inkDim: '#94A3B8',
-  inkFaint: '#64748B',
+  accent: '#0f172a',
+  accentDim: '#1e293b',
+  accentLight: '#3b4453',
+  accentLighter: '#64748b',
+  signalHigh: '#3f5a42',
+  signalMid: '#8a5a17',
+  signalLow: '#8e332b',
+  inkDim: '#5e6472',
+  inkFaint: '#6a6f7f',
 }
 
 let cachedPalette: AccentPalette = FALLBACK
@@ -64,4 +67,67 @@ function getServerSnapshot() {
  * can't read CSS vars directly (recharts fills, canvas, GSAP color tweens). */
 export function useAccentPalette(): AccentPalette {
   return useSyncExternalStore(subscribe, read, getServerSnapshot)
+}
+
+export interface ChartTheme {
+  /** Categorical series colours, WCAG-checked against both canvases. */
+  data: [string, string, string, string, string, string]
+  grid: string
+  axis: string
+  surface: string
+  border: string
+  ink: string
+}
+
+const CHART_FALLBACK: ChartTheme = {
+  data: ['#2f3a4c', '#7a6a55', '#a67c52', '#55684f', '#8c5648', '#6b6478'],
+  grid: '#e4e0d8',
+  axis: '#6a6f7f',
+  surface: '#ffffff',
+  border: '#e4e0d8',
+  ink: '#0f172a',
+}
+
+let cachedChart: ChartTheme = CHART_FALLBACK
+let cachedChartTheme: string | null = null
+
+function readChart(): ChartTheme {
+  const themeAttr = document.documentElement.getAttribute('data-theme')
+  if (cachedChartTheme === themeAttr) return cachedChart
+
+  const style = getComputedStyle(document.documentElement)
+  const get = (name: string, fallback: string) =>
+    style.getPropertyValue(name).trim() || fallback
+
+  cachedChartTheme = themeAttr
+  cachedChart = {
+    data: [
+      get('--color-data-1', CHART_FALLBACK.data[0]),
+      get('--color-data-2', CHART_FALLBACK.data[1]),
+      get('--color-data-3', CHART_FALLBACK.data[2]),
+      get('--color-data-4', CHART_FALLBACK.data[3]),
+      get('--color-data-5', CHART_FALLBACK.data[4]),
+      get('--color-data-6', CHART_FALLBACK.data[5]),
+    ],
+    grid: get('--color-canvas-line', CHART_FALLBACK.grid),
+    axis: get('--color-ink-faint', CHART_FALLBACK.axis),
+    surface: get('--color-canvas-raise', CHART_FALLBACK.surface),
+    border: get('--color-canvas-line', CHART_FALLBACK.border),
+    ink: get('--color-ink', CHART_FALLBACK.ink),
+  }
+  return cachedChart
+}
+
+function getChartServerSnapshot() {
+  return CHART_FALLBACK
+}
+
+/**
+ * The 6-stop data ramp plus chart chrome, resolved to concrete colours.
+ *
+ * Recharts writes stroke/fill as SVG *attributes*, where `var()` does not
+ * resolve — so chart colour has to come through JS rather than CSS.
+ */
+export function useChartTheme(): ChartTheme {
+  return useSyncExternalStore(subscribe, readChart, getChartServerSnapshot)
 }

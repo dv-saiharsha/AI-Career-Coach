@@ -3,31 +3,35 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors [&_svg]:size-3 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary/10 text-primary',
-        secondary: 'border-transparent bg-secondary/10 text-secondary',
-        accent: 'border-transparent bg-accent/10 text-accent',
-        success: 'border-transparent bg-success/10 text-success',
-        danger: 'border-transparent bg-danger/10 text-danger',
-        warning: 'border-transparent bg-warning/10 text-warning',
-        outline: 'border-border text-muted',
+        default: 'border-transparent bg-accent text-on-accent',
+        outline: 'border-canvas-line bg-canvas-raise text-ink-dim',
+        muted: 'border-transparent bg-canvas-elevated text-ink-subtle',
+        /* State badges pair a tinted ground with the AA-checked text token,
+           never colour alone — the label always says what the state is. */
+        success: 'border-transparent bg-success/12 text-success',
+        warning: 'border-transparent bg-warning/12 text-warning',
+        danger: 'border-transparent bg-danger/12 text-danger',
+      },
+      size: {
+        default: 'px-2.5 py-0.5 text-xs',
+        sm: 'px-2 py-0 text-[11px]',
+        lg: 'px-3 py-1 text-[13px]',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-    },
+    defaultVariants: { variant: 'default', size: 'default' },
   }
 )
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.ComponentPropsWithoutRef<'span'>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />
+function Badge({ className, variant, size, ...props }: BadgeProps) {
+  return <span className={cn(badgeVariants({ variant, size }), className)} {...props} />
 }
 
 export { Badge, badgeVariants }
