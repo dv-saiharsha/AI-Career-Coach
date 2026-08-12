@@ -57,11 +57,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Next 16 and Tailwind v4 both require Node >= 20. The previous pin to 18
-      # could not have built this app.
+      # 24, matching local dev. Two separate floors push past the original 18:
+      # Next 16 and Tailwind v4 need >= 20, and @supabase/supabase-js@2.110.7
+      # declares engines.node >= 22. Pinning to 24 also matches the npm major
+      # (11) that generated package-lock.json — npm 10 and 11 resolve optional
+      # platform bindings differently, which is what broke `npm ci` here.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
