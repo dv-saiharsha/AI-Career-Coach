@@ -30,6 +30,21 @@ graph LR
 
 ## Setup Instructions
 
+**Short version** — clone, then:
+
+```
+git config core.hooksPath .githooks
+npm run setup
+npm run dev
+```
+
+`npm run setup` creates env files from the templates, builds the Python
+virtualenv, and installs both dependency sets. Fill in the two env files it
+reports, run `npm run migrate`, then `npm run dev`. The long version below
+explains each step.
+
+---
+
 1. **Clone the repo:**
    ```
    git clone https://github.com/dv-saiharsha/AI-Career-Coach.git
@@ -80,21 +95,35 @@ graph LR
 
 6. **Run both servers with one command** from the repo root:
    ```
-   start.bat
+   npm run dev
    ```
-   This opens two windows (backend on :8000, frontend on :3000). Or run them individually:
+   Starts the backend (:8000) and frontend (:3000) together with prefixed
+   output. Ctrl+C stops both, and if either crashes the other is stopped too,
+   so you never end up with an orphaned server holding a port. Windows users
+   can still double-click `start.bat`, which now just calls this.
+
+   To run them separately instead:
    ```
-   cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
-   cd frontend && npm run dev
+   npm run backend -- -m uvicorn app.main:app --reload --port 8000
+   npm --prefix frontend run dev
    ```
 
 7. Open `http://localhost:3000`, register an account (check your email to verify), then use the Resume Analyzer and Interview Coach.
 
-## Running tests
-```
-cd backend
-.venv\Scripts\python.exe -m pytest
-```
+## Root commands
+
+Run these from the repo root; they work the same on Windows, macOS and Linux.
+
+| Command | What it does |
+|---------|--------------|
+| `npm run setup` | Env files, Python virtualenv, both dependency sets. Idempotent. |
+| `npm run dev` | Backend + frontend together, prefixed output, Ctrl+C stops both |
+| `npm start` | Same, production mode (`npm run build` first) |
+| `npm run build` | Production build of the frontend |
+| `npm test` | Backend test suite |
+| `npm run check` | Everything CI runs — do this before pushing |
+| `npm run migrate` | `alembic upgrade head` (review first — the database is shared) |
+| `npm run backend -- <args>` | Any command against the venv Python |
 
 ## ATS scoring model (optional, in progress)
 `backend/app/ml/` holds a trained regression model that scores resumes numerically instead of via an LLM call — faster, free to run, and deterministic. It's trained on data produced by scripts in `backend/scripts/`:

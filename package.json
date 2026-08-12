@@ -1,0 +1,21 @@
+{
+  "name": "zenith",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zenith (AI Career Coach) — root task runner. The apps live in frontend/ and backend/.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node scripts/run.mjs",
+    "start": "node scripts/run.mjs --prod",
+    "build": "npm --prefix frontend run build",
+    "setup": "node scripts/setup.mjs",
+    "lint": "npm --prefix frontend run lint",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test": "node scripts/backend.mjs -m pytest -q",
+    "check": "npm run lint && npm run typecheck && npm run build && npm test",
+    "backend": "node scripts/backend.mjs",
+    "migrate": "node scripts/backend.mjs -m alembic upgrade head"
+  }
+}

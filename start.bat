@@ -1,17 +1,8 @@
 @echo off
-REM ── Zenith: start backend + frontend together ──────────────────────────
-REM Double-click this file, or run  start.bat  from the repo root.
-REM Two windows open: one for the API (port 8000), one for the web app (3000).
-REM Close either window to stop that server.
+REM Zenith launcher, kept for double-clicking and existing muscle memory.
+REM The real logic lives in scripts/run.mjs so it works on macOS and Linux too.
+REM Equivalent to: npm run dev
 
-echo Starting Zenith backend and frontend...
-
-start "Zenith Backend (API :8000)" cmd /k "cd /d %~dp0backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000"
-
-start "Zenith Frontend (Web :3000)" cmd /k "cd /d %~dp0frontend && npm run dev"
-
-echo.
-echo   Backend : http://localhost:8000   (docs at /docs)
-echo   Frontend: http://localhost:3000
-echo.
-echo Two windows opened. Give them a few seconds, then open the frontend URL.
+cd /d "%~dp0"
+call npm run dev
+pause
