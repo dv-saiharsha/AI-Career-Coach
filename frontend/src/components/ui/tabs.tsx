@@ -14,7 +14,7 @@ const TabsContext = React.createContext<TabsCtx>({ value: undefined, layoutId: '
 
 let tabsAutoId = 0
 
-export interface TabsProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root> {}
+export type TabsProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
 
 const Tabs = React.forwardRef<React.ComponentRef<typeof TabsPrimitive.Root>, TabsProps>(
   ({ value, defaultValue, onValueChange, children, ...props }, ref) => {

@@ -86,11 +86,15 @@ export default function ResumeAnalyzer() {
 
   useEffect(() => {
     if (status !== 'loading') return
-    setFlavorIndex(0)
     const id = setInterval(() => {
       setFlavorIndex((prev) => Math.min(FLAVOR_LINES.length - 1, prev + 1))
     }, 1400)
-    return () => clearInterval(id)
+    // Rewind on the way out rather than on the way in: resetting in the effect
+    // body is a synchronous setState during render commit, which cascades.
+    return () => {
+      clearInterval(id)
+      setFlavorIndex(0)
+    }
   }, [status])
 
   const loadingStage = status !== 'loading' ? 0 : autoStage

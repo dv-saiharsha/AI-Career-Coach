@@ -1,33 +1,82 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+# A new push to the same branch makes the in-flight run obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  test-backend:
+  backend:
+    name: "Backend: lint and test"
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies
-        run: cd backend && pip install -r requirements.txt
-      - name: Lint and Test
-        run: |
-          cd backend
-          ruff check .
-          pytest
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
-  test-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - name: Install and Test
+      - name: Install dependencies
         run: |
-          cd frontend
-          npm install
-          npm run lint
-          npm run test
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check .
+
+      # test_ml_inference self-skips when the trained model is absent, and the
+      # .joblib is gitignored, so those cases are skipped here rather than failed.
+      - name: Test
+        run: pytest -q
+
+  frontend:
+    name: "Frontend: lint, typecheck and build"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Next 16 and Tailwind v4 both require Node >= 20. The previous pin to 18
+      # could not have built this app.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The build is the check that actually matters: it catches broken imports,
+      # bad server/client boundaries, and prerender failures that lint cannot.
+      # Supabase values are read at module scope, so the build needs *some*
+      # value present. Real secrets are used when configured; otherwise inert
+      # placeholders keep the build deterministic without exposing anything.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder' }}
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
