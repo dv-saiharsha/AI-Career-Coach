@@ -47,3 +47,7 @@ Thumbs.db
 
 # Claude Code local (machine-specific) settings
 .claude/settings.local.json
+
+# Local agent tooling (Claude Code skills cache)
+.claude/skills/
+skills-lock.json
