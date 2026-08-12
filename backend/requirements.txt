@@ -23,4 +23,9 @@ pymupdf==1.28.0
 # the size/complexity tradeoff decision made for this project.
 scikit-learn==1.9.0
 joblib==1.5.3
+# Requires Python >= 3.12, which sets the floor for the whole backend (see the
+# python-version pin in .github/workflows/ci.yml). Held at 2.x deliberately:
+# ats_model.joblib is pickled under this major, and loading it under numpy 1.x
+# is not guaranteed. Do not downgrade to satisfy an installer error — raise the
+# Python version instead.
 numpy==2.5.1
