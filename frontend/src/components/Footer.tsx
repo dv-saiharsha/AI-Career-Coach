@@ -34,13 +34,15 @@ const SOCIALS = [
 export default function Footer() {
   return (
     <footer className="border-t border-[var(--color-canvas-line)] bg-[var(--color-canvas)]">
-      <div className="max-w-6xl mx-auto px-4 py-16">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-14">
+      <div className="shell pt-20 pb-12">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-12 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-12 mb-16">
           {/* Brand */}
-          <div className="col-span-2 md:col-span-1">
+          {/* Brand takes two of the five columns so the three link columns
+              each get a full track and stop truncating. */}
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2 lg:pr-8">
             <Link href="/" className="flex items-center gap-2.5 mb-4 group">
               <ZenithMark className="w-7 h-7" />
-              <span className="font-display font-semibold text-[var(--color-ink)] text-[15px]">Zenith</span>
+              <span className="wordmark font-semibold text-[var(--color-ink)] text-[15px]">Zenith</span>
             </Link>
             <p className="text-sm text-[var(--color-ink-faint)] leading-relaxed mb-5">
               AI-powered resume analysis and interview practice for the modern job seeker.
@@ -77,7 +79,7 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="flex flex-col md:flex-row items-center justify-between pt-8 border-t border-[var(--color-canvas-line-soft)] gap-4">
+        <div className="flex flex-col gap-4 border-t border-canvas-line pt-10 md:flex-row md:items-center md:justify-between">
           <p className="text-xs text-[var(--color-ink-faint)]">
             © {new Date().getFullYear()} Zenith. All rights reserved.
           </p>

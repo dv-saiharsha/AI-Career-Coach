@@ -4,6 +4,8 @@ import { motion } from 'framer-motion'
 import { Sun, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export default function ThemeToggle({ className = '' }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme()
@@ -16,35 +18,41 @@ export default function ThemeToggle({ className = '' }: { className?: string }) 
   const isDark = !mounted || resolvedTheme !== 'light'
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
       role="switch"
       aria-checked={!isDark}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className={`relative w-[52px] h-[28px] rounded-full shrink-0 border transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)] ${className}`}
-      style={{
-        background: isDark ? 'var(--color-canvas-raise)' : 'color-mix(in srgb, var(--color-accent) 20%, var(--color-canvas-raise))',
-        borderColor: 'var(--color-canvas-line)',
-      }}
+      className={cn(
+        'relative h-7 w-[52px] shrink-0 rounded-full border border-canvas-line p-0',
+        isDark ? 'bg-canvas-raise' : 'bg-accent-tint',
+        'hover:bg-canvas-elevated',
+        className
+      )}
     >
-      {/* Track icons */}
-      <Moon className="absolute left-[6px] top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-ink-faint)]" />
-      <Sun className="absolute right-[6px] top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-accent)]" />
+      {/* Track markers — decorative; the accessible name carries the state. */}
+      <Moon
+        className="pointer-events-none absolute left-1.5 top-1/2 size-3 -translate-y-1/2 text-ink-faint"
+        aria-hidden="true"
+      />
+      <Sun
+        className="pointer-events-none absolute right-1.5 top-1/2 size-3 -translate-y-1/2 text-ink-dim"
+        aria-hidden="true"
+      />
 
-      {/* Sliding thumb */}
       <motion.span
-        className="absolute top-[3px] left-[3px] w-[22px] h-[22px] rounded-full flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.35)]"
-        style={{ background: isDark ? 'var(--color-canvas-elevated)' : 'var(--color-accent)' }}
+        className="absolute left-[3px] top-[3px] flex size-[22px] items-center justify-center rounded-full shadow-[var(--shadow-card)]"
+        style={{ background: isDark ? 'var(--canvas-elevated)' : 'var(--accent)' }}
         animate={{ x: isDark ? 0 : 24 }}
         transition={{ type: 'spring', stiffness: 500, damping: 32 }}
       >
         {isDark ? (
-          <Moon className="w-3 h-3 text-[var(--color-ink-dim)]" />
+          <Moon className="size-3 text-ink-dim" aria-hidden="true" />
         ) : (
-          <Sun className="w-3 h-3 text-white" />
+          <Sun className="size-3 text-on-accent" aria-hidden="true" />
         )}
       </motion.span>
-    </button>
+    </Button>
   )
 }
