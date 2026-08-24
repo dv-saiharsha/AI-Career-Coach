@@ -11,7 +11,11 @@ class ResumeAnalysis(Base):
     # References auth.users(id) in Supabase Postgres — enforced at the DB
     # level via the Alembic migration, not an SQLAlchemy FK (that table
     # lives in the auth schema, which we don't model here).
-    user_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    # with_variant: Postgres' UUID type raises on SQLite, which DB_URL
+    # defaults to. Postgres DDL and behaviour are unchanged.
+    user_id = Column(
+        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+    )
     resume_filename = Column(String, nullable=False)
     job_description = Column(Text, nullable=False)
     ats_score = Column(Float, nullable=False)
