@@ -1,8 +1,9 @@
 import io
 import re
 
-from app.core.keywords import keyword_candidates
 from app.core.llm import llm_client
+from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
+from app.modules.resume_analyzer import layout_check, quality
 from app.ml.inference import model_available, predict_score
 
 SYSTEM_PROMPT = (
@@ -113,14 +114,40 @@ def _score(resume_text: str, jd_text: str, fallback_ratio: float) -> float:
 
 
 def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
+    """Keyword analysis with taxonomy-aware matching.
+
+    A JD keyword counts as present when the resume states it literally OR when
+    the resume's own skills imply it — a resume listing PyTorch matches a JD
+    asking for "deep learning" rather than reporting it missing, which is the
+    false negative flat substring matching produces.
+
+    This affects only what the user is shown. app/ml/features.py keeps its own
+    literal matching untouched, because the trained model was fit on that exact
+    computation and changing it would create train/serve skew.
+    """
     resume_lower = resume_text.lower()
-    candidates = keyword_candidates(jd_text)
+    # Single tokens from the shared extractor, plus multi-word skills it can't
+    # see ("deep learning", "rest apis") — without these the taxonomy never
+    # fires on the phrases that most need it.
+    candidates = skill_candidates(jd_text)
+    resume_implied = expand_skills(skill_candidates(resume_text))
+
     matched, missing, keyword_analysis = [], [], []
     for kw in candidates:
         freq = resume_lower.count(kw.lower())
-        present = freq > 0
+        node = canonical(kw)
+        implied_only = freq == 0 and node in resume_implied
+        present = freq > 0 or implied_only
         (matched if present else missing).append(kw)
-        keyword_analysis.append({"keyword": kw, "present": present, "frequency": freq})
+        keyword_analysis.append({
+            "keyword": kw,
+            "present": present,
+            "frequency": freq,
+            # Distinguishes "you wrote this" from "your other skills imply
+            # this" — the second still deserves a nudge to state it outright,
+            # since a recruiter's literal search won't find it.
+            "implied": implied_only,
+        })
 
     total = len(candidates) or 1
     ats_score = _score(resume_text, jd_text, round(100 * len(matched) / total, 1))
@@ -128,6 +155,15 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
         f'Add or emphasize "{kw}" — it appears in the job description but not your resume.'
         for kw in missing[:6]
     ]
+    # An implied skill is a distinct, more encouraging fix: the candidate has
+    # the capability but never wrote the phrase, and a recruiter's literal
+    # keyword search will miss it.
+    suggestions.extend(
+        f'State "{item["keyword"]}" explicitly — your other skills imply it, but an ATS keyword '
+        f"search only matches the literal phrase."
+        for item in keyword_analysis
+        if item["implied"]
+    )
     if not suggestions:
         suggestions = ["Your resume covers the job description's key terms well. Focus next on quantifying your impact."]
 
@@ -161,6 +197,98 @@ def _llm_analysis(resume_text: str, jd_text: str) -> dict:
     return data
 
 
+def _reconcile_implied(resume_text: str, result: dict) -> dict:
+    """Move skills the resume demonstrably implies out of `missing_skills`.
+
+    The LLM path builds its own skill lists, so without this the taxonomy only
+    ever applied to the rule-based fallback — and since Claude is normally
+    configured, the false negative it exists to fix (PyTorch listed, "deep
+    learning" reported missing) would survive in production.
+
+    Implied skills move to matched and are flagged, not silently merged: the
+    candidate still needs to write the phrase down for a literal ATS search.
+    """
+    implied_pool = expand_skills(skill_candidates(resume_text))
+    still_missing, newly_implied = [], []
+
+    for skill in result.get("missing_skills") or []:
+        if canonical(skill) in implied_pool:
+            newly_implied.append(skill)
+        else:
+            still_missing.append(skill)
+
+    if not newly_implied:
+        return result
+
+    result["missing_skills"] = still_missing
+    result["matched_skills"] = (result.get("matched_skills") or []) + newly_implied
+
+    implied_set = {s.lower() for s in newly_implied}
+    for item in result.get("keyword_analysis") or []:
+        if item.get("keyword", "").lower() in implied_set:
+            item["present"] = True
+            item["implied"] = True
+
+    result["suggestions"] = (result.get("suggestions") or []) + [
+        f'State "{skill}" explicitly — your other skills imply it, but an ATS keyword '
+        f"search only matches the literal phrase."
+        for skill in newly_implied
+    ]
+    return result
+
+
+def build_diagnostics(
+    resume_text: str, jd_text: str, result: dict, file_bytes: bytes | None = None
+) -> dict:
+    """Explanatory metadata for a scan.
+
+    Deliberately returns no score. `result["ats_score"]` stays exactly what the
+    trained model predicted — this is attached alongside it, never folded into
+    it, so the number a user sees is always the one the model was measured on.
+    """
+    bullets = [
+        line
+        for line in resume_text.splitlines()
+        if line.strip().startswith(("•", "-", "*", "–", "—")) and len(line.split()) > 3
+    ]
+    bullet_report = quality.evaluate_bullets(bullets)
+
+    keyword_analysis = result.get("keyword_analysis") or []
+    implied = [item["keyword"] for item in keyword_analysis if item.get("implied")]
+    missing = result.get("missing_skills") or []
+
+    # Structural readiness: does the document survive text extraction at all.
+    # Independent of content — a resume can name every keyword the job asks for
+    # and still be unreadable to a parser because it's two-column or a scan.
+    #
+    # file_bytes is the raw upload. Only a PDF yields a column verdict; for a
+    # DOCX PyMuPDF can't open it, and layout_check reports the check as skipped
+    # rather than guessing single-column.
+    readiness = layout_check.inspect_ats_parsing_readiness(resume_text, file_bytes)
+
+    return {
+        "taxonomy_matched_skills": (result.get("matched_skills") or [])[:15],
+        "taxonomy_missing_skills": missing[:15],
+        "implied_skills": implied,
+        "bullet_impact_rating": bullet_report["impact_rating"],
+        "quantified_metrics_ratio": bullet_report["quantified_ratio"],
+        "strong_verb_ratio": bullet_report["strong_verb_ratio"],
+        "bullet_feedback": bullet_report["bullets"],
+        "domain_gaps": group_by_domain(missing),
+        "parsing_readiness": {
+            "readiness_score": readiness["parsing_readiness_score"],
+            "is_single_column": readiness["is_single_column"],
+            "detected_headers": readiness["detected_headers"],
+            # Kept as structured objects rather than flattened to strings: each
+            # carries a severity and an actionable detail, and a bare list of
+            # sentences would drop both.
+            "formatting_warnings": readiness["warnings"],
+            "column_check_skipped_reason": readiness["column_check_skipped_reason"],
+            "extracted_characters": readiness["extracted_characters"],
+        },
+    }
+
+
 def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> dict:
     resume_text = extract_text(filename, content)
     if not resume_text.strip():
@@ -177,6 +305,10 @@ def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> d
             result = _llm_analysis(resume_text, jd_text)
             result["_source"] = "llm"
             result["resume_text"] = resume_text
+            # Applied here too, not just on the fallback: this is the path
+            # that actually runs in production.
+            result = _reconcile_implied(resume_text, result)
+            result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
             return result
         except NotAResumeError:
             raise
@@ -186,4 +318,5 @@ def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> d
     result = _rule_based_analysis(resume_text, jd_text)
     result["_source"] = "rules"
     result["resume_text"] = resume_text
+    result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
     return result

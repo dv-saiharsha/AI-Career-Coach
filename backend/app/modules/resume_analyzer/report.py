@@ -62,7 +62,12 @@ def build_report_pdf(record, result: dict) -> bytes:
 _SKILLS_HEADINGS = {
     "technical skills", "core skills", "key skills", "skills & technologies",
     "skills and technologies", "skills", "technologies", "areas of expertise",
+    "core competencies", "key competencies", "competencies", "technical proficiencies",
+    "proficiencies", "professional skills", "relevant skills", "technical expertise",
+    "skills summary", "domain expertise", "domain knowledge",
 }
+
+_ADDENDUM_HEADING = "Additional Skills (Added by Zenith)"
 _SECTION_HEADINGS = _SKILLS_HEADINGS | {
     "experience", "work experience", "professional experience", "projects",
     "education", "certifications", "certification", "research papers",
@@ -170,22 +175,58 @@ def _overlay_skills_onto_pdf(original_bytes: bytes, skills_to_add: list[str]) ->
 
 
 def _append_addendum_to_last_page(original_bytes: bytes, skills_to_add: list[str]) -> bytes | None:
-    """Fallback when there's no room in the skills section itself: a small,
-    matching-style line in the bottom margin of the last page — still the
-    real original document, just not literally inside that section."""
+    """Fallback when there's no room in the skills section itself: a clearly
+    labeled, separate section on the last page — or a new page entirely if
+    the last one is already full.
+
+    Regression: this previously wrote a bare comma-joined line with no
+    heading at whatever y-position happened to sit near the bottom margin,
+    with no check for existing content there. On a resume whose last page
+    ended with something like Certifications, the skills list landed
+    directly under it with no visual separation or label — reading as a
+    raw, unexplained text dump rather than a Zenith-added section.
+    """
+    if not skills_to_add:
+        return None
     try:
         doc = fitz.open(stream=original_bytes, filetype="pdf")
     except Exception:
         return None
     try:
         page = doc[-1]
-        x, size = 54.0, 8.5
-        y = page.rect.height - 28
+        heading_size, body_size = 11.0, 9.0
+        margin_bottom = 40.0
+        x = 54.0
         max_width = page.rect.width - 2 * x
-        text = "+ Additional matched skills: " + ", ".join(skills_to_add)
-        for wrapped_line in _wrap_to_width(text, "helv", size, max_width):
-            page.insert_text((x, y), wrapped_line, fontname="helv", fontsize=size, color=(0.35, 0.35, 0.35))
-            y += size * 1.35
+
+        lowest_content_y = 0.0
+        for block in page.get_text("dict")["blocks"]:
+            for line in block.get("lines", []):
+                lowest_content_y = max(lowest_content_y, fitz.Rect(line["bbox"]).y1)
+
+        heading_lines = _wrap_to_width(_ADDENDUM_HEADING, "hebo", heading_size, max_width)
+        body_lines = _wrap_to_width(", ".join(skills_to_add), "helv", body_size, max_width)
+        needed_height = (
+            len(heading_lines) * heading_size * 1.35 + 6 + len(body_lines) * body_size * 1.35
+        )
+
+        y_start = lowest_content_y + 14
+        if y_start + needed_height > page.rect.height - margin_bottom:
+            # No room left on the last page without overlapping existing
+            # content — a fresh page beats squeezing a label-less blob
+            # into whatever gap is left.
+            page = doc.new_page(-1, width=page.rect.width, height=page.rect.height)
+            y_start = 54.0
+
+        y = y_start
+        for wrapped_line in heading_lines:
+            page.insert_text((x, y), wrapped_line, fontname="hebo", fontsize=heading_size, color=(0, 0, 0))
+            y += heading_size * 1.35
+        y += 6
+        for wrapped_line in body_lines:
+            page.insert_text((x, y), wrapped_line, fontname="helv", fontsize=body_size, color=(0.35, 0.35, 0.35))
+            y += body_size * 1.35
+
         out = BytesIO()
         doc.save(out)
         return out.getvalue()
