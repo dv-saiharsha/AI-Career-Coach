@@ -6,6 +6,10 @@
 
 # Backend (Python)
 backend/.venv/
+# Downloaded LaTeX toolchain binary (~50MB) — fetched by
+# scripts/install_tectonic.py, never committed. See resume_builder/latex.py
+# for the PATH-then-local-copy resolution order.
+backend/.tools/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/.pytest_cache/
@@ -52,3 +56,6 @@ Thumbs.db
 # Local agent tooling (Claude Code skills cache)
 .claude/skills/
 skills-lock.json
+
+# Editor workspace settings — local to one machine, not project config.
+.vscode/

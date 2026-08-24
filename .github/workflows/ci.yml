@@ -46,6 +46,13 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      # Not a pip package — a Rust binary fetched from its own GitHub
+      # releases. Installed here (rather than left to self-skip, the way
+      # test_ml_inference does for the trained model) so the LaTeX compile
+      # path is genuinely exercised on every push, not perpetually skipped.
+      - name: Install tectonic
+        run: python scripts/install_tectonic.py
+
       # test_ml_inference self-skips when the trained model is absent, and the
       # .joblib is gitignored, so those cases are skipped here rather than failed.
       - name: Test

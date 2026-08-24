@@ -73,6 +73,21 @@ def upgrade() -> None:
     )
     op.create_index("ix_interview_answers_question_id", "interview_answers", ["question_id"])
 
+    # Everything below is Postgres-only, and skipped wholesale on SQLite —
+    # the local dev default (app/core/config.py). Without this guard
+    # `alembic upgrade head` cannot run locally at all: it dies on the raw
+    # ALTER TABLE, which SQLite's parser rejects outright.
+    #
+    # Skipped rather than emulated. The FK targets auth.users, a schema
+    # Supabase manages and that simply does not exist in a local SQLite file,
+    # so there is nothing to point at; pointing it somewhere else instead
+    # would create a constraint local runs have and production doesn't. RLS
+    # likewise has no SQLite equivalent. Both are integrity features of the
+    # deployed database, and the app never relies on either being present to
+    # function.
+    if op.get_bind().dialect.name != "postgresql":
+        return
+
     # FK to Supabase's auth.users(id) — real referential integrity even
     # though it's not expressible as a SQLAlchemy ForeignKey (cross-schema).
     for table in _USER_OWNED_TABLES:

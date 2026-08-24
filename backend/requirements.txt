@@ -2,7 +2,10 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
 sqlalchemy==2.0.35
-pydantic==2.9.2
+# Floor is set by apify-client (below), which requires >=2.11.0 — installing it
+# under the previous 2.9.2 pin silently upgraded pydantic out from under this
+# file. FastAPI 0.115.0 and pydantic-settings 2.5.2 both run clean on 2.13.x.
+pydantic==2.13.4
 pydantic-settings==2.5.2
 anthropic==0.39.0
 pdfplumber==0.11.4
@@ -29,3 +32,15 @@ joblib==1.5.3
 # is not guaranteed. Do not downgrade to satisfy an installer error — raise the
 # Python version instead.
 numpy==2.5.1
+
+# Direct dependency of app/modules/job_market/jsearch.py. It arrives
+# transitively via anthropic anyway, but an unpinned transitive is one
+# dependency bump away from vanishing — if anthropic ever drops or replaces
+# it, the job feed breaks at import with nothing in this file explaining why.
+httpx==0.27.2
+
+# Apify platform client (scraper/actor runs), added for job-listing ingestion.
+# Drags in pydantic[email] (hence email-validator + dnspython) and impit as
+# its HTTP layer; those are transitive and deliberately left unpinned here.
+# Note it forces the pydantic floor above — check that pin before bumping.
+apify-client==3.1.2

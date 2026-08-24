@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings  # noqa: E402
 from app.core.database import Base  # noqa: E402
-from app.models import interview, resume  # noqa: E402,F401 — registers models with Base
+from app.models import interview, job, resume  # noqa: E402,F401 — registers models with Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DB_URL)
