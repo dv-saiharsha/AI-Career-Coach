@@ -24,6 +24,64 @@ export interface KeywordFrequency {
   keyword: string
   present: boolean
   frequency: number
+  /**
+   * Matched by implication, not stated. The candidate's other skills entail
+   * it (PyTorch → deep learning), but a literal ATS keyword search still
+   * won't find it — so it's shown differently from a stated match.
+   */
+  implied?: boolean
+}
+
+export interface BulletFeedback {
+  bullet: string
+  /** 0-100, with a real zero floor — no verb and no metric scores 0. */
+  impact_rating: number
+  has_strong_verb: boolean
+  has_weak_opener: boolean
+  has_metric: boolean
+  has_tool_context: boolean
+  metrics: string[]
+  suggestions: string[]
+}
+
+export interface FormattingWarning {
+  severity: string
+  issue: string
+  /** What to change — kept beside the issue rather than flattened away. */
+  detail: string
+}
+
+/**
+ * Structural readiness, independent of content. A resume can name every
+ * keyword a job asks for and still fail here: a two-column layout or an
+ * image-only export is unreadable to a parser however well it's written.
+ */
+export interface ParsingReadiness {
+  readiness_score: number
+  /**
+   * Three-valued. null means the check could not run (no PDF, or a DOCX
+   * PyMuPDF can't open) — reporting that as single-column would be a claim
+   * with no evidence behind it.
+   */
+  is_single_column: boolean | null
+  detected_headers: string[]
+  formatting_warnings: FormattingWarning[]
+  column_check_skipped_reason: string | null
+  extracted_characters: number
+}
+
+/** Explains the score; never competes with it. ats_score stays the model's. */
+export interface Diagnostics {
+  taxonomy_matched_skills: string[]
+  taxonomy_missing_skills: string[]
+  implied_skills: string[]
+  bullet_impact_rating: number
+  quantified_metrics_ratio: number
+  strong_verb_ratio: number
+  bullet_feedback: BulletFeedback[]
+  domain_gaps: Record<string, string[]>
+  /** Absent on scans stored before layout checking existed. */
+  parsing_readiness?: ParsingReadiness | null
 }
 
 export interface AnalysisResult {
@@ -35,6 +93,8 @@ export interface AnalysisResult {
   keyword_analysis: KeywordFrequency[]
   suggestions: string[]
   created_at: string
+  /** Absent on scans stored before diagnostics existed. */
+  diagnostics?: Diagnostics | null
 }
 
 export const analyzeResume = async (
@@ -141,6 +201,101 @@ export const generateImprovedResume = async (
   window.URL.revokeObjectURL(url)
 }
 
+export interface ScreeningQuestion {
+  id: string
+  type: string
+  question: string
+  /**
+   * A scaffold with [bracketed placeholders], not a script to read verbatim.
+   * The backend prompt forbids asserting achievements on the candidate's
+   * behalf, so the UI must present this as something to fill in.
+   */
+  answer_template: string
+  key_signal: string
+  what_to_avoid: string
+}
+
+export interface InterviewTip {
+  title: string
+  rule: string
+}
+
+export interface ScreeningPrep {
+  job_title: string
+  company: string
+  screening_questions: ScreeningQuestion[]
+  general_interview_tips: InterviewTip[]
+}
+
+export const generateScreeningPrep = async (payload: {
+  job_title: string
+  company?: string
+  jd_text?: string
+  resume_analysis_id?: number | null
+}): Promise<ScreeningPrep> => {
+  const response = await apiClient.post('/interview/screening-prep', payload)
+  return response.data
+}
+
+// ── Career: roadmap and offer negotiation ────────────────────────────────
+
+export interface Milestone {
+  id: string
+  title: string
+  summary: string
+  typical_duration: string
+  have_skills: string[]
+  gap_skills: string[]
+}
+
+export interface CareerRoadmap {
+  current_role: string
+  target_role: string
+  /** False when the generic scaffold was served — the UI must say so. */
+  tailored: boolean
+  milestones: Milestone[]
+}
+
+export const getCareerRoadmap = async (payload: {
+  current_role?: string
+  target_role?: string
+  seniority?: string
+}): Promise<CareerRoadmap> => {
+  const response = await apiClient.post('/career/roadmap', payload)
+  return response.data
+}
+
+export interface SalaryBenchmark {
+  role: string
+  /** 0 means we hold no postings for this role; every band below is null. */
+  sample_size: number
+  p25: number | null
+  median: number | null
+  p75: number | null
+  low: number | null
+  high: number | null
+}
+
+export interface CounterOffer {
+  email: string
+  benchmark: SalaryBenchmark
+}
+
+export const getSalaryBenchmark = async (role: string): Promise<SalaryBenchmark> => {
+  const response = await apiClient.get('/career/salary-benchmark', { params: { role } })
+  return response.data
+}
+
+export const generateCounterOffer = async (payload: {
+  role: string
+  company?: string
+  current_offer?: string
+  target_offer?: string
+}): Promise<CounterOffer> => {
+  const response = await apiClient.post('/career/counter-offer', payload)
+  return response.data
+}
+
 export interface InterviewHistoryItem {
   id: number
   role: string
@@ -153,6 +308,462 @@ export interface InterviewHistoryItem {
 
 export const getInterviewHistory = async (): Promise<InterviewHistoryItem[]> => {
   const response = await apiClient.get('/interview/history')
+  return response.data
+}
+
+export type WorkMode = 'Remote' | 'Hybrid' | 'On-site'
+
+export interface JobListing {
+  id: string
+  title: string
+  company: string
+  location: string
+  workMode: WorkMode
+  salaryRange: string
+  /** Full posting text. Null for rows cached before the column existed. */
+  description: string | null
+  skills: string[]
+  postedDaysAgo: number
+  applyUrl: string
+}
+
+export interface JobFeed {
+  /** ISO timestamp of the newest cached listing, or null on a cold cache. */
+  lastUpdated: string | null
+  jobs: JobListing[]
+}
+
+/**
+ * Job feed. Omitting `q` serves the warm-role cache and costs nothing.
+ *
+ * Passing `q` can trigger a billed scraper run on the backend when that role
+ * isn't cached, so callers should debounce rather than fire per keystroke —
+ * see the jobs page. Results are cached server-side for 24h, so repeat
+ * searches for the same role are free.
+ */
+export const getJobs = async (q?: string): Promise<JobFeed> => {
+  const response = await apiClient.get('/jobs', { params: q ? { q } : undefined })
+  return response.data
+}
+
+// ── User profile, onboarding, and dashboard metrics ──────────────────────
+//
+// None of these take a user id. Identity comes from the Supabase JWT that the
+// request interceptor above attaches, and the backend reads it from the
+// verified token — passing an id from the client would let any caller read
+// any account by changing a string.
+
+export interface UserProfile {
+  onboarding_completed: boolean
+  target_roles: string[]
+  primary_resume_filename: string | null
+  primary_resume_analysis_id: number | null
+  bio: string | null
+  /** Named current_title, not current_role — the latter is a reserved SQL keyword. */
+  current_title: string | null
+  seniority: string | null
+  /** Single aspirational role. Distinct from target_roles, which drives the job feed. */
+  primary_target_role: string | null
+  avatar_url: string | null
+}
+
+/**
+ * Partial profile update. Omitted keys are left untouched server-side; an
+ * empty string clears the field to NULL. That distinction is what lets the
+ * avatar delete flow null `avatar_url` without a bio-only save wiping it.
+ */
+export interface ProfileUpdate {
+  bio?: string
+  current_title?: string
+  seniority?: string
+  primary_target_role?: string
+  avatar_url?: string
+  avatar_path?: string
+  /** Set by the dashboard resume reminder when upload was skipped at onboarding. */
+  primary_resume_analysis_id?: number | null
+  primary_resume_filename?: string | null
+}
+
+export const updateUserProfile = async (patch: ProfileUpdate): Promise<UserProfile> => {
+  const response = await apiClient.patch('/user/profile', patch)
+  return response.data
+}
+
+export interface UserStats {
+  resumes_analyzed: number
+  interview_sessions: number
+  /** null, not 0, when there is nothing to average — a new user has no score. */
+  avg_ats_score: number | null
+  latest_ats_score: number | null
+  latest_interview_score: number | null
+}
+
+export interface ActivityItem {
+  id: number
+  kind: 'resume' | 'interview'
+  title: string
+  score: number | null
+  created_at: string
+}
+
+export const getUserProfile = async (): Promise<UserProfile> => {
+  const response = await apiClient.get('/user/profile')
+  return response.data
+}
+
+export interface OnboardingPayload {
+  target_roles: string[]
+  primary_resume_analysis_id?: number | null
+  primary_resume_filename?: string | null
+}
+
+export const completeOnboarding = async (payload: OnboardingPayload): Promise<UserProfile> => {
+  const response = await apiClient.post('/user/onboarding', payload)
+  return response.data
+}
+
+export const getUserStats = async (): Promise<UserStats> => {
+  const response = await apiClient.get('/user/stats')
+  return response.data
+}
+
+export const getUserActivity = async (): Promise<ActivityItem[]> => {
+  const response = await apiClient.get('/user/activity')
+  return response.data.items ?? []
+}
+
+// ── Resume Builder: structured single-page LaTeX resume + honest re-score ──
+//
+// ats_score and semantic_match both come straight through from the backend's
+// trained model / tfidf_cosine (see resume_builder/services.py) — nothing is
+// recomputed client-side.
+
+export interface BuilderExperienceEntry {
+  title: string
+  company: string
+  dates: string
+  bullets: string[]
+}
+
+export interface BuilderEducationEntry {
+  degree: string
+  institution: string
+  dates: string
+}
+
+export interface BulletSuggestion {
+  experience_index: number
+  original: string
+  suggested: string
+  reason: string
+}
+
+export interface StageFixesResult {
+  missing_keywords: string[]
+  bullet_suggestions: BulletSuggestion[]
+}
+
+export const stageResumeFixes = async (
+  analysisId: number,
+  experiences?: BuilderExperienceEntry[],
+): Promise<StageFixesResult> => {
+  const response = await apiClient.post(`/resume-builder/stage-fixes/${analysisId}`, {
+    experiences: experiences?.length ? experiences : undefined,
+  })
+  return response.data
+}
+
+export interface BulletEvaluation {
+  bullet: string
+  /** 0-3: strong verb, metric, tool context. A count, not a percentage. */
+  grade: number
+  has_strong_verb: boolean
+  has_weak_opener: boolean
+  has_metric: boolean
+  has_tool_context: boolean
+  metrics: string[]
+  suggestions: string[]
+}
+
+export interface BulletReport {
+  bullet_count: number
+  quantified_ratio: number
+  strong_verb_ratio: number
+  weak_opener_count: number
+  average_grade: number
+  bullets: BulletEvaluation[]
+}
+
+export interface SkillContext {
+  skill: string
+  found: boolean
+  sections: string[]
+  occurrences: number
+  /** Best section the skill appears in, halved when it looks stuffed. */
+  weight: number
+  stuffed: boolean
+}
+
+export interface RoleRecency {
+  title: string
+  company: string
+  dates: string
+  /** null when no year parsed — unknown, never treated as old. */
+  end_year: number | null
+  recency_credit: number
+}
+
+/**
+ * Diagnostics only. Deliberately carries no score: ats_score stays with the
+ * trained model, and this explains *why* a resume reads weak instead.
+ */
+export interface QualityReport {
+  bullets: BulletReport
+  skill_contexts: SkillContext[]
+  role_recency: RoleRecency[]
+  domain_gaps: Record<string, string[]>
+  /**
+   * Present on stored scans too. is_single_column is null when the row has no
+   * stored PDF — header and extractability feedback still compute, only the
+   * column verdict is unknown.
+   */
+  parsing_readiness?: ParsingReadiness | null
+}
+
+/** Free — pure text analysis, no LLM call, so it's safe to call on every scan. */
+export const getQualityReport = async (analysisId: number): Promise<QualityReport> => {
+  const response = await apiClient.post(`/resume-builder/quality-report/${analysisId}`)
+  return response.data
+}
+
+export interface CompileResumeRequest {
+  job_description: string
+  candidate_name: string
+  location?: string
+  email?: string
+  phone?: string
+  linkedin?: string
+  summary?: string
+  technical_skills?: string[]
+  tools_skills?: string[]
+  experiences?: BuilderExperienceEntry[]
+  education?: BuilderEducationEntry[]
+}
+
+export interface CompileResumeResult {
+  ats_score: number
+  semantic_match: number
+  keyword_matched_count: number
+  keyword_total_count: number
+  page_count: number
+  pdf_base64: string
+}
+
+export const compileResume = async (payload: CompileResumeRequest): Promise<CompileResumeResult> => {
+  const response = await apiClient.post('/resume-builder/compile-and-score', payload)
+  return response.data
+}
+
+export const downloadCompiledResumePdf = (pdfBase64: string, candidateName: string) => {
+  const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))
+  const url = window.URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+  const safeName = candidateName.trim().toLowerCase().replace(/\s+/g, '-') || 'resume'
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${safeName}-ats-optimized.pdf`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// ── Application pipeline ─────────────────────────────────────────────────
+//
+// No user id is ever sent. Identity comes from the Supabase JWT the request
+// interceptor attaches, and the backend reads it from the verified token —
+// passing an id from the client would let any caller read or move another
+// account's applications by editing a string.
+
+export const APPLICATION_STAGES = ['saved', 'applied', 'interviewing', 'offer', 'rejected'] as const
+export type ApplicationStatus = (typeof APPLICATION_STAGES)[number]
+
+export interface JobApplication {
+  id: number
+  job_title: string
+  company: string
+  location: string | null
+  salary_range: string | null
+  status: ApplicationStatus
+  job_url: string | null
+  job_description: string | null
+  tailored_resume_id: number | null
+  notes: string | null
+  /** Set the first time the card reaches "applied", never rewritten after. */
+  applied_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface Pipeline {
+  /** Every stage key is always present, so an empty column still renders. */
+  pipeline: Record<ApplicationStatus, JobApplication[]>
+  total: number
+}
+
+export interface CreateApplicationPayload {
+  job_title: string
+  company: string
+  location?: string | null
+  salary_range?: string | null
+  status?: ApplicationStatus
+  job_url?: string | null
+  job_description?: string | null
+  tailored_resume_id?: number | null
+  notes?: string | null
+}
+
+export const getApplicationPipeline = async (): Promise<Pipeline> => {
+  const response = await apiClient.get('/applications/pipeline')
+  return response.data
+}
+
+export const createApplication = async (
+  payload: CreateApplicationPayload,
+): Promise<JobApplication> => {
+  const response = await apiClient.post('/applications', payload)
+  return response.data
+}
+
+export const updateApplicationStatus = async (
+  applicationId: number,
+  status: ApplicationStatus,
+): Promise<JobApplication> => {
+  const response = await apiClient.patch(`/applications/${applicationId}/status`, { status })
+  return response.data
+}
+
+/** Partial — omitted keys are left untouched server-side. */
+export const updateApplication = async (
+  applicationId: number,
+  patch: Partial<Omit<JobApplication, 'id' | 'created_at' | 'updated_at' | 'applied_at'>>,
+): Promise<JobApplication> => {
+  const response = await apiClient.patch(`/applications/${applicationId}`, patch)
+  return response.data
+}
+
+export const deleteApplication = async (applicationId: number): Promise<void> => {
+  await apiClient.delete(`/applications/${applicationId}`)
+}
+
+// ── Offer comparison ─────────────────────────────────────────────────────
+
+export interface JobOffer {
+  id: number
+  company: string
+  role_title: string
+  application_id: number | null
+  base_salary: number
+  annual_bonus: number
+  signing_bonus: number
+  equity_value_annual: number
+  location: string | null
+  is_remote: boolean
+  notes: string | null
+  /** Includes the signing bonus — year one only. */
+  total_first_year: number
+  /** Excludes the signing bonus — what the offer is worth every year after. */
+  recurring_annual: number
+  /** User-entered. null means not supplied, distinct from 0 (no income tax). */
+  estimated_tax_rate: number | null
+  /** User-entered. 1.15 = 15% more expensive. null means no adjustment. */
+  col_index: number | null
+  /** recurring x (1 - tax) / col. Equals recurring_annual when unadjusted. */
+  net_adjusted_comp: number
+  /** False when nothing was applied — the UI says so rather than implying
+   * the raw figure was somehow verified as net. */
+  is_adjusted: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface OfferList {
+  offers: JobOffer[]
+  count: number
+}
+
+export interface CreateOfferPayload {
+  company: string
+  role_title: string
+  base_salary: number
+  annual_bonus?: number
+  signing_bonus?: number
+  equity_value_annual?: number
+  location?: string | null
+  is_remote?: boolean
+  notes?: string | null
+  application_id?: number | null
+  estimated_tax_rate?: number | null
+  col_index?: number | null
+}
+
+export const getOffers = async (): Promise<OfferList> => {
+  const response = await apiClient.get('/offers')
+  return response.data
+}
+
+export const createOffer = async (payload: CreateOfferPayload): Promise<JobOffer> => {
+  const response = await apiClient.post('/offers', payload)
+  return response.data
+}
+
+export const deleteOffer = async (offerId: number): Promise<void> => {
+  await apiClient.delete(`/offers/${offerId}`)
+}
+
+// ── Analytics ────────────────────────────────────────────────────────────
+
+export interface AtsHistoryPoint {
+  id: number
+  date: string | null
+  score: number
+  label: string
+}
+
+export interface QuantifiedHistoryPoint {
+  id: number
+  date: string | null
+  label: string
+  quantified_ratio: number
+  impact_rating: number
+}
+
+export interface Funnel {
+  /** Cards currently at each stage. */
+  by_stage: Record<string, number>
+  total_tracked: number
+  /** "Reached at least this stage" — differs from by_stage because status
+   * records where a card is now, not where it has been. */
+  reached_applied: number
+  reached_interviewing: number
+  reached_offer: number
+  /** null, not 0, when nothing has been applied to yet. */
+  interview_rate: number | null
+  offer_rate: number | null
+}
+
+export interface AnalyticsSummary {
+  ats_history: AtsHistoryPoint[]
+  quantified_history: QuantifiedHistoryPoint[]
+  funnel: Funnel
+  scan_count: number
+  best_score: number | null
+  latest_score: number | null
+  /** null with fewer than two scans — one point is not a trend. */
+  score_delta: number | null
+}
+
+export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
+  const response = await apiClient.get('/analytics/summary')
   return response.data
 }
 

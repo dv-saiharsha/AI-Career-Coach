@@ -10,6 +10,9 @@ import {
   GitCompare, Hash, Check, X, ScanLine,
 } from 'lucide-react'
 import Waveform from '../../../components/Waveform'
+import { ResumeBuilderPanel } from '@/components/resume/ResumeBuilderPanel'
+import { ResumeQualityPanel } from '@/components/resume/ResumeQualityPanel'
+import { consumeJobContext } from '@/lib/jobContext'
 import {
   analyzeResume,
   generateImprovedResume,
@@ -72,6 +75,30 @@ export default function ResumeAnalyzer() {
   const [genStatus, setGenStatus] = useState<GenStatus>('idle')
   const [genError, setGenError] = useState('')
   const [resultTab, setResultTab] = useState<ResultTab>('missing')
+  const [jobContextNotice, setJobContextNotice] = useState<string | null>(null)
+
+  // Handoff from /jobs: "Match resume" stashes a listing and navigates here.
+  // Consuming is one-shot (see lib/jobContext.ts) so a listing can't silently
+  // overwrite the field on every later visit.
+  //
+  // Runs once on mount rather than reacting to jobDescription, which would
+  // clobber whatever the user typed next.
+  //
+  // set-state-in-effect is suppressed rather than solved with a lazy useState
+  // initializer: (protected)/layout.tsx redirects server-side, so this page is
+  // server-rendered for signed-in users. A lazy initializer would read
+  // localStorage on the client only, so the server would emit an empty
+  // textarea and the client a filled one — a hydration mismatch. Reading
+  // after mount is the correct shape for a client-only external store; the
+  // single extra render is the price of not desyncing hydration.
+  useEffect(() => {
+    const context = consumeJobContext()
+    if (!context?.description) return
+    /* eslint-disable react-hooks/set-state-in-effect -- see comment above */
+    setJobDescription(context.description)
+    setJobContextNotice(`${context.title} at ${context.company}`)
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [])
 
   // Staged progress narrative: there are no incremental backend progress
   // events for analysis, so this steps through the named stages on a timer
@@ -148,7 +175,9 @@ export default function ResumeAnalyzer() {
       setResult(data)
       setStatus('success')
       setResultTab('missing')
-      setSelectedSkills(new Set(data.missing_skills))
+      // Missing skills start unstaged — the user opts in per skill rather
+      // than every gap being pre-selected for them.
+      setSelectedSkills(new Set())
     } catch {
       setError('Could not reach the scan service. Check that the API is running and try again.')
       setStatus('error')
@@ -384,16 +413,40 @@ export default function ResumeAnalyzer() {
                     Matched skills are confirmed in your resume. Click a flagged skill to stage it for the improved resume.
                   </p>
                   <div className="flex flex-col gap-2">
-                    {result.matched_skills.map(skill => (
-                      <div
-                        key={skill}
-                        className="flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-[10px] border-l-[3px]"
-                        style={{ borderLeftColor: 'var(--color-signal-high)', background: 'var(--color-canvas)' }}
-                      >
-                        <Check strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-[var(--color-signal-high)]" />
-                        <span className="text-sm font-medium text-[var(--color-ink)]">{skill}</span>
-                      </div>
-                    ))}
+                    {result.matched_skills.map(skill => {
+                      // Matched by implication rather than stated outright.
+                      // Shown apart from a plain match because a recruiter's
+                      // literal keyword search still won't find it.
+                      const implied = result.diagnostics?.implied_skills?.includes(skill) ?? false
+                      return (
+                        <div
+                          key={skill}
+                          className="flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-[10px] border-l-[3px]"
+                          style={{
+                            borderLeftColor: implied
+                              ? 'var(--color-signal-mid)'
+                              : 'var(--color-signal-high)',
+                            background: 'var(--color-canvas)',
+                          }}
+                        >
+                          <Check
+                            strokeWidth={1.5}
+                            className="w-3.5 h-3.5 shrink-0"
+                            style={{
+                              color: implied
+                                ? 'var(--color-signal-mid)'
+                                : 'var(--color-signal-high)',
+                            }}
+                          />
+                          <span className="text-sm font-medium text-[var(--color-ink)]">{skill}</span>
+                          {implied && (
+                            <span className="ml-auto shrink-0 text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink-faint)]">
+                              implied — state it
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
                     {result.missing_skills.map(skill => {
                       const selected = selectedSkills.has(skill)
                       return (
@@ -413,8 +466,10 @@ export default function ResumeAnalyzer() {
                             ? <Check strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-[var(--color-signal-high)]" />
                             : <X strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0 text-[var(--color-signal-low)]" />}
                           <span className="text-sm font-medium text-[var(--color-ink)]">{skill}</span>
-                          {selected && (
+                          {selected ? (
                             <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-accent)] ml-auto shrink-0">staged for fix</span>
+                          ) : (
+                            <span className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink-faint)] ml-auto shrink-0">tap to stage</span>
                           )}
                         </Button>
                       )
@@ -495,6 +550,17 @@ export default function ResumeAnalyzer() {
               </Tabs.Root>
             </motion.div>
 
+            {/* Why the resume reads the way it does — diagnostics, no score.
+                Sits between the score and the fix actions so the reasoning is
+                read before the user decides what to change. */}
+            {/* ResumeQualityPanel renders the readiness card itself, from the
+                stored-scan report — so it appears here for a fresh scan and on
+                any historical report without a second call site to keep in
+                sync. */}
+            <motion.div variants={itemVariants}>
+              <ResumeQualityPanel key={result.id} analysisId={result.id} />
+            </motion.div>
+
             {/* Generate improved resume */}
             <motion.div variants={itemVariants} className="card p-6">
               <div className="eyebrow mb-1">Tailor my resume</div>
@@ -572,6 +638,15 @@ export default function ResumeAnalyzer() {
                   <ChevronRight strokeWidth={1.5} className="w-3 h-3" />
                 </Link>
               </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants}>
+              <ResumeBuilderPanel
+                analysisId={result.id}
+                jobDescription={jobDescription}
+                defaultName={fullName}
+                prefillSkills={[...result.matched_skills, ...Array.from(selectedSkills)]}
+              />
             </motion.div>
           </motion.div>
         )}
@@ -678,6 +753,31 @@ export default function ResumeAnalyzer() {
                       )}
                     </AnimatePresence>
                   </div>
+                  {/* Tells the user why the field arrived pre-filled — an
+                      auto-populated textarea with no explanation reads as a
+                      bug. Dismissible because it stops being useful once read. */}
+                  <AnimatePresence>
+                    {jobContextNotice && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/5 px-3 py-2"
+                      >
+                        <span className="text-xs text-[var(--color-ink-dim)]">
+                          Filled from <span className="font-medium text-[var(--color-ink)]">{jobContextNotice}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobContextNotice(null)}
+                          aria-label="Dismiss"
+                          className="shrink-0 text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink)]"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <Textarea
                     value={jobDescription}
                     onChange={e => setJobDescription(e.target.value)}

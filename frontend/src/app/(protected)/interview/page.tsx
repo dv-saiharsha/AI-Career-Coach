@@ -7,6 +7,7 @@ import {
   BookOpen, Layers, Globe, CheckCircle2, RotateCcw,
   ChevronDown, ChevronRight, Lightbulb, Sparkles,
 } from 'lucide-react'
+import { ScreeningPrep } from '@/components/interview/ScreeningPrep'
 import {
   generateInterviewQuestions,
   evaluateInterviewAnswer,
@@ -73,6 +74,7 @@ export default function InterviewCoach() {
   const reduceMotion = usePrefersReducedMotion()
 
   // ── Setup state ──────────────────────────────────────────────
+  const [mode, setMode] = useState<'drills' | 'screening'>('drills')
   const [selectedRoleKey, setSelectedRoleKey] = useState<string | 'custom' | null>(null)
   const [customRole, setCustomRole] = useState('')
   const [seniority, setSeniority] = useState('Mid-level')
@@ -91,6 +93,34 @@ export default function InterviewCoach() {
   const [submitError, setSubmitError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const questionRefs = useRef<Record<number, HTMLDivElement | null>>({})
+
+  // Handoff from /jobs: "Practice" navigates here as /interview?role=<title>.
+  // Read once on mount from window.location rather than useSearchParams —
+  // this is a one-shot seed, and useSearchParams would subscribe the
+  // component to param changes and pull a Suspense requirement into a page
+  // that otherwise needs none.
+  //
+  // set-state-in-effect is suppressed for the same reason as the /resume
+  // handoff: this route is server-rendered behind an auth redirect, so
+  // seeding selection state in a lazy initializer would desync hydration
+  // (server renders nothing selected, client renders a selected preset).
+  useEffect(() => {
+    const incoming = new URLSearchParams(window.location.search).get('role')?.trim()
+    if (!incoming) return
+    /* eslint-disable react-hooks/set-state-in-effect -- see comment above */
+    // Prefer an exact preset match so the user lands on the curated role
+    // (with its seeded question bank) instead of the free-text path.
+    const preset = ROLE_PRESETS.find(r => r.label.toLowerCase() === incoming.toLowerCase())
+    if (preset) {
+      setSelectedRoleKey(preset.key)
+      return
+    }
+    // Real job titles ("Principal AI & ML Engineer - Remote") rarely match a
+    // preset, so the custom field is the normal outcome here, not a fallback.
+    setSelectedRoleKey('custom')
+    setCustomRole(incoming)
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [])
 
   const resolvedRole = selectedRoleKey === 'custom' ? customRole.trim() : ROLE_PRESETS.find(r => r.key === selectedRoleKey)?.label ?? ''
 
@@ -219,11 +249,46 @@ export default function InterviewCoach() {
             Choose the room you&apos;re walking into.
           </h1>
           <p className="text-sm text-[var(--color-ink-dim)] leading-relaxed max-w-xl">
-            Pick your target role and seniority. We generate technical and behavioral questions,
-            then score your typed answers so you know exactly where you stand.
+            {mode === 'drills'
+              ? 'Pick your target role and seniority. We generate technical and behavioral questions, then score your typed answers so you know exactly where you stand.'
+              : 'Paste a posting and get the questions a recruiter screen actually opens with — each with an answer template you fill in from your own experience.'}
           </p>
         </div>
 
+        <div className="relative inline-flex mb-8 rounded-[6px] border border-[var(--color-canvas-line)] p-1">
+          {([
+            ['drills', 'Practice drills'],
+            ['screening', 'Screening prep'],
+          ] as const).map(([key, label]) => {
+            const active = mode === key
+            return (
+              <Button
+                key={key}
+                type="button"
+                variant="ghost"
+                aria-pressed={active}
+                onClick={() => setMode(key)}
+                className="relative h-auto rounded-[4px] px-4 py-1.5 text-sm font-medium hover:bg-transparent"
+              >
+                {active && (
+                  <motion.span
+                    layoutId="interview-mode-thumb"
+                    className="absolute inset-0 rounded-[4px] bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)]"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <span className={`relative z-10 ${active ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)]'}`}>
+                  {label}
+                </span>
+              </Button>
+            )
+          })}
+        </div>
+
+        {mode === 'screening' ? (
+          <ScreeningPrep initialRole={resolvedRole} />
+        ) : (
+        <>
         <div className="eyebrow mb-3">Role</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           {ROLE_PRESETS.map((preset, i) => {
@@ -347,6 +412,8 @@ export default function InterviewCoach() {
             'Start session'
           )}
         </Button>
+        </>
+        )}
       </div>
     )
   }

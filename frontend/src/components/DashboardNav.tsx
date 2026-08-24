@@ -18,7 +18,11 @@ import {
   Trophy,
   TrendingUp,
   Briefcase,
+  KanbanSquare,
+  Coins,
   Search,
+  Route,
+  Scale,
 } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
 import { ZenithMark } from './ZenithMark'
@@ -37,6 +41,10 @@ const NAV_ITEMS = [
   { icon: FileSearch, label: 'Resume Analyzer', href: '/resume' },
   { icon: MessageSquareCode, label: 'Interview Coach', href: '/interview' },
   { icon: Briefcase, label: 'Job Market', href: '/jobs' },
+  { icon: KanbanSquare, label: 'Applications', href: '/applications' },
+  { icon: Coins, label: 'Offers', href: '/offers' },
+  { icon: Route, label: 'Career Roadmap', href: '/roadmap' },
+  { icon: Scale, label: 'Negotiation', href: '/negotiation' },
   { icon: FileText, label: 'Reports', href: '/reports' },
   { icon: BarChart3, label: 'Analytics', href: '/analytics' },
   { icon: Trophy, label: 'Achievements', href: '/achievements' },

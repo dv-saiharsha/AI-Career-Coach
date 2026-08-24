@@ -1,260 +1,320 @@
 'use client';
 
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import CountUp from 'react-countup';
-import { TrendingUp, Target, MessageSquareCode, Calendar } from 'lucide-react';
+import { TrendingUp, Target, FileSearch, Trophy } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
   Area,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  LabelList,
 } from 'recharts';
+import { getAnalyticsSummary, type AnalyticsSummary } from '@/lib/apiClient';
 import { useAccentPalette, useChartTheme } from '../../../lib/useAccentPalette';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const SCORE_HISTORY = [
-  { month: 'Jul', ats: 72, interview: 68 },
-  { month: 'Aug', ats: 78, interview: 72 },
-  { month: 'Sep', ats: 81, interview: 75 },
-  { month: 'Oct', ats: 85, interview: 80 },
-  { month: 'Nov', ats: 83, interview: 82 },
-  { month: 'Dec', ats: 87, interview: 84 },
-];
+const ANALYTICS_KEY = ['analytics', 'summary'] as const;
 
-const MONTHLY_SESSIONS = [
-  { month: 'Jul', sessions: 3 },
-  { month: 'Aug', sessions: 4 },
-  { month: 'Sep', sessions: 5 },
-  { month: 'Oct', sessions: 6 },
-  { month: 'Nov', sessions: 4 },
-  { month: 'Dec', sessions: 6 },
-];
+const shortDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
 
-const SKILL_BREAKDOWN = [
-  { skill: 'Python', score: 92, sessions: 8 },
-  { skill: 'System Design', score: 78, sessions: 5 },
-  { skill: 'SQL', score: 88, sessions: 4 },
-  { skill: 'React', score: 84, sessions: 6 },
-  { skill: 'Machine Learning', score: 71, sessions: 3 },
-];
-
-const STAT_CARDS = [
-  { icon: Target, label: 'Best ATS Score', value: 91, prefix: '', suffix: '%', sub: 'ML_Engineer_v3.pdf' },
-  { icon: MessageSquareCode, label: 'Total Sessions', value: 28, prefix: '', suffix: '', sub: 'Interview sessions' },
-  { icon: TrendingUp, label: 'Improvement', value: 19, prefix: '+', suffix: '%', sub: 'ATS score, last 90 days' },
-  { icon: Calendar, label: 'Practice Streak', value: 7, prefix: '', suffix: ' days', sub: 'Current streak' },
-];
+interface TrendPoint {
+  date: string;
+  score: number;
+  label: string;
+  quantified?: number;
+}
 
 interface TrendTooltipProps {
   active?: boolean;
-  payload?: { dataKey?: string; value?: number; color?: string }[];
-  label?: string;
+  payload?: { payload: TrendPoint }[];
 }
 
-function TrendTooltip({ active, payload, label }: TrendTooltipProps) {
+function TrendTooltip({ active, payload }: TrendTooltipProps) {
   if (!active || !payload?.length) return null;
+  const point = payload[0].payload;
   return (
-    <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-      <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-1.5">{label}</div>
-      <div className="flex flex-col gap-1">
-        {payload.map((p) => (
-          <div key={p.dataKey} className="flex items-center gap-2 text-xs">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.color }} />
-            <span className="text-[var(--color-ink-dim)]">{p.dataKey === 'ats' ? 'ATS Score' : 'Interview Score'}</span>
-            <span className="font-semibold text-[var(--color-ink)] ml-auto tabular-nums">{p.value}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-interface SessionsTooltipProps {
-  active?: boolean;
-  payload?: { value?: number }[];
-  label?: string;
-}
-
-function SessionsTooltip({ active, payload, label }: SessionsTooltipProps) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-      <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-1">{label}</div>
-      <div className="text-xs text-[var(--color-ink)] font-semibold tabular-nums">{payload[0].value} sessions</div>
-    </div>
-  );
-}
-
-interface SkillTooltipProps {
-  active?: boolean;
-  payload?: { payload: { skill: string; score: number; sessions: number } }[];
-}
-
-function SkillTooltip({ active, payload }: SkillTooltipProps) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-      <div className="text-xs font-semibold text-[var(--color-ink)] mb-1">{d.skill}</div>
+    <div className="rounded-xl border border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)] px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
+      <div className="mb-1 text-xs font-semibold text-[var(--color-ink)]">{point.label}</div>
       <div className="text-xs text-[var(--color-ink-dim)]">
-        <span className="text-[var(--color-accent)] font-semibold tabular-nums">{d.score}%</span> avg score &middot; {d.sessions} sessions
+        <span className="font-semibold tabular-nums text-[var(--color-accent)]">{point.score}</span> ATS
+        {point.quantified !== undefined && ` · ${point.quantified}% bullets quantified`}
+      </div>
+      <div className="mt-0.5 text-[10px] text-[var(--color-ink-faint)]">{point.date}</div>
+    </div>
+  );
+}
+
+/** Conversion step. Width is relative to the widest stage, not to 100%. */
+function FunnelRow({
+  label,
+  count,
+  widest,
+  rate,
+}: {
+  label: string;
+  count: number;
+  widest: number;
+  rate?: number | null;
+}) {
+  const width = widest > 0 ? Math.max(2, (count / widest) * 100) : 0;
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <span className="text-xs text-[var(--color-ink-subtle)]">{label}</span>
+        <span className="flex items-baseline gap-2">
+          {rate !== undefined && rate !== null && (
+            <span className="font-mono text-[10px] text-[var(--color-ink-faint)]">{rate}%</span>
+          )}
+          <span className="font-mono text-xs tabular-nums text-[var(--color-ink)]">{count}</span>
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--color-canvas-line)' }}>
+        <div className="h-full rounded-full" style={{ width: `${width}%`, background: 'var(--color-ink)' }} />
       </div>
     </div>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  suffix = '',
+  prefix = '',
+  sub,
+  index,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number | null;
+  suffix?: string;
+  prefix?: string;
+  sub: string;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.07 }}
+      className="rounded-2xl border border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-raise)] p-5 transition-colors hover:border-[var(--color-canvas-line)]"
+    >
+      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent)]/10">
+        <Icon className="h-4 w-4 text-[var(--color-accent)]" />
+      </div>
+      <div className="font-display text-xl font-bold tabular-nums text-[var(--color-accent)]">
+        {value === null ? (
+          // An em dash, not 0 — "no data yet" and "scored zero" are different
+          // claims, and the second one is wrong.
+          <span className="text-[var(--color-ink-faint)]">—</span>
+        ) : (
+          <CountUp end={value} duration={1.4} prefix={prefix} suffix={suffix} decimals={value % 1 === 0 ? 0 : 1} />
+        )}
+      </div>
+      <div className="mt-0.5 text-xs font-medium text-[var(--color-ink)]">{label}</div>
+      <div className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{sub}</div>
+    </motion.div>
   );
 }
 
 export default function AnalyticsPage() {
   const palette = useAccentPalette();
   const chart = useChartTheme();
-  // Two series need to be *distinguishable*; accent/accentLight are both ink
-  // in this palette, so they resolved to the same colour. Use ramp stops.
-  const violet = chart.data[0];
-  const violetLight = chart.data[2];
+  const accent = chart.data[0];
+
+  const { data, isLoading, isError } = useQuery<AnalyticsSummary>({
+    queryKey: ANALYTICS_KEY,
+    queryFn: getAnalyticsSummary,
+  });
+
+  const trend = useMemo<TrendPoint[]>(() => {
+    if (!data) return [];
+    const quantifiedById = new Map(
+      data.quantified_history.map((point) => [point.id, point.quantified_ratio]),
+    );
+    return data.ats_history.map((point) => ({
+      date: shortDate(point.date),
+      score: point.score,
+      label: point.label,
+      quantified: quantifiedById.get(point.id),
+    }));
+  }, [data]);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl space-y-6">
+        <Skeleton className="h-8 w-40" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-[132px]" />
+          ))}
+        </div>
+        <Skeleton className="h-[300px]" />
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="max-w-6xl">
+        <div className="card p-6">
+          <p className="text-sm text-[var(--color-ink-dim)]">
+            Could not load your analytics. Check that the API is running and try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const { funnel } = data;
+  const widest = Math.max(funnel.total_tracked, 1);
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="max-w-6xl space-y-6">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-display font-semibold text-[var(--color-ink)] mb-1">Analytics</h1>
-        <p className="text-sm text-[var(--color-ink-dim)]">Track your performance trends and skill development.</p>
+        <h1 className="mb-1 font-display text-2xl font-semibold text-[var(--color-ink)]">Analytics</h1>
+        <p className="text-sm text-[var(--color-ink-dim)]">
+          Your own scan history and pipeline — every figure below is computed from your records.
+        </p>
       </motion.div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {STAT_CARDS.map(({ icon: Icon, label, value, prefix, suffix, sub }, i) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07 }}
-            className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-5 hover:border-[var(--color-canvas-line)] transition-colors"
-          >
-            <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center mb-3">
-              <Icon className="w-4 h-4 text-[var(--color-accent)]" />
-            </div>
-            <div className="text-xl font-display font-bold text-[var(--color-accent)] tabular-nums">
-              <CountUp end={value} duration={1.6} prefix={prefix} suffix={suffix} />
-            </div>
-            <div className="text-xs font-medium text-[var(--color-ink)] mt-0.5">{label}</div>
-            <div className="text-xs text-[var(--color-ink-faint)] mt-0.5">{sub}</div>
-          </motion.div>
-        ))}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <StatCard
+          icon={Target} label="Best ATS score" value={data.best_score} suffix="%"
+          sub={data.scan_count > 0 ? `Across ${data.scan_count} scan${data.scan_count === 1 ? '' : 's'}` : 'No scans yet'}
+          index={0}
+        />
+        <StatCard
+          icon={TrendingUp} label="Change" value={data.score_delta}
+          prefix={data.score_delta !== null && data.score_delta > 0 ? '+' : ''} suffix=" pts"
+          sub={data.score_delta === null ? 'Needs two scans' : 'First scan to latest'}
+          index={1}
+        />
+        <StatCard
+          icon={FileSearch} label="Interview rate" value={funnel.interview_rate} suffix="%"
+          sub={funnel.reached_applied > 0 ? `Of ${funnel.reached_applied} applied` : 'Nothing applied yet'}
+          index={2}
+        />
+        <StatCard
+          icon={Trophy} label="Offer rate" value={funnel.offer_rate} suffix="%"
+          sub={funnel.reached_offer > 0 ? `${funnel.reached_offer} offer${funnel.reached_offer === 1 ? '' : 's'}` : 'No offers yet'}
+          index={3}
+        />
       </div>
 
-      {/* Score trend chart */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-6"
+        className="rounded-2xl border border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-raise)] p-6"
       >
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--color-ink)]">Score Trends</h2>
-            <p className="text-xs text-[var(--color-ink-faint)] mt-0.5">Last 6 months</p>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5 text-[var(--color-ink-dim)]"><span className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />ATS Score</div>
-            <div className="flex items-center gap-1.5 text-[var(--color-ink-dim)]"><span className="w-3 h-0 border-t-2 border-dashed border-[var(--color-accent-light)]" />Interview Score</div>
-          </div>
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-[var(--color-ink)]">ATS score by scan</h2>
+          <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
+            Chronological, one point per resume version you scanned.
+          </p>
         </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={SCORE_HISTORY} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="atsFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={violet} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={violet} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={1} strokeDasharray="3 3" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
-            <YAxis hide domain={[0, 100]} />
-            <Tooltip content={<TrendTooltip />} cursor={{ stroke: palette.inkFaint, strokeWidth: 1 }} />
-            <Area
-              type="monotone"
-              dataKey="ats"
-              stroke={violet}
-              strokeWidth={2.5}
-              fill="url(#atsFill)"
-              dot={{ r: 3, fill: violet, strokeWidth: 0 }}
-              activeDot={{ r: 5, strokeWidth: 0 }}
-              isAnimationActive
-              animationDuration={900}
-            />
-            <Line
-              type="monotone"
-              dataKey="interview"
-              stroke={violetLight}
-              strokeWidth={2}
-              strokeDasharray="5 4"
-              dot={{ r: 3, fill: violetLight, strokeWidth: 0 }}
-              activeDot={{ r: 5, strokeWidth: 0 }}
-              isAnimationActive
-              animationDuration={900}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </motion.div>
 
-      {/* Skill breakdown + monthly sessions */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="lg:col-span-3 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-6"
-        >
-          <h2 className="text-sm font-semibold text-[var(--color-ink)] mb-1">Performance by Skill</h2>
-          <p className="text-xs text-[var(--color-ink-faint)] mb-4">Average score across practiced topics</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={SKILL_BREAKDOWN} layout="vertical" margin={{ top: 0, right: 34, left: 0, bottom: 0 }}>
-              <CartesianGrid horizontal={false} stroke={chart.grid} strokeOpacity={1} strokeDasharray="3 3" />
-              <XAxis type="number" domain={[0, 100]} hide />
-              <YAxis
-                type="category"
-                dataKey="skill"
-                width={112}
-                tick={{ fontSize: 12, fill: palette.inkDim }}
+        {trend.length === 0 ? (
+          <p className="py-10 text-center text-sm text-[var(--color-ink-faint)]">
+            No scans yet. Analyze a resume to start tracking your trajectory.
+          </p>
+        ) : trend.length === 1 ? (
+          <div className="py-10 text-center">
+            <p className="font-display text-3xl tabular-nums text-[var(--color-ink)]">
+              {trend[0].score}
+            </p>
+            <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
+              {trend[0].label} · one scan so far, not yet a trend
+            </p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="atsFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accent} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={accent} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke={chart.grid} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11, fill: palette.inkFaint }}
                 axisLine={false}
                 tickLine={false}
               />
-              <Tooltip content={<SkillTooltip />} cursor={{ fill: 'rgba(var(--color-accent-rgb),0.06)' }} />
-              <Bar dataKey="score" radius={[0, 8, 8, 0]} fill={violet} maxBarSize={14} isAnimationActive animationDuration={800}>
-                <LabelList
-                  dataKey="score"
-                  position="right"
-                  formatter={(v: React.ReactNode) => `${v}%`}
-                  style={{ fill: palette.inkDim, fontSize: 11, fontWeight: 600 }}
-                />
-              </Bar>
-            </BarChart>
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 11, fill: palette.inkFaint }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip content={<TrendTooltip />} cursor={{ stroke: chart.grid }} />
+              <Area type="monotone" dataKey="score" stroke="none" fill="url(#atsFill)" />
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke={accent}
+                strokeWidth={2}
+                dot={{ r: 3, fill: accent }}
+                activeDot={{ r: 5 }}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
-        </motion.div>
+        )}
+      </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="lg:col-span-2 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-6"
-        >
-          <h2 className="text-sm font-semibold text-[var(--color-ink)] mb-1">Practice Consistency</h2>
-          <p className="text-xs text-[var(--color-ink-faint)] mb-4">Interview sessions per month</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={MONTHLY_SESSIONS} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke={chart.grid} strokeOpacity={1} strokeDasharray="3 3" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
-              <YAxis hide domain={[0, 'dataMax + 2']} />
-              <Tooltip content={<SessionsTooltip />} cursor={{ fill: 'rgba(var(--color-accent-rgb),0.06)' }} />
-              <Bar dataKey="sessions" radius={[6, 6, 0, 0]} fill={chart.data[3]} maxBarSize={26} isAnimationActive animationDuration={800} />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="rounded-2xl border border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-raise)] p-6"
+      >
+        <div className="mb-5">
+          <h2 className="text-sm font-semibold text-[var(--color-ink)]">Pipeline conversion</h2>
+          <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
+            Counted as &ldquo;reached at least this stage&rdquo;, so a role now at interview still
+            counts as applied.
+          </p>
+        </div>
+
+        {funnel.total_tracked === 0 ? (
+          <p className="py-8 text-center text-sm text-[var(--color-ink-faint)]">
+            Nothing tracked yet. Save a role to your pipeline to see conversion rates.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-3.5">
+              <FunnelRow label="Tracked" count={funnel.total_tracked} widest={widest} />
+              <FunnelRow label="Applied" count={funnel.reached_applied} widest={widest} />
+              <FunnelRow
+                label="Interviewing"
+                count={funnel.reached_interviewing}
+                widest={widest}
+                rate={funnel.interview_rate}
+              />
+              <FunnelRow
+                label="Offer"
+                count={funnel.reached_offer}
+                widest={widest}
+                rate={funnel.offer_rate}
+              />
+            </div>
+            <p className="mt-4 text-[10px] leading-relaxed text-[var(--color-ink-faint)]">
+              Rates are out of applications actually sent, not every saved role. A rejection
+              doesn&apos;t record which stage it happened at, so the interview rate is a floor.
+            </p>
+          </>
+        )}
+      </motion.div>
     </div>
   );
 }
