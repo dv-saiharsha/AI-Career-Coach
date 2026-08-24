@@ -4,7 +4,16 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
-from app.modules.interview_coach.services import evaluate_answer, generate_questions, model_answer
+from app.models.resume import ResumeAnalysis
+from app.modules.interview_coach import story_services
+from app.modules.interview_coach.reverse_questions import generate_reverse_questions
+from app.modules.interview_coach.services import (
+    evaluate_answer,
+    generate_questions,
+    generate_screening_prep,
+    model_answer,
+)
+from app.modules.interview_coach.star_bank import evaluate_star_story
 from app.schemas.interview import (
     EvaluationRequestSchema,
     FeedbackSchema,
@@ -13,6 +22,18 @@ from app.schemas.interview import (
     ModelAnswerSchema,
     QuestionRequestSchema,
     QuestionsResponseSchema,
+    ScreeningPrepRequestSchema,
+    ScreeningPrepSchema,
+)
+from app.schemas.story import (
+    EvaluateStarRequestSchema,
+    ReverseQuestionsRequestSchema,
+    ReverseQuestionsResponseSchema,
+    StarEvaluationSchema,
+    StarStoryCreateSchema,
+    StarStoryListSchema,
+    StarStorySchema,
+    StarStoryUpdateSchema,
 )
 
 router = APIRouter()
@@ -126,3 +147,105 @@ def history(db: Session = Depends(get_db), current_user: AuthenticatedUser = Dep
             }
         )
     return out
+
+
+@router.post("/screening-prep", response_model=ScreeningPrepSchema)
+def screening_prep(
+    payload: ScreeningPrepRequestSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Screening-call questions with answer templates tailored to the JD.
+
+    When resume_analysis_id is supplied the prep is grounded in that scan's
+    stored resume text. Ownership is re-checked here rather than trusted from
+    the request: an id alone is not authorisation, and without this filter any
+    caller could ground their prep in someone else's resume.
+    """
+    resume_text = None
+    if payload.resume_analysis_id is not None:
+        record = (
+            db.query(ResumeAnalysis)
+            .filter(
+                ResumeAnalysis.id == payload.resume_analysis_id,
+                ResumeAnalysis.user_id == current_user.id,
+            )
+            .first()
+        )
+        if not record:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        resume_text = record.resume_text
+
+    return generate_screening_prep(
+        payload.job_title, payload.company, payload.jd_text, resume_text
+    )
+
+
+# -- STAR story bank ------------------------------------------------------
+
+
+@router.get("/stories", response_model=StarStoryListSchema)
+def list_stories(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    return story_services.list_stories(db, current_user.id)
+
+
+@router.post("/stories", response_model=StarStorySchema, status_code=201)
+def create_story(
+    payload: StarStoryCreateSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    return story_services.create_story(db, current_user.id, payload.model_dump())
+
+
+@router.patch("/stories/{story_id}", response_model=StarStorySchema)
+def update_story(
+    story_id: int,
+    payload: StarStoryUpdateSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    # exclude_unset so an omitted field stays untouched rather than being
+    # overwritten with the schema default.
+    updated = story_services.update_story(
+        db, current_user.id, story_id, payload.model_dump(exclude_unset=True)
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Story not found")
+    return updated
+
+
+@router.delete("/stories/{story_id}", status_code=204)
+def delete_story(
+    story_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    if not story_services.delete_story(db, current_user.id, story_id):
+        raise HTTPException(status_code=404, detail="Story not found")
+
+
+@router.post("/stories/evaluate", response_model=StarEvaluationSchema)
+def evaluate_story(
+    payload: EvaluateStarRequestSchema,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Score a draft without saving it. Pure text analysis, no LLM call, so
+    the UI can call this on a debounced keystroke for free."""
+    return evaluate_star_story(payload.situation, payload.task, payload.action, payload.result)
+
+
+@router.post("/reverse-questions", response_model=ReverseQuestionsResponseSchema)
+def reverse_questions(
+    payload: ReverseQuestionsRequestSchema,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Questions for the candidate to ask. Deterministic and free — no LLM."""
+    return {
+        "questions": generate_reverse_questions(
+            payload.job_title, payload.company, payload.jd_text
+        )
+    }

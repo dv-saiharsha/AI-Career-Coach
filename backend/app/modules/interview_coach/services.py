@@ -80,6 +80,201 @@ MODEL_ANSWER_TOOL_SCHEMA = {
 }
 
 
+SCREENING_PREP_SYSTEM_PROMPT = (
+    "You are an interview coach preparing a candidate for a recruiter screening call. "
+    "Given a job description, you produce the questions that screen will actually open with, "
+    "and for each one an answer TEMPLATE the candidate fills in with their own real history.\n\n"
+    "The single hard rule: never invent the candidate's experience. Do not state a metric, "
+    "employer, project, technology, or outcome as though it were theirs. Anywhere the candidate "
+    "must supply a fact, emit a square-bracket placeholder describing what belongs there — "
+    "[the % you actually improved it by], [the system you built], [how long you used it]. "
+    "A template full of honest placeholders is correct; a fluent paragraph asserting achievements "
+    "the candidate never mentioned is a failure, because they would have to lie to say it out loud.\n\n"
+    "Cover the screen's real shape: the opening 'tell me about yourself', the core technical "
+    "requirement from the JD, and at least one question about a requirement the candidate may not "
+    "have — where the answer template must demonstrate the bridge method (name the gap plainly, "
+    "connect to genuinely adjacent experience, state how you would close it) rather than bluffing."
+)
+
+SCREENING_PREP_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "screening_questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "Short label, e.g. 'Elevator pitch', 'Core technical', 'Gap / unfamiliar tech'",
+                    },
+                    "question": {"type": "string"},
+                    "answer_template": {
+                        "type": "string",
+                        "description": (
+                            "The answer scaffold, with [bracketed placeholders] everywhere the "
+                            "candidate must insert their own real facts. Never assert an "
+                            "achievement, metric, or employer on their behalf."
+                        ),
+                    },
+                    "key_signal": {"type": "string", "description": "What the screener is actually evaluating."},
+                    "what_to_avoid": {"type": "string", "description": "The common failure mode for this question."},
+                },
+                "required": ["type", "question", "answer_template", "key_signal", "what_to_avoid"],
+            },
+        },
+    },
+    "required": ["screening_questions"],
+}
+
+# Static, and deliberately so: these are general interview principles, not
+# claims about the candidate, so there is nothing for a model to tailor and no
+# reason to spend a call generating them.
+GENERAL_INTERVIEW_TIPS = [
+    {
+        "title": "The 60-second pitch",
+        "rule": (
+            "Present, past, future: ~20s on what you do now, ~20s on one achievement you can "
+            "back with a real number, ~20s on why this role is the next step. Stop at a minute — "
+            "the screener is checking whether you can be concise under mild pressure."
+        ),
+    },
+    {
+        "title": "Handling a gap without bluffing",
+        "rule": (
+            "The bridge method: name the gap plainly, connect it to the nearest thing you have "
+            "genuinely done, then say how you'd close it. Screeners routinely probe a claimed "
+            "skill one question deeper, so a bluff costs more than the gap did."
+        ),
+    },
+    {
+        "title": "STAR, weighted properly",
+        "rule": (
+            "Situation and Task are setup — keep them to a couple of sentences each. Action is "
+            "the answer and deserves roughly half your airtime. Always land on a Result, and if "
+            "you have no number, end on what you'd do differently."
+        ),
+    },
+]
+
+
+def _jd_keywords(jd_text: str, limit: int = 8) -> list[str]:
+    """Rough salient-term extraction, used only for the offline fallback."""
+    from app.core.keywords import keyword_candidates
+
+    return keyword_candidates(jd_text)[:limit] if jd_text.strip() else []
+
+
+def _screening_prep_fallback(job_title: str, company: str, jd_text: str) -> list[dict]:
+    """Used when the LLM is unavailable.
+
+    Every answer here is a pure scaffold — there is no sentence a candidate
+    could read aloud that asserts something about them, because nothing here
+    knows anything about them.
+    """
+    keywords = _jd_keywords(jd_text, limit=3)
+    primary = keywords[0] if keywords else "the core technology in the posting"
+    gap = keywords[-1] if keywords else "a tool listed in the posting you haven't used"
+    where = f" at {company}" if company.strip() else ""
+
+    return [
+        {
+            "type": "Elevator pitch",
+            "question": f"Tell me about yourself and why you're interested in the {job_title} role{where}.",
+            "answer_template": (
+                "I'm currently [your role] at [where], where I work on [the one or two things most "
+                "relevant to this posting]. Recently I [one concrete thing you built or fixed], which "
+                "[the measurable result — only if you actually have the number]. I'm interested in this "
+                "role because [the specific thing about the posting or company that genuinely drew you], "
+                "and I'd bring [the strength of yours that maps most directly to the requirements]."
+            ),
+            "key_signal": "Can you compress your background to a minute and aim it at this specific posting.",
+            "what_to_avoid": "Walking your resume top to bottom, or a pitch that would fit any job.",
+        },
+        {
+            "type": "Core technical",
+            "question": f"Walk me through how you've used {primary} in real work, and the tradeoffs you weighed.",
+            "answer_template": (
+                f"I used {primary} on [the project], where the problem was [the actual constraint you hit]. "
+                "I chose [your approach] over [the alternative you considered] because [your reasoning]. "
+                "The tradeoff was [what it cost you — complexity, latency, maintenance]. "
+                "[If you measured the outcome, give the real figure here; if you didn't, say what improved and how you knew.]"
+            ),
+            "key_signal": "Real hands-on depth — a decision with a reason and a cost, not a tool name.",
+            "what_to_avoid": "Describing what the technology does rather than what you did with it.",
+        },
+        {
+            "type": "Gap / unfamiliar tech",
+            "question": f"How much direct experience do you have with {gap}?",
+            "answer_template": (
+                f"I haven't worked with {gap} directly. What I have done is [the closest genuinely adjacent "
+                "thing you've built], which covers [the concepts that actually carry over]. To close the gap "
+                "I'd [the specific, concrete way you'd ramp — not 'I learn fast'], and for reference I picked up "
+                "[something you genuinely learned on the job] in [the honest timeframe]."
+            ),
+            "key_signal": "Whether you can say 'I don't know' cleanly and still show a path forward.",
+            "what_to_avoid": "Claiming exposure you don't have — the next question probes one level deeper.",
+        },
+    ]
+
+
+def generate_screening_prep(
+    job_title: str, company: str, jd_text: str, resume_text: str | None = None
+) -> dict:
+    """Screening-call questions with answer templates tailored to the JD.
+
+    One LLM call, same per-request cost shape as the existing question and
+    model-answer endpoints. Falls back to a static scaffold rather than
+    failing, matching how generate_questions and model_answer already behave.
+    """
+    questions: list[dict] = []
+    if llm_client.available:
+        user_prompt = (
+            f"ROLE: {job_title}\n"
+            f"COMPANY: {company or 'not specified'}\n\n"
+            f"JOB DESCRIPTION:\n{jd_text[:5000]}\n\n"
+            + (
+                # Grounding on the real resume is what lets placeholders name
+                # the candidate's actual projects instead of staying abstract.
+                f"CANDIDATE'S RESUME (use only to decide which placeholders to ask for — "
+                f"never restate its contents as a finished claim):\n{resume_text[:4000]}\n\n"
+                if resume_text
+                else ""
+            )
+            + "Produce 5 screening questions with answer templates. At least one must be a gap "
+            "question the candidate likely cannot answer with direct experience."
+        )
+        try:
+            data = llm_client.complete_tool_json(
+                SCREENING_PREP_SYSTEM_PROMPT,
+                user_prompt,
+                "submit_screening_prep",
+                SCREENING_PREP_TOOL_SCHEMA,
+                max_tokens=3000,
+            )
+            questions = [
+                q for q in (data.get("screening_questions") or []) if q.get("question") and q.get("answer_template")
+            ]
+        except Exception:
+            questions = []  # fall through to the static scaffold
+
+    if not questions:
+        questions = _screening_prep_fallback(job_title, company, jd_text)
+
+    for index, question in enumerate(questions):
+        question["id"] = f"q{index + 1}"
+        question.setdefault("type", "Screening")
+        question.setdefault("key_signal", "")
+        question.setdefault("what_to_avoid", "")
+
+    return {
+        "job_title": job_title,
+        "company": company,
+        "screening_questions": questions,
+        "general_interview_tips": GENERAL_INTERVIEW_TIPS,
+    }
+
+
 def _slugify(role: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", role.strip().lower()).strip("-")
     return slug or "generic"
