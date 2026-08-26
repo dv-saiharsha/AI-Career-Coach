@@ -1,13 +1,26 @@
 import { createClient } from '@/lib/supabase/client'
 
-export type OAuthProvider = 'google' | 'linkedin_oidc' | 'github' | 'apple'
+/**
+ * Two providers, deliberately.
+ *
+ * GitHub and LinkedIn were removed rather than hidden. Every enabled provider
+ * is a way into an account, and Supabase links a new identity to an existing
+ * user whenever the provider returns a matching verified email — so the set of
+ * enabled providers is the set of parties trusted to vouch for an email
+ * address. Keeping one nobody signs in with is unused attack surface, and
+ * GitHub in particular only returns an email when the account has a verified
+ * public or primary address, which made it the least reliable of the four.
+ *
+ * Removing them here is not the whole job: disable them in the Supabase
+ * dashboard too, or the endpoints stay live even with no button pointing at
+ * them.
+ */
+export type OAuthProvider = 'google' | 'apple'
 
-export const OAUTH_PROVIDERS: OAuthProvider[] = ['google', 'linkedin_oidc', 'github', 'apple']
+export const OAUTH_PROVIDERS: OAuthProvider[] = ['google', 'apple']
 
 export const PROVIDER_LABELS: Record<OAuthProvider, string> = {
   google: 'Google',
-  linkedin_oidc: 'LinkedIn',
-  github: 'GitHub',
   apple: 'Apple',
 }
 

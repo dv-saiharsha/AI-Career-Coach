@@ -46,39 +46,30 @@ export function ConnectedAccounts() {
         connected={providers.includes('email')}
       />
 
-      {/*
-        LinkedIn is rendered as unavailable rather than as a button, because
-        the integration people expect from it cannot currently be built.
+      {/* Apple is listed because it is an enabled sign-in route, not because
+          this account uses it. `passed` here is read from the identities
+          array like the others — a row that claimed "Active" from local state
+          would be asserting a link that may not exist. */}
+      <ProviderRow
+        icon={
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+            <path d="M17.05 12.54c-.03-2.75 2.25-4.07 2.35-4.13-1.28-1.87-3.27-2.13-3.98-2.16-1.7-.17-3.31 1-4.17 1-.86 0-2.19-.98-3.6-.95-1.85.03-3.55 1.07-4.5 2.72-1.92 3.33-.49 8.26 1.38 10.96.91 1.32 2 2.8 3.42 2.75 1.37-.06 1.89-.89 3.55-.89 1.65 0 2.12.89 3.57.86 1.47-.02 2.41-1.34 3.31-2.67 1.04-1.53 1.47-3.01 1.5-3.09-.03-.01-2.88-1.1-2.91-4.38l.08-.02ZM14.3 4.3c.76-.92 1.27-2.2 1.13-3.47-1.09.04-2.41.72-3.19 1.64-.7.81-1.31 2.11-1.15 3.36 1.21.09 2.45-.62 3.21-1.53Z" />
+          </svg>
+        }
+        name="Apple"
+        detail={
+          providers.includes('apple')
+            ? 'Signing you in with Apple'
+            : 'Not linked to this account'
+        }
+        connected={providers.includes('apple')}
+      />
 
-        LinkedIn's generally-available OAuth product is Sign In with LinkedIn
-        (OpenID Connect), whose scopes — openid, profile, email — return a
-        name, an email and a picture. Positions and endorsements sit behind
-        r_fullprofile and the Talent/Marketing partner programmes, which are
-        not self-serve. So "import your work history" is not a matter of
-        wiring up a button; the scope does not exist to request.
+      <p className="pt-1 text-[11px] leading-relaxed text-[var(--color-ink-faint)]">
+        Google and Apple are the only sign-in providers ApplyCenter accepts. Each enabled provider
+        is a party trusted to vouch for your email address, so the list is kept short on purpose.
+      </p>
 
-        Shipping the button anyway would mean either a dead control or one
-        that connects an account and then imports nothing — and the user finds
-        out only after granting access to their LinkedIn profile.
-      */}
-      <div className="flex items-start justify-between gap-4 rounded-xl border border-dashed border-[var(--color-canvas-line)] p-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-canvas-deep)] text-[var(--color-ink-faint)]">
-            <span className="text-xs font-semibold lowercase">in</span>
-          </span>
-          <div>
-            <p className="text-xs font-semibold text-[var(--color-ink)]">LinkedIn</p>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-ink-faint)]">
-              Importing work history would need a LinkedIn partner scope that isn&apos;t open to
-              general applications. Until that changes, uploading your resume gets your roles in
-              faster than LinkedIn would — the builder reads them out of the file.
-            </p>
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full bg-[var(--color-canvas-deep)] px-2.5 py-1 text-[10px] font-semibold text-[var(--color-ink-faint)]">
-          Unavailable
-        </span>
-      </div>
     </div>
   )
 }

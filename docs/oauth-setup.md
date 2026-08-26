@@ -4,7 +4,14 @@ The code is done; these are the console steps that make it work. Nothing here
 lives in the repo, so a provider that "doesn't work" is almost always a missing
 step on this page rather than a bug.
 
-Supported: **Google**, **LinkedIn (OIDC)**, **GitHub**, **Apple**.
+Supported: **Google** and **Apple** — and only those two.
+
+Every enabled provider is a party trusted to vouch for an email address,
+because Supabase links a new identity to an existing user whenever the
+provider returns a matching verified email. GitHub and LinkedIn were removed
+for that reason. Removing the buttons is not enough: **disable both in the
+Supabase dashboard**, or their endpoints stay live with nothing pointing at
+them.
 
 ## Your callback URL
 
@@ -90,26 +97,6 @@ only needed to call Google APIs as the user, which ApplyCenter never does, and
 `prompt=consent` forces the consent screen on *every* sign-in — friction for
 returning users with no benefit. Add them only if that changes.
 
-### GitHub
-Settings → Developer settings → OAuth Apps. Authorization callback URL is the
-Supabase callback.
-
-⚠️ GitHub only returns an email if the account has a **verified public or
-primary email**. Users with private emails may arrive without one, and with
-unverified logins off they will not link. This is correct behaviour; the error
-copy on `/login` covers it.
-
-### LinkedIn (OIDC)
-⚠️ Creating a LinkedIn app requires an associated **LinkedIn Page**, and a page
-admin has to verify the app before it works. If you do not already have a
-company page you will need to create one first, and verification is not
-instant — start this one early or leave it until last.
-
-Use **LinkedIn (OIDC)** in Supabase, not the legacy "LinkedIn" entry. In the
-LinkedIn developer app, request the **Sign In with LinkedIn using OpenID
-Connect** product — without it the app returns scope errors at sign-in.
-Required scopes: `openid`, `profile`, `email`.
-
 ### Apple
 The most involved, and the only one that expires.
 
@@ -121,8 +108,13 @@ The most involved, and the only one that expires.
   when it lapses, Apple sign-in fails for everyone with no code change to blame.
 - Apple returns the user's name **only on first authorization**, never again.
 
-If you want social auth working this week, ship Google + GitHub first and add
-Apple deliberately.
+Google is live. Apple is not: no Apple credentials exist in the environment,
+so the button on the login page returns "provider is not enabled" until the
+steps above are done. The UI handles that case with a plain message rather
+than the raw Supabase error, but it is still a route users cannot take.
+
+The 6-month secret expiry is the thing to plan for. It fails silently and
+all at once, and nothing in this repo will have changed when it does.
 
 ---
 
