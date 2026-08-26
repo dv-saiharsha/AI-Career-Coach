@@ -211,3 +211,30 @@ class StageFixesRequestSchema(BaseModel):
     """
 
     experiences: Optional[List[ExperienceEntry]] = None
+
+
+class AutofillSchema(BaseModel):
+    """Structured fields read back out of an uploaded resume.
+
+    Every field is optional because every field is a heuristic. None means
+    "could not determine", which the UI renders as an empty box the user fills
+    — deliberately not a plausible-looking default, since nobody re-checks a
+    field that already looks filled.
+    """
+
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin: Optional[str] = None
+    location: Optional[str] = None
+    summary: Optional[str] = None
+    experiences: List[ExperienceEntry] = Field(default_factory=list)
+    education: List[EducationEntry] = Field(default_factory=list)
+    # Which fields came from an unambiguous match rather than a positional
+    # guess. The UI flags the rest for review instead of presenting all of it
+    # with equal confidence.
+    confident_fields: List[str] = Field(default_factory=list)
+    # Lets the UI say "we couldn't read your roles" rather than showing an
+    # empty form that looks like nothing was attempted.
+    parsed_experience_count: int = 0
+    parsed_education_count: int = 0

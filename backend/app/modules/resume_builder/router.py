@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import faang, services, tailor
+from app.modules.resume_builder import autofill, faang, services, tailor
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
+    AutofillSchema,
     CompileResumeRequestSchema,
     CompileResumeResponseSchema,
     QualityReportRequestSchema,
@@ -150,3 +151,35 @@ def tailor_preview(
     if result is None:
         raise HTTPException(status_code=404, detail="Job or resume not found")
     return result
+
+
+@router.get("/autofill/{analysis_id}", response_model=AutofillSchema)
+def autofill_from_scan(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Pre-fill the builder form from a resume the user already uploaded.
+
+    Free — regex and section splitting, no LLM call and no scoring — so the
+    form can populate on open without costing anything or making the user
+    wait.
+
+    Writes nothing. This re-reads text that is already stored and hands it
+    back structured; the user edits it and only /compile-and-score produces a
+    document. Nothing is corrected in place, so a bad parse costs an edit
+    rather than corrupting the stored scan.
+    """
+    record = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id, ResumeAnalysis.user_id == current_user.id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    if not record.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="The original resume text isn't available for this scan. Please re-scan your resume.",
+        )
+    return autofill.build_autofill(record.resume_text)
