@@ -200,6 +200,10 @@ export const generateImprovedResume = async (
   analysisId: number,
   fullName: string,
   selectedSkills: string[],
+  /** Overrides the default download name. The tailor flow passes the
+   *  backend's FAANG-convention filename so the file a recruiter receives is
+   *  named LASTNAME_FIRSTNAME_RESUME_ROLE_COMPANY.pdf. */
+  filename?: string,
 ): Promise<void> => {
   const response = await apiClient.post(
     `/resume/generate/${analysisId}`,
@@ -210,7 +214,7 @@ export const generateImprovedResume = async (
   const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = `resume-${safeName}.pdf`
+  link.download = filename || `resume-${safeName}.pdf`
   document.body.appendChild(link)
   link.click()
   link.remove()
@@ -840,3 +844,58 @@ export const getDashboardOverview = async (): Promise<DashboardOverview> => {
 }
 
 export default apiClient
+
+// ── FAANG-convention tailoring ───────────────────────────────────────────
+
+export interface TailorBulletSuggestion {
+  experience_index: number
+  original: string
+  suggested: string
+  reason: string
+}
+
+/**
+ * A tailoring proposal for one resume against one posting.
+ *
+ * Read-only: requesting this writes nothing. The stored resume is untouched
+ * until the user accepts and rebuilds, which is what makes the acceptance
+ * gate meaningful rather than cosmetic.
+ */
+export interface TailorPreview {
+  job_id: number
+  job_title: string
+  company: string
+  analysis_id: number
+  /** LASTNAME_FIRSTNAME_RESUME_ROLE_COMPANY.pdf */
+  download_filename: string
+  original_resume_text: string
+  /** This resume against THIS posting, from the trained model. Null when no
+   *  model is on disk — never a placeholder figure. */
+  current_score: number | null
+  semantic_match: number | null
+  /** Named by the posting, neither stated nor implied by the resume. */
+  missing_keywords: string[]
+  /** Implied by the resume but never written down — safe to add, because the
+   *  candidate already has them. */
+  state_explicitly: string[]
+  bullet_suggestions: TailorBulletSuggestion[]
+  has_job_description: boolean
+}
+
+/**
+ * Note the absence of a projected score. The API deliberately returns none: a
+ * number for a resume that does not exist yet cannot be measured, and quoting
+ * one would be a promise rather than a result. The real score is recomputed
+ * after the accepted version is built.
+ *
+ * Free unless `include_rewrites` is set, which spends one Claude call.
+ */
+export const getTailorPreview = async (payload: {
+  job_id: number
+  analysis_id: number
+  full_name?: string
+  include_rewrites?: boolean
+}): Promise<TailorPreview> => {
+  const response = await apiClient.post('/resume-builder/tailor-preview', payload)
+  return response.data
+}

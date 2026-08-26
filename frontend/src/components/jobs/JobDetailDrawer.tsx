@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bookmark, Briefcase, Building2, Check, Clock, ExternalLink, FileText, MapPin, MessageSquare, X } from 'lucide-react'
+import Link from 'next/link'
+import { Bookmark, Briefcase, Building2, Check, Clock, ExternalLink, FileText, MapPin, MessageSquare, Wand2, X } from 'lucide-react'
 import type { JobListing, WorkMode } from '@/lib/apiClient'
 
 // Re-exported under the name the page imports it by. The API type is
@@ -229,6 +230,17 @@ export function JobDetailDrawer({
                   )}
                 </button>
               )}
+              {/* Straight to the split view rather than through the analyzer:
+                  the tailor page picks the newest scan itself, so a user who
+                  has already scanned does not re-upload to see what this
+                  posting wants. */}
+              <Link
+                href={`/resume/tailor?job=${job.id}`}
+                className="btn-secondary flex w-full items-center justify-center gap-2"
+              >
+                <Wand2 className="h-3.5 w-3.5" />
+                Tailor my resume for this
+              </Link>
               <p className="pt-1 text-center text-[11px] text-[var(--color-ink-faint)]">
                 <Briefcase className="mr-1 inline h-3 w-3" />
                 Match sends this posting to the resume analyzer
