@@ -131,6 +131,42 @@ class QualityReportRequestSchema(BaseModel):
     experiences: List[ExperienceEntry] = Field(default_factory=list)
 
 
+class TailorHandoffRequestSchema(BaseModel):
+    job_id: int
+    analysis_id: int
+
+
+class TailorHandoffSchema(BaseModel):
+    """Gap analysis for one resume against one listing.
+
+    Reports what to change; does not change it. Bullets are never written on
+    the candidate's behalf — a resume claiming skills its owner cannot defend
+    in an interview is worse for them than an honest gap.
+    """
+
+    job_id: int
+    job_title: str
+    company: str
+    analysis_id: int
+    resume_filename: Optional[str] = None
+    # This resume scored against THIS posting. None when no trained model is
+    # on disk — never a placeholder.
+    targeted_ats_score: Optional[float] = None
+    semantic_match: Optional[float] = None
+    # What the original scan scored, against whatever JD it used. Shown beside
+    # the targeted score so the delta is visible.
+    original_ats_score: Optional[float] = None
+    # Named by the posting, neither stated nor implied by the resume.
+    missing_keywords: List[str] = []
+    # Implied by the resume but never written down. A keyword search still
+    # misses these, and saying them is far easier than acquiring them.
+    state_explicitly: List[str] = []
+    gaps_by_domain: dict[str, List[str]] = {}
+    # False when the cached listing carries no body text, in which case the
+    # gap list is necessarily empty rather than meaningfully clean.
+    has_job_description: bool = True
+
+
 class StageFixesRequestSchema(BaseModel):
     """Which stored experience bullets to run rewrite suggestions against.
 

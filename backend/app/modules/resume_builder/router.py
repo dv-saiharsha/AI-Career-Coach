@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import services
+from app.modules.resume_builder import services, tailor
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
     CompileResumeRequestSchema,
@@ -12,6 +12,8 @@ from app.schemas.resume_builder import (
     QualityReportRequestSchema,
     QualityReportSchema,
     StageFixesRequestSchema,
+    TailorHandoffRequestSchema,
+    TailorHandoffSchema,
     StageFixesResponseSchema,
 )
 
@@ -102,3 +104,24 @@ def compile_and_score(
         # Message is latex.py's own trimmed log tail, not a raw exception
         # repr — no file paths, no command line, just the tectonic error.
         raise HTTPException(status_code=500, detail=f"Resume failed to compile: {exc}") from exc
+
+
+@router.post("/tailor-handoff", response_model=TailorHandoffSchema)
+def tailor_handoff(
+    payload: TailorHandoffRequestSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """What to change on this resume for this specific job.
+
+    Free — keyword extraction and the trained model, no LLM call. Clicking a
+    job card should not spend money, and bullet rewriting stays behind
+    /stage-fixes where the user asks for it explicitly.
+
+    404 covers both "no such job" and "not your resume": distinguishing them
+    would confirm another user's scan exists.
+    """
+    result = tailor.build_handoff(db, current_user.id, payload.job_id, payload.analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Job or resume not found")
+    return result

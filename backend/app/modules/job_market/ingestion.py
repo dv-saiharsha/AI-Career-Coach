@@ -299,8 +299,17 @@ def refresh_global_jobs(
     pending = _unenriched(db, candidates)
     report.already_known = len(candidates) - len(pending)
 
+    # Persisted BEFORE enrichment, not after. Enrichment is a Claude batch
+    # that can legitimately poll for an hour; holding the scraped rows in
+    # memory across that window meant a process restart threw away Apify spend
+    # that was already billed. Rows land unenriched (enriched_at NULL) and the
+    # second pass fills them in — which is also exactly the state a later
+    # sweep knows how to resume from.
+    _upsert(db, candidates, {}, report)
+
     facts = _enrich(pending, report) if pending else {}
-    _upsert(db, candidates, facts, report)
+    if facts:
+        _upsert(db, candidates, facts, report)
     _archive(db, report)
 
     logger.info(
