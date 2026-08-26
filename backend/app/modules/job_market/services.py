@@ -22,7 +22,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, defer
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.job import JobListing
@@ -178,7 +178,10 @@ def _age_filter():
 def _fresh_rows(db: Session, query_key: str) -> list[JobListing]:
     return (
         db.query(JobListing)
-        .options(defer(JobListing.description))
+        # description is NOT deferred. to_payload reads it, so deferring it
+        # turned one query into one lazy load per row — 38 round-trips to
+        # us-east-1 at ~85ms each, which was the entire cold-start cost.
+        # Fetching the column up front costs bytes; deferring it cost seconds.
         .filter(
             JobListing.query_key == query_key,
             JobListing.fetched_at >= _cutoff(),
@@ -199,7 +202,10 @@ def _any_rows(db: Session, query_key: str) -> list[JobListing]:
     """
     return (
         db.query(JobListing)
-        .options(defer(JobListing.description))
+        # description is NOT deferred. to_payload reads it, so deferring it
+        # turned one query into one lazy load per row — 38 round-trips to
+        # us-east-1 at ~85ms each, which was the entire cold-start cost.
+        # Fetching the column up front costs bytes; deferring it cost seconds.
         .filter(JobListing.query_key == query_key, _age_filter())
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
@@ -340,7 +346,10 @@ def _warm_feed(
     keys = list(dict.fromkeys([*wanted, *WARM_ROLES]))
     rows = (
         db.query(JobListing)
-        .options(defer(JobListing.description))
+        # description is NOT deferred. to_payload reads it, so deferring it
+        # turned one query into one lazy load per row — 38 round-trips to
+        # us-east-1 at ~85ms each, which was the entire cold-start cost.
+        # Fetching the column up front costs bytes; deferring it cost seconds.
         .filter(JobListing.query_key.in_(keys), _age_filter())
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
