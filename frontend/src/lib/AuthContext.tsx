@@ -9,6 +9,8 @@ export interface AuthUser {
   firstName: string
   lastName: string
   fullName: string
+  /** Google profile picture, when the account came in through OAuth. */
+  avatarUrl: string | null
 }
 
 interface AuthContextValue {
@@ -20,13 +22,50 @@ interface AuthContextValue {
   updateProfile: (fields: { firstName: string; lastName: string }) => Promise<void>
 }
 
+function str(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * Resolve a display name across both sign-up paths.
+ *
+ * Email registration writes first_name/last_name, because our own form asks
+ * for them. Google writes none of those — it sends full_name, name,
+ * given_name and family_name — so reading only the first pair meant every
+ * Google account fell through to the email local-part and a user who signed
+ * in as "Venkata Sai Harshith Danda" was greeted as "venkata".
+ *
+ * Order matters: the names we were given whole are preferred over ones
+ * reassembled from parts, and the email local-part is the last resort rather
+ * than an equal option — it is a mailbox, not a name.
+ */
 function toAuthUser(user: { id: string; email?: string; user_metadata?: Record<string, unknown> }): AuthUser {
   const meta = user.user_metadata ?? {}
-  const firstName = typeof meta.first_name === 'string' ? meta.first_name : ''
-  const lastName = typeof meta.last_name === 'string' ? meta.last_name : ''
-  const fallback = user.email?.split('@')[0] ?? ''
-  const fullName = [firstName, lastName].filter(Boolean).join(' ') || fallback
-  return { id: user.id, email: user.email ?? '', firstName: firstName || fallback, lastName, fullName }
+
+  const given = str(meta.first_name) || str(meta.given_name)
+  const family = str(meta.last_name) || str(meta.family_name)
+  const whole = str(meta.full_name) || str(meta.name)
+  const localPart = user.email?.split('@')[0] ?? ''
+
+  const fullName = whole || [given, family].filter(Boolean).join(' ') || localPart
+
+  // Derived from the full name when Google sent no given_name, so the avatar
+  // initial is the first letter of the person's name rather than of their
+  // email address.
+  const firstName = given || fullName.split(' ')[0] || localPart
+  const lastName = family || (whole ? whole.split(' ').slice(1).join(' ') : '')
+
+  return {
+    id: user.id,
+    email: user.email ?? '',
+    firstName,
+    lastName,
+    fullName,
+    // Google uses `picture` on the raw OIDC claim and `avatar_url` once
+    // Supabase has normalised it; which one is present depends on the
+    // provider, so both are read.
+    avatarUrl: str(meta.avatar_url) || str(meta.picture) || null,
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)

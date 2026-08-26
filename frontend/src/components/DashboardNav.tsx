@@ -24,7 +24,7 @@ import { ApplyCenterMark } from './ApplyCenterMark'
 import ThemeToggle from './ThemeToggle'
 import { LimelightNav } from './ui/limelight-nav'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { useCommandPalette } from '@/components/CommandPalette'
@@ -160,6 +160,9 @@ function SidebarContent({
       <div className="p-3">
         <div className="flex items-center gap-3 rounded-xl border border-canvas-line bg-canvas-raise p-2.5">
           <Avatar className="size-8 shrink-0">
+            {/* AvatarImage falls back on its own when the src 404s, which
+                Google's CDN does once a picture URL expires. */}
+            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.fullName} />}
             <AvatarFallback className="bg-accent text-sm font-medium text-on-accent">
               {user?.firstName?.[0]?.toUpperCase() ?? 'U'}
             </AvatarFallback>
@@ -241,6 +244,7 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
               className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             >
               <Avatar className="size-8 transition-opacity hover:opacity-85">
+                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.fullName} />}
                 <AvatarFallback className="bg-accent text-sm font-medium text-on-accent">
                   {user?.firstName?.[0]?.toUpperCase() ?? 'U'}
                 </AvatarFallback>

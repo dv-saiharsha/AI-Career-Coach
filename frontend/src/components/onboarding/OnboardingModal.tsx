@@ -2,24 +2,60 @@
 
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, Briefcase, Check, FileText, Sparkles, Upload } from 'lucide-react'
+import { ArrowRight, Briefcase, Check, FileText, Sparkles, Upload, X } from 'lucide-react'
 
-// Seeded from the roles ApplyCenter already knows about: the six with curated
-// interview question banks (data/seed_questions/) plus the warm-cached job
-// roles. Picking one of these means the user's feed and drills are populated
-// on day one rather than triggering a cold scrape.
-const PRESET_ROLES = [
-  'Software Engineer',
-  'Frontend Engineer',
-  'Backend Engineer',
-  'Full Stack Engineer',
-  'AI Engineer',
-  'ML Engineer',
-  'Data Scientist',
-  'DevOps Engineer',
-  'Product Manager',
-  'Cloud Engineer',
-  'Security Engineer',
+/**
+ * Target roles, grouped the way the job cache is.
+ *
+ * These mirror JOB_DOMAINS in backend/app/modules/job_market/services.py
+ * one-for-one, and that is not cosmetic. Picking a role here seeds the user's
+ * feed, and the backend only holds warm listings for the roles it sweeps —
+ * anything else triggers a cold scrape and shows an empty grid on day one.
+ *
+ * Two consequences worth knowing before editing this list:
+ *
+ *   Labels must survive normalise_query(), which lowercases and strips
+ *   punctuation. "AI / Machine Learning Engineer" normalises to
+ *   "ai machine learning engineer", which matches no cached role — so the
+ *   combined slash-labels are split into the two roles the cache actually
+ *   holds.
+ *
+ *   Adding a role here without adding it to JOB_DOMAINS gives that user an
+ *   empty feed. "Full Stack Engineer" and "Cloud Engineer" were offered here
+ *   and swept nowhere, which is why they are gone.
+ */
+interface RoleDomain {
+  domain: string
+  roles: string[]
+}
+
+const ROLE_DOMAINS: RoleDomain[] = [
+  {
+    domain: 'Software & AI',
+    roles: [
+      'Software Engineer',
+      'Frontend Engineer',
+      'Backend Engineer',
+      'AI Engineer',
+      'ML Engineer',
+      'DevOps Engineer',
+      'Data Scientist',
+      'Security Engineer',
+      'Product Manager',
+    ],
+  },
+  {
+    domain: 'Electrical & Hardware',
+    roles: ['Electrical Engineer', 'Power Systems Engineer', 'Hardware Engineer'],
+  },
+  {
+    domain: 'Construction & Infrastructure',
+    roles: ['Construction Manager', 'Structural Engineer', 'Site Engineer'],
+  },
+  {
+    domain: 'Core Engineering',
+    roles: ['Mechanical Engineer', 'Civil Engineer', 'Industrial Engineer'],
+  },
 ]
 
 export /** Named for what is actually happening, so a slow step is explicable
@@ -93,6 +129,25 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
     })
   }
 
+  /**
+   * Skipping is a server-side fact, not a browser one.
+   *
+   * The tempting shortcut is localStorage.setItem('onboarding_completed'),
+   * which is wrong twice: the backend never learns, so the modal returns on
+   * the user's next device and on any cleared cache, and the profile row
+   * still says onboarding is pending. POST /user/onboarding/skip records it
+   * where every client can read it.
+   */
+  async function handleSkip() {
+    if (!onSkip || isSkipping || isSubmitting) return
+    setIsSkipping(true)
+    try {
+      await onSkip()
+    } finally {
+      setIsSkipping(false)
+    }
+  }
+
   async function handleFinish() {
     // Guard as well as disable: the button is a convenience, and a stray
     // Enter keypress shouldn't be able to submit an invalid selection.
@@ -134,6 +189,24 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
         aria-labelledby="onboarding-title"
         className="w-full max-w-xl rounded-3xl border border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)] p-7 shadow-[var(--shadow-pop)]"
       >
+        {/* Reachable from either step. Nothing in this modal is required to
+            use the product — roles only re-rank the job feed — so a user who
+            wants to look around first should never have to walk to step 2 to
+            find the exit. */}
+        {onSkip && (
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={isSubmitting || isSkipping}
+              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink)] disabled:opacity-40"
+            >
+              {isSkipping ? 'Skipping…' : 'Skip for now'}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Step indicator */}
         <div className="mb-7 flex items-center gap-3">
           <StepPill index={1} label="Resume" active={step === 1} done={step > 1} />
@@ -186,14 +259,27 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
               <p className="text-xs font-medium text-[var(--color-danger)]">{fileError}</p>
             )}
 
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="btn-primary flex w-full items-center justify-center gap-2"
-            >
-              Continue
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="flex gap-3">
+              {onSkip && (
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  disabled={isSkipping}
+                  className="btn-secondary flex-1 disabled:opacity-40"
+                >
+                  {isSkipping ? 'Skipping…' : 'Skip for now'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                disabled={isSkipping}
+                className="btn-primary flex flex-1 items-center justify-center gap-2 disabled:opacity-40"
+              >
+                Continue
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
             {!resumeFile && (
               <p className="text-center text-xs text-[var(--color-ink-faint)]">
                 No resume handy? Continue without one — we&apos;ll remind you from your dashboard.
@@ -214,29 +300,39 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
               </p>
             </div>
 
-            <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto p-0.5">
-              {PRESET_ROLES.map((role) => {
-                const isSelected = selectedRoles.includes(role)
-                const atLimit = !isSelected && selectedRoles.length >= MAX_ROLES
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => toggleRole(role)}
-                    disabled={atLimit}
-                    aria-pressed={isSelected}
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
-                      isSelected
-                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                        : 'border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] text-[var(--color-ink-subtle)] hover:border-[var(--color-line-strong)] disabled:opacity-35'
-                    }`}
-                  >
-                    <Briefcase className="h-3.5 w-3.5" />
-                    {role}
-                    {isSelected && <Check className="h-3.5 w-3.5" />}
-                  </button>
-                )
-              })}
+            {/* Grouped rather than one flat wrap: with four domains in the
+                list, a civil engineer scanning eighteen unlabelled chips has
+                no way to tell the product covers their field at all. */}
+            <div className="max-h-60 space-y-4 overflow-y-auto rounded-2xl border border-[var(--color-canvas-line)] p-3">
+              {ROLE_DOMAINS.map(({ domain, roles }) => (
+                <div key={domain}>
+                  <div className="eyebrow mb-2">{domain}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {roles.map((role) => {
+                      const isSelected = selectedRoles.includes(role)
+                      const atLimit = !isSelected && selectedRoles.length >= MAX_ROLES
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => toggleRole(role)}
+                          disabled={atLimit}
+                          aria-pressed={isSelected}
+                          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+                            isSelected
+                              ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                              : 'border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] text-[var(--color-ink-subtle)] hover:border-[var(--color-line-strong)] disabled:opacity-35'
+                          }`}
+                        >
+                          <Briefcase className="h-3.5 w-3.5" />
+                          {role}
+                          {isSelected && <Check className="h-3.5 w-3.5" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="flex items-center justify-between text-xs">
@@ -339,24 +435,14 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
               </button>
             </div>
 
-            {/* Skip. Nothing here is required to use the product — roles only
-                tune the job feed — so trapping someone in a modal they cannot
-                dismiss is the wrong trade. */}
             {onSkip && (
               <button
                 type="button"
-                onClick={async () => {
-                  setIsSkipping(true)
-                  try {
-                    await onSkip()
-                  } finally {
-                    setIsSkipping(false)
-                  }
-                }}
+                onClick={handleSkip}
                 disabled={isSubmitting || isSkipping}
                 className="mt-3 w-full text-center text-xs text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink)] disabled:opacity-40"
               >
-                {isSkipping ? 'Skipping…' : 'Skip for now — you can set this up later'}
+                {isSkipping ? 'Skipping…' : 'Set these later in Settings'}
               </button>
             )}
           </div>
