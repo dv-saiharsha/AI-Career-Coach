@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Briefcase, Clock, ExternalLink, MapPin, Search } from 'lucide-react'
+import { Briefcase, Clock, MapPin, Search } from 'lucide-react'
 import { getJobs, type JobFeed, type JobListing, type WorkMode } from '../../../lib/jobsData'
 import { CompanyLogo } from '@/components/jobs/CompanyLogo'
+import { ApplyTrackerButton } from '@/components/jobs/ApplyTrackerButton'
+import { useApplyTracker } from '@/hooks/useApplyTracker'
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer'
 import { stashJobContext } from '@/lib/jobContext'
 import { createApplication, getUserProfile } from '@/lib/apiClient'
@@ -152,6 +154,8 @@ export default function JobsPage() {
     },
     [router],
   )
+
+  const applyTracker = useApplyTracker()
 
   const handleSaveToPipeline = useCallback(async (job: JobListing) => {
     setSaveStates((prev) => ({ ...prev, [job.id]: 'saving' }))
@@ -431,18 +435,14 @@ export default function JobsPage() {
                 {/* Now a real third-party URL, not the old '#' placeholder:
                     noopener/noreferrer keeps the opened page from reaching
                     back through window.opener (tabnabbing). */}
-                <a
-                  href={job.applyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  // Without this the card's onClick also fires, opening the
-                  // drawer behind the newly-opened tab.
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors"
-                >
-                  Apply
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                {/* Stops propagation internally so the card's onClick does
+                    not open the drawer behind the newly-opened tab. */}
+                <ApplyTrackerButton
+                  job={job}
+                  state={applyTracker.stateFor(job)}
+                  onApply={applyTracker.openAndTrack}
+                  onUndo={applyTracker.undo}
+                />
               </div>
             </motion.article>
           ))}
@@ -453,6 +453,9 @@ export default function JobsPage() {
         job={selectedJob}
         isOpen={!!selectedJob}
         onClose={() => setSelectedJob(null)}
+        applyState={selectedJob ? applyTracker.stateFor(selectedJob) : 'idle'}
+        onApply={applyTracker.openAndTrack}
+        onUndoApply={applyTracker.undo}
         onMatchResume={handleMatchResume}
         onPracticeInterview={handlePracticeInterview}
         onSaveToPipeline={handleSaveToPipeline}

@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { Bookmark, Briefcase, Building2, Check, Clock, ExternalLink, FileText, MapPin, MessageSquare, Wand2, X } from 'lucide-react'
 import type { JobListing, WorkMode } from '@/lib/apiClient'
+import type { TrackState } from '@/hooks/useApplyTracker'
+import { ApplyTrackerButton } from '@/components/jobs/ApplyTrackerButton'
 
 // Re-exported under the name the page imports it by. The API type is
 // JobListing; JobPosting is kept as an alias so both names resolve to one
@@ -19,6 +21,10 @@ interface JobDetailDrawerProps {
   onMatchResume: (job: JobPosting) => void
   /** Start interview practice pre-filled with this role. */
   onPracticeInterview: (job: JobPosting) => void
+  /** Whether opening this posting has already been recorded as an application. */
+  applyState?: TrackState
+  onApply?: (job: JobPosting) => void
+  onUndoApply?: (job: JobPosting) => void
   /** Save this listing to the application pipeline. Optional so the drawer
    * still renders anywhere the pipeline isn't wired up. */
   onSaveToPipeline?: (job: JobPosting) => void
@@ -47,6 +53,9 @@ export function JobDetailDrawer({
   onPracticeInterview,
   onSaveToPipeline,
   saveState = 'idle',
+  applyState = 'idle',
+  onApply,
+  onUndoApply,
 }: JobDetailDrawerProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
 
@@ -186,15 +195,25 @@ export function JobDetailDrawer({
             </div>
 
             <div className="space-y-2 border-t border-[var(--color-canvas-line)] p-5">
-              <a
-                href={job.applyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-primary flex w-full items-center justify-center gap-2"
-              >
-                Apply
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              {onApply && onUndoApply ? (
+                <ApplyTrackerButton
+                  job={job}
+                  state={applyState ?? 'idle'}
+                  onApply={onApply}
+                  onUndo={onUndoApply}
+                  variant="block"
+                />
+              ) : (
+                <a
+                  href={job.applyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary flex w-full items-center justify-center gap-2"
+                >
+                  Apply
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => onMatchResume(job)}

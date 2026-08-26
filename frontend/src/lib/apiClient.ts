@@ -899,3 +899,34 @@ export const getTailorPreview = async (payload: {
   const response = await apiClient.post('/resume-builder/tailor-preview', payload)
   return response.data
 }
+
+// ── Builder autofill ─────────────────────────────────────────────────────
+
+/**
+ * Structured fields read back out of an uploaded resume.
+ *
+ * Every field is nullable because every field is a heuristic. `null` means
+ * "could not determine" and must render as an empty box — deliberately not a
+ * plausible-looking default, since nobody re-checks a field that already
+ * looks filled.
+ */
+export interface ResumeAutofill {
+  name: string | null
+  email: string | null
+  phone: string | null
+  linkedin: string | null
+  location: string | null
+  summary: string | null
+  experiences: BuilderExperienceEntry[]
+  education: BuilderEducationEntry[]
+  /** Fields from an unambiguous match rather than a positional guess. */
+  confident_fields: string[]
+  parsed_experience_count: number
+  parsed_education_count: number
+}
+
+/** Free — regex and section splitting, no LLM call. Writes nothing. */
+export const getResumeAutofill = async (analysisId: number): Promise<ResumeAutofill> => {
+  const response = await apiClient.get(`/resume-builder/autofill/${analysisId}`)
+  return response.data
+}

@@ -18,6 +18,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export interface ProgressStep {
   key: string
   label: string
+  /** Shown only while this step is active — what is happening right now. */
+  description: string
 }
 
 export type StepState = 'pending' | 'active' | 'done' | 'failed'

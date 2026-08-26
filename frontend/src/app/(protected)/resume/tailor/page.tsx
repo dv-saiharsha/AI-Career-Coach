@@ -18,17 +18,33 @@ import { useTailorProgress, type ProgressStep } from '@/hooks/useTailorProgress'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TailorProgressStepper } from '@/components/resume/TailorProgressStepper'
 
+/**
+ * Three steps, because the pipeline makes three calls.
+ *
+ * The tempting version has five — "optimise keyword density", "verify claims",
+ * "finalise formatting" — but those happen inside one request that reports
+ * nothing until it returns, so their progress would have to be invented. A
+ * step that cannot fail independently is decoration, not progress.
+ */
 const STEPS: ProgressStep[] = [
-  { key: 'scan', label: 'Reading your latest scan' },
-  { key: 'score', label: 'Scoring against this posting' },
-  { key: 'build', label: 'Building your tailored PDF' },
+  {
+    key: 'scan',
+    label: 'Reading your latest scan',
+    description: 'Loading the resume you last uploaded',
+  },
+  {
+    key: 'score',
+    label: 'Scoring against this posting',
+    description: 'Matching your resume to what this job asks for',
+  },
+  {
+    key: 'build',
+    label: 'Building your tailored PDF',
+    description: 'Adding what you confirmed, keeping your original layout',
+  },
 ]
-
-function formatElapsed(ms: number) {
-  const total = Math.floor(ms / 100) / 10
-  return total < 60 ? `${total.toFixed(1)}s` : `${Math.floor(total / 60)}m ${Math.round(total % 60)}s`
-}
 
 /**
  * Split-view tailoring, behind an acceptance gate.
@@ -186,7 +202,13 @@ function TailorWorkspace() {
         </p>
       </motion.div>
 
-      <ProgressBar progress={progress} />
+      {STEPS.some((s) => progress.stateOf(s.key) !== 'pending') && (
+        <TailorProgressStepper
+          steps={STEPS}
+          stateOf={progress.stateOf}
+          elapsedMs={progress.elapsedMs}
+        />
+      )}
 
       {error && (
         <div className="card mt-4 flex items-start gap-2 p-5 text-sm text-[var(--color-error)]">
@@ -428,71 +450,6 @@ function SkillGroup({
           )
         })}
       </div>
-    </div>
-  )
-}
-
-function ProgressBar({ progress }: { progress: ReturnType<typeof useTailorProgress> }) {
-  const anyStarted = STEPS.some((s) => progress.stateOf(s.key) !== 'pending')
-  if (!anyStarted) return null
-
-  return (
-    <div className="card p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="eyebrow">Progress</div>
-        {/* Real wall-clock time, not a countdown against an estimate. It stops
-            when the work stops, so a stalled request shows a climbing number
-            rather than a bar that quietly completes on schedule. */}
-        <span className="font-mono text-[11px] text-[var(--color-ink-faint)]">
-          {formatElapsed(progress.elapsedMs)} elapsed
-        </span>
-      </div>
-
-      <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-canvas-line-soft)]">
-        <motion.div
-          className="h-full bg-[var(--color-accent)]"
-          animate={{ width: `${Math.round(progress.ratio * 100)}%` }}
-          transition={{ duration: 0.3 }}
-        />
-      </div>
-
-      <ul className="mt-3 space-y-1.5">
-        {STEPS.map((step) => {
-          const state = progress.stateOf(step.key)
-          return (
-            <li key={step.key} className="flex items-center gap-2 text-xs">
-              <span
-                className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${
-                  state === 'done'
-                    ? 'border-[var(--color-accent)] bg-[var(--color-accent)]'
-                    : state === 'failed'
-                      ? 'border-[var(--color-error)]'
-                      : 'border-[var(--color-canvas-line)]'
-                }`}
-              >
-                {state === 'done' && (
-                  <Check strokeWidth={3} className="h-2 w-2 text-[var(--color-on-accent)]" />
-                )}
-                {state === 'active' && (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-accent)]" />
-                )}
-              </span>
-              <span
-                className={
-                  state === 'pending'
-                    ? 'text-[var(--color-ink-faint)]'
-                    : state === 'failed'
-                      ? 'text-[var(--color-error)]'
-                      : 'text-[var(--color-ink-dim)]'
-                }
-              >
-                {step.label}
-                {state === 'failed' && ' — failed'}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
     </div>
   )
 }

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Plus, Trash2, Sparkles, Download, AlertCircle, ArrowRight, FileCheck2,
+  Plus, Trash2, Sparkles, Download, AlertCircle, ArrowRight, FileCheck2, Wand2,
 } from 'lucide-react'
 import {
-  compileResume, stageResumeFixes, downloadCompiledResumePdf,
+  compileResume, stageResumeFixes, downloadCompiledResumePdf, getResumeAutofill,
   type BuilderExperienceEntry, type BuilderEducationEntry,
   type BulletSuggestion, type CompileResumeResult,
 } from '@/lib/apiClient'
@@ -90,12 +90,93 @@ export function ResumeBuilderPanel({
   ])
   const [education, setEducation] = useState<BuilderEducationEntry[]>([])
 
+  // Which fields the parser filled, and which of those it only guessed at.
+  // Kept separate so the form can point at the guesses instead of presenting
+  // a machine-read name with the same confidence as a matched email address.
+  const [autofilled, setAutofilled] = useState<Set<string>>(new Set())
+  const [needsReview, setNeedsReview] = useState<Set<string>>(new Set())
+  const [autofillState, setAutofillState] = useState<'loading' | 'done' | 'none' | 'failed'>('loading')
+
   const [stage, setStage] = useState<Stage>('idle')
   const [error, setError] = useState('')
   const [missingKeywords, setMissingKeywords] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<BulletSuggestion[]>([])
   const [appliedSuggestions, setAppliedSuggestions] = useState<Set<number>>(new Set())
   const [compileResult, setCompileResult] = useState<CompileResumeResult | null>(null)
+
+  /**
+   * Pre-fill from the resume the user already uploaded.
+   *
+   * Only empty fields are written. Someone who started typing before this
+   * resolved keeps what they typed — a network response overwriting live
+   * input is the kind of bug that loses a paragraph and gets blamed on the
+   * user.
+   *
+   * A failure here is silent by design: autofill is a convenience on top of a
+   * form that works without it, so a red banner would be louder than the
+   * problem. The form simply stays empty.
+   */
+  useEffect(() => {
+    let cancelled = false
+
+    getResumeAutofill(analysisId)
+      .then((data) => {
+        if (cancelled) return
+        const filled = new Set<string>()
+
+        const fill = (
+          key: string,
+          value: string | null,
+          current: string,
+          set: (v: string) => void,
+        ) => {
+          if (!value || current.trim()) return
+          set(value)
+          filled.add(key)
+        }
+
+        fill('name', data.name, candidateName, setCandidateName)
+        fill('location', data.location, location, setLocation)
+        fill('email', data.email, email, setEmail)
+        fill('phone', data.phone, phone, setPhone)
+        fill('linkedin', data.linkedin, linkedin, setLinkedin)
+        fill('summary', data.summary, summary, setSummary)
+
+        // The seeded blank row is not user input, so replacing it is safe.
+        const blankExperience =
+          experiences.length <= 1 &&
+          !experiences[0]?.title.trim() &&
+          !experiences[0]?.company.trim()
+        if (data.experiences.length && blankExperience) {
+          setExperiences(data.experiences.map((e) => ({ ...e, bullets: e.bullets.length ? e.bullets : [''] })))
+          filled.add('experiences')
+        }
+        if (data.education.length && education.length === 0) {
+          setEducation(data.education)
+          filled.add('education')
+        }
+
+        setAutofilled(filled)
+        // Anything filled that the backend did not vouch for is a positional
+        // guess, and gets flagged rather than trusted.
+        setNeedsReview(new Set([...filled].filter((k) => !data.confident_fields.includes(k))))
+        setAutofillState(filled.size ? 'done' : 'none')
+      })
+      .catch(() => {
+        if (!cancelled) setAutofillState('failed')
+      })
+
+    return () => {
+      cancelled = true
+    }
+    // Runs once per scan. The field values are read inside the callback on
+    // purpose and must not re-trigger it — depending on them would refill the
+    // form every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisId])
+
+  const reviewHint = (key: string) =>
+    needsReview.has(key) ? 'border-[var(--color-warning)]' : ''
 
   const updateExperience = (index: number, patch: Partial<BuilderExperienceEntry>) =>
     setExperiences((prev) => prev.map((exp, i) => (i === index ? { ...exp, ...patch } : exp)))
@@ -175,14 +256,42 @@ export function ResumeBuilderPanel({
       <div>
         <div className="eyebrow mb-1">Build an ATS-optimized PDF</div>
         <p className="text-sm text-[var(--color-ink-dim)]">
-          Fill in your details, get keyword and bullet-rewrite suggestions, and compile a clean single-page
-          resume — scored by the same trained model as your scan above.
+          Filled in from the resume you uploaded. Correct anything the parser got wrong, then compile a
+          clean single-page resume — scored by the same trained model as your scan above.
         </p>
       </div>
 
+      {/* States the parser's own confidence rather than presenting every
+          field as equally certain. A user told which fields were guessed will
+          read those; one shown a full form reads none of it. */}
+      {autofillState === 'done' && (
+        <div className="flex items-start gap-2 rounded-[10px] border border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] p-3">
+          <Wand2 strokeWidth={1.5} className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-accent)]" />
+          <p className="text-xs leading-relaxed text-[var(--color-ink-dim)]">
+            Filled {autofilled.size} section{autofilled.size !== 1 ? 's' : ''} from your resume.
+            {needsReview.size > 0 && (
+              <>
+                {' '}
+                The outlined fields were read positionally rather than matched exactly —
+                worth a glance before you compile.
+              </>
+            )}
+          </p>
+        </div>
+      )}
+      {autofillState === 'none' && (
+        <div className="flex items-start gap-2 rounded-[10px] border border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] p-3">
+          <AlertCircle strokeWidth={1.5} className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-ink-faint)]" />
+          <p className="text-xs leading-relaxed text-[var(--color-ink-dim)]">
+            We couldn&apos;t read structured sections out of your resume — often a multi-column or
+            image-based layout. Fill these in below; it won&apos;t affect your score.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Input value={candidateName} onChange={(e) => setCandidateName(e.target.value)} placeholder="Full name" />
-        <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location" />
+        <Input value={candidateName} onChange={(e) => setCandidateName(e.target.value)} placeholder="Full name" className={reviewHint('name')} />
+        <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location" className={reviewHint('location')} />
         <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" />
         <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
         <Input
@@ -219,7 +328,14 @@ export function ResumeBuilderPanel({
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <label className="eyebrow">Experience</label>
+          <label className="eyebrow">
+            Experience
+            {needsReview.has('experiences') && (
+              <span className="ml-2 font-normal normal-case text-[var(--color-warning)]">
+                check titles and companies
+              </span>
+            )}
+          </label>
           <Button
             type="button"
             variant="ghost"

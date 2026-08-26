@@ -11,6 +11,14 @@ export interface AuthUser {
   fullName: string
   /** Google profile picture, when the account came in through OAuth. */
   avatarUrl: string | null
+  /**
+   * Auth providers actually linked to this account, straight from Supabase's
+   * identities array — 'email', 'google', and so on. Read rather than
+   * inferred: whether an account is connected to a provider is a fact the
+   * session already carries, and a UI toggle that tracks it in local state
+   * will claim "connected" for something that is not.
+   */
+  providers: string[]
 }
 
 interface AuthContextValue {
@@ -39,7 +47,12 @@ function str(value: unknown): string {
  * reassembled from parts, and the email local-part is the last resort rather
  * than an equal option — it is a mailbox, not a name.
  */
-function toAuthUser(user: { id: string; email?: string; user_metadata?: Record<string, unknown> }): AuthUser {
+function toAuthUser(user: {
+  id: string
+  email?: string
+  user_metadata?: Record<string, unknown>
+  identities?: { provider: string }[] | null
+}): AuthUser {
   const meta = user.user_metadata ?? {}
 
   const given = str(meta.first_name) || str(meta.given_name)
@@ -65,6 +78,7 @@ function toAuthUser(user: { id: string; email?: string; user_metadata?: Record<s
     // Supabase has normalised it; which one is present depends on the
     // provider, so both are read.
     avatarUrl: str(meta.avatar_url) || str(meta.picture) || null,
+    providers: (user.identities ?? []).map((i) => i.provider).filter(Boolean),
   }
 }
 

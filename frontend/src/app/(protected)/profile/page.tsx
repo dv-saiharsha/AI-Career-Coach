@@ -27,7 +27,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Field } from '@/components/ui/field';
+import { Field } from '@/components/ui/field'
+import { ConnectedAccounts } from '@/components/profile/ConnectedAccounts';
 import { Spinner } from '@/components/ui/spinner';
 
 const SENIORITY_LEVELS = ['Entry', 'Mid-Level', 'Senior', 'Staff', 'Principal', 'Executive'];
@@ -372,11 +373,20 @@ export default function ProfilePage() {
         </Field>
       </motion.div>
 
-      {/* Career details */}
+      {/* Connected accounts */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
+      >
+        <ConnectedAccounts />
+      </motion.div>
+
+      {/* Career details */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
         className="glass-card p-6 space-y-5"
       >
         <h2 className="text-sm font-semibold text-[var(--color-ink)]">Career Details</h2>
