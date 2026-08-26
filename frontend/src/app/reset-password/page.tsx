@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import { ZenithMark } from '../../components/ZenithMark'
+import { ApplyCenterMark } from '../../components/ApplyCenterMark'
 import { createClient } from '../../lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,8 +59,8 @@ export default function ResetPassword() {
           className="flex justify-center mb-8"
         >
           <Link href="/" className="flex items-center gap-2.5">
-            <ZenithMark className="w-8 h-8" />
-            <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+            <ApplyCenterMark className="w-8 h-8" />
+            <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">ApplyCenter</span>
           </Link>
         </motion.div>
 

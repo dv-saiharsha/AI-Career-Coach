@@ -489,7 +489,7 @@
   border: 1px solid var(--glass-border);
 }
 
-/* The Zenith logotype. Tighter tracking and a heavier weight than body text —
+/* The ApplyCenter logotype. Tighter tracking and a heavier weight than body text —
    a wordmark should read as a mark, not as a word that happens to be there. */
 @utility wordmark {
   font-family: var(--font-wordmark), var(--font-geist-sans), sans-serif;

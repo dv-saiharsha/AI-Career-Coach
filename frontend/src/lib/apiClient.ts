@@ -136,6 +136,22 @@ export const downloadResumeReport = async (analysisId: number, filename = 'resum
   window.URL.revokeObjectURL(url)
 }
 
+/** Opens the candidate's own uploaded file in a new tab, unaltered.
+ *  Distinct from downloadResumeReport, which is the generated feedback PDF. */
+export const viewOriginalResume = async (analysisId: number) => {
+  const response = await apiClient.get(`/resume/file/${analysisId}`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(response.data)
+  window.open(url, '_blank', 'noopener,noreferrer')
+  // Revoked on a delay rather than immediately: the new tab needs the blob to
+  // still be alive when it loads, and revoking synchronously races that.
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+}
+
+/** Deletes the scan and clears it from the profile if it was the primary. */
+export const deleteResumeAnalysis = async (analysisId: number): Promise<void> => {
+  await apiClient.delete(`/resume/${analysisId}`)
+}
+
 export interface InterviewQuestion {
   id: number
   text: string
@@ -237,65 +253,6 @@ export const generateScreeningPrep = async (payload: {
   return response.data
 }
 
-// ── Career: roadmap and offer negotiation ────────────────────────────────
-
-export interface Milestone {
-  id: string
-  title: string
-  summary: string
-  typical_duration: string
-  have_skills: string[]
-  gap_skills: string[]
-}
-
-export interface CareerRoadmap {
-  current_role: string
-  target_role: string
-  /** False when the generic scaffold was served — the UI must say so. */
-  tailored: boolean
-  milestones: Milestone[]
-}
-
-export const getCareerRoadmap = async (payload: {
-  current_role?: string
-  target_role?: string
-  seniority?: string
-}): Promise<CareerRoadmap> => {
-  const response = await apiClient.post('/career/roadmap', payload)
-  return response.data
-}
-
-export interface SalaryBenchmark {
-  role: string
-  /** 0 means we hold no postings for this role; every band below is null. */
-  sample_size: number
-  p25: number | null
-  median: number | null
-  p75: number | null
-  low: number | null
-  high: number | null
-}
-
-export interface CounterOffer {
-  email: string
-  benchmark: SalaryBenchmark
-}
-
-export const getSalaryBenchmark = async (role: string): Promise<SalaryBenchmark> => {
-  const response = await apiClient.get('/career/salary-benchmark', { params: { role } })
-  return response.data
-}
-
-export const generateCounterOffer = async (payload: {
-  role: string
-  company?: string
-  current_offer?: string
-  target_offer?: string
-}): Promise<CounterOffer> => {
-  const response = await apiClient.post('/career/counter-offer', payload)
-  return response.data
-}
-
 export interface InterviewHistoryItem {
   id: number
   role: string
@@ -311,6 +268,8 @@ export const getInterviewHistory = async (): Promise<InterviewHistoryItem[]> => 
   return response.data
 }
 
+// ── Job market ───────────────────────────────────────────────────────────
+
 export type WorkMode = 'Remote' | 'Hybrid' | 'On-site'
 
 export interface JobListing {
@@ -323,26 +282,72 @@ export interface JobListing {
   /** Full posting text. Null for rows cached before the column existed. */
   description: string | null
   skills: string[]
+  /** Days since the employer posted it — not since we indexed it. */
   postedDaysAgo: number
   applyUrl: string
+
+  /**
+   * What the posting SAYS about sponsorship — never a prediction of what the
+   * employer will do. null means nobody has classified this posting yet,
+   * which is different from "no sponsorship" and must render differently.
+   */
+  h1bSponsorship?: 'explicitly_sponsored' | 'no_sponsorship' | 'unmentioned' | null
+  /** The sentence the classification was read from, so it can be judged. */
+  h1bEvidence?: string | null
+  experienceLevel?: 'entry' | 'mid' | 'senior' | 'lead' | null
+  employmentType?: 'full_time' | 'part_time' | 'contract' | 'internship' | null
+  /** Brand icon. May 404 — the backend guesses the domain from the company
+   *  name — so the card must render a monogram fallback on error. */
+  companyLogo?: string | null
+  /** Which JOB_DOMAINS group this role belongs to. Null for on-demand
+   *  searches outside the warm set. */
+  domain?: string | null
+}
+
+export interface JobFilterCounts {
+  h1b: Record<string, number>
+  experience: Record<string, number>
+  employment: Record<string, number>
+  /** Rows never classified — surfaced so the UI can say the filters are partial. */
+  unenriched: number
+}
+
+export interface JobFilters {
+  h1b?: string | null
+  experience?: string | null
+  employment?: string | null
 }
 
 export interface JobFeed {
   /** ISO timestamp of the newest cached listing, or null on a cold cache. */
   lastUpdated: string | null
   jobs: JobListing[]
+  /** Counts from the unfiltered feed, for pill labels. */
+  filterCounts?: JobFilterCounts | null
+  /**
+   * A background scrape for this query is in flight. The listings shown are
+   * cached; fresher ones will exist on the next load. The request itself
+   * never waits on the scraper — that used to block for minutes.
+   */
+  refreshing?: boolean
 }
 
 /**
- * Job feed. Omitting `q` serves the warm-role cache and costs nothing.
- *
- * Passing `q` can trigger a billed scraper run on the backend when that role
- * isn't cached, so callers should debounce rather than fire per keystroke —
- * see the jobs page. Results are cached server-side for 24h, so repeat
- * searches for the same role are free.
+ * Job feed. Reads cache only and returns immediately; a query with no cached
+ * results queues a scrape server-side rather than making the caller wait.
  */
-export const getJobs = async (q?: string): Promise<JobFeed> => {
-  const response = await apiClient.get('/jobs', { params: q ? { q } : undefined })
+export const getJobs = async (q?: string, filters?: JobFilters): Promise<JobFeed> => {
+  // Undefined keys are dropped by axios, so an unset filter never reaches the
+  // backend as an empty string it would have to special-case.
+  const params: Record<string, string> = {}
+  if (q) params.q = q
+  if (filters?.h1b) params.h1b = filters.h1b
+  if (filters?.experience) params.experience = filters.experience
+  if (filters?.employment) params.employment = filters.employment
+
+  const response = await apiClient.get('/jobs', {
+    params: Object.keys(params).length ? params : undefined,
+  })
   return response.data
 }
 
@@ -419,6 +424,13 @@ export interface OnboardingPayload {
 
 export const completeOnboarding = async (payload: OnboardingPayload): Promise<UserProfile> => {
   const response = await apiClient.post('/user/onboarding', payload)
+  return response.data
+}
+
+/** Marks onboarding done without roles. A separate endpoint because
+ *  /user/onboarding enforces a 3-5 role bound that an empty list fails. */
+export const skipOnboarding = async (): Promise<UserProfile> => {
+  const response = await apiClient.post('/user/onboarding/skip')
   return response.data
 }
 
@@ -764,6 +776,52 @@ export interface AnalyticsSummary {
 
 export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
   const response = await apiClient.get('/analytics/summary')
+  return response.data
+}
+
+// ── Dashboard overview ───────────────────────────────────────────────────
+
+export interface FreshJob {
+  id: string
+  title: string
+  company: string
+  location: string
+  work_mode: string
+  /** From posted_at (when the employer listed it), not fetched_at. */
+  posted_label: string
+  h1b_sponsorship?: string | null
+  h1b_evidence?: string | null
+  experience_level?: string | null
+  apply_url: string
+}
+
+/** A real Federal Register document. Nothing is authored by ApplyCenter. */
+export interface NewsArticle {
+  id: string
+  title: string
+  /** The issuing agency's own abstract, verbatim. */
+  summary?: string | null
+  type: string
+  agency: string
+  /** The document's real publication date — never the current time. */
+  published_at?: string | null
+  url?: string | null
+}
+
+export interface DashboardOverview {
+  fresh_jobs: FreshJob[]
+  /** Names the window actually used, so the UI cannot imply everything is hours old. */
+  fresh_window: string
+  latest_ats_score?: number | null
+  scored_against?: string | null
+  news: NewsArticle[]
+  /** False when the Federal Register could not be reached. */
+  news_reachable: boolean
+  news_cached: boolean
+}
+
+export const getDashboardOverview = async (): Promise<DashboardOverview> => {
+  const response = await apiClient.get('/dashboard/overview')
   return response.data
 }
 

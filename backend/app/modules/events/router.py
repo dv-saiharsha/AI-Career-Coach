@@ -34,7 +34,7 @@ def format_sse(event_type: str, data: object) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
-async def event_stream(request: Request, user_id: str, queue: asyncio.Queue):
+async def event_stream(request: Request, user_id: str, handle):
     """The stream body, module-level so it can be driven directly in tests.
 
     Left as a closure this was untestable: an endpoint that only terminates on
@@ -42,6 +42,9 @@ async def event_stream(request: Request, user_id: str, queue: asyncio.Queue):
     no socket and whose `is_disconnected()` therefore never returns True — the
     loop just spins forever.
     """
+    # listen() is what abstracts the backend: a queue drain in-process, a
+    # Redis channel read otherwise. The router never learns which.
+    events = event_manager.listen(user_id, handle).__aiter__()
     try:
         # Emitted immediately so the client can distinguish "connected" from
         # "still waiting for the first byte" — without it a stream with no
@@ -52,12 +55,14 @@ async def event_stream(request: Request, user_id: str, queue: asyncio.Queue):
             if await request.is_disconnected():
                 break
             try:
-                event = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_SECONDS)
+                event = await asyncio.wait_for(events.__anext__(), timeout=HEARTBEAT_SECONDS)
             except asyncio.TimeoutError:
                 # Keep-alive. Without periodic bytes, proxies close idle
                 # connections and the client sees a silent death.
                 yield format_sse("ping", {})
                 continue
+            except StopAsyncIteration:
+                break
             yield format_sse(event["type"], event["data"])
     except asyncio.CancelledError:
         # Normal on client disconnect — re-raised so the server can finish
@@ -67,7 +72,7 @@ async def event_stream(request: Request, user_id: str, queue: asyncio.Queue):
         # Runs on every exit path, including cancellation. Skipping it would
         # leak a queue per dropped connection, and every later publish would
         # fan out to subscribers nobody is reading.
-        event_manager.unsubscribe(user_id, queue)
+        event_manager.unsubscribe(user_id, handle)
 
 
 @router.get("/stream")
@@ -84,9 +89,9 @@ async def stream(
     full-account-access token into access logs, browser history, and Referer
     headers, which is not worth the convenience.
     """
-    queue = event_manager.subscribe(current_user.id)
+    handle = event_manager.subscribe(current_user.id)
     return StreamingResponse(
-        event_stream(request, current_user.id, queue),
+        event_stream(request, current_user.id, handle),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowRight, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
-import { ZenithMark } from '../../components/ZenithMark'
+import { ApplyCenterMark } from '../../components/ApplyCenterMark'
 import { createClient } from '../../lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
@@ -53,8 +53,8 @@ export default function ForgotPassword() {
           className="flex justify-center mb-8"
         >
           <Link href="/" className="flex items-center gap-2.5">
-            <ZenithMark className="w-8 h-8" />
-            <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+            <ApplyCenterMark className="w-8 h-8" />
+            <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">ApplyCenter</span>
           </Link>
         </motion.div>
 

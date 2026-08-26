@@ -4,8 +4,8 @@ import { FloatingNav } from '@/components/FloatingNav';
 import Footer from '../../components/Footer';
 
 export const metadata: Metadata = {
-  title: 'How It Works — Zenith',
-  description: 'A step-by-step walkthrough of the Zenith workflow.',
+  title: 'How It Works — ApplyCenter',
+  description: 'A step-by-step walkthrough of the ApplyCenter workflow.',
 };
 
 export default function HowItWorksPage() {

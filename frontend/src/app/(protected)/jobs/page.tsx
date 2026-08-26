@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Briefcase, Building2, Clock, ExternalLink, MapPin, Search } from 'lucide-react'
+import { Briefcase, Clock, ExternalLink, MapPin, Search } from 'lucide-react'
 import { getJobs, type JobFeed, type JobListing, type WorkMode } from '../../../lib/jobsData'
+import { CompanyLogo } from '@/components/jobs/CompanyLogo'
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer'
 import { stashJobContext } from '@/lib/jobContext'
 import { createApplication, getUserProfile } from '@/lib/apiClient'
@@ -13,6 +14,28 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const MODE_FILTERS = ['All', 'Remote', 'Hybrid', 'On-site'] as const
 type ModeFilter = (typeof MODE_FILTERS)[number]
+
+// "Sponsored" reports what a posting SAYS, never what an employer will do —
+// the hint is shown on hover so the badge isn't read as a guarantee.
+const H1B_PILLS = [
+  {
+    value: 'explicitly_sponsored',
+    label: 'Sponsors H-1B',
+    hint: 'The posting states sponsorship is available. Always confirm at screening.',
+  },
+  {
+    value: 'no_sponsorship',
+    label: 'No sponsorship',
+    hint: 'The posting states sponsorship is unavailable, or requires existing authorization.',
+  },
+] as const
+
+const EXPERIENCE_PILLS = [
+  { value: 'entry', label: 'Entry' },
+  { value: 'mid', label: 'Mid' },
+  { value: 'senior', label: 'Senior' },
+  { value: 'lead', label: 'Lead' },
+] as const
 
 function postedLabel(days: number): string {
   if (days <= 0) return 'Today'
@@ -45,6 +68,11 @@ export default function JobsPage() {
   const [query, setQuery] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [mode, setMode] = useState<ModeFilter>('All')
+  // Enrichment filters are applied server-side: an unenriched row is excluded
+  // by any filter on that attribute, which the backend can express and a
+  // client-side .filter() over an already-paginated feed cannot.
+  const [h1b, setH1b] = useState<string | null>(null)
+  const [experience, setExperience] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   // The term `feed` actually corresponds to. Loading is derived from the gap
   // between this and searchTerm rather than held as its own state — setting a
@@ -53,7 +81,7 @@ export default function JobsPage() {
   // Keyed by job id so reopening a different listing shows its own state
   // rather than inheriting the last one's "Saved".
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved'>>({})
-  const loading = loadedTerm !== searchTerm
+  const loading = loadedTerm !== `${searchTerm}|${h1b ?? ''}|${experience ?? ''}`
 
   // Debounce the raw input down to the term we actually send.
   useEffect(() => {
@@ -63,7 +91,7 @@ export default function JobsPage() {
 
   useEffect(() => {
     let cancelled = false
-    getJobs(searchTerm || undefined)
+    getJobs(searchTerm || undefined, { h1b, experience })
       .then((data) => {
         // Guard against an earlier request resolving after a later one and
         // overwriting fresher results with stale ones.
@@ -77,12 +105,12 @@ export default function JobsPage() {
       .finally(() => {
         // Always advance, including on failure — otherwise a failed request
         // leaves the grid stuck on the loading skeleton forever.
-        if (!cancelled) setLoadedTerm(searchTerm)
+        if (!cancelled) setLoadedTerm(`${searchTerm}|${h1b ?? ''}|${experience ?? ''}`)
       })
     return () => {
       cancelled = true
     }
-  }, [searchTerm])
+  }, [searchTerm, h1b, experience])
 
   // Target roles drive the quick-filter chips. Failure is silent: the chips
   // simply don't render, and the full feed still works.
@@ -160,7 +188,7 @@ export default function JobsPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="text-sm text-[var(--color-ink-dim)]">
-            Fresh listings matched to the roles Zenith coaches for.
+            Fresh listings matched to the roles ApplyCenter coaches for.
           </p>
           {feed?.lastUpdated && (
             <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-ink-faint)]">
@@ -248,6 +276,83 @@ export default function JobsPage() {
         </Tabs>
       </motion.div>
 
+      {/* Enrichment filters. Counts come from the unfiltered feed so a pill
+          shows what it would match, and a zero-count pill is disabled rather
+          than leading to an empty grid. */}
+      {feed?.filterCounts && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-5 flex flex-wrap items-center gap-2"
+        >
+          <span className="eyebrow text-[10px]">Sponsorship</span>
+          {H1B_PILLS.map((pill) => {
+            const count = feed.filterCounts?.h1b?.[pill.value] ?? 0
+            const active = h1b === pill.value
+            return (
+              <button
+                key={pill.value}
+                type="button"
+                disabled={count === 0 && !active}
+                aria-pressed={active}
+                onClick={() => setH1b(active ? null : pill.value)}
+                className="chip transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                style={{
+                  borderColor: active ? 'var(--color-accent)' : 'var(--color-canvas-line)',
+                  color: active ? 'var(--color-accent)' : 'var(--color-ink-dim)',
+                }}
+                title={pill.hint}
+              >
+                {pill.label}
+                <span className="text-[var(--color-ink-faint)]">{count}</span>
+              </button>
+            )
+          })}
+
+          <span className="eyebrow ml-3 text-[10px]">Level</span>
+          {EXPERIENCE_PILLS.map((pill) => {
+            const count = feed.filterCounts?.experience?.[pill.value] ?? 0
+            const active = experience === pill.value
+            return (
+              <button
+                key={pill.value}
+                type="button"
+                disabled={count === 0 && !active}
+                aria-pressed={active}
+                onClick={() => setExperience(active ? null : pill.value)}
+                className="chip transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                style={{
+                  borderColor: active ? 'var(--color-accent)' : 'var(--color-canvas-line)',
+                  color: active ? 'var(--color-accent)' : 'var(--color-ink-dim)',
+                }}
+              >
+                {pill.label}
+                <span className="text-[var(--color-ink-faint)]">{count}</span>
+              </button>
+            )
+          })}
+
+          {(h1b || experience) && (
+            <button
+              type="button"
+              onClick={() => { setH1b(null); setExperience(null) }}
+              className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
+            >
+              clear
+            </button>
+          )}
+
+          {/* Stated rather than hidden: filters only cover classified rows,
+              and a candidate should know how much of the feed that leaves out. */}
+          {feed.filterCounts.unenriched > 0 && (
+            <span className="ml-auto text-[10px] text-[var(--color-ink-faint)]">
+              {feed.filterCounts.unenriched} listing
+              {feed.filterCounts.unenriched === 1 ? '' : 's'} not yet classified
+            </span>
+          )}
+        </motion.div>
+      )}
+
       {/* Listings */}
       {!feed || loading ? (
         <div className="grid sm:grid-cols-2 gap-4">
@@ -293,9 +398,7 @@ export default function JobsPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[var(--color-accent-tint)] flex items-center justify-center shrink-0">
-                    <Building2 className="w-4.5 h-4.5 text-[var(--color-accent)]" strokeWidth={1.5} />
-                  </div>
+                  <CompanyLogo company={job.company} src={job.companyLogo} />
                   <div className="min-w-0">
                     <h2 className="text-sm font-semibold text-[var(--color-ink)] truncate">{job.title}</h2>
                     <div className="text-xs text-[var(--color-ink-dim)] flex items-center gap-1.5 mt-0.5">

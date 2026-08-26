@@ -1,8 +1,8 @@
 {
-  "name": "zenith",
+  "name": "applycenter",
   "version": "0.1.0",
   "private": true,
-  "description": "Zenith (AI Career Coach) — root task runner. The apps live in frontend/ and backend/.",
+  "description": "ApplyCenter (AI Career Coach) — root task runner. The apps live in frontend/ and backend/.",
   "engines": {
     "node": ">=24"
   },

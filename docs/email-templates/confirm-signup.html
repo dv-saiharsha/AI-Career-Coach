@@ -1,0 +1,112 @@
+<!--
+  ApplyCenter — Confirm signup
+  Paste into: Supabase Dashboard -> Authentication -> Emails -> Confirm signup
+
+  Written for email clients, not browsers. Outlook renders through Word's HTML
+  engine, so this uses table layout and inline styles throughout: flexbox, grid,
+  and <style> blocks are unreliable or ignored there. Every colour is a literal
+  hex — CSS custom properties do not exist in email.
+
+  Supabase variables used:
+    {{ .ConfirmationURL }}  the one-click confirm link
+    {{ .Email }}            the address being confirmed
+  Do not rename them.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background-color:#f2efe9;margin:0;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="max-width:520px;background-color:#ffffff;border:1px solid #e4e0d8;border-radius:14px;">
+
+        <!-- Wordmark. Text, not an image: many clients block remote images by
+             default, and a logo that silently fails to load reads as a broken
+             or spoofed email. -->
+        <tr>
+          <td style="padding:32px 36px 0 36px;">
+            <div style="font-size:15px;font-weight:700;letter-spacing:-0.2px;color:#0f172a;">
+              ApplyCenter
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:24px 36px 0 36px;">
+            <h1 style="margin:0;font-size:22px;line-height:1.3;font-weight:600;color:#0f172a;">
+              Confirm your email
+            </h1>
+            <p style="margin:12px 0 0 0;font-size:15px;line-height:1.6;color:#3b4453;">
+              You&rsquo;re one click from your account. Confirming verifies
+              <strong style="color:#0f172a;font-weight:600;">{{ .Email }}</strong>
+              belongs to you.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Bulletproof button: a padded table cell rather than a styled <a>,
+             which Outlook collapses to unstyled text. -->
+        <tr>
+          <td style="padding:28px 36px 0 36px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" bgcolor="#0f172a" style="border-radius:10px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;
+                            color:#faf8f5;text-decoration:none;border-radius:10px;">
+                    Confirm email address
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- The same URL in full. Some clients mangle long hrefs, and a user
+             who cannot click still needs a way through. -->
+        <tr>
+          <td style="padding:20px 36px 0 36px;">
+            <p style="margin:0;font-size:13px;line-height:1.5;color:#6a6f7f;">
+              Button not working? Paste this into your browser:
+            </p>
+            <p style="margin:6px 0 0 0;font-size:12px;line-height:1.5;word-break:break-all;">
+              <a href="{{ .ConfirmationURL }}" style="color:#3b4453;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:24px 36px 0 36px;">
+            <div style="height:1px;background-color:#e4e0d8;line-height:1px;font-size:0;">&nbsp;</div>
+          </td>
+        </tr>
+
+        <!-- Phishing guidance without alarm. Says plainly what to do if this
+             was not them, and never asks for a credential. -->
+        <tr>
+          <td style="padding:20px 36px 32px 36px;">
+            <p style="margin:0;font-size:13px;line-height:1.6;color:#6a6f7f;">
+              Didn&rsquo;t sign up? You can ignore this email &mdash; no account is created until
+              the link above is used, and nobody can sign in without it.
+            </p>
+            <p style="margin:14px 0 0 0;font-size:12px;line-height:1.6;color:#6a6f7f;">
+              ApplyCenter will never ask for your password by email.
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+        <tr>
+          <td align="center" style="padding:18px 12px 0 12px;">
+            <p style="margin:0;font-size:11px;line-height:1.6;color:#8f8a7e;">
+              Resume analysis, interview practice, and job tracking.<br />
+              Developed in collaboration with Chieac Organisation.
+            </p>
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+</table>

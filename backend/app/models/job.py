@@ -48,6 +48,28 @@ class JobListing(Base):
 
     # TTL basis. Distinct from posted_at: when *we* fetched it, not when the
     # employer published it.
+    # Stable identity across sweeps: md5(company|title|location), normalised.
+    # Nullable because rows cached before the ingestion worker existed have no
+    # hash — backfilling one would be inventing an identity for a posting we
+    # can no longer verify.
+    content_hash = Column(String(32), nullable=True, index=True, unique=True)
+
+    # Claude-extracted, and only ever reporting what the posting SAYS.
+    # h1b_sponsorship is never a claim about what an employer will do:
+    # sponsorship boilerplate goes stale and is routinely contradicted at
+    # screening, so the evidence sentence is stored alongside it and shown to
+    # the candidate to judge.
+    h1b_sponsorship = Column(String(24), nullable=True)
+    h1b_evidence = Column(Text, nullable=True)
+    # NULL means the posting gave no basis to judge — deliberately distinct
+    # from any real level, so a failed or skipped enrichment is never
+    # mistaken for a classification.
+    experience_level = Column(String(12), nullable=True)
+    employment_type = Column(String(16), nullable=True)
+    # NULL means never enriched. This is what lets a re-run skip postings
+    # already paid for.
+    enriched_at = Column(DateTime(timezone=True), nullable=True)
+
     fetched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

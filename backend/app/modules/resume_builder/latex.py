@@ -1,7 +1,7 @@
 """LaTeX escaping, template rendering, and PDF compilation for the resume builder.
 
 Everything that touches the .tex wire format lives here, same convention as
-apify.py / jsearch.py for the job feed: one file owns a format so the rest of
+apify_jobs.py for the job feed: one file owns a format so the rest of
 the module deals in plain Python values.
 
 Security note: every string in a compiled resume — name, bullets, company

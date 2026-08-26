@@ -1,8 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  FileSearch, MessageSquareCode, TrendingUp, Trophy, ArrowRight, Clock, Target, BarChart2, CalendarDays,
+  FileSearch, MessageSquareCode, TrendingUp, ArrowRight, Clock, Target, BarChart2, CalendarDays,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -15,6 +16,9 @@ import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { ResumeReminderDrawer } from '@/components/onboarding/ResumeReminderDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardData } from '../../../lib/useDashboardData';
+import { FreshJobsPanel } from '@/components/dashboard/FreshJobsPanel';
+import { PolicyNewsPanel } from '@/components/dashboard/PolicyNewsPanel';
+import { getDashboardOverview, type DashboardOverview } from '@/lib/apiClient';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -66,6 +70,18 @@ function ChartTooltip(props: ChartTooltipProps) {
 }
 
 export default function DashboardPage() {
+  // Loaded separately from the core dashboard data: the news half calls an
+  // external API, and a slow Federal Register should delay one panel, not the
+  // whole page.
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getDashboardOverview()
+      .then((data) => { if (!cancelled) setOverview(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const { user } = useAuth();
   const palette = useAccentPalette();
   const {
@@ -76,6 +92,7 @@ export default function DashboardPage() {
     showOnboarding,
     submitError,
     finishOnboarding,
+    skipOnboarding,
     showResumeReminder,
     dismissResumeReminder,
     uploadReminderResume,
@@ -122,7 +139,6 @@ export default function DashboardPage() {
     { icon: FileSearch, label: 'Analyze Resume', desc: 'Upload and get instant ATS score', href: '/resume', color: palette.accent },
     { icon: MessageSquareCode, label: 'Mock Interview', desc: 'Practice with AI coach', href: '/interview', color: palette.accentLight },
     { icon: TrendingUp, label: 'View Analytics', desc: 'Track your progress', href: '/analytics', color: palette.accentLighter },
-    { icon: Trophy, label: 'Achievements', desc: 'See your milestones', href: '/achievements', color: palette.accent },
   ];
   const now = new Date();
   const hour = now.getHours();
@@ -137,6 +153,7 @@ export default function DashboardPage() {
       <OnboardingModal
         isOpen={showOnboarding}
         onComplete={finishOnboarding}
+        onSkip={skipOnboarding}
         error={submitError}
       />
 
@@ -189,6 +206,27 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Jobs left, policy right — the two time-sensitive feeds, above the
+          slower-moving progress metrics. On narrow screens the grid collapses
+          and jobs come first, which is the ordering that matters when only one
+          fits on screen.
+
+          Skeletons rather than nothing while loading: this block sits above
+          the fold now, so an empty gap would push the whole page down and then
+          snap it back when the request lands. */}
+      {overview ? (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <FreshJobsPanel jobs={overview.fresh_jobs} window={overview.fresh_window} />
+          <PolicyNewsPanel articles={overview.news} reachable={overview.news_reachable} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Skeleton className="h-[320px]" />
+          <Skeleton className="h-[320px]" />
+        </div>
+      )}
+
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -421,6 +459,16 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
       </motion.div>
+
+      {/* Co-branding. Placed at the foot of the page rather than the header:
+          it is an attribution, not a product claim. */}
+      <div className="flex items-center justify-center gap-2 border-t border-[var(--color-canvas-line)] pt-5">
+        <span className="h-1 w-1 rounded-full bg-[var(--color-ink-faint)]" />
+        <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">
+          Developed in collaboration with Chieac Organisation
+        </span>
+        <span className="h-1 w-1 rounded-full bg-[var(--color-ink-faint)]" />
+      </div>
     </div>
   );
 }

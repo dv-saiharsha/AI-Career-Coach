@@ -1,7 +1,7 @@
 """Fix-staging (missing keywords + bullet rewrite suggestions) and honest
 re-scoring for the LaTeX resume builder.
 
-Scoring deliberately does NOT introduce a new formula. Zenith already has a
+Scoring deliberately does NOT introduce a new formula. ApplyCenter already has a
 trained regression model (app/ml/inference.predict_score, MAE 7.3, R2 0.72 on
 2,066 labeled examples) that is the authoritative ats_score everywhere else in
 the product — resume_analyzer/services.py calls the same function. Compiling

@@ -1,4 +1,4 @@
-type ZenithMarkProps = {
+type ApplyCenterMarkProps = {
   className?: string
   /** 'gradient' tips the arrowhead in the warm accent (default, on plain
    *  backgrounds). 'flat' renders the whole glyph in currentColor, for use
@@ -7,7 +7,7 @@ type ZenithMarkProps = {
 }
 
 /**
- * The Zenith logomark: a geometric Z whose diagonal carries on past the letter
+ * The ApplyCenter logomark: a geometric Z whose diagonal carries on past the letter
  * and resolves into an ascending arrow — the letterform and the idea of upward
  * career motion in a single stroke.
  *
@@ -23,7 +23,7 @@ type ZenithMarkProps = {
  * Butt caps + a tight miter limit keep the acute bottom-left corner from
  * throwing a spike past the baseline.
  */
-export function ZenithMark({ className = 'w-7 h-7', tone = 'gradient' }: ZenithMarkProps) {
+export function ApplyCenterMark({ className = 'w-7 h-7', tone = 'gradient' }: ApplyCenterMarkProps) {
   const flat = tone === 'flat'
 
   return (

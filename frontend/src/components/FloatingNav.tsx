@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/sheet'
 import { Separator } from '@/components/ui/separator'
 import ThemeToggle from '@/components/ThemeToggle'
-import { ZenithMark } from '@/components/ZenithMark'
+import { ApplyCenterMark } from '@/components/ApplyCenterMark'
 import { useCommandPalette } from '@/components/CommandPalette'
 import { spring, springSnappy, layoutIds } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -95,12 +95,12 @@ export function FloatingNav() {
           href="/"
           className="group flex shrink-0 items-center gap-2.5 rounded-full pl-1.5 pr-2 outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <ZenithMark className="size-7 transition-transform duration-300 group-hover:scale-110" />
+          <ApplyCenterMark className="size-7 transition-transform duration-300 group-hover:scale-110" />
           {/* Always visible. This was `hidden sm:block`, and sm is 640px — so
               the wordmark disappeared on every phone (iPhone SE 375, 12 390),
               leaving an unlabelled icon. */}
           <span className="wordmark text-[17px] text-ink">
-            Zenith
+            ApplyCenter
           </span>
         </Link>
 
@@ -191,8 +191,8 @@ export function FloatingNav() {
             <SheetContent side="top" className="rounded-b-3xl">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2.5 wordmark text-xl">
-                  <ZenithMark className="size-6" />
-                  Zenith
+                  <ApplyCenterMark className="size-6" />
+                  ApplyCenter
                 </SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-1 px-6 pb-8">

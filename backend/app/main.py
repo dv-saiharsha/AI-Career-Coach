@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.modules.analytics.router import router as analytics_router
 from app.modules.applications.router import router as applications_router
+from app.modules.dashboard.router import router as dashboard_router
 from app.modules.events.router import router as events_router
 from app.modules.auth.router import router as auth_router
-from app.modules.career.router import router as career_router
 from app.modules.interview_coach.router import router as interview_router
 from app.modules.job_market.router import router as jobs_router
 from app.modules.offers.router import router as offers_router
@@ -13,7 +13,7 @@ from app.modules.resume_analyzer.router import router as resume_router
 from app.modules.resume_builder.router import router as resume_builder_router
 from app.modules.user_profile.router import router as user_router
 
-app = FastAPI(title="Zenith API")
+app = FastAPI(title="ApplyCenter API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,8 +36,8 @@ app.include_router(applications_router, prefix="/api/applications", tags=["Appli
 app.include_router(offers_router, prefix="/api/offers", tags=["Offer Comparison"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(events_router, prefix="/api/events", tags=["Real-Time Stream"])
+app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(user_router, prefix="/api/user", tags=["User Profile"])
-app.include_router(career_router, prefix="/api/career", tags=["Career"])
 
 
 @app.get("/health")

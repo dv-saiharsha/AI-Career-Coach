@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   analyzeResume,
   completeOnboarding,
+  skipOnboarding as skipOnboardingRequest,
   getJobs,
   getUserActivity,
   getUserProfile,
@@ -99,6 +100,16 @@ export function useDashboardData() {
     },
   })
 
+  const skipMutation = useMutation({
+    mutationFn: () => skipOnboardingRequest(),
+    onSuccess: (profile) => {
+      queryClient.setQueryData(['user', 'profile'], profile)
+    },
+    onError: () => {
+      setSubmitError('Could not skip setup just now. Try again, or pick a role to continue.')
+    },
+  })
+
   const onboardingMutation = useMutation({
     mutationFn: async ({ resumeFile, selectedRoles }: OnboardingResult) => {
       let analysisId: number | null = null
@@ -153,6 +164,15 @@ export function useDashboardData() {
     [onboardingMutation],
   )
 
+  const skipOnboarding = useCallback(async () => {
+    setSubmitError(null)
+    // Marks onboarding complete with no roles and no scan, so the modal stops
+    // reappearing. Deliberately does not touch the resume path — the reminder
+    // drawer already exists to pick that up later, and the empty target_roles
+    // list simply means the job feed falls back to the warm roles.
+    await skipMutation.mutateAsync().catch(() => {})
+  }, [skipMutation])
+
   const uploadReminderResume = useCallback(
     async (file: File) => {
       setSubmitError(null)
@@ -185,5 +205,6 @@ export function useDashboardData() {
     uploadReminderResume,
     submitError,
     finishOnboarding,
+    skipOnboarding,
   }
 }

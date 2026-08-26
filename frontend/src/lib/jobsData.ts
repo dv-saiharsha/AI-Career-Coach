@@ -1,16 +1,16 @@
 // Job Market data layer.
 //
 // The live feed has landed: getJobs() now proxies to the FastAPI backend
-// (GET /api/jobs), which serves listings scraped from Google Jobs via Apify
+// (GET /api/jobs), which serves LinkedIn listings scraped via Apify
 // and cached in Postgres. The sample listings that used to live here are gone.
 //
 // Types are re-exported from apiClient so existing importers keep working —
 // apiClient is where the rest of the app's API types live, and duplicating
 // these two interfaces is how they'd drift.
 
-export type { JobFeed, JobListing, WorkMode } from './apiClient'
+export type { JobFeed, JobFilterCounts, JobFilters, JobListing, WorkMode } from './apiClient'
 
-import { getJobs as fetchJobs, type JobFeed } from './apiClient'
+import { getJobs as fetchJobs, type JobFeed, type JobFilters } from './apiClient'
 
 /**
  * Fetch listings.
@@ -19,6 +19,6 @@ import { getJobs as fetchJobs, type JobFeed } from './apiClient'
  * With a role -> that role specifically; a cache miss costs a scraper run
  * server-side, so debounce this rather than calling it per keystroke.
  */
-export async function getJobs(query?: string): Promise<JobFeed> {
-  return fetchJobs(query)
+export async function getJobs(query?: string, filters?: JobFilters): Promise<JobFeed> {
+  return fetchJobs(query, filters)
 }

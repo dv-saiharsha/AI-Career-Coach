@@ -8,24 +8,18 @@ import {
   LayoutDashboard,
   FileSearch,
   MessageSquareCode,
-  BarChart3,
-  FileText,
   User,
   Settings,
   Bell,
   LogOut,
   Menu,
-  Trophy,
   TrendingUp,
   Briefcase,
   KanbanSquare,
-  Coins,
   Search,
-  Route,
-  Scale,
 } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
-import { ZenithMark } from './ZenithMark'
+import { ApplyCenterMark } from './ApplyCenterMark'
 import ThemeToggle from './ThemeToggle'
 import { LimelightNav } from './ui/limelight-nav'
 import { Button } from '@/components/ui/button'
@@ -41,13 +35,7 @@ const NAV_ITEMS = [
   { icon: FileSearch, label: 'Resume Analyzer', href: '/resume' },
   { icon: MessageSquareCode, label: 'Interview Coach', href: '/interview' },
   { icon: Briefcase, label: 'Job Market', href: '/jobs' },
-  { icon: KanbanSquare, label: 'Applications', href: '/applications' },
-  { icon: Coins, label: 'Offers', href: '/offers' },
-  { icon: Route, label: 'Career Roadmap', href: '/roadmap' },
-  { icon: Scale, label: 'Negotiation', href: '/negotiation' },
-  { icon: FileText, label: 'Reports', href: '/reports' },
-  { icon: BarChart3, label: 'Analytics', href: '/analytics' },
-  { icon: Trophy, label: 'Achievements', href: '/achievements' },
+  { icon: KanbanSquare, label: 'Applications & Offers', href: '/applications' },
   { icon: TrendingUp, label: 'History', href: '/history' },
 ]
 
@@ -60,7 +48,6 @@ const MOBILE_NAV_ITEMS = [
   { id: '/dashboard', icon: <LayoutDashboard />, label: 'Overview' },
   { id: '/resume', icon: <FileSearch />, label: 'Resume Analyzer' },
   { id: '/interview', icon: <MessageSquareCode />, label: 'Interview Coach' },
-  { id: '/analytics', icon: <BarChart3 />, label: 'Analytics' },
   { id: '/profile', icon: <User />, label: 'Profile' },
 ]
 
@@ -121,8 +108,8 @@ function SidebarContent({
           href="/"
           className="group flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <ZenithMark className="size-7 transition-transform duration-300 group-hover:scale-110" />
-          <span className="wordmark text-[17px] tracking-[-0.02em] text-ink">Zenith</span>
+          <ApplyCenterMark className="size-7 transition-transform duration-300 group-hover:scale-110" />
+          <span className="wordmark text-[17px] tracking-[-0.02em] text-ink">ApplyCenter</span>
         </Link>
       </div>
 

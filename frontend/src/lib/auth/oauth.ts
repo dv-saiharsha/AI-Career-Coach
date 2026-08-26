@@ -23,7 +23,7 @@ export const PROVIDER_LABELS: Record<OAuthProvider, string> = {
  * identity to that user rather than creating a second account. That behaviour
  * is only safe while "Allow unverified email logins" is off in the dashboard —
  * otherwise anyone who can create an account at any enabled provider using a
- * victim's address inherits the victim's Zenith account. See docs/oauth-setup.md.
+ * victim's address inherits the victim's ApplyCenter account. See docs/oauth-setup.md.
  */
 export async function signInWithOAuth(
   provider: OAuthProvider,

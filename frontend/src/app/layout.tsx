@@ -31,8 +31,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'AI Career Coach',
-    template: '%s · AI Career Coach',
+    default: 'ApplyCenter',
+    template: '%s · ApplyCenter',
   },
   description:
     'Analyze your resume. Improve your ATS score. Practice interviews. Get hired faster.',

@@ -44,3 +44,11 @@ httpx==0.27.2
 # its HTTP layer; those are transitive and deliberately left unpinned here.
 # Note it forces the pydantic floor above — check that pin before bumping.
 apify-client==3.1.2
+
+# Cross-worker SSE fan-out. Optional at runtime — with no REDIS_URL the event
+# manager falls back to in-process fan-out, which is correct for a single
+# worker. Pinned to 5.x: 6.x changed the asyncio PubSub teardown API.
+redis==5.3.1
+# Test-only: exercises the real RedisEventManager code path without requiring
+# a Redis server in CI.
+fakeredis==2.37.1

@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -19,7 +19,11 @@ MIN_BILLABLE_QUERY_LEN = 3
 
 @router.get("", response_model=JobFeedSchema)
 def list_jobs(
+    background_tasks: BackgroundTasks,
     q: str | None = Query(default=None, max_length=120),
+    h1b: str | None = Query(default=None, description="explicitly_sponsored | no_sponsorship | unmentioned"),
+    experience: str | None = Query(default=None, description="entry | mid | senior | lead"),
+    employment: str | None = Query(default=None, description="full_time | part_time | contract | internship"),
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
@@ -55,8 +59,29 @@ def list_jobs(
             except (ValueError, TypeError):
                 target_roles = []
 
-    rows, last_updated = services.get_jobs(db, query, target_roles)
+    rows, last_updated, refresh_needed = services.get_jobs(db, query, target_roles)
+
+    # Queued, never awaited. The scrape takes minutes and costs money; the
+    # response goes out now with whatever is cached, and the next load has
+    # the fresh rows.
+    queued = False
+    if refresh_needed and query:
+        key = services.normalise_query(query)
+        if services.should_queue_refresh(key):
+            background_tasks.add_task(services.refresh_in_background, key)
+            queued = True
+
+    # Counts come from the unfiltered feed so a pill still shows how many it
+    # would match after another pill has already narrowed the grid.
+    counts = services.filter_counts(rows)
+    rows = services.apply_filters(rows, h1b=h1b, experience=experience, employment=employment)
+
     return {
         "lastUpdated": last_updated.isoformat() if last_updated else None,
         "jobs": [services.to_payload(row) for row in rows],
+        "filterCounts": counts,
+        # True when a scrape for this query is running in the background, so
+        # the UI can say results are on the way instead of implying the cache
+        # is all there will ever be.
+        "refreshing": queued,
     }

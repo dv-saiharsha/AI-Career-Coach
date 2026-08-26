@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Mail, Globe, MessageCircle } from 'lucide-react';
-import { ZenithMark } from './ZenithMark';
+import { ApplyCenterMark } from './ApplyCenterMark';
 
 const LINKS = {
   Product: [
@@ -28,7 +28,7 @@ const LINKS = {
 const SOCIALS = [
   { icon: Globe, href: '#', label: 'Website' },
   { icon: MessageCircle, href: '#', label: 'Community' },
-  { icon: Mail, href: 'mailto:hello@zenith.ai', label: 'Email' },
+  { icon: Mail, href: 'mailto:hello@applycenter.ai', label: 'Email' },
 ];
 
 export default function Footer() {
@@ -41,8 +41,8 @@ export default function Footer() {
               each get a full track and stop truncating. */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 lg:pr-8">
             <Link href="/" className="flex items-center gap-2.5 mb-4 group">
-              <ZenithMark className="w-7 h-7" />
-              <span className="wordmark font-semibold text-[var(--color-ink)] text-[15px]">Zenith</span>
+              <ApplyCenterMark className="w-7 h-7" />
+              <span className="wordmark font-semibold text-[var(--color-ink)] text-[15px]">ApplyCenter</span>
             </Link>
             <p className="text-sm text-[var(--color-ink-faint)] leading-relaxed mb-5">
               AI-powered resume analysis and interview practice for the modern job seeker.
@@ -81,7 +81,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="flex flex-col gap-4 border-t border-canvas-line pt-10 md:flex-row md:items-center md:justify-between">
           <p className="text-xs text-[var(--color-ink-faint)]">
-            © {new Date().getFullYear()} Zenith. All rights reserved.
+            © {new Date().getFullYear()} ApplyCenter. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             <span className="text-xs text-[var(--color-ink-faint)]">Made with precision for job seekers worldwide</span>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, ChevronDown, Lightbulb, Radar, Sparkles } from 'lucide-react'
+import { CopyButton } from '@/components/ui/copy-button'
 import { generateScreeningPrep, type ScreeningPrep as Prep } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,6 +182,10 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
                     </motion.span>
                   </button>
 
+                  <div className="flex justify-end px-5 pb-2">
+                    <CopyButton value={q.question} label="question" />
+                  </div>
+
                   <AnimatePresence initial={false}>
                     {isOpen && (
                       <motion.div
@@ -198,7 +203,13 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
                             className="rounded-[10px] p-4"
                             style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-tint)' }}
                           >
-                            <span className="eyebrow mb-2 block text-[10px]">Answer template — fill in the blanks</span>
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="eyebrow text-[10px]">Answer template — fill in the blanks</span>
+                              {/* Copies the raw template including the [bracketed]
+                                  placeholders, so it can be pasted into notes and
+                                  filled in there rather than retyped. */}
+                              <CopyButton value={q.answer_template} label="answer template" />
+                            </div>
                             <TemplateText text={q.answer_template} />
                           </div>
 

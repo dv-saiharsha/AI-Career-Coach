@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Eye, EyeOff, ArrowRight, Mail, Lock, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
 import { AuthShowcase } from '@/components/auth/AuthShowcase'
-import { ZenithMark } from '@/components/ZenithMark'
+import { ApplyCenterMark } from '@/components/ApplyCenterMark'
 import { AmbientGlow } from '@/components/ui/ambient-glow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -83,8 +83,8 @@ function LoginForm() {
             className="mb-8 flex justify-center lg:hidden"
           >
             <Link href="/" className="flex items-center gap-2.5">
-              <ZenithMark className="size-8" />
-              <span className="wordmark text-xl tracking-[-0.02em] text-ink">Zenith</span>
+              <ApplyCenterMark className="size-8" />
+              <span className="wordmark text-xl tracking-[-0.02em] text-ink">ApplyCenter</span>
             </Link>
           </motion.div>
 
@@ -98,7 +98,7 @@ function LoginForm() {
               <h1 className="font-display text-3xl leading-tight tracking-[-0.025em] text-ink">
                 Welcome back
               </h1>
-              <p className="mt-2 text-sm text-ink-dim">Sign in to your Zenith account.</p>
+              <p className="mt-2 text-sm text-ink-dim">Sign in to your ApplyCenter account.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>

@@ -31,6 +31,28 @@ def read_profile(
     return services.profile_payload(profile)
 
 
+@router.post("/onboarding/skip", response_model=ProfileSchema)
+def skip_onboarding(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Mark onboarding done without choosing roles.
+
+    A separate endpoint rather than relaxing OnboardingRequestSchema: the 3-5
+    role bound is a real constraint on the normal path, and loosening it to
+    allow an empty list would also let a half-filled form through.
+
+    Nothing here is required to use the product — target roles only re-rank the
+    job feed, which falls back to the warm roles when the list is empty. Leaving
+    someone stuck in a modal they cannot dismiss is the worse failure.
+    """
+    profile = services.complete_onboarding(
+        db, user_id=current_user.id, target_roles=[],
+        resume_analysis_id=None, resume_filename=None,
+    )
+    return services.profile_payload(profile)
+
+
 @router.post("/onboarding", response_model=ProfileSchema)
 def complete_onboarding(
     req: OnboardingRequestSchema,

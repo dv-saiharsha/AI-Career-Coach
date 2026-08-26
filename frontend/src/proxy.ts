@@ -49,7 +49,6 @@ export const config = {
     '/analytics/:path*',
     '/history/:path*',
     '/reports/:path*',
-    '/achievements/:path*',
     '/profile/:path*',
     '/settings/:path*',
   ],

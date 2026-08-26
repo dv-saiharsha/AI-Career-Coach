@@ -140,7 +140,7 @@ def stage_tool_json() -> bool:
     print("\n[3/4] Structured extraction - complete_tool_json (production path)")
     try:
         parsed = llm_client.complete_tool_json(
-            system="You are the Zenith AI engine test harness.",
+            system="You are the ApplyCenter AI engine test harness.",
             user=(
                 "Verify the connection. Report status 'ok', module "
                 "'API Verification', and org_connected true."
@@ -180,7 +180,7 @@ def stage_raw_json() -> bool:
     print("\n[4/4] Structured extraction - complete_json (legacy path)")
     try:
         raw = llm_client.complete_json(
-            system="You are the Zenith AI engine test harness. Return valid raw JSON only.",
+            system="You are the ApplyCenter AI engine test harness. Return valid raw JSON only.",
             user='Return this JSON object exactly: {"status": "ok", "module": "API Verification", "org_connected": true}',
             max_tokens=MAX_TOKENS,
         )
@@ -202,7 +202,7 @@ def stage_raw_json() -> bool:
 
 def main() -> None:
     print("=" * 68)
-    print("ZENITH - ANTHROPIC API KEY INTEGRATION TEST")
+    print("APPLYCENTER - ANTHROPIC API KEY INTEGRATION TEST")
     print("=" * 68)
 
     if not stage_config():
@@ -235,7 +235,7 @@ def summarise() -> None:
         print("=" * 68)
         sys.exit(1)
 
-    print(f"RESULT: PASSED - all {len(results)} checks green. Key is live on the Zenith pipeline.")
+    print(f"RESULT: PASSED - all {len(results)} checks green. Key is live on the ApplyCenter pipeline.")
     print("=" * 68)
     sys.exit(0)
 

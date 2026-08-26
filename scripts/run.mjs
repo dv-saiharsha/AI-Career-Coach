@@ -101,7 +101,7 @@ function stopAll(code = 0) {
 }
 
 console.log(
-  `\n${paint(colors.dim, prod ? 'Starting Zenith (production)…' : 'Starting Zenith (development)…')}\n` +
+  `\n${paint(colors.dim, prod ? 'Starting ApplyCenter (production)…' : 'Starting ApplyCenter (development)…')}\n` +
     `  backend   http://localhost:${BACKEND_PORT}  ${paint(colors.dim, `(docs at /docs)`)}\n` +
     `  frontend  http://localhost:${FRONTEND_PORT}\n` +
     `${paint(colors.dim, '  Ctrl+C stops both.')}\n`

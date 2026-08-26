@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { FileSearch, MessageSquareCode, TrendingUp, Sparkles } from 'lucide-react'
 import ScrambleText from '../ScrambleText'
-import { ZenithMark } from '../ZenithMark'
+import { ApplyCenterMark } from '../ApplyCenterMark'
 
 type Mode = 'login' | 'register'
 
@@ -55,8 +55,8 @@ export function AuthShowcase({ mode = 'register' }: { mode?: Mode }) {
       <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-[var(--color-canvas-line)] to-transparent" />
 
       <Link href="/" className="relative z-10 flex items-center gap-2.5 w-fit">
-        <ZenithMark className="w-8 h-8" />
-        <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">Zenith</span>
+        <ApplyCenterMark className="w-8 h-8" />
+        <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">ApplyCenter</span>
       </Link>
 
       <div className="relative z-10">

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowRight, Briefcase, Check, FileText, Sparkles, Upload } from 'lucide-react'
 
-// Seeded from the roles Zenith already knows about: the six with curated
+// Seeded from the roles ApplyCenter already knows about: the six with curated
 // interview question banks (data/seed_questions/) plus the warm-cached job
 // roles. Picking one of these means the user's feed and drills are populated
 // on day one rather than triggering a cold scrape.
@@ -22,7 +22,15 @@ const PRESET_ROLES = [
   'Security Engineer',
 ]
 
-export const MIN_ROLES = 3
+export /** Named for what is actually happening, so a slow step is explicable
+ *  rather than mysterious. The last one is where the time goes. */
+const SETUP_STAGES = [
+  'Saving your target roles',
+  'Finding a matching job description',
+  'Scoring your resume against it',
+]
+
+const MIN_ROLES = 3
 export const MAX_ROLES = 5
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -37,16 +45,23 @@ export interface OnboardingResult {
 interface OnboardingModalProps {
   isOpen: boolean
   onComplete: (data: OnboardingResult) => Promise<void>
+  /** Saves nothing and closes. The reminder drawer picks the user up later. */
+  onSkip?: () => Promise<void>
   /** Surfaced from the parent when the submit request fails. */
   error?: string | null
 }
 
-export function OnboardingModal({ isOpen, onComplete, error }: OnboardingModalProps) {
+export function OnboardingModal({ isOpen, onComplete, onSkip, error }: OnboardingModalProps) {
   const [step, setStep] = useState<1 | 2>(1)
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSkipping, setIsSkipping] = useState(false)
+  // Which stage of setup is running. Named steps rather than a spinner: the
+  // resume scan is an LLM call that can take 20s+, and an unlabelled spinner
+  // that long is indistinguishable from a hang.
+  const [stage, setStage] = useState(0)
 
   if (!isOpen) return null
 
@@ -86,7 +101,19 @@ export function OnboardingModal({ isOpen, onComplete, error }: OnboardingModalPr
     if (selectedRoles.length < MIN_ROLES || isSubmitting) return
     setIsSubmitting(true)
     try {
-      await onComplete({ resumeFile, selectedRoles })
+      // Advanced on a timer because the mutation exposes no incremental
+      // progress. The final stage holds until the promise settles, so this
+      // never claims to be finished before it is.
+      setStage(0)
+      const ticker = window.setInterval(
+        () => setStage((current) => Math.min(SETUP_STAGES.length - 1, current + 1)),
+        2200,
+      )
+      try {
+        await onComplete({ resumeFile, selectedRoles })
+      } finally {
+        window.clearInterval(ticker)
+      }
     } finally {
       // Reset even on success: the parent closes the modal, and leaving this
       // true would strand the button mid-spinner if the close is delayed.
@@ -121,7 +148,7 @@ export function OnboardingModal({ isOpen, onComplete, error }: OnboardingModalPr
                 id="onboarding-title"
                 className="text-xl font-semibold tracking-tight text-[var(--color-ink)]"
               >
-                Welcome to Zenith
+                Welcome to ApplyCenter
               </h2>
               <p className="mt-1.5 text-sm text-[var(--color-ink-dim)]">
                 Add your resume and we&apos;ll score it against your target roles as the baseline for
@@ -240,11 +267,63 @@ export function OnboardingModal({ isOpen, onComplete, error }: OnboardingModalPr
               )}
             </AnimatePresence>
 
+            {/* Progress readout. Replaces the button row while running so the
+                slow stage has a name attached to it. */}
+            <AnimatePresence>
+              {isSubmitting && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-3 overflow-hidden"
+                >
+                  <div className="flex flex-col gap-2 rounded-[10px] border border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] p-3">
+                    {SETUP_STAGES.map((label, index) => {
+                      const done = index < stage
+                      const current = index === stage
+                      return (
+                        <div key={label} className="flex items-center gap-2.5">
+                          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                            {done ? (
+                              <Check strokeWidth={2.5} className="h-3 w-3 text-[var(--color-signal-high)]" />
+                            ) : (
+                              <span
+                                className="block h-1.5 w-1.5 rounded-full"
+                                style={{
+                                  background: current
+                                    ? 'var(--color-accent)'
+                                    : 'var(--color-canvas-line)',
+                                }}
+                              />
+                            )}
+                          </span>
+                          <span
+                            className="text-xs"
+                            style={{
+                              color:
+                                done || current
+                                  ? 'var(--color-ink)'
+                                  : 'var(--color-ink-faint)',
+                            }}
+                          >
+                            {label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--color-ink-faint)]">
+                      Scoring a resume takes a few seconds. This won&apos;t time out.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isSkipping}
                 className="btn-secondary px-5 disabled:opacity-40"
               >
                 Back
@@ -252,13 +331,34 @@ export function OnboardingModal({ isOpen, onComplete, error }: OnboardingModalPr
               <button
                 type="button"
                 onClick={handleFinish}
-                disabled={selectedRoles.length < MIN_ROLES || isSubmitting}
+                disabled={selectedRoles.length < MIN_ROLES || isSubmitting || isSkipping}
                 className="btn-primary flex flex-1 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSubmitting ? 'Setting up…' : 'Complete setup'}
                 {!isSubmitting && <Sparkles className="h-4 w-4" />}
               </button>
             </div>
+
+            {/* Skip. Nothing here is required to use the product — roles only
+                tune the job feed — so trapping someone in a modal they cannot
+                dismiss is the wrong trade. */}
+            {onSkip && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSkipping(true)
+                  try {
+                    await onSkip()
+                  } finally {
+                    setIsSkipping(false)
+                  }
+                }}
+                disabled={isSubmitting || isSkipping}
+                className="mt-3 w-full text-center text-xs text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-ink)] disabled:opacity-40"
+              >
+                {isSkipping ? 'Skipping…' : 'Skip for now — you can set this up later'}
+              </button>
+            )}
           </div>
         )}
       </motion.div>

@@ -10,7 +10,6 @@ import {
   Briefcase,
   FileText,
   BarChart3,
-  Trophy,
   TrendingUp,
   User,
   Settings,
@@ -53,7 +52,6 @@ const WORKSPACE = [
   { label: 'Job Market', href: '/jobs', icon: Briefcase },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { label: 'Achievements', href: '/achievements', icon: Trophy },
   { label: 'History', href: '/history', icon: TrendingUp },
 ]
 

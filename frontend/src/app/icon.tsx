@@ -4,7 +4,7 @@ export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
 /**
- * Favicon. Mirrors <ZenithMark> but with literal colours — this renders at
+ * Favicon. Mirrors <ApplyCenterMark> but with literal colours — this renders at
  * build time via Satori, where CSS custom properties are not resolvable, so
  * the Porcelain & Obsidian values are inlined rather than tokenised.
  * Obsidian ground is used in both themes: a favicon has no theme context.

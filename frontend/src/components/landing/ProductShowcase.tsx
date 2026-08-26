@@ -53,7 +53,7 @@ export function ProductShowcase() {
               <span className="w-3 h-3 rounded-full bg-[var(--color-ink-faint)]" />
             </div>
             <div className="flex-1 max-w-sm mx-auto bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-full px-4 py-1.5 text-center text-xs text-[var(--color-ink-faint)] font-mono">
-              app.zenith.com/dashboard
+              app.applycenter.com/dashboard
             </div>
           </div>
 

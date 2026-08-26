@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Eye, EyeOff, ArrowRight, Mail, Lock, CheckCircle2, User, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
 import { AuthShowcase } from '@/components/auth/AuthShowcase'
-import { ZenithMark } from '@/components/ZenithMark'
+import { ApplyCenterMark } from '@/components/ApplyCenterMark'
 import { AmbientGlow } from '@/components/ui/ambient-glow'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,8 +124,8 @@ export default function Register() {
             className="mb-8 flex justify-center lg:hidden"
           >
             <Link href="/" className="flex items-center gap-2.5">
-              <ZenithMark className="size-8" />
-              <span className="wordmark text-xl tracking-[-0.02em] text-ink">Zenith</span>
+              <ApplyCenterMark className="size-8" />
+              <span className="wordmark text-xl tracking-[-0.02em] text-ink">ApplyCenter</span>
             </Link>
           </motion.div>
 

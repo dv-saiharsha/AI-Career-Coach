@@ -69,7 +69,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    // Cleared before the network call, not after. signOut() round-trips to
+    // Supabase to revoke the refresh token, and until it returned the user
+    // still saw their name, avatar and dashboard — a sign-out that visibly
+    // does nothing for a second reads as broken, and on a shared machine it
+    // reads as unsafe.
+    setUser(null)
+
+    // Hard navigation rather than router.push: a client-side transition keeps
+    // React Query's cache alive, so the next signed-in user briefly sees the
+    // previous one's resumes and applications before refetch replaces them.
+    // Replacing the document drops every cache with it.
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // Already-expired sessions throw here. The local state is gone either
+      // way, so failing loudly would only block the redirect.
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.assign('/login')
+      }
+    }
   }
 
   const updateProfile = async ({ firstName, lastName }: { firstName: string; lastName: string }) => {

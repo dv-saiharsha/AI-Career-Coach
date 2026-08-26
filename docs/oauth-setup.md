@@ -12,7 +12,7 @@ Paste this into **every** provider console. It is the Supabase callback, not
 the app's — the browser goes provider → Supabase → app.
 
 ```
-https://gqotztqonrcrbuzdgyxo.supabase.co/auth/v1/callback
+https://flgumfsuyipzdgaotphc.supabase.co/auth/v1/callback
 ```
 
 ## Check progress at any point
@@ -39,7 +39,7 @@ Google" land on the same account someone created with a password.
 
 With unverified logins allowed, that linking becomes an account-takeover path:
 anyone who can create an account at *any* enabled provider using a victim's
-address inherits the victim's Zenith account, resumes and interview history
+address inherits the victim's ApplyCenter account, resumes and interview history
 included. The weakest provider sets the security of every account.
 
 Leave it off. If a provider genuinely cannot supply a verified email, do not
@@ -52,7 +52,7 @@ enable that provider.
 Every provider console needs the **Supabase** callback — not the app's:
 
 ```
-https://gqotztqonrcrbuzdgyxo.supabase.co/auth/v1/callback
+https://flgumfsuyipzdgaotphc.supabase.co/auth/v1/callback
 ```
 
 This trips people up: the browser goes provider → Supabase → app. The app's own
@@ -86,7 +86,7 @@ everyone else. Click **Publish app** before real users touch it — that is the
 step people miss.
 
 We do **not** send `access_type=offline` or `prompt=consent`. A refresh token is
-only needed to call Google APIs as the user, which Zenith never does, and
+only needed to call Google APIs as the user, which ApplyCenter never does, and
 `prompt=consent` forces the consent screen on *every* sign-in — friction for
 returning users with no benefit. Add them only if that changes.
 

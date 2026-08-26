@@ -11,7 +11,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.events import MAX_QUEUED_EVENTS, EventManager
+from app.core.events import MAX_QUEUED_EVENTS, InProcessEventManager
 from app.main import app
 from app.modules.events.router import event_stream, format_sse
 
@@ -21,7 +21,7 @@ USER_B = "00000000-0000-0000-0000-00000000000b"
 
 @pytest.fixture
 def manager():
-    return EventManager()
+    return InProcessEventManager()
 
 
 class TestSubscription:
@@ -58,49 +58,61 @@ class TestSubscription:
 
 
 class TestPublish:
-    def test_delivers_to_subscriber(self, manager):
+    @pytest.mark.asyncio
+    async def test_delivers_to_subscriber(self, manager):
         queue = manager.subscribe(USER_A)
-        assert manager.publish(USER_A, "job_match", {"id": 1}) == 1
+        assert await manager.publish(USER_A, "job_match", {"id": 1}) == 1
         assert queue.get_nowait() == {"type": "job_match", "data": {"id": 1}}
 
-    def test_fans_out_to_every_connection(self, manager):
+    @pytest.mark.asyncio
+
+    async def test_fans_out_to_every_connection(self, manager):
         """One user with the app open in two tabs must see both update."""
         first = manager.subscribe(USER_A)
         second = manager.subscribe(USER_A)
-        assert manager.publish(USER_A, "ping", {}) == 2
+        assert await manager.publish(USER_A, "ping", {}) == 2
         assert first.qsize() == 1 and second.qsize() == 1
 
-    def test_does_not_leak_across_users(self, manager):
+    @pytest.mark.asyncio
+
+    async def test_does_not_leak_across_users(self, manager):
         queue_a = manager.subscribe(USER_A)
         manager.subscribe(USER_B)
-        manager.publish(USER_B, "pipeline_update", {"id": 7})
+        await manager.publish(USER_B, "pipeline_update", {"id": 7})
         assert queue_a.empty()
 
-    def test_publish_with_no_subscribers_is_a_noop(self, manager):
-        assert manager.publish(USER_A, "job_match", {}) == 0
+    @pytest.mark.asyncio
+
+    async def test_publish_with_no_subscribers_is_a_noop(self, manager):
+        assert await manager.publish(USER_A, "job_match", {}) == 0
 
 
 class TestOverflow:
-    def test_queue_is_bounded(self, manager):
+    @pytest.mark.asyncio
+    async def test_queue_is_bounded(self, manager):
         """An unbounded queue behind a client that stopped reading is a
         memory leak that only shows up in production."""
         queue = manager.subscribe(USER_A)
         for i in range(MAX_QUEUED_EVENTS + 20):
-            manager.publish(USER_A, "spam", {"i": i})
+            await manager.publish(USER_A, "spam", {"i": i})
         assert queue.qsize() == MAX_QUEUED_EVENTS
 
-    def test_publish_never_blocks_on_a_full_queue(self, manager):
+    @pytest.mark.asyncio
+
+    async def test_publish_never_blocks_on_a_full_queue(self, manager):
         """The point of put_nowait: awaiting a full queue would stall the
         publisher — a request handler — on one slow consumer."""
         manager.subscribe(USER_A)
         for i in range(MAX_QUEUED_EVENTS + 5):
-            manager.publish(USER_A, "spam", {"i": i})  # returns, doesn't hang
+            await manager.publish(USER_A, "spam", {"i": i})  # returns, doesn't hang
 
-    def test_oldest_event_is_dropped_not_newest(self, manager):
+    @pytest.mark.asyncio
+
+    async def test_oldest_event_is_dropped_not_newest(self, manager):
         """On overflow the freshest state is what's worth keeping."""
         queue = manager.subscribe(USER_A)
         for i in range(MAX_QUEUED_EVENTS + 1):
-            manager.publish(USER_A, "spam", {"i": i})
+            await manager.publish(USER_A, "spam", {"i": i})
         first = queue.get_nowait()
         assert first["data"]["i"] == 1, "event 0 should have been evicted"
 

@@ -26,7 +26,7 @@ def build_report_pdf(record, result: dict) -> bytes:
         c.drawString(1 * inch, y, text)
         y -= gap
 
-    line("Zenith - Resume Feedback Report", size=16, bold=True, gap=26)
+    line("ApplyCenter - Resume Feedback Report", size=16, bold=True, gap=26)
     line(f"Resume: {record.resume_filename}")
     line(f"Generated: {record.created_at.strftime('%Y-%m-%d %H:%M')}")
     y -= 6
@@ -67,12 +67,12 @@ _SKILLS_HEADINGS = {
     "skills summary", "domain expertise", "domain knowledge",
 }
 
-_ADDENDUM_HEADING = "Additional Skills (Added by Zenith)"
+_ADDENDUM_HEADING = "Additional Skills (Added by ApplyCenter)"
 _SECTION_HEADINGS = _SKILLS_HEADINGS | {
     "experience", "work experience", "professional experience", "projects",
     "education", "certifications", "certification", "research papers",
     "publications", "achievements", "summary", "objective", "awards",
-    "additional skills (added by zenith)",
+    "additional skills (added by applycenter)",
 }
 
 
@@ -184,7 +184,7 @@ def _append_addendum_to_last_page(original_bytes: bytes, skills_to_add: list[str
     with no check for existing content there. On a resume whose last page
     ended with something like Certifications, the skills list landed
     directly under it with no visual separation or label — reading as a
-    raw, unexplained text dump rather than a Zenith-added section.
+    raw, unexplained text dump rather than a ApplyCenter-added section.
     """
     if not skills_to_add:
         return None
@@ -254,7 +254,7 @@ def _build_resume_pdf_from_text(record, full_name: str, skills_to_add: list[str]
         y -= gap
 
     line(full_name, size=18, bold=True, gap=24)
-    line(f"Updated by Zenith - {record.created_at.strftime('%Y-%m-%d')}", size=9, gap=22)
+    line(f"Updated by ApplyCenter - {record.created_at.strftime('%Y-%m-%d')}", size=9, gap=22)
 
     for paragraph in (record.resume_text or "").split("\n"):
         if not paragraph.strip():
@@ -265,7 +265,7 @@ def _build_resume_pdf_from_text(record, full_name: str, skills_to_add: list[str]
 
     if skills_to_add:
         y -= 10
-        line("Additional Skills (added by Zenith)", size=12, bold=True, gap=18, color="#6D28D9")
+        line("Additional Skills (added by ApplyCenter)", size=12, bold=True, gap=18, color="#6D28D9")
         for skill in skills_to_add:
             line(f"  + {skill}", size=10, gap=14, color="#6D28D9")
 

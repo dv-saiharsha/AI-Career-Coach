@@ -4,7 +4,7 @@ import { FloatingNav } from '@/components/FloatingNav';
 import Footer from '../../components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Pricing — Zenith',
+  title: 'Pricing — ApplyCenter',
   description: 'Simple, transparent pricing for AI Resume Analyzer and Interview Coach.',
 };
 

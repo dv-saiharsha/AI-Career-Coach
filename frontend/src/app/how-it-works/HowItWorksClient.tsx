@@ -285,7 +285,7 @@ export function HowItWorksClient() {
             <span className="gradient-text-violet">interview-ready</span>
           </h1>
           <p className="text-[var(--color-ink-dim)] text-lg max-w-2xl mx-auto leading-relaxed">
-            Zenith runs a complete, automated 12-step pipeline that transforms your resume into a fully optimized application and your preparation into a competitive advantage.
+            ApplyCenter runs a complete, automated 12-step pipeline that transforms your resume into a fully optimized application and your preparation into a competitive advantage.
           </p>
         </motion.div>
       </section>

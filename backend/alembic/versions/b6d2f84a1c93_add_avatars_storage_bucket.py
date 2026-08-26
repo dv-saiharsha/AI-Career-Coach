@@ -36,25 +36,25 @@ BUCKET = "avatars"
 # policies on storage.objects, so a blanket drop would take out unrelated ones.
 POLICIES = (
     (
-        "zenith_avatars_public_read",
-        f"CREATE POLICY zenith_avatars_public_read ON storage.objects "
+        "applycenter_avatars_public_read",
+        f"CREATE POLICY applycenter_avatars_public_read ON storage.objects "
         f"FOR SELECT USING (bucket_id = '{BUCKET}')",
     ),
     (
-        "zenith_avatars_owner_insert",
-        f"CREATE POLICY zenith_avatars_owner_insert ON storage.objects "
+        "applycenter_avatars_owner_insert",
+        f"CREATE POLICY applycenter_avatars_owner_insert ON storage.objects "
         f"FOR INSERT WITH CHECK (bucket_id = '{BUCKET}' "
         f"AND auth.uid()::text = (storage.foldername(name))[1])",
     ),
     (
-        "zenith_avatars_owner_update",
-        f"CREATE POLICY zenith_avatars_owner_update ON storage.objects "
+        "applycenter_avatars_owner_update",
+        f"CREATE POLICY applycenter_avatars_owner_update ON storage.objects "
         f"FOR UPDATE USING (bucket_id = '{BUCKET}' "
         f"AND auth.uid()::text = (storage.foldername(name))[1])",
     ),
     (
-        "zenith_avatars_owner_delete",
-        f"CREATE POLICY zenith_avatars_owner_delete ON storage.objects "
+        "applycenter_avatars_owner_delete",
+        f"CREATE POLICY applycenter_avatars_owner_delete ON storage.objects "
         f"FOR DELETE USING (bucket_id = '{BUCKET}' "
         f"AND auth.uid()::text = (storage.foldername(name))[1])",
     ),

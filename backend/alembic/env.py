@@ -14,7 +14,11 @@ from app.core.database import Base  # noqa: E402
 from app.models import interview, job, resume  # noqa: E402,F401 — registers models with Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DB_URL)
+# %% not %: set_main_option writes into a configparser, which treats a lone
+# % as interpolation syntax. A URL-encoded password (%40 for "@", which any
+# password containing @ needs) otherwise raises
+# "invalid interpolation syntax" before a single migration runs.
+config.set_main_option("sqlalchemy.url", settings.DB_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

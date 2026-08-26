@@ -1,10 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, MapPin, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { MapPin, Plus, Trash2 } from 'lucide-react'
 import {
   createOffer,
   deleteOffer,
@@ -67,7 +66,6 @@ function CompositionBar({ offer }: { offer: JobOffer }) {
 }
 
 export default function OffersPage() {
-  const router = useRouter()
   const queryClient = useQueryClient()
   const reduceMotion = usePrefersReducedMotion()
   const [showAdd, setShowAdd] = useState(false)
@@ -133,13 +131,6 @@ export default function OffersPage() {
     return Number.isFinite(value) && value > 0
   }
 
-  const handleDraftCounter = (offer: JobOffer) => {
-    router.push(
-      `/negotiation?role=${encodeURIComponent(offer.role_title)}` +
-        `&company=${encodeURIComponent(offer.company)}` +
-        `&current=${encodeURIComponent(String(offer.base_salary))}`,
-    )
-  }
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -385,18 +376,6 @@ export default function OffersPage() {
                   {offer.notes && (
                     <p className="text-xs leading-relaxed text-[var(--color-ink-faint)]">{offer.notes}</p>
                   )}
-
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="mt-auto w-full"
-                    onClick={() => handleDraftCounter(offer)}
-                  >
-                    <Sparkles strokeWidth={1.5} />
-                    Draft counter-offer
-                    <ArrowRight strokeWidth={1.5} />
-                  </Button>
                 </motion.article>
               )
             })}

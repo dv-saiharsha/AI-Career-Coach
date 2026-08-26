@@ -31,9 +31,13 @@ import {
   AlertCircle,
   Inbox,
   LineChart,
-} from 'lucide-react'
+  Eye,
+  Trash2,
+  Check,} from 'lucide-react'
 import {
   downloadResumeReport,
+  viewOriginalResume,
+  deleteResumeAnalysis,
   getInterviewHistory,
   getResumeHistory,
   type InterviewHistoryItem,
@@ -177,6 +181,11 @@ export default function History() {
   const violet = palette.accent
   const violetLight = palette.accentLight
   const [resumeHistory, setResumeHistory] = useState<ResumeHistoryItem[]>([])
+  // Delete is two-step: the first click arms it, the second commits. Tracked
+  // by id so arming one row cannot arm another.
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [actionError, setActionError] = useState<number | null>(null)
   const [interviewHistory, setInterviewHistory] = useState<InterviewHistoryItem[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [filter, setFilter] = useState<Filter>('All')
@@ -413,16 +422,57 @@ export default function History() {
                         <ScoreRing score={item.score} />
 
                         {item.kind === 'resume' ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => downloadResumeReport(item.id, `resume-report-${item.id}.pdf`)}
-                            aria-label="Download report"
-                            className="shrink-0"
-                          >
-                            <Download />
-                          </Button>
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            {/* A failed view or delete must say so — silently
+                                doing nothing reads as a dead button. */}
+                            {actionError === item.id && (
+                              <span className="mr-1 text-[10px] text-[var(--color-signal-low)]">
+                                Didn&apos;t work
+                              </span>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => { setActionError(null); viewOriginalResume(item.id).catch(() => setActionError(item.id)) }}
+                              aria-label="View original resume"
+                            >
+                              <Eye />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => downloadResumeReport(item.id, `resume-report-${item.id}.pdf`)}
+                              aria-label="Download feedback report"
+                            >
+                              <Download />
+                            </Button>
+                            {/* Two-step rather than a modal: one stray click
+                                should not destroy a scan, but a confirm dialog
+                                for a reversible-by-re-uploading action is
+                                heavier than it needs to be. */}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => {
+                                setActionError(null)
+                                if (confirmingId !== item.id) { setConfirmingId(item.id); return }
+                                setDeletingId(item.id)
+                                deleteResumeAnalysis(item.id)
+                                  .then(() => setResumeHistory((rows) => rows.filter((r) => r.id !== item.id)))
+                                  .catch(() => setActionError(item.id))
+                                  .finally(() => { setDeletingId(null); setConfirmingId(null) })
+                              }}
+                              onBlur={() => setConfirmingId((id) => (id === item.id ? null : id))}
+                              disabled={deletingId === item.id}
+                              aria-label={confirmingId === item.id ? 'Confirm delete' : 'Delete scan'}
+                              style={confirmingId === item.id ? { color: 'var(--color-signal-low)' } : undefined}
+                            >
+                              {confirmingId === item.id ? <Check /> : <Trash2 />}
+                            </Button>
+                          </div>
                         ) : (
                           <div className="w-8 shrink-0" />
                         )}

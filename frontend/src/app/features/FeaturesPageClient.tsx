@@ -94,7 +94,7 @@ export function FeaturesPageClient() {
               <span className="gradient-text-violet">Nothing you don&apos;t.</span>
             </h1>
             <p className="text-[var(--color-ink-dim)] text-lg max-w-2xl mx-auto leading-relaxed">
-              Zenith is built around two tightly integrated tools. Here&apos;s a complete breakdown of every feature in both.
+              ApplyCenter is built around two tightly integrated tools. Here&apos;s a complete breakdown of every feature in both.
             </p>
           </motion.div>
         </div>

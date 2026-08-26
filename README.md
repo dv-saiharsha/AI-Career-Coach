@@ -1,4 +1,4 @@
-# Zenith (AI Career Coach)
+# ApplyCenter (AI Career Coach)
 
 AI-powered resume analysis and interview coaching: upload a resume + job description, get a real ATS match score with a skills gap breakdown, then practice interview questions with AI feedback.
 
