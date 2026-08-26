@@ -1,0 +1,55 @@
+# Supabase project config.
+#
+# This exists so the Supabase GitHub integration can attach to this repository
+# — it looks for supabase/config.toml and refuses to link without it.
+#
+# It does NOT make Supabase the owner of this schema. See supabase/README.md:
+# migrations/ is intentionally empty, and every table, policy, trigger and
+# bucket is defined in backend/alembic/versions/.
+
+project_id = "flgumfsuyipzdgaotphc"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+# Matches the deployed project (checked with SELECT version()), so anything
+# run locally behaves the same as production.
+major_version = 17
+
+[db.pooler]
+enabled = true
+# Transaction mode: connections return to the pool per transaction rather than
+# being held per session. Session mode caps at 15 clients and fails outright
+# rather than queueing, which is why the deployed DSN uses port 6543.
+pool_mode = "transaction"
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+# Signups must confirm their address. Supabase links a social login to an
+# existing password account with the same email, so allowing unverified
+# addresses would let anyone who can create an account at any enabled provider
+# inherit the matching ApplyCenter account.
+enable_confirmations = true
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_OAUTH_CLIENT_ID)"
+secret = "env(GOOGLE_OAUTH_CLIENT_SECRET)"
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
