@@ -17,6 +17,7 @@ import {
   Briefcase,
   KanbanSquare,
   Search,
+  Newspaper,
 } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
 import { ApplyCenterMark } from './ApplyCenterMark'
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { icon: FileSearch, label: 'Resume Analyzer', href: '/resume' },
   { icon: MessageSquareCode, label: 'Interview Coach', href: '/interview' },
   { icon: Briefcase, label: 'Job Market', href: '/jobs' },
+  { icon: Newspaper, label: 'Policy News', href: '/news' },
   { icon: KanbanSquare, label: 'Applications & Offers', href: '/applications' },
   { icon: TrendingUp, label: 'History', href: '/history' },
 ]

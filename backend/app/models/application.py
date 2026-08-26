@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, DateTime, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -38,6 +38,13 @@ class JobApplication(Base):
     # FK: resume_analyses rows are user-deletable, and losing the scan should
     # not cascade away the application record itself.
     tailored_resume_id = Column(Integer, nullable=True)
+
+    # The user's resume scored against this posting, by the trained model.
+    # Stored rather than computed per request: predict_score costs ~127ms, so
+    # averaging across a pipeline on every dashboard load would add seconds.
+    # NULL means not yet scored — distinct from a genuine low score, and
+    # excluded from the average rather than counted as zero.
+    match_score = Column(Float, nullable=True)
 
     notes = Column(Text, nullable=True)
 

@@ -17,7 +17,7 @@ import { ResumeReminderDrawer } from '@/components/onboarding/ResumeReminderDraw
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardData } from '../../../lib/useDashboardData';
 import { FreshJobsPanel } from '@/components/dashboard/FreshJobsPanel';
-import { PolicyNewsPanel } from '@/components/dashboard/PolicyNewsPanel';
+import { PipelineMetrics } from '@/components/dashboard/PipelineMetrics';
 import { getDashboardOverview, type DashboardOverview } from '@/lib/apiClient';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -216,9 +216,11 @@ export default function DashboardPage() {
           the fold now, so an empty gap would push the whole page down and then
           snap it back when the request lands. */}
       {overview ? (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="space-y-5">
+          {/* KPIs first — the overview answers "where do I stand" before it
+              answers "what is new". */}
+          <PipelineMetrics metrics={overview.metrics} />
           <FreshJobsPanel jobs={overview.fresh_jobs} window={overview.fresh_window} />
-          <PolicyNewsPanel articles={overview.news} reachable={overview.news_reachable} />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

@@ -808,7 +808,21 @@ export interface NewsArticle {
   url?: string | null
 }
 
+export interface PipelineMetrics {
+  /** Counts only stages meaning an application was sent — "saved" is a bookmark. */
+  total_applied: number
+  by_stage: Record<string, number>
+  /** null, not 0, when nothing has been scored — "0% match" reads as a bad
+   *  resume, where no measurement is simply no measurement. */
+  average_match_score: number | null
+  /** How much of the pipeline the average covers, so a figure from one
+   *  application isn't mistaken for one from twenty. */
+  scored_applications: number
+  total_applications: number
+}
+
 export interface DashboardOverview {
+  metrics: PipelineMetrics
   fresh_jobs: FreshJob[]
   /** Names the window actually used, so the UI cannot imply everything is hours old. */
   fresh_window: string

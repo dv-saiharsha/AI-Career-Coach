@@ -32,7 +32,25 @@ class NewsArticleSchema(BaseModel):
     url: Optional[str] = None
 
 
+class PipelineMetricsSchema(BaseModel):
+    """Headline numbers for the pipeline."""
+
+    # Counts only stages that mean an application was sent — "saved" is a
+    # bookmark, and including it would inflate what a user reads as
+    # "how many jobs have I applied to".
+    total_applied: int
+    by_stage: dict[str, int] = {}
+    # None, not 0.0, when nothing has been scored yet: "0% match" reads as a
+    # terrible resume, where no measurement is simply no measurement.
+    average_match_score: Optional[float] = None
+    # How much of the pipeline the average is actually based on, so a figure
+    # drawn from one application is not mistaken for one drawn from twenty.
+    scored_applications: int = 0
+    total_applications: int = 0
+
+
 class DashboardOverviewSchema(BaseModel):
+    metrics: PipelineMetricsSchema
     fresh_jobs: List[FreshJobSchema] = []
     # Names the window actually used, so the UI can't imply everything shown
     # is hours old when the query had to widen to fill the panel.

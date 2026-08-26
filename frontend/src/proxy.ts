@@ -46,6 +46,7 @@ export const config = {
     '/resume/:path*',
     '/interview/:path*',
     '/jobs/:path*',
+    '/news/:path*',
     '/analytics/:path*',
     '/history/:path*',
     '/reports/:path*',

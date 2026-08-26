@@ -5,8 +5,10 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, defer
 
+from app.models.application import JobApplication
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
+from app.ml.inference import model_available, predict_score
 from app.modules.dashboard import news
 
 logger = logging.getLogger(__name__)
@@ -75,30 +77,81 @@ def fresh_jobs(db: Session, now: datetime | None = None) -> tuple[list[JobListin
     return query(window_floor), f"last {WINDOW_DAYS} days"
 
 
-def _match_score(db: Session, user_id: str) -> tuple[float | None, str | None]:
-    """The user's most recent ATS score, and what it was scored against.
-
-    Deliberately not re-scored per job card. predict_score is a real model
-    call, and running it across six listings inside a dashboard request would
-    make the page slow for a number the user cannot act on from a card. The
-    honest framing is "your latest resume score", not "your match for this
-    job" — so the label says which resume it came from.
-    """
-    latest = (
+def _latest_scan(db: Session, user_id: str) -> ResumeAnalysis | None:
+    """The user's most recent scan. Fetched once and shared — both the
+    headline score and the pipeline scorer need it, and querying twice for the
+    same row is a round-trip to us-east-1 for nothing."""
+    return (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == user_id)
         .order_by(ResumeAnalysis.created_at.desc())
         .first()
     )
-    if not latest:
-        return None, None
-    return round(float(latest.ats_score or 0), 1), latest.resume_filename
+
+
+# Stages that mean an application was actually sent. "saved" is a bookmark,
+# not an application, and counting it would inflate the number a user reads as
+# "how many jobs have I applied to".
+SENT_STAGES = ("applied", "interviewing", "offer", "rejected")
+
+# Scored lazily, but bounded. Each score is a ~127ms model call, so a first
+# load on a large pipeline stays under a second rather than scaling with it;
+# the rest fill in on subsequent loads.
+MAX_SCORES_PER_REQUEST = 5
+
+
+def _pipeline_metrics(db: Session, user_id: str, resume_text: str | None) -> dict:
+    """Applications sent, and how well the resume matches them.
+
+    Scores are computed once and stored on the row. Applications with no
+    stored job description cannot be scored at all and are left NULL — they
+    are excluded from the average rather than counted as zero, which would
+    drag the figure down for postings nobody measured.
+    """
+    rows = db.query(JobApplication).filter(JobApplication.user_id == user_id).all()
+
+    by_stage = {stage: 0 for stage in ("saved", "applied", "interviewing", "offer", "rejected")}
+    for row in rows:
+        if row.status in by_stage:
+            by_stage[row.status] += 1
+    total_sent = sum(by_stage[stage] for stage in SENT_STAGES)
+
+    if resume_text and model_available():
+        scored = 0
+        for row in rows:
+            if scored >= MAX_SCORES_PER_REQUEST:
+                break
+            if row.match_score is not None or not row.job_description:
+                continue
+            row.match_score = float(predict_score(resume_text, row.job_description))
+            scored += 1
+        if scored:
+            db.commit()
+
+    measured = [r.match_score for r in rows if r.match_score is not None]
+    return {
+        "total_applied": total_sent,
+        "by_stage": by_stage,
+        # None, not 0.0, when nothing has been scored: "0% match" reads as a
+        # terrible resume, where no measurement is simply no measurement.
+        "average_match_score": round(sum(measured) / len(measured), 1) if measured else None,
+        "scored_applications": len(measured),
+        "total_applications": len(rows),
+    }
 
 
 def overview(db: Session, user_id: str) -> dict:
     now = datetime.now(timezone.utc)
     rows, window_label = fresh_jobs(db, now)
-    score, scored_against = _match_score(db, user_id)
+
+    # The headline score is the user's latest scan against whatever JD it
+    # used — not re-scored per job card. predict_score is a real model call,
+    # and running it across six listings inside a dashboard request would make
+    # the page slow for a number the user cannot act on from a card.
+    latest = _latest_scan(db, user_id)
+    score = round(float(latest.ats_score or 0), 1) if latest else None
+    scored_against = latest.resume_filename if latest else None
+    metrics = _pipeline_metrics(db, user_id, latest.resume_text if latest else None)
 
     cards = [
         {
@@ -120,6 +173,7 @@ def overview(db: Session, user_id: str) -> dict:
 
     feed = news.fetch_immigration_news()
     return {
+        "metrics": metrics,
         "fresh_jobs": cards,
         "fresh_window": window_label,
         # One figure for the whole dashboard, not a per-card fabrication.
