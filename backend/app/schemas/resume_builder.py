@@ -167,6 +167,41 @@ class TailorHandoffSchema(BaseModel):
     has_job_description: bool = True
 
 
+class TailorPreviewRequestSchema(BaseModel):
+    job_id: int
+    analysis_id: int
+    # The backend has no name: AuthenticatedUser carries only id and email,
+    # and the display name lives in Supabase user_metadata, which the client
+    # holds. Sent from there rather than guessed from the email local-part.
+    full_name: str = ""
+    # Gates the one paid step. Opening a preview is free; asking for bullet
+    # rewrites spends a Claude call and has to be deliberate.
+    include_rewrites: bool = False
+
+
+class TailorPreviewSchema(BaseModel):
+    """A tailoring proposal. Nothing is written until the user accepts."""
+
+    job_id: int
+    job_title: str
+    company: str
+    analysis_id: int
+    # LASTNAME_FIRSTNAME_RESUME_ROLE_COMPANY.pdf
+    download_filename: str
+    original_resume_text: str
+    # This resume against THIS posting, from the trained model. None when no
+    # model is on disk — never a placeholder figure.
+    current_score: Optional[float] = None
+    semantic_match: Optional[float] = None
+    # There is deliberately no projected_score. A score for a resume that does
+    # not exist yet cannot be measured, and quoting one would be a promise
+    # rather than a result — it is recomputed for real after compilation.
+    missing_keywords: List[str] = []
+    state_explicitly: List[str] = []
+    bullet_suggestions: List[BulletSuggestionSchema] = []
+    has_job_description: bool = True
+
+
 class StageFixesRequestSchema(BaseModel):
     """Which stored experience bullets to run rewrite suggestions against.
 

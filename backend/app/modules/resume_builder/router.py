@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import services, tailor
+from app.modules.resume_builder import faang, services, tailor
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
     CompileResumeRequestSchema,
@@ -13,6 +13,8 @@ from app.schemas.resume_builder import (
     QualityReportSchema,
     StageFixesRequestSchema,
     TailorHandoffRequestSchema,
+    TailorPreviewRequestSchema,
+    TailorPreviewSchema,
     TailorHandoffSchema,
     StageFixesResponseSchema,
 )
@@ -122,6 +124,29 @@ def tailor_handoff(
     would confirm another user's scan exists.
     """
     result = tailor.build_handoff(db, current_user.id, payload.job_id, payload.analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Job or resume not found")
+    return result
+
+
+@router.post("/tailor-preview", response_model=TailorPreviewSchema)
+def tailor_preview(
+    payload: TailorPreviewRequestSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """A tailoring proposal for one resume against one posting.
+
+    Writes nothing. The stored resume is untouched until the user compiles an
+    accepted version through /compile-and-score — separating proposal from
+    commit is what makes the acceptance gate meaningful rather than cosmetic.
+
+    Free unless include_rewrites is set, which spends one Claude call.
+    """
+    result = faang.build_preview(
+        db, current_user.id, payload.job_id, payload.analysis_id,
+        payload.full_name, payload.include_rewrites,
+    )
     if result is None:
         raise HTTPException(status_code=404, detail="Job or resume not found")
     return result
