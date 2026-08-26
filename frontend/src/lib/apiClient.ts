@@ -930,3 +930,55 @@ export const getResumeAutofill = async (analysisId: number): Promise<ResumeAutof
   const response = await apiClient.get(`/resume-builder/autofill/${analysisId}`)
   return response.data
 }
+
+// ── Score breakdown ──────────────────────────────────────────────────────
+
+export interface RubricMetric {
+  key: string
+  label: string
+  /** Points this metric contributes to the rubric total. */
+  weight: number
+  /** Null when the metric's inputs were unavailable — its weight is removed
+   *  from the denominator rather than scored as zero. */
+  score: number | null
+  band: 'EXCELLENT' | 'STRONG' | 'GOOD' | 'NEEDS WORK' | 'WEAK' | 'NOT CHECKED'
+}
+
+export interface ParseCheck {
+  key: string
+  name: string
+  /** Three-valued: null means the check could not run, which is a different
+   *  finding from failure and must render differently. */
+  passed: boolean | null
+  detail: string
+  why: string
+}
+
+/**
+ * Two scores, each labelled by what produced it.
+ *
+ * `model_score` is the trained GradientBoostingRegressor's prediction and
+ * stays authoritative across the product. `rubric_total` is a weighted sum of
+ * measurable document properties. Neither is derived from the other, and the
+ * metric bars explain the rubric — not the model, which is not a weighted sum
+ * of these seven things.
+ */
+export interface ScoreBreakdown {
+  analysis_id: number
+  resume_filename: string
+  model_score: number
+  rubric_total: number | null
+  /** What the rubric total is out of. Below 100 when a check could not run. */
+  weight_applied: number
+  skipped: string[]
+  metrics: RubricMetric[]
+  parse_checks: ParseCheck[]
+  missing_keywords: string[]
+  matched_keywords: string[]
+}
+
+/** Free — no LLM call, no rescoring. Writes nothing. */
+export const getScoreBreakdown = async (analysisId: number): Promise<ScoreBreakdown> => {
+  const response = await apiClient.get(`/resume/breakdown/${analysisId}`)
+  return response.data
+}

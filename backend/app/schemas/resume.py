@@ -104,3 +104,53 @@ class ResumeHistoryItemSchema(BaseModel):
 class GenerateResumeRequestSchema(BaseModel):
     full_name: str
     skills_to_add: List[str] = []
+
+
+class RubricMetricSchema(BaseModel):
+    key: str
+    label: str
+    # Points this metric contributes to the rubric total.
+    weight: int
+    # None when the metric's inputs were unavailable. Its weight is then
+    # removed from the denominator rather than scored as zero — a check nobody
+    # could run is not a failure.
+    score: Optional[float] = None
+    band: str
+
+
+class ParseCheckSchema(BaseModel):
+    key: str
+    name: str
+    # Three-valued. None means the check could not run (commonly: no PDF was
+    # stored, so column geometry cannot be measured). "Could not check" and
+    # "failed" are different findings and must render differently.
+    passed: Optional[bool] = None
+    detail: str
+    why: str
+
+
+class ScoreBreakdownSchema(BaseModel):
+    """A deterministic breakdown alongside the trained model's score.
+
+    Two numbers, each labelled by what produced it. `model_score` is the
+    GradientBoostingRegressor's prediction and remains the authoritative
+    figure used everywhere else. `rubric_total` is this module's weighted sum
+    of measurable properties.
+
+    They are not expected to agree exactly, and neither is derived from the
+    other. The rubric's value is that it can be inspected and argued with; the
+    model's is that it learned from scored examples.
+    """
+
+    analysis_id: int
+    resume_filename: str
+    model_score: float
+    rubric_total: Optional[float] = None
+    # What the rubric total is out of. Below 100 when some check could not
+    # run; a UI printing "/100" regardless would overstate its coverage.
+    weight_applied: int
+    skipped: List[str] = []
+    metrics: List[RubricMetricSchema] = []
+    parse_checks: List[ParseCheckSchema] = []
+    missing_keywords: List[str] = []
+    matched_keywords: List[str] = []

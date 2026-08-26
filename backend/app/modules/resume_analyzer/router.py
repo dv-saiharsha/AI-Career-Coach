@@ -9,9 +9,15 @@ from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
+from app.modules.resume_analyzer import parse_checks, rubric
 from app.modules.resume_analyzer.report import build_report_pdf, build_updated_resume_pdf
 from app.modules.resume_analyzer.services import analyze_resume_against_job
-from app.schemas.resume import AnalysisResultSchema, GenerateResumeRequestSchema, ResumeHistoryItemSchema
+from app.schemas.resume import (
+    AnalysisResultSchema,
+    GenerateResumeRequestSchema,
+    ResumeHistoryItemSchema,
+    ScoreBreakdownSchema,
+)
 
 router = APIRouter()
 
@@ -205,3 +211,58 @@ def generate_updated_resume(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=updated-resume-{analysis_id}.pdf"},
     )
+
+
+@router.get("/breakdown/{analysis_id}", response_model=ScoreBreakdownSchema)
+def score_breakdown(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Deterministic sub-scores and parse checks for a stored scan.
+
+    Free — no LLM call and no model retraining; the model score is read from
+    the row rather than recomputed. Writes nothing.
+
+    Returns two numbers deliberately. model_score is the trained model's
+    prediction and stays authoritative across the product; rubric_total is a
+    weighted sum of measurable properties that can be inspected line by line.
+    Presenting the breakdown as though it decomposed the model's score would
+    be false — the model is not a weighted sum of these seven things, and
+    bars that silently failed to add up to the headline would be worse than
+    two clearly labelled figures.
+    """
+    record = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id, ResumeAnalysis.user_id == current_user.id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    if not record.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="The original resume text isn't available for this scan. Please re-scan your resume.",
+        )
+
+    stored = json.loads(record.result_json) if record.result_json else {}
+    breakdown = rubric.build_breakdown(
+        record.resume_text,
+        record.job_description or "",
+        # No job title is stored on a scan, so title alignment is skipped
+        # rather than guessed out of the description — a title scavenged from
+        # a responsibilities paragraph would be scored against as if it were
+        # the role.
+        jd_title=None,
+        pdf_bytes=record.resume_file_bytes,
+    )
+
+    return {
+        "analysis_id": record.id,
+        "resume_filename": record.resume_filename,
+        "model_score": round(float(record.ats_score or 0), 1),
+        **breakdown,
+        "parse_checks": parse_checks.build_checks(record.resume_text, record.resume_file_bytes),
+        "missing_keywords": stored.get("missing_skills", []),
+        "matched_keywords": stored.get("matched_skills", []),
+    }
