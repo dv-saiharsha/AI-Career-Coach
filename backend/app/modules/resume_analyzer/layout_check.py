@@ -275,3 +275,111 @@ def inspect_ats_parsing_readiness(
         "column_check_skipped_reason": column_result["reason"],
         "extracted_characters": len(stripped),
     }
+
+
+# Glyph corruption markers. A PDF whose fonts carry no ToUnicode map extracts
+# as "(cid:72)(cid:101)" instead of "He" — the document looks perfect on
+# screen and reaches the parser as gibberish, which is the worst failure mode
+# here because nothing about it is visible to the person who exported it.
+_CID_MARKER = re.compile(r"\(cid:\d+\)")
+_REPLACEMENT = "�"
+
+# Below this share of readable characters, extraction has clearly gone wrong
+# rather than the resume merely containing some symbols.
+MIN_READABLE_RATIO = 0.85
+
+
+def check_glyph_integrity(raw_text: str) -> dict:
+    """Whether extracted characters decode to real text.
+
+    Three separate symptoms, because they have different causes and the user
+    fixes them differently: cid markers mean an embedded font with no unicode
+    mapping, replacement characters mean a decode failure, and a low readable
+    ratio means the text came out as binary noise.
+    """
+    text = raw_text or ""
+    if not text.strip():
+        return {
+            "ok": None,
+            "reason": "No text was extracted, so glyph integrity could not be assessed.",
+        }
+
+    cids = len(_CID_MARKER.findall(text))
+    replacements = text.count(_REPLACEMENT)
+    readable = sum(1 for c in text if c.isprintable() or c.isspace())
+    ratio = readable / len(text)
+
+    problems = []
+    if cids:
+        problems.append(
+            f"{cids} unmapped glyph marker(s) like (cid:72) — the embedded font carries no "
+            "unicode mapping, so the text is unreadable to a parser even though it looks "
+            "correct on screen."
+        )
+    if replacements:
+        problems.append(f"{replacements} character(s) failed to decode.")
+    if ratio < MIN_READABLE_RATIO:
+        problems.append(f"Only {ratio:.0%} of extracted characters are readable text.")
+
+    return {
+        "ok": not problems,
+        "reason": " ".join(problems) if problems else "Characters decode cleanly to readable text.",
+    }
+
+
+def check_contact_placement(pdf_bytes: bytes | None, needles: list[str]) -> dict:
+    """Whether contact details sit in the body or in a margin band.
+
+    Text a PDF places in the header or footer region is frequently dropped by
+    parsers — some read only the body frame. A resume whose email is in the
+    page header can therefore parse perfectly and still arrive with no way to
+    reply to it.
+
+    Returns ok=None when the check cannot run, which is common: a DOCX, or a
+    scan stored before the file bytes were kept. Reporting that as a failure
+    would send someone off to move an email that is already fine.
+    """
+    found = [n for n in needles if n]
+    if not pdf_bytes:
+        return {"ok": None, "reason": "No PDF stored for this scan, so placement can't be measured."}
+    if not found:
+        return {"ok": None, "reason": "No contact details were extracted, so there's nothing to locate."}
+
+    try:
+        import fitz
+
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception:
+        return {"ok": None, "reason": "This file couldn't be opened for layout inspection."}
+
+    try:
+        page = document[0]
+        height = page.rect.height or 1
+        in_margin: list[str] = []
+        located = 0
+
+        for needle in found:
+            for rect in page.search_for(needle) or []:
+                located += 1
+                # Same band as the running-header check, so "edge" means the
+                # same thing throughout this module.
+                if rect.y0 < height * _EDGE_BAND or rect.y1 > height * (1 - _EDGE_BAND):
+                    in_margin.append(needle)
+                break
+
+        if not located:
+            return {
+                "ok": None,
+                "reason": "Contact details were read from the text but not located on page 1.",
+            }
+        if in_margin:
+            return {
+                "ok": False,
+                "reason": (
+                    f"{', '.join(in_margin)} sits in the page header or footer area, which some "
+                    "parsers skip entirely. Move it into the body, under your name."
+                ),
+            }
+        return {"ok": True, "reason": "Contact details are in the body of the page, not a margin."}
+    finally:
+        document.close()

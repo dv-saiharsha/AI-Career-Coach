@@ -86,13 +86,21 @@ def test_empty_resume_does_not_raise():
 
 # ── Parse checks ─────────────────────────────────────────────────────────
 
-def test_parse_checks_cover_six_named_properties():
+def test_parse_checks_cover_the_named_properties():
     checks = build_checks(RESUME)
-    assert len(checks) == 6
     assert {c["key"] for c in checks} == {
         "text_layer", "headings", "single_column",
         "no_repeated_edges", "name_found", "contact_found",
+        "contact_placement", "glyph_integrity", "reverse_chronological",
     }
+
+
+def test_every_check_names_what_it_tested_and_why():
+    """Each card has to stand on its own: a bare Pass with no statement of
+    what was measured is the vendor-verdict problem in a different shape."""
+    for check in build_checks(RESUME):
+        assert check["detail"].strip()
+        assert check["why"].strip()
 
 
 def test_column_check_is_none_without_a_pdf():
@@ -118,3 +126,59 @@ def test_checks_fail_honestly_on_an_empty_document():
     assert checks["contact_found"]["passed"] is False
     # Still not claimable either way without the file.
     assert checks["single_column"]["passed"] is None
+
+
+def test_glyph_check_catches_unmapped_fonts():
+    """A font embedded without a unicode map extracts as (cid:72) rather than
+    "H". The page looks perfect on screen, so nothing warns the candidate."""
+    from app.modules.resume_analyzer.layout_check import check_glyph_integrity
+
+    corrupted = "(cid:72)(cid:101)(cid:108)(cid:108)(cid:111) " * 30
+    result = check_glyph_integrity(corrupted)
+    assert result["ok"] is False
+    assert "cid" in result["reason"]
+
+
+def test_glyph_check_passes_clean_text():
+    from app.modules.resume_analyzer.layout_check import check_glyph_integrity
+
+    assert check_glyph_integrity(RESUME)["ok"] is True
+
+
+def test_glyph_check_is_none_on_empty_text():
+    """Nothing extracted means nothing to assess — distinct from corrupted."""
+    from app.modules.resume_analyzer.layout_check import check_glyph_integrity
+
+    assert check_glyph_integrity("")["ok"] is None
+
+
+def test_contact_placement_needs_the_pdf():
+    from app.modules.resume_analyzer.layout_check import check_contact_placement
+
+    result = check_contact_placement(None, ["a@b.com"])
+    assert result["ok"] is None
+    assert "No PDF" in result["reason"]
+
+
+def test_reverse_chronological_is_checked_not_assumed():
+    checks = {c["key"]: c for c in build_checks(RESUME)}
+    # RESUME has a single role, so there is no order to check and reporting a
+    # pass would dress up "nothing to check" as a result.
+    assert checks["reverse_chronological"]["passed"] is None
+
+
+def test_reverse_chronological_flags_an_out_of_order_history():
+    text = (
+        "EXPERIENCE\n"
+        "Junior Engineer, Acme   Jan 2015 - Dec 2017\n"
+        "- Did an early thing that took a while to finish properly\n"
+        "Senior Engineer, Stripe   Jan 2020 - Dec 2023\n"
+        "- Did a later thing that took a while to finish properly\n"
+    )
+    checks = {c["key"]: c for c in build_checks(text)}
+    assert checks["reverse_chronological"]["passed"] is False
+
+
+def test_all_nine_checks_render():
+    """The UI renders a card per check; none may silently disappear."""
+    assert len(build_checks(RESUME)) == 9

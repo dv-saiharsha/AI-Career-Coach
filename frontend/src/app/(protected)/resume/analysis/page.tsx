@@ -72,6 +72,10 @@ function AnalysisDashboard() {
   const idParam = Number(params.get('id'))
 
   const [data, setData] = useState<ScoreBreakdown | null>(null)
+  // How long the breakdown actually took to compute and return, measured
+  // rather than estimated — the parse checks open the stored PDF, so this is
+  // real work whose cost is worth showing.
+  const [tookMs, setTookMs] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [claimed, setClaimed] = useState<Set<string>>(new Set())
   const [building, setBuilding] = useState(false)
@@ -93,9 +97,12 @@ function AnalysisDashboard() {
       return getScoreBreakdown(analysisId)
     }
 
+    const startedAt = performance.now()
     resolve()
       .then((result) => {
-        if (!cancelled) setData(result)
+        if (cancelled) return
+        setTookMs(performance.now() - startedAt)
+        setData(result)
       })
       .catch((err: Error) => {
         if (cancelled) return
@@ -280,7 +287,7 @@ function AnalysisDashboard() {
         </section>
       )}
 
-      <ActionBar data={data} />
+      <ActionBar data={data} tookMs={tookMs} />
     </div>
   )
 }
@@ -390,7 +397,7 @@ function ParseCheckCard({ check }: { check: ParseCheck }) {
   )
 }
 
-function ActionBar({ data }: { data: ScoreBreakdown }) {
+function ActionBar({ data, tookMs }: { data: ScoreBreakdown; tookMs: number | null }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)]/90 p-3 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-3">
@@ -408,6 +415,7 @@ function ActionBar({ data }: { data: ScoreBreakdown }) {
             <p className="text-[10px] text-[var(--color-ink-faint)]">
               {data.matched_keywords.length} of{' '}
               {data.matched_keywords.length + data.missing_keywords.length} job keywords matched
+              {tookMs !== null && ` · analysed in ${(tookMs / 1000).toFixed(1)}s`}
             </p>
           </div>
           <span

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { Bookmark, Briefcase, Building2, Check, Clock, ExternalLink, FileText, MapPin, MessageSquare, Wand2, X } from 'lucide-react'
+import { Bookmark, Briefcase, Building2, Check, Clock, ExternalLink, FileText, Mail, MapPin, MessageSquare, Wand2, X } from 'lucide-react'
 import type { JobListing, WorkMode } from '@/lib/apiClient'
 import type { TrackState } from '@/hooks/useApplyTracker'
 import { ApplyTrackerButton } from '@/components/jobs/ApplyTrackerButton'
@@ -253,6 +253,13 @@ export function JobDetailDrawer({
                   the tailor page picks the newest scan itself, so a user who
                   has already scanned does not re-upload to see what this
                   posting wants. */}
+              <Link
+                href={`/cover-letter?job=${job.id}`}
+                className="btn-secondary flex w-full items-center justify-center gap-2"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Write a cover letter
+              </Link>
               <Link
                 href={`/resume/tailor?job=${job.id}`}
                 className="btn-secondary flex w-full items-center justify-center gap-2"

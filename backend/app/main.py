@@ -11,6 +11,7 @@ from app.modules.job_market.router import router as jobs_router
 from app.modules.offers.router import router as offers_router
 from app.modules.resume_analyzer.router import router as resume_router
 from app.modules.resume_builder.router import router as resume_builder_router
+from app.modules.cover_letter.router import router as cover_letter_router
 from app.modules.user_profile.router import router as user_router
 
 app = FastAPI(title="ApplyCenter API")
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(resume_router, prefix="/api/resume", tags=["Resume Analyzer"])
 app.include_router(resume_builder_router, prefix="/api/resume-builder", tags=["Resume Builder"])
+app.include_router(cover_letter_router, prefix="/api/cover-letter", tags=["Cover Letter"])
 app.include_router(interview_router, prefix="/api/interview", tags=["Interview Coach"])
 app.include_router(jobs_router, prefix="/api/jobs", tags=["Job Market"])
 app.include_router(applications_router, prefix="/api/applications", tags=["Application Pipeline"])

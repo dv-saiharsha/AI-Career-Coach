@@ -982,3 +982,49 @@ export const getScoreBreakdown = async (analysisId: number): Promise<ScoreBreakd
   const response = await apiClient.get(`/resume/breakdown/${analysisId}`)
   return response.data
 }
+
+// ── Cover letter ─────────────────────────────────────────────────────────
+
+export type CoverLetterTone = 'professional' | 'confident' | 'concise'
+
+export interface CoverLetter {
+  job_id: number
+  analysis_id: number
+  job_title: string
+  company: string
+  tone: CoverLetterTone
+  /** LASTNAME_FIRSTNAME_COVER_LETTER_ROLE_COMPANY.pdf */
+  download_filename: string
+  paragraphs: string[]
+  /** Resume quotes the model says each claim rests on. */
+  grounded_in: string[]
+  /**
+   * Figures asserted in the letter that don't appear in the resume. A report,
+   * not a rejection — an empty list means no unmatched figures were found,
+   * NOT that the letter has been verified true.
+   */
+  unsupported_claims: string[]
+  /** base64. Null when this server has no LaTeX toolchain; the text is still
+   *  returned, since the Claude call has already been paid for. */
+  pdf_base64: string | null
+}
+
+/** Costs one Claude call (~$0.017). Never fire this on page load. */
+export const generateCoverLetter = async (payload: {
+  job_id: number
+  analysis_id: number
+  full_name?: string
+  phone?: string
+  linkedin?: string
+  tone?: CoverLetterTone
+}): Promise<CoverLetter> => {
+  const response = await apiClient.post('/cover-letter/generate', payload)
+  return response.data
+}
+
+/** Builds a blob URL from base64 — there is no file hosting, so the PDF never
+ *  has a server-side URL to link to. Revoke it when the preview unmounts. */
+export const pdfBlobUrl = (pdfBase64: string): string => {
+  const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))
+  return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+}

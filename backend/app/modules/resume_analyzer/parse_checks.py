@@ -20,8 +20,44 @@ could not check this" and "this failed" are different findings, and a resume
 marked as failing a check nobody ran sends its owner off to fix nothing.
 """
 
-from app.modules.resume_analyzer.layout_check import MIN_EXTRACTABLE_CHARS, inspect_ats_parsing_readiness
-from app.modules.resume_builder.autofill import extract_contact
+from app.modules.resume_analyzer.layout_check import (
+    MIN_EXTRACTABLE_CHARS,
+    check_contact_placement,
+    check_glyph_integrity,
+    inspect_ats_parsing_readiness,
+)
+from app.modules.resume_analyzer.quality import parse_end_year
+from app.modules.resume_builder.autofill import extract_contact, extract_experiences
+
+
+
+def _chronological(resume_text: str) -> dict:
+    """Whether roles run newest-first.
+
+    Reverse-chronological is the order recruiters and parsers both expect, and
+    unlike "section order" it is a real convention that can be checked: the end
+    years either descend or they do not.
+
+    Fewer than two datable roles returns None. One role is trivially in order,
+    and reporting a pass there would dress up "nothing to check" as a result.
+    """
+    years = [
+        year
+        for role in extract_experiences(resume_text)
+        if (year := parse_end_year(role.get("dates") or "")) is not None
+    ]
+    if len(years) < 2:
+        return {"ok": None, "reason": "Fewer than two roles with readable dates, so there is no order to check."}
+    descending = all(a >= b for a, b in zip(years, years[1:]))
+    return {
+        "ok": descending,
+        "reason": (
+            f"Roles run newest to oldest ({', '.join(str(y) for y in years)})."
+            if descending
+            else f"Roles are not newest-first ({', '.join(str(y) for y in years)}). "
+            "Recruiters read the top entry as your current role."
+        ),
+    }
 
 
 def build_checks(resume_text: str, pdf_bytes: bytes | None = None) -> list[dict]:
@@ -30,6 +66,11 @@ def build_checks(resume_text: str, pdf_bytes: bytes | None = None) -> list[dict]
     headers = readiness["detected_headers"]
     chars = readiness["extracted_characters"]
     repeated = [w for w in readiness["warnings"] if "Repeated header" in w["issue"]]
+    glyphs = check_glyph_integrity(resume_text)
+    placement = check_contact_placement(
+        pdf_bytes, [contact["email"], contact["phone"]]
+    )
+    chronology = _chronological(resume_text)
 
     return [
         {
@@ -112,6 +153,37 @@ def build_checks(resume_text: str, pdf_bytes: bytes | None = None) -> list[dict]
             "why": (
                 "Contact details in a header, a footer or an image are commonly dropped, "
                 "and an application with no reachable address goes nowhere."
+            ),
+        },
+        {
+            "key": "contact_placement",
+            "name": "Contact details are in the body, not a margin",
+            "passed": placement["ok"],
+            "detail": placement["reason"],
+            "why": (
+                "Some parsers read only the body frame of a page. An email in the page "
+                "header can survive extraction and still never reach the recruiter."
+            ),
+        },
+        {
+            "key": "glyph_integrity",
+            "name": "Characters decode to readable text",
+            "passed": glyphs["ok"],
+            "detail": glyphs["reason"],
+            "why": (
+                "A font embedded without a unicode mapping extracts as (cid:72)(cid:101) "
+                "rather than words. The document looks perfect on screen and arrives as "
+                "gibberish — the worst case here, because nothing about it is visible to you."
+            ),
+        },
+        {
+            "key": "reverse_chronological",
+            "name": "Roles are in reverse-chronological order",
+            "passed": chronology["ok"],
+            "detail": chronology["reason"],
+            "why": (
+                "Both parsers and recruiters treat the first role as your current one. "
+                "Out-of-order entries put an old job at the top of your history."
             ),
         },
     ]
