@@ -54,7 +54,7 @@ const TEAM: {
   },
   {
     name: 'Kamal Ravula',
-    role: 'Security Engineer ',
+    role: 'Security Engineer',
     blurb: 'Implements authentication, data protection, and security across the platform.',
     bio: "Kamal is responsible for keeping the platform and its users safe — authentication, data protection, and security practices across every layer of ApplyCenter.",
     responsibilities: ['Authentication & authorization', 'Data protection & encryption', 'Security audits', 'Vulnerability management'],
@@ -168,11 +168,12 @@ export function TeamSection() {
                   type="button"
                   variant="ghost"
                   onClick={() => (isCenter ? setOpenIndex(i) : setActive(i))}
-                  className="block h-auto w-full overflow-hidden rounded-3xl border border-canvas-line p-0 text-left shadow-[var(--shadow-pop)] hover:bg-transparent"
+                  className="flex h-[404px] w-full flex-col overflow-hidden rounded-3xl border border-canvas-line p-0 text-left shadow-[var(--shadow-pop)] hover:bg-transparent"
                 >
-                  {/* Photo area — real photo if provided and loadable, else gradient + initials */}
+                  {/* Photo area — real photo if provided and loadable, else gradient + initials.
+                      shrink-0 so a long role below never eats into the photo. */}
                   <div
-                    className="relative h-[300px] flex items-center justify-center"
+                    className="relative h-[300px] shrink-0 flex items-center justify-center"
                     style={member.photo && !failedPhotos.has(member.photo) ? undefined : { background: `linear-gradient(160deg, ${member.from}55, ${member.to}dd)` }}
                   >
                     {member.photo && !failedPhotos.has(member.photo) ? (
@@ -205,9 +206,16 @@ export function TeamSection() {
                     )}
                   </div>
 
-                  <div className="bg-[var(--color-canvas-raise)] px-5 py-4">
-                    <div className="text-[var(--color-ink)] font-display font-semibold text-lg">{member.name}</div>
-                    <span className="inline-flex mt-2 text-[11px] font-mono uppercase tracking-widest text-[var(--color-accent-lighter)] bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-full px-2.5 py-1">
+                  <div className="flex flex-1 flex-col justify-between bg-[var(--color-canvas-raise)] px-5 py-4">
+                    <div className="text-[var(--color-ink)] font-display font-semibold text-lg line-clamp-1">{member.name}</div>
+                    {/* max-w-full stops the shrink-to-fit pill from sizing past the
+                        card's width, and [overflow-wrap:anywhere] is the backstop for
+                        a single long word that has no space to wrap at — "Strategist"
+                        under tracking-widest + uppercase + font-mono runs wider than a
+                        260px card can hold word-intact. Wraps rather than truncates:
+                        these are real titles, and ellipsizing a person's actual role
+                        reads worse than a two-line badge. */}
+                    <span className="mt-2 inline-flex max-w-full items-center justify-center whitespace-normal rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/10 px-2.5 py-1 text-center text-[11px] font-mono uppercase tracking-widest leading-snug text-[var(--color-accent-lighter)] [overflow-wrap:anywhere]">
                       {member.role}
                     </span>
                   </div>
@@ -308,7 +316,10 @@ export function TeamSection() {
                 <div className="p-6">
                   <Dialog.Title className="text-2xl font-display font-bold text-[var(--color-ink)]">{activeMember.name}</Dialog.Title>
                   <Dialog.Description asChild>
-                    <span className="inline-flex mt-2 mb-4 text-[11px] font-mono uppercase tracking-widest text-[var(--color-accent-lighter)] bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-full px-2.5 py-1">
+                    {/* Same wrap-safe treatment as the card badge, even though the
+                        dialog is wide enough that this rarely needs to wrap — a role
+                        added later shouldn't silently reintroduce the overflow. */}
+                    <span className="mt-2 mb-4 inline-flex max-w-full items-center whitespace-normal rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/10 px-2.5 py-1 text-[11px] font-mono uppercase tracking-widest leading-snug text-[var(--color-accent-lighter)] [overflow-wrap:anywhere]">
                       {activeMember.role}
                     </span>
                   </Dialog.Description>
