@@ -4,14 +4,19 @@ The code is done; these are the console steps that make it work. Nothing here
 lives in the repo, so a provider that "doesn't work" is almost always a missing
 step on this page rather than a bug.
 
-Supported: **Google** and **Apple** — and only those two.
+Supported: **Google**, and only Google.
 
 Every enabled provider is a party trusted to vouch for an email address,
 because Supabase links a new identity to an existing user whenever the
-provider returns a matching verified email. GitHub and LinkedIn were removed
-for that reason. Removing the buttons is not enough: **disable both in the
-Supabase dashboard**, or their endpoints stay live with nothing pointing at
-them.
+provider returns a matching verified email. GitHub, LinkedIn and Apple were
+all removed for that reason — Apple as well, since it also has no credentials
+configured, and its client secret is a JWT Apple caps at 6 months: adding it
+back later needs an owner for that renewal, not just the setup steps.
+Removing the buttons is not enough on its own: **disable every other provider in the
+Supabase dashboard**, or an old endpoint stays live with nothing pointing at
+it. Checked directly against this project's `/auth/v1/settings` while writing
+this: `google` and `email` are the only two enabled, so that step is already
+done here.
 
 ## Your callback URL
 
@@ -96,25 +101,6 @@ We do **not** send `access_type=offline` or `prompt=consent`. A refresh token is
 only needed to call Google APIs as the user, which ApplyCenter never does, and
 `prompt=consent` forces the consent screen on *every* sign-in — friction for
 returning users with no benefit. Add them only if that changes.
-
-### Apple
-The most involved, and the only one that expires.
-
-- Requires a paid Apple Developer account.
-- Create an **App ID**, then a **Services ID** (the Services ID is the client ID).
-- Create a **Sign in with Apple key** (.p8) and note the Key ID and Team ID.
-- The client secret is a **JWT you generate**, and Apple caps its lifetime at
-  **6 months**. It is not a static string. Put a calendar reminder on it —
-  when it lapses, Apple sign-in fails for everyone with no code change to blame.
-- Apple returns the user's name **only on first authorization**, never again.
-
-Google is live. Apple is not: no Apple credentials exist in the environment,
-so the button on the login page returns "provider is not enabled" until the
-steps above are done. The UI handles that case with a plain message rather
-than the raw Supabase error, but it is still a route users cannot take.
-
-The 6-month secret expiry is the thing to plan for. It fails silently and
-all at once, and nothing in this repo will have changed when it does.
 
 ---
 

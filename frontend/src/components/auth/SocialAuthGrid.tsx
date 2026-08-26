@@ -40,11 +40,6 @@ const ICONS: Record<OAuthProvider, React.ReactNode> = {
       />
     </svg>
   ),
-  apple: (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="size-[18px]" aria-hidden="true">
-      <path d="M17.05 12.54c-.03-2.75 2.25-4.07 2.35-4.13-1.28-1.87-3.27-2.13-3.98-2.16-1.7-.17-3.31 1-4.17 1-.86 0-2.19-.98-3.6-.95-1.85.03-3.55 1.07-4.5 2.72-1.92 3.33-.49 8.26 1.38 10.96.91 1.32 2 2.8 3.42 2.75 1.37-.06 1.89-.89 3.55-.89 1.65 0 2.12.89 3.57.86 1.47-.02 2.41-1.34 3.31-2.67 1.04-1.53 1.47-3.01 1.5-3.09-.03-.01-2.88-1.1-2.91-4.38l.08-.02ZM14.3 4.3c.76-.92 1.27-2.2 1.13-3.47-1.09.04-2.41.72-3.19 1.64-.7.81-1.31 2.11-1.15 3.36 1.21.09 2.45-.62 3.21-1.53Z" />
-    </svg>
-  ),
 }
 
 export interface SocialAuthGridProps {
@@ -102,7 +97,9 @@ export function SocialAuthGrid({
         <Separator className="flex-1" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* Columns follow the provider count: a fixed two-column grid left
+          the single remaining button at half width against empty space. */}
+      <div className={cn('grid gap-3', OAUTH_PROVIDERS.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
         {OAUTH_PROVIDERS.map((provider) => {
           const busy = pending === provider
           return (
