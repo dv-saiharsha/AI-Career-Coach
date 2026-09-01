@@ -85,7 +85,7 @@ export function FeaturesPageClient() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <span className="section-eyebrow-violet mb-4 inline-flex">
+            <span className="eyebrow mb-4 inline-flex">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
               Full Feature Breakdown
             </span>

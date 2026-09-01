@@ -80,7 +80,7 @@ export function PricingPageClient() {
           transition={{ duration: 0.6 }}
           className="max-w-3xl mx-auto text-center relative"
         >
-          <span className="section-eyebrow-violet mb-4 inline-flex">
+          <span className="eyebrow mb-4 inline-flex">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
             Pricing
           </span>
@@ -107,7 +107,7 @@ export function PricingPageClient() {
             transition={{ duration: 0.6 }}
             className="text-center mb-12"
           >
-            <span className="section-eyebrow-violet mb-4 inline-flex">
+            <span className="eyebrow mb-4 inline-flex">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
               Compare plans
             </span>

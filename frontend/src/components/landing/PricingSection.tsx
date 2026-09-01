@@ -91,7 +91,7 @@ export function PricingSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-10"
         >
-          <span className="section-eyebrow-violet mb-4 inline-flex">
+          <span className="eyebrow mb-4 inline-flex">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
             Pricing
           </span>

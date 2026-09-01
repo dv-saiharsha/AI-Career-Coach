@@ -27,7 +27,7 @@ export function ProductShowcase() {
           transition={{ duration: 0.6 }}
           className="text-center mb-14"
         >
-          <span className="section-eyebrow-violet mb-4 inline-flex">
+          <span className="eyebrow mb-4 inline-flex">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
             The dashboard
           </span>

@@ -276,7 +276,7 @@ export function HowItWorksClient() {
           transition={{ duration: 0.6 }}
           className="max-w-4xl mx-auto text-center relative"
         >
-          <span className="section-eyebrow-violet mb-4 inline-flex">
+          <span className="eyebrow mb-4 inline-flex">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
             Complete Workflow
           </span>
