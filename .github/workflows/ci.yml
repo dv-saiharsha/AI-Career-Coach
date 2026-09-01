@@ -87,6 +87,21 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Narrow by design. Four defects have passed lint, typecheck and a
+      # green build in this project and were only found by loading a page;
+      # these cover the two shapes that caused them — list rendering over
+      # repeating data, and CSS that vanishes behind a guard. Both suites
+      # were verified to fail against the original bugs, not just to pass
+      # against the fixes.
+      - name: Test
+        run: npm test
+
+      # Written during the token work and never actually run anywhere. It
+      # checks every text token against every surface it can land on, in
+      # both themes.
+      - name: Contrast gate
+        run: node scripts/check-contrast.mjs
+
       # The build is the check that actually matters: it catches broken imports,
       # bad server/client boundaries, and prerender failures that lint cannot.
       # Supabase values are read at module scope, so the build needs *some*
