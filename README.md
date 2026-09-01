@@ -169,6 +169,28 @@ Two gotchas worth knowing, both of which have already bitten this repo:
   machine). Prefer `npm ci` for everyday installs so you never regenerate it by
   accident.
 
+## Production Deployment
+
+Both services are containerized (`backend/Dockerfile`, `frontend/Dockerfile`), and `docker-compose.yml` runs the full stack — backend, frontend, and Redis — locally in that shape without a full deploy. Layer `docker-compose.prod.yml` on top for a production-shaped run:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+That overlay sets `ENVIRONMENT=production`, which turns on real enforcement — see below. It does not supply TLS termination, a real `DB_URL`, or secrets; those are the deployer's responsibility, same as any other container deployment.
+
+**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `APIFY_API_TOKEN`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
+
+**CORS.** `ALLOWED_ORIGINS` is a comma-separated list, read from settings rather than hardcoded — set it to your real frontend origin(s) in production. It is never `*` in production; `validate_startup()` enforces that directly.
+
+**Health check.** `GET /health` checks real database connectivity (not just process liveness) and returns 503 if the database is unreachable — point an orchestrator's readiness probe at it, not a static "is the process alive" check.
+
+**Multi-worker deployments need Redis.** Both `core/events.py`'s SSE fan-out and `job_market/services.py`'s scrape lock/cooldown/cache are in-process by default — correct for one worker, silently wrong for more than one (an event published on worker A never reaches a client connected to worker B; two workers can each kick off a paid Apify run for the same query at once). Set `REDIS_URL` before running `UVICORN_WORKERS` above 1. This produces no errors either way — it's a correctness gap, not a crash — so treat it as a hard requirement, not a tuning knob.
+
+**Frontend build-time vs. runtime configuration.** `NEXT_PUBLIC_*` variables are inlined into the client JavaScript bundle at `next build` time, not read when the container starts — `frontend/next.config.ts` refuses to build at all if `NEXT_PUBLIC_API_BASE_URL` is unset during a production build, specifically because a build missing it has shipped real users pointed at `http://localhost:8000/api` before, silently. Pass it (and the two Supabase `NEXT_PUBLIC_*` values) as Docker build args, not environment variables at `docker run` time.
+
+**Logging.** The backend calls `logging.basicConfig()` at startup using `LOG_LEVEL` (default `INFO`); an unhandled exception anywhere is caught by a root handler in `main.py` and logged with the request path before returning a generic 500, rather than falling through to a bare stack trace with no context.
+
 ## Working as a team
 
 **Dependencies auto-install after `git pull`.** After the one-time `git config core.hooksPath .githooks` step above, every `git pull` that brings in a changed `backend/requirements.txt` or `frontend/package.json`/`package-lock.json` automatically reinstalls the right dependencies — nobody has to remember to run `pip install` or `npm install` after pulling someone else's changes. This is a per-machine git setting (a git limitation, not a shortcut skipped here), which is why it's a one-time command rather than something that "just works" on clone.
