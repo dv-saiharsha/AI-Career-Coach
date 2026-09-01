@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Sun, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
@@ -41,18 +40,24 @@ export default function ThemeToggle({ className = '' }: { className?: string }) 
         aria-hidden="true"
       />
 
-      <motion.span
-        className="absolute left-[3px] top-[3px] flex size-[22px] items-center justify-center rounded-full shadow-[var(--shadow-card)]"
-        style={{ background: isDark ? 'var(--canvas-elevated)' : 'var(--accent)' }}
-        animate={{ x: isDark ? 0 : 24 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+      {/* A 24px slide, in CSS. This was a Framer spring, and it was the only
+          reason framer-motion was in the landing page's graph at all — 43KB
+          gzipped for one transform. The easing overshoots slightly at the end
+          via the system's own ease-spring token; motion-safe: means it snaps for
+          anyone who has asked for less movement. */}
+      <span
+        className="motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-spring absolute left-0.75 top-0.75 flex size-5.5 items-center justify-center rounded-full shadow-(--shadow-card)"
+        style={{
+          background: isDark ? 'var(--canvas-elevated)' : 'var(--accent)',
+          transform: isDark ? 'translateX(0)' : 'translateX(24px)',
+        }}
       >
         {isDark ? (
           <Moon className="size-3 text-ink-dim" aria-hidden="true" />
         ) : (
           <Sun className="size-3 text-on-accent" aria-hidden="true" />
         )}
-      </motion.span>
+      </span>
     </Button>
   )
 }
