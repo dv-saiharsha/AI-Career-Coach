@@ -7,6 +7,7 @@ import { MotionConfig } from 'framer-motion'
 import { ThemeProvider } from 'next-themes'
 import { AuthProvider } from '@/lib/AuthContext'
 import { CommandPaletteProvider } from '@/components/CommandPalette'
+import { ToastProvider } from '@/components/ui/toast'
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -25,7 +26,12 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider
       attribute="data-theme"
-      defaultTheme="light"
+      /* Dark is the primary, designed-first theme; light is a real second
+         theme, not a fallback. enableSystem stays off because the choice is
+         a product decision the user makes with the toggle, and a silent OS
+         swap on first paint is a worse first impression than one consistent
+         one. */
+      defaultTheme="dark"
       enableSystem={false}
       storageKey="aicc_theme"
       disableTransitionOnChange
@@ -36,8 +42,11 @@ export default function Providers({ children }: { children: ReactNode }) {
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            {/* Mounted at the root so ⌘K works on every route, public or not. */}
-            <CommandPaletteProvider>{children}</CommandPaletteProvider>
+            {/* Both mounted at the root so ⌘K and confirmation toasts work on
+                every route, public or not. */}
+            <CommandPaletteProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </CommandPaletteProvider>
           </AuthProvider>
         </QueryClientProvider>
       </MotionConfig>
