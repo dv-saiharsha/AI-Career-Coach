@@ -1,0 +1,60 @@
+# Local, Docker-based run of the full stack — an alternative to the native
+# dev loop (start.bat / npm run dev), useful for testing production-shaped
+# behavior (real containers, real inter-service networking) without a full
+# deploy. ENVIRONMENT stays "development" here on purpose: config.py's
+# validate_startup() only enforces its fail-fast checks in production, and
+# this file is meant to boot with nothing more than the two .env files
+# already required for native dev.
+#
+# For an actual production deploy, layer docker-compose.prod.yml on top:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+#
+# See README.md's "Production Deployment" section for the full checklist —
+# this file alone is not a deployment.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # In-process fan-out is fine at one worker; this only exercises the
+      # Redis-backed path so it's not left completely untested locally.
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Build-time only (see frontend/next.config.ts) — these are baked
+        # into the client bundle, not read at container startup, which is
+        # why they're build args here rather than the environment: block.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend

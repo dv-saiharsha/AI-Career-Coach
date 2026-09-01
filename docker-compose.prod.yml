@@ -1,0 +1,26 @@
+# Production overlay — layer on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file only changes what genuinely differs in production (worker count,
+# restart policy, ENVIRONMENT=production so config.py's fail-fast checks are
+# actually enforced). It does not stand alone — real secrets, a real DB_URL,
+# and TLS termination in front of these services are the deployer's
+# responsibility; see README.md's Production Deployment section.
+
+services:
+  redis:
+    restart: unless-stopped
+    # No exposed port in production — only the backend needs to reach it,
+    # over the compose network.
+    ports: []
+
+  backend:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://redis:6379/0
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+
+  frontend:
+    restart: unless-stopped
