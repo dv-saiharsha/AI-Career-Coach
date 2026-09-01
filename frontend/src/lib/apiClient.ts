@@ -1,26 +1,11 @@
-import axios from 'axios'
+import { http as apiClient } from './http'
 import { createClient } from './supabase/client'
 import { parseFrame, splitFrames } from './realtimeStream'
 import type { ScoreBand } from './scoreBands'
 
-const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api',
-})
-
 // Auth (session, login/register/logout) lives entirely in AuthContext now,
-// backed by Supabase — this file only attaches the current Supabase
-// session's access token to requests against our own FastAPI backend.
-apiClient.interceptors.request.use(async (config) => {
-  const supabase = createClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (session?.access_token) {
-    config.headers = config.headers ?? {}
-    config.headers.Authorization = `Bearer ${session.access_token}`
-  }
-  return config
-})
+// backed by Supabase. The bearer token is attached by lib/http, which also
+// owns the base URL — this file only describes endpoints and their shapes.
 
 export interface KeywordFrequency {
   keyword: string
@@ -103,7 +88,7 @@ export const analyzeResume = async (
   formData: FormData,
   onUploadProgress?: (percent: number) => void,
 ): Promise<AnalysisResult> => {
-  const response = await apiClient.post('/resume/analyze', formData, {
+  const response = await apiClient.post<AnalysisResult>('/resume/analyze', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (evt) => {
       if (!onUploadProgress) return
@@ -122,12 +107,12 @@ export interface ResumeHistoryItem {
 }
 
 export const getResumeHistory = async (): Promise<ResumeHistoryItem[]> => {
-  const response = await apiClient.get('/resume/history')
+  const response = await apiClient.get<ResumeHistoryItem[]>('/resume/history')
   return response.data
 }
 
 export const downloadResumeReport = async (analysisId: number, filename = 'resume-report.pdf') => {
-  const response = await apiClient.get(`/resume/report/${analysisId}`, { responseType: 'blob' })
+  const response = await apiClient.get<Blob>(`/resume/report/${analysisId}`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(new Blob([response.data]))
   const link = document.createElement('a')
   link.href = url
@@ -141,7 +126,7 @@ export const downloadResumeReport = async (analysisId: number, filename = 'resum
 /** Opens the candidate's own uploaded file in a new tab, unaltered.
  *  Distinct from downloadResumeReport, which is the generated feedback PDF. */
 export const viewOriginalResume = async (analysisId: number) => {
-  const response = await apiClient.get(`/resume/file/${analysisId}`, { responseType: 'blob' })
+  const response = await apiClient.get<Blob>(`/resume/file/${analysisId}`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(response.data)
   window.open(url, '_blank', 'noopener,noreferrer')
   // Revoked on a delay rather than immediately: the new tab needs the blob to
@@ -169,7 +154,7 @@ export const generateInterviewQuestions = async (payload: {
   seniority: string
   category: PrepCategory
 }): Promise<{ session_id: number; role: string; seniority: string; category: PrepCategory; questions: InterviewQuestion[] }> => {
-  const response = await apiClient.post('/interview/questions', payload)
+  const response = await apiClient.post<{ session_id: number; role: string; seniority: string; category: PrepCategory; questions: InterviewQuestion[] }>('/interview/questions', payload)
   return response.data
 }
 
@@ -203,7 +188,7 @@ export const evaluateInterviewAnswer = async (payload: {
   answer_text: string
   voice_metrics?: VoiceMetrics | null
 }): Promise<InterviewFeedback> => {
-  const response = await apiClient.post('/interview/evaluate', payload)
+  const response = await apiClient.post<InterviewFeedback>('/interview/evaluate', payload)
   return response.data
 }
 
@@ -236,7 +221,7 @@ export const transcribeInterviewAnswer = async (
 ): Promise<TranscribeResult> => {
   const formData = new FormData()
   formData.append('audio', audioBlob, filename)
-  const response = await apiClient.post('/interview/transcribe', formData, {
+  const response = await apiClient.post<TranscribeResult>('/interview/transcribe', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (evt) => {
       if (!onUploadProgress) return
@@ -272,7 +257,7 @@ export interface ActiveSession {
 
 /** Null when the user has no interview in progress. */
 export const getActiveInterviewSession = async (): Promise<ActiveSession | null> => {
-  const response = await apiClient.get('/interview/sessions/active')
+  const response = await apiClient.get<ActiveSession | null>('/interview/sessions/active')
   return response.data
 }
 
@@ -316,7 +301,7 @@ export interface SessionReport {
 }
 
 export const getInterviewSessionReport = async (sessionId: number): Promise<SessionReport> => {
-  const response = await apiClient.get(`/interview/sessions/${sessionId}/report`)
+  const response = await apiClient.get<SessionReport>(`/interview/sessions/${sessionId}/report`)
   return response.data
 }
 
@@ -328,7 +313,7 @@ export interface ModelAnswer {
 }
 
 export const getInterviewModelAnswer = async (questionId: number): Promise<ModelAnswer> => {
-  const response = await apiClient.post('/interview/model-answer', { question_id: questionId })
+  const response = await apiClient.post<ModelAnswer>('/interview/model-answer', { question_id: questionId })
   return response.data
 }
 
@@ -341,7 +326,7 @@ export const generateImprovedResume = async (
    *  named LASTNAME_FIRSTNAME_RESUME_ROLE_COMPANY.pdf. */
   filename?: string,
 ): Promise<void> => {
-  const response = await apiClient.post(
+  const response = await apiClient.post<Blob>(
     `/resume/generate/${analysisId}`,
     { full_name: fullName, skills_to_add: selectedSkills },
     { responseType: 'blob' },
@@ -389,7 +374,7 @@ export const generateScreeningPrep = async (payload: {
   jd_text?: string
   resume_analysis_id?: number | null
 }): Promise<ScreeningPrep> => {
-  const response = await apiClient.post('/interview/screening-prep', payload)
+  const response = await apiClient.post<ScreeningPrep>('/interview/screening-prep', payload)
   return response.data
 }
 
@@ -407,7 +392,7 @@ export interface InterviewHistoryItem {
 }
 
 export const getInterviewHistory = async (): Promise<InterviewHistoryItem[]> => {
-  const response = await apiClient.get('/interview/history')
+  const response = await apiClient.get<InterviewHistoryItem[]>('/interview/history')
   return response.data
 }
 
@@ -451,7 +436,7 @@ export interface PrepQuestionsResponse {
 }
 
 export const getPrepQuestions = async (role: string, category: PrepCategory): Promise<PrepQuestionsResponse> => {
-  const response = await apiClient.get('/interview/prep/questions', { params: { role, category } })
+  const response = await apiClient.get<PrepQuestionsResponse>('/interview/prep/questions', { params: { role, category } })
   return response.data
 }
 
@@ -465,7 +450,7 @@ export const updatePrepQuestionState = async (
   questionId: number,
   payload: PrepQuestionStateUpdate,
 ): Promise<PrepQuestionUserState> => {
-  const response = await apiClient.patch(`/interview/prep/questions/${questionId}/state`, payload)
+  const response = await apiClient.patch<PrepQuestionUserState>(`/interview/prep/questions/${questionId}/state`, payload)
   return response.data
 }
 
@@ -574,7 +559,7 @@ export interface JobFeed {
  * results queues a scrape server-side rather than making the caller wait.
  */
 export const getJobs = async (q?: string, filters?: JobFilters): Promise<JobFeed> => {
-  // Undefined keys are dropped by axios, so an unset filter never reaches the
+  // Undefined keys are dropped by lib/http, so an unset filter never reaches the
   // backend as an empty string it would have to special-case.
   const params: Record<string, string> = {}
   if (q) params.q = q
@@ -582,7 +567,7 @@ export const getJobs = async (q?: string, filters?: JobFilters): Promise<JobFeed
   if (filters?.experience) params.experience = filters.experience
   if (filters?.employment) params.employment = filters.employment
 
-  const response = await apiClient.get('/jobs', {
+  const response = await apiClient.get<JobFeed>('/jobs', {
     params: Object.keys(params).length ? params : undefined,
   })
   return response.data
@@ -627,7 +612,7 @@ export interface ProfileUpdate {
 }
 
 export const updateUserProfile = async (patch: ProfileUpdate): Promise<UserProfile> => {
-  const response = await apiClient.patch('/user/profile', patch)
+  const response = await apiClient.patch<UserProfile>('/user/profile', patch)
   return response.data
 }
 
@@ -649,7 +634,7 @@ export interface ActivityItem {
 }
 
 export const getUserProfile = async (): Promise<UserProfile> => {
-  const response = await apiClient.get('/user/profile')
+  const response = await apiClient.get<UserProfile>('/user/profile')
   return response.data
 }
 
@@ -660,24 +645,24 @@ export interface OnboardingPayload {
 }
 
 export const completeOnboarding = async (payload: OnboardingPayload): Promise<UserProfile> => {
-  const response = await apiClient.post('/user/onboarding', payload)
+  const response = await apiClient.post<UserProfile>('/user/onboarding', payload)
   return response.data
 }
 
 /** Marks onboarding done without roles. A separate endpoint because
  *  /user/onboarding enforces a 3-5 role bound that an empty list fails. */
 export const skipOnboarding = async (): Promise<UserProfile> => {
-  const response = await apiClient.post('/user/onboarding/skip')
+  const response = await apiClient.post<UserProfile>('/user/onboarding/skip')
   return response.data
 }
 
 export const getUserStats = async (): Promise<UserStats> => {
-  const response = await apiClient.get('/user/stats')
+  const response = await apiClient.get<UserStats>('/user/stats')
   return response.data
 }
 
 export const getUserActivity = async (): Promise<ActivityItem[]> => {
-  const response = await apiClient.get('/user/activity')
+  const response = await apiClient.get<{ items?: ActivityItem[] }>('/user/activity')
   return response.data.items ?? []
 }
 
@@ -716,7 +701,7 @@ export const stageResumeFixes = async (
   analysisId: number,
   experiences?: BuilderExperienceEntry[],
 ): Promise<StageFixesResult> => {
-  const response = await apiClient.post(`/resume-builder/stage-fixes/${analysisId}`, {
+  const response = await apiClient.post<StageFixesResult>(`/resume-builder/stage-fixes/${analysisId}`, {
     experiences: experiences?.length ? experiences : undefined,
   })
   return response.data
@@ -781,7 +766,7 @@ export interface QualityReport {
 
 /** Free — pure text analysis, no LLM call, so it's safe to call on every scan. */
 export const getQualityReport = async (analysisId: number): Promise<QualityReport> => {
-  const response = await apiClient.post(`/resume-builder/quality-report/${analysisId}`)
+  const response = await apiClient.post<QualityReport>(`/resume-builder/quality-report/${analysisId}`)
   return response.data
 }
 
@@ -850,7 +835,7 @@ export interface ResumeReview {
 /** Job-specific review (Mode B) for an existing scan. Free, no write —
  *  parallels getQualityReport's cost profile. */
 export const getResumeReview = async (analysisId: number): Promise<ResumeReview> => {
-  const response = await apiClient.get(`/resume/review/${analysisId}`)
+  const response = await apiClient.get<ResumeReview>(`/resume/review/${analysisId}`)
   return response.data
 }
 
@@ -878,7 +863,7 @@ export interface CompileResumeResult {
 }
 
 export const compileResume = async (payload: CompileResumeRequest): Promise<CompileResumeResult> => {
-  const response = await apiClient.post('/resume-builder/compile-and-score', payload)
+  const response = await apiClient.post<CompileResumeResult>('/resume-builder/compile-and-score', payload)
   return response.data
 }
 
@@ -962,14 +947,14 @@ export interface CreateApplicationPayload {
 }
 
 export const getApplicationPipeline = async (): Promise<Pipeline> => {
-  const response = await apiClient.get('/applications/pipeline')
+  const response = await apiClient.get<Pipeline>('/applications/pipeline')
   return response.data
 }
 
 export const createApplication = async (
   payload: CreateApplicationPayload,
 ): Promise<JobApplication> => {
-  const response = await apiClient.post('/applications', payload)
+  const response = await apiClient.post<JobApplication>('/applications', payload)
   return response.data
 }
 
@@ -977,7 +962,7 @@ export const updateApplicationStatus = async (
   applicationId: number,
   status: ApplicationStatus,
 ): Promise<JobApplication> => {
-  const response = await apiClient.patch(`/applications/${applicationId}/status`, { status })
+  const response = await apiClient.patch<JobApplication>(`/applications/${applicationId}/status`, { status })
   return response.data
 }
 
@@ -986,7 +971,7 @@ export const updateApplication = async (
   applicationId: number,
   patch: Partial<Omit<JobApplication, 'id' | 'created_at' | 'updated_at' | 'applied_at'>>,
 ): Promise<JobApplication> => {
-  const response = await apiClient.patch(`/applications/${applicationId}`, patch)
+  const response = await apiClient.patch<JobApplication>(`/applications/${applicationId}`, patch)
   return response.data
 }
 
@@ -1050,14 +1035,14 @@ export interface ApplicationDetail {
 }
 
 export const getApplicationDetail = async (applicationId: number): Promise<ApplicationDetail> => {
-  const response = await apiClient.get(`/applications/${applicationId}`)
+  const response = await apiClient.get<ApplicationDetail>(`/applications/${applicationId}`)
   return response.data
 }
 
 /** Every status change across the whole pipeline, newest first — powers the
  *  Timeline view. */
 export const getApplicationActivity = async (): Promise<ApplicationActivityItem[]> => {
-  const response = await apiClient.get('/applications/activity')
+  const response = await apiClient.get<ApplicationActivityItem[]>('/applications/activity')
   return response.data
 }
 
@@ -1113,12 +1098,12 @@ export interface CreateOfferPayload {
 }
 
 export const getOffers = async (): Promise<OfferList> => {
-  const response = await apiClient.get('/offers')
+  const response = await apiClient.get<OfferList>('/offers')
   return response.data
 }
 
 export const createOffer = async (payload: CreateOfferPayload): Promise<JobOffer> => {
-  const response = await apiClient.post('/offers', payload)
+  const response = await apiClient.post<JobOffer>('/offers', payload)
   return response.data
 }
 
@@ -1169,7 +1154,7 @@ export interface AnalyticsSummary {
 }
 
 export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
-  const response = await apiClient.get('/analytics/summary')
+  const response = await apiClient.get<AnalyticsSummary>('/analytics/summary')
   return response.data
 }
 
@@ -1229,7 +1214,7 @@ export interface DashboardOverview {
 }
 
 export const getDashboardOverview = async (): Promise<DashboardOverview> => {
-  const response = await apiClient.get('/dashboard/overview')
+  const response = await apiClient.get<DashboardOverview>('/dashboard/overview')
   return response.data
 }
 
@@ -1311,7 +1296,7 @@ export interface DashboardHome {
 }
 
 export const getDashboardHome = async (): Promise<DashboardHome> => {
-  const response = await apiClient.get('/dashboard/home')
+  const response = await apiClient.get<DashboardHome>('/dashboard/home')
   return response.data
 }
 
@@ -1348,27 +1333,27 @@ export interface NotificationList {
 }
 
 export const getNotifications = async (): Promise<NotificationList> => {
-  const response = await apiClient.get('/notifications')
+  const response = await apiClient.get<NotificationList>('/notifications')
   return response.data
 }
 
 export const getUnreadNotificationCount = async (): Promise<number> => {
-  const response = await apiClient.get('/notifications/unread-count')
+  const response = await apiClient.get<{ unread_count: number }>('/notifications/unread-count')
   return response.data.unread_count
 }
 
 export const markNotificationRead = async (id: number): Promise<AppNotification> => {
-  const response = await apiClient.post(`/notifications/${id}/read`)
+  const response = await apiClient.post<AppNotification>(`/notifications/${id}/read`)
   return response.data
 }
 
 export const markAllNotificationsRead = async (): Promise<number> => {
-  const response = await apiClient.post('/notifications/read-all')
+  const response = await apiClient.post<{ updated: number }>('/notifications/read-all')
   return response.data.updated
 }
 
 export const archiveNotification = async (id: number): Promise<AppNotification> => {
-  const response = await apiClient.post(`/notifications/${id}/archive`)
+  const response = await apiClient.post<AppNotification>(`/notifications/${id}/archive`)
   return response.data
 }
 
@@ -1425,7 +1410,7 @@ export const getTailorPreview = async (payload: {
   full_name?: string
   include_rewrites?: boolean
 }): Promise<TailorPreview> => {
-  const response = await apiClient.post('/resume-builder/tailor-preview', payload)
+  const response = await apiClient.post<TailorPreview>('/resume-builder/tailor-preview', payload)
   return response.data
 }
 
@@ -1456,7 +1441,7 @@ export interface ResumeAutofill {
 
 /** Free — regex and section splitting, no LLM call. Writes nothing. */
 export const getResumeAutofill = async (analysisId: number): Promise<ResumeAutofill> => {
-  const response = await apiClient.get(`/resume-builder/autofill/${analysisId}`)
+  const response = await apiClient.get<ResumeAutofill>(`/resume-builder/autofill/${analysisId}`)
   return response.data
 }
 
@@ -1508,7 +1493,7 @@ export interface ScoreBreakdown {
 
 /** Free — no LLM call, no rescoring. Writes nothing. */
 export const getScoreBreakdown = async (analysisId: number): Promise<ScoreBreakdown> => {
-  const response = await apiClient.get(`/resume/breakdown/${analysisId}`)
+  const response = await apiClient.get<ScoreBreakdown>(`/resume/breakdown/${analysisId}`)
   return response.data
 }
 
@@ -1547,7 +1532,7 @@ export const generateCoverLetter = async (payload: {
   linkedin?: string
   tone?: CoverLetterTone
 }): Promise<CoverLetter> => {
-  const response = await apiClient.post('/cover-letter/generate', payload)
+  const response = await apiClient.post<CoverLetter>('/cover-letter/generate', payload)
   return response.data
 }
 
@@ -1580,17 +1565,17 @@ export interface CoachMessage {
 }
 
 export const listCoachConversations = async (): Promise<CoachConversation[]> => {
-  const response = await apiClient.get('/career-coach/conversations')
+  const response = await apiClient.get<CoachConversation[]>('/career-coach/conversations')
   return response.data
 }
 
 export const createCoachConversation = async (): Promise<CoachConversation> => {
-  const response = await apiClient.post('/career-coach/conversations')
+  const response = await apiClient.post<CoachConversation>('/career-coach/conversations')
   return response.data
 }
 
 export const getCoachMessages = async (conversationId: number): Promise<CoachMessage[]> => {
-  const response = await apiClient.get(`/career-coach/conversations/${conversationId}/messages`)
+  const response = await apiClient.get<CoachMessage[]>(`/career-coach/conversations/${conversationId}/messages`)
   return response.data
 }
 
