@@ -1,94 +1,355 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
-  FileSearch, MessageSquareCode, TrendingUp, ArrowRight, Clock, Target, BarChart2, CalendarDays,
+  FileSearch, MessageSquareCode, TrendingUp, ArrowRight, Clock, Target, CalendarDays,
+  Briefcase, KanbanSquare, Mic, GraduationCap, Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
-import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts';
+import dynamic from 'next/dynamic';
 import { useAuth } from '../../../lib/AuthContext';
 import { useAccentPalette } from '../../../lib/useAccentPalette';
+import { getDashboardHome, type DashboardHome } from '@/lib/apiClient';
+import { STAGE_LABELS, STAGE_MARKERS } from '@/lib/applicationStages';
+import { categoryLabel } from '@/lib/interviewCategories';
+import { bandColor, bandLabel } from '@/lib/scoreBands';
 import { ScoreRing } from '@/components/ScoreRing';
+import { NextActionCard } from '@/components/NextActionCard';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { ResumeReminderDrawer } from '@/components/onboarding/ResumeReminderDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { InlineError } from '@/components/resume/InlineError';
 import { useDashboardData } from '../../../lib/useDashboardData';
-import { FreshJobsPanel } from '@/components/dashboard/FreshJobsPanel';
-import { PipelineMetrics } from '@/components/dashboard/PipelineMetrics';
-import { getDashboardOverview, type DashboardOverview } from '@/lib/apiClient';
+
+/* recharts is the single largest chunk in the bundle (~360KB) and this chart
+   is the last block on the page, below the fold on every viewport. Loading it
+   on demand keeps it out of the dashboard's initial JS. ssr:false because the
+   chart measures its own container, so there is nothing useful to prerender. */
+const ResumeTrendChart = dynamic(() => import('@/components/dashboard/ResumeTrendChart'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-64 w-full rounded-xl md:h-72" />,
+});
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-const PERFORMANCE_DATA = [
-  { month: 'Jan', ats: 42, interview: 34 },
-  { month: 'Feb', ats: 58, interview: 44 },
-  { month: 'Mar', ats: 65, interview: 51 },
-  { month: 'Apr', ats: 71, interview: 58 },
-  { month: 'May', ats: 74, interview: 63 },
-  { month: 'Jun', ats: 80, interview: 68 },
-  { month: 'Jul', ats: 84, interview: 72 },
-  { month: 'Aug', ats: 82, interview: 74 },
-  { month: 'Sep', ats: 87, interview: 76 },
-  { month: 'Oct', ats: 84, interview: 77 },
-  { month: 'Nov', ats: 88, interview: 79 },
-  { month: 'Dec', ats: 91, interview: 78 },
-];
+const NEXT_ACTION_ICON: Record<string, typeof Sparkles> = {
+  improve_resume: FileSearch,
+  practice_interview: MessageSquareCode,
+  apply_to_jobs: Briefcase,
+  follow_up_recruiter: KanbanSquare,
+  review_missing_skills: Target,
+  open_career_coach: Sparkles,
+};
 
-/** Splits a display value like "84%" into an animated number + suffix. */
-function splitStat(value: string) {
-  const match = value.match(/^(\d+(?:\.\d+)?)(.*)$/);
-  if (!match) return { number: 0, suffix: value };
-  return { number: parseFloat(match[1]), suffix: match[2] };
-}
-
-interface ChartTooltipProps {
-  active?: boolean;
-  payload?: readonly { dataKey?: string; name?: string; value?: number; color?: string }[];
-  label?: string;
-}
-
-function ChartTooltip(props: ChartTooltipProps) {
-  const { active, payload, label } = props;
-  if (!active || !payload || !payload.length) return null;
+function StatCard({
+  icon: Icon, label, value, change, color, delay,
+}: {
+  icon: typeof Sparkles; label: string; value: string; change: string; color: string; delay: number;
+}) {
   return (
-    <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl px-3.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.6)] min-w-[140px]">
-      <div className="text-[11px] font-medium text-[var(--color-ink-faint)] mb-2">{label}</div>
-      <div className="space-y-1.5">
-        {payload.map((p) => (
-          <div key={p.dataKey} className="flex items-center gap-2 text-xs">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-            <span className="text-[var(--color-ink-dim)]">{p.name}</span>
-            <span className="font-semibold text-[var(--color-ink)] ml-auto tabular-nums">{p.value}</span>
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay, ease: EASE }}
+      className="glass-card-hover p-5 group hover:-translate-y-0.5"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+          style={{ backgroundColor: `${color}15`, boxShadow: `0 0 0 1px ${color}25` }}
+        >
+          <Icon className="w-4 h-4" style={{ color }} />
+        </div>
+      </div>
+      <div className="text-2xl font-display font-bold text-(--color-ink) mb-1 tabular-nums">{value}</div>
+      <div className="text-xs text-(--color-ink-dim) mb-2">{label}</div>
+      <div className="flex items-center gap-1 text-xs font-medium" style={{ color }}>
+        <TrendingUp className="w-3 h-3" />
+        {change}
+      </div>
+    </motion.div>
+  );
+}
+
+/** Em dash rather than 0 for absent values — a new account has no average
+ *  score, and "0%" reads as a catastrophic result instead of an empty one. */
+function show(value: number | null | undefined, suffix = ''): string {
+  return value === null || value === undefined ? '—' : `${value}${suffix}`;
+}
+
+function DashboardContent({ home }: { home: DashboardHome }) {
+  const palette = useAccentPalette();
+
+  const statCards = [
+    {
+      icon: FileSearch,
+      label: 'Resume Health',
+      value: show(home.resume.latest_ats_score, '%'),
+      change: home.resume.latest_filename ? bandLabel(home.resume.latest_band) : 'No scans yet',
+      color: palette.accent,
+    },
+    {
+      icon: KanbanSquare,
+      label: 'Active Applications',
+      value: show(home.applications.active),
+      change: `${home.applications.total} tracked total`,
+      color: palette.accentLight,
+    },
+    {
+      icon: MessageSquareCode,
+      label: 'Interview Readiness',
+      value: home.interview.average_score != null ? `${home.interview.average_score}/10` : '—',
+      change: home.interview.completed_sessions
+        ? `${home.interview.completed_sessions} session(s) completed`
+        : 'No sessions yet',
+      color: palette.accentLighter,
+    },
+    {
+      icon: Target,
+      label: 'Offer Success Rate',
+      value: show(home.applications.success_rate, '%'),
+      change: `${home.applications.offers} offer(s), ${home.applications.rejections} rejection(s)`,
+      color: palette.accent,
+    },
+  ];
+
+  const chartData = home.analytics.ats_history.map((point) => ({
+    label: point.label,
+    date: point.date ? new Date(point.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—',
+    score: point.score,
+  }));
+
+  return (
+    <>
+      {/* Next Actions — answers "what should I do next", right under the fold */}
+      {home.next_actions.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1, ease: EASE }}>
+          <h2 className="text-sm font-semibold text-(--color-ink) mb-3">What to do next</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {home.next_actions.map((action) => (
+              <NextActionCard key={action.key} action={action} icon={NEXT_ACTION_ICON[action.key]} />
+            ))}
           </div>
+        </motion.div>
+      )}
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((card, i) => (
+          <StatCard key={card.label} {...card} delay={i * 0.06} />
         ))}
       </div>
-    </div>
+
+      {/* Interview + Jobs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45, delay: 0.2, ease: EASE }} className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-(--color-ink)">Interview Progress</h2>
+            <Link href="/interview" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
+              Practice <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="rounded-xl bg-canvas-elevated p-3">
+              <div className="flex items-center gap-1.5 text-(--color-ink-faint) text-[10px] uppercase tracking-widest mb-1">
+                <GraduationCap className="w-3 h-3" /> Prep completed
+              </div>
+              <div className="text-lg font-display font-semibold text-(--color-ink) tabular-nums">
+                {home.interview.prep_completed_count}
+              </div>
+            </div>
+            <div className="rounded-xl bg-canvas-elevated p-3">
+              <div className="flex items-center gap-1.5 text-(--color-ink-faint) text-[10px] uppercase tracking-widest mb-1">
+                <Mic className="w-3 h-3" /> Voice answers
+              </div>
+              <div className="text-lg font-display font-semibold text-(--color-ink) tabular-nums">
+                {home.interview.voice_answers_count}
+              </div>
+            </div>
+          </div>
+          {home.interview.latest_report ? (
+            <Link
+              href="/interview"
+              className="flex items-center justify-between rounded-xl p-3 hover:bg-canvas-elevated transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-(--color-ink) truncate">
+                  {home.interview.latest_report.role} · {categoryLabel(home.interview.latest_report.category)}
+                </p>
+                <p className="text-xs text-(--color-ink-faint) mt-0.5">Most recent report</p>
+              </div>
+              {home.interview.latest_report.readiness_band && (
+                <span
+                  className="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg"
+                  style={{ color: bandColor(home.interview.latest_report.readiness_band), background: `${bandColor(home.interview.latest_report.readiness_band)}15` }}
+                >
+                  {bandLabel(home.interview.latest_report.readiness_band)}
+                </span>
+              )}
+            </Link>
+          ) : (
+            <p className="text-sm text-(--color-ink-faint) text-center py-4">No completed mock interview yet.</p>
+          )}
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45, delay: 0.25, ease: EASE }} className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-(--color-ink)">Top Matching Jobs</h2>
+            <Link href="/jobs" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
+              Browse all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {home.jobs.top_matches.length === 0 ? (
+            <p className="text-sm text-(--color-ink-faint) text-center py-4">
+              Scan a resume to see jobs matched against it.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {home.jobs.top_matches.slice(0, 3).map((job) => (
+                <a
+                  key={job.id}
+                  href={job.applyUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-canvas-elevated transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-(--color-ink) truncate">{job.title}</p>
+                    <p className="text-xs text-(--color-ink-faint) truncate">{job.company}</p>
+                  </div>
+                  {job.match?.overallMatch != null && job.match.band && (
+                    <span
+                      className="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg tabular-nums"
+                      style={{ color: bandColor(job.match.band), background: `${bandColor(job.match.band)}15` }}
+                    >
+                      {Math.round(job.match.overallMatch)}%
+                    </span>
+                  )}
+                </a>
+              ))}
+              {home.jobs.missing_skills.length > 0 && (
+                <div className="pt-2 mt-2 border-t border-(--color-canvas-line)">
+                  <p className="text-[10px] uppercase tracking-widest text-(--color-ink-faint) mb-1.5">
+                    Missing skills
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {home.jobs.missing_skills.map((skill) => (
+                      <span key={skill} className="chip text-[11px]">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {home.jobs.recruiter_perspective && (
+                <p className="text-xs text-(--color-ink-dim) leading-relaxed mt-3 italic">
+                  “{home.jobs.recruiter_perspective}”
+                </p>
+              )}
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Activity + Upcoming Interviews */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3, ease: EASE }} className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-(--color-ink)">Recent Activity</h2>
+            <Link href="/history" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {home.activity.recent_activity.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-(--color-ink-dim)">Nothing here yet.</p>
+              <Link href="/resume" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-(--color-accent) hover:text-(--color-accent-light)">
+                Analyze a resume to get started <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {home.activity.recent_activity.map((item) => (
+                <div key={`${item.kind}-${item.id}`} className="flex items-center gap-4 p-3 rounded-xl hover:bg-canvas-elevated transition-colors">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ring-1 ring-inset ${
+                    item.kind === 'resume' ? 'bg-(--color-accent)/15 ring-(--color-accent)/25' : 'bg-(--color-accent-light)/15 ring-(--color-accent-light)/25'
+                  }`}>
+                    {item.kind === 'resume'
+                      ? <FileSearch className="w-4 h-4 text-(--color-accent)" />
+                      : <MessageSquareCode className="w-4 h-4 text-(--color-accent-light)" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-(--color-ink) truncate">{item.title}</div>
+                    <div className="text-xs text-(--color-ink-faint) flex items-center gap-2 mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}
+                      {' · '}
+                      {item.kind === 'resume' ? 'Resume scan' : 'Interview session'}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-semibold text-(--color-accent-lighter)">
+                      {item.score !== null ? `${item.score}%` : '—'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.35, ease: EASE }} className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-(--color-ink)">Upcoming Interviews</h2>
+            <Link href="/applications" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
+              Open pipeline <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {home.activity.upcoming_interviews.length === 0 ? (
+            <p className="text-sm text-(--color-ink-faint) text-center py-8">
+              No applications currently at an interview stage.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {home.activity.upcoming_interviews.map((app) => (
+                <div key={app.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-canvas-elevated transition-colors">
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: STAGE_MARKERS[app.status] }} aria-hidden="true" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-(--color-ink) truncate">{app.job_title}</div>
+                    <div className="text-xs text-(--color-ink-faint)">{app.company}</div>
+                  </div>
+                  <span className="text-xs text-(--color-ink-dim) shrink-0">{STAGE_LABELS[app.status]}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Performance chart — real data (analytics.ats_history), not a fixture */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.4, ease: EASE }} className="glass-card p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <div>
+            <h2 className="text-sm font-semibold text-(--color-ink)">Resume Improvement Trend</h2>
+            <p className="text-xs text-(--color-ink-faint) mt-0.5">ATS score across every scan you&apos;ve run</p>
+          </div>
+        </div>
+
+        {chartData.length < 2 ? (
+          <p className="text-sm text-(--color-ink-faint) text-center py-10">
+            Scan at least two resumes to see a trend here.
+          </p>
+        ) : (
+          <ResumeTrendChart data={chartData} />
+        )}
+      </motion.div>
+    </>
   );
 }
 
 export default function DashboardPage() {
-  // Loaded separately from the core dashboard data: the news half calls an
-  // external API, and a slow Federal Register should delay one panel, not the
-  // whole page.
-  const [overview, setOverview] = useState<DashboardOverview | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getDashboardOverview()
-      .then((data) => { if (!cancelled) setOverview(data); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
   const { user } = useAuth();
-  const palette = useAccentPalette();
   const {
     profile,
-    stats,
-    activity,
-    loading,
     showOnboarding,
     submitError,
     finishOnboarding,
@@ -98,48 +359,11 @@ export default function DashboardPage() {
     uploadReminderResume,
   } = useDashboardData();
 
-  // Em dash rather than 0 for absent values: a new account has no average ATS
-  // score, and "0%" reads as a catastrophic result instead of an empty one.
-  const show = (value: number | null | undefined, suffix = '') =>
-    value === null || value === undefined ? '—' : `${value}${suffix}`;
+  const { data: home, isLoading, isError } = useQuery({
+    queryKey: ['dashboard', 'home'],
+    queryFn: getDashboardHome,
+  });
 
-  const STAT_CARDS = [
-    {
-      icon: FileSearch,
-      label: 'Resumes Analyzed',
-      value: show(stats?.resumes_analyzed),
-      change: stats?.latest_ats_score != null ? `Latest ${stats.latest_ats_score}%` : 'No scans yet',
-      color: palette.accent,
-    },
-    {
-      icon: MessageSquareCode,
-      label: 'Interview Sessions',
-      value: show(stats?.interview_sessions),
-      change: stats?.interview_sessions ? 'Keep practising' : 'No sessions yet',
-      color: palette.accentLight,
-    },
-    {
-      icon: Target,
-      label: 'Avg ATS Score',
-      value: show(stats?.avg_ats_score, '%'),
-      change: stats?.resumes_analyzed ? `Across ${stats.resumes_analyzed} scan(s)` : 'Run an analysis',
-      color: palette.accentLighter,
-    },
-    {
-      icon: BarChart2,
-      label: 'Interview Score',
-      value: show(stats?.latest_interview_score),
-      // Scores are per answer on a 0-10 rubric, so the latest session's figure
-      // is the mean of its answers — not a percentage.
-      change: stats?.latest_interview_score != null ? 'Latest session avg / 10' : 'No answers yet',
-      color: palette.accent,
-    },
-  ];
-  const QUICK_ACTIONS = [
-    { icon: FileSearch, label: 'Analyze Resume', desc: 'Upload and get instant ATS score', href: '/resume', color: palette.accent },
-    { icon: MessageSquareCode, label: 'Mock Interview', desc: 'Practice with AI coach', href: '/interview', color: palette.accentLight },
-    { icon: TrendingUp, label: 'View Analytics', desc: 'Track your progress', href: '/analytics', color: palette.accentLighter },
-  ];
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -150,12 +374,7 @@ export default function DashboardPage() {
       {/* Onboarding interceptor. Rendered inside the dashboard rather than in
           the layout so it only blocks this page — a user mid-flow elsewhere
           isn't yanked into a modal. */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onComplete={finishOnboarding}
-        onSkip={skipOnboarding}
-        error={submitError}
-      />
+      <OnboardingModal isOpen={showOnboarding} onComplete={finishOnboarding} onSkip={skipOnboarding} error={submitError} />
 
       {/* Follow-up for users who skipped the resume at onboarding. Non-blocking
           by design — the dashboard stays usable behind it. */}
@@ -174,302 +393,65 @@ export default function DashboardPage() {
         className="flex flex-col md:flex-row md:items-end md:justify-between gap-4"
       >
         <div>
-          <span className="section-eyebrow-violet mb-3 inline-flex">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] heartbeat-glow" />
+          <span className="eyebrow mb-3 inline-flex">
+            <span className="w-1.5 h-1.5 rounded-full bg-(--color-accent) heartbeat-glow" />
             Dashboard
           </span>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold text-[var(--color-ink)] leading-tight">
+          <h1 className="text-2xl md:text-3xl font-display font-semibold text-(--color-ink) leading-tight">
             {greeting}, <span className="gradient-text-violet">{user?.firstName || 'there'}</span>
           </h1>
-          <p className="text-sm text-[var(--color-ink-dim)] mt-1.5">
-            Here&apos;s your career progress overview.
+          <p className="text-sm text-(--color-ink-dim) mt-1.5">
+            Here&apos;s what to focus on next.
           </p>
           {profile && profile.target_roles.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-[var(--color-ink-faint)]">Targeting</span>
+              <span className="text-xs text-(--color-ink-faint)">Targeting</span>
               {profile.target_roles.map((role) => (
-                <span key={role} className="chip">
-                  {role}
-                </span>
+                <span key={role} className="chip">{role}</span>
               ))}
             </div>
           )}
         </div>
         <div className="flex items-center gap-5 shrink-0">
-          {/* Headline meter: the one number the whole page is about. Falls back
-              to 0 only for the ring's geometry — the stat card above reports
-              the absent state honestly as an em dash. */}
-          <ScoreRing value={stats?.avg_ats_score ?? 0} size={104} strokeWidth={7} label="ATS" />
-          <div className="flex items-center gap-2 text-xs text-[var(--color-ink-faint)]">
+          <ScoreRing value={home?.resume.avg_ats_score ?? 0} size={104} strokeWidth={7} label="ATS" />
+          <div className="flex items-center gap-2 text-xs text-(--color-ink-faint)">
             <CalendarDays className="w-3.5 h-3.5" />
             {dateLabel}
           </div>
         </div>
       </motion.div>
 
-      {/* Jobs left, policy right — the two time-sensitive feeds, above the
-          slower-moving progress metrics. On narrow screens the grid collapses
-          and jobs come first, which is the ordering that matters when only one
-          fits on screen.
+      {isError && (
+        <InlineError message="Could not load your dashboard. Check that the API is running and try again." />
+      )}
 
-          Skeletons rather than nothing while loading: this block sits above
-          the fold now, so an empty gap would push the whole page down and then
-          snap it back when the request lands. */}
-      {overview ? (
+      {isLoading && !isError && (
         <div className="space-y-5">
-          {/* KPIs first — the overview answers "where do I stand" before it
-              answers "what is new". */}
-          <PipelineMetrics metrics={overview.metrics} />
-          <FreshJobsPanel jobs={overview.fresh_jobs} window={overview.fresh_window} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <Skeleton className="h-[320px]" />
-          <Skeleton className="h-[320px]" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[140px]" />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <Skeleton className="h-[280px]" />
+            <Skeleton className="h-[280px]" />
+          </div>
         </div>
       )}
 
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STAT_CARDS.map(({ icon: Icon, label, value, change, color }, i) => {
-          const { number, suffix } = splitStat(value);
-          return (
-            <motion.div
-              key={label}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: i * 0.08, ease: EASE }}
-              className="glass-card-hover p-5 group hover:-translate-y-0.5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
-                  style={{ backgroundColor: `${color}15`, boxShadow: `0 0 0 1px ${color}25` }}
-                >
-                  <Icon className="w-4 h-4" style={{ color }} />
-                </div>
-              </div>
-              <div className="text-2xl font-display font-bold text-[var(--color-ink)] mb-1 tabular-nums">
-                {number}
-                {suffix}
-              </div>
-              <div className="text-xs text-[var(--color-ink-dim)] mb-2">{label}</div>
-              <div className="flex items-center gap-1 text-xs font-medium" style={{ color }}>
-                <TrendingUp className="w-3 h-3" />
-                {change}
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {/* Quick actions + Recent sessions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, x: -16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, delay: 0.2, ease: EASE }}
-          className="glass-card p-5"
-        >
-          <h2 className="text-sm font-semibold text-[var(--color-ink)] mb-4">Quick Actions</h2>
-          <div className="space-y-1.5">
-            {QUICK_ACTIONS.map(({ icon: Icon, label, desc, href, color }) => (
-              <Link
-                key={label}
-                href={href}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-canvas-elevated transition-colors group"
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110"
-                  style={{ backgroundColor: `${color}15`, boxShadow: `0 0 0 1px ${color}20` }}
-                >
-                  <Icon className="w-4 h-4" style={{ color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[var(--color-ink)] group-hover:text-[var(--color-accent-light)] transition-colors">{label}</div>
-                  <div className="text-xs text-[var(--color-ink-faint)]">{desc}</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-[var(--color-ink-faint)] group-hover:text-[var(--color-accent)] group-hover:translate-x-0.5 transition-all" />
-              </Link>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Recent Sessions */}
-        <motion.div
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, delay: 0.25, ease: EASE }}
-          className="lg:col-span-2 glass-card p-5"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-[var(--color-ink)]">Recent Activity</h2>
-            <Link href="/history" className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors flex items-center gap-1">
-              View all
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-          {loading ? (
-            /* Matched to the real row below — 36px icon, two text lines, same
-               gap and padding — so hydration swaps content in without the
-               list jumping. A centred one-line "Loading…" collapses to a
-               taller list on arrival, which is the shift itself. */
-            <div className="space-y-1">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="flex items-center gap-4 p-3">
-                  <Skeleton className="h-9 w-9 shrink-0 rounded-xl" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/5" />
-                    <Skeleton className="h-3 w-3/5" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : activity.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-sm text-[var(--color-ink-dim)]">Nothing here yet.</p>
-              {!loading && (
-                <Link
-                  href="/resume"
-                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-light)]"
-                >
-                  Analyze a resume to get started
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {activity.map((item, i) => (
-                <motion.div
-                  key={`${item.kind}-${item.id}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + i * 0.06, ease: EASE }}
-                  className="flex items-center gap-4 p-3 rounded-xl hover:bg-canvas-elevated transition-colors"
-                >
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ring-1 ring-inset ${
-                    item.kind === 'resume' ? 'bg-[var(--color-accent)]/15 ring-[var(--color-accent)]/25' : 'bg-[var(--color-accent-light)]/15 ring-[var(--color-accent-light)]/25'
-                  }`}>
-                    {item.kind === 'resume'
-                      ? <FileSearch className="w-4 h-4 text-[var(--color-accent)]" />
-                      : <MessageSquareCode className="w-4 h-4 text-[var(--color-accent-light)]" />
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[var(--color-ink)] truncate">{item.title}</div>
-                    <div className="text-xs text-[var(--color-ink-faint)] flex items-center gap-2 mt-0.5">
-                      <Clock className="w-3 h-3" />
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}
-                      {' · '}
-                      {item.kind === 'resume' ? 'Resume scan' : 'Interview session'}
-                    </div>
-                    {/* Bar only where there's a score to draw. Interview
-                        sessions carry none until their answers are graded. */}
-                    {item.score !== null && (
-                      <div className="h-1 rounded-full bg-[var(--color-canvas-line-soft)] mt-2 overflow-hidden max-w-[160px]">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-lighter)]"
-                          style={{ width: `${Math.min(100, Math.max(0, item.score))}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold text-[var(--color-accent-lighter)]">
-                      {item.score !== null ? `${item.score}%` : '—'}
-                    </div>
-                    <div className="text-xs text-[var(--color-ink-faint)]">
-                      {item.score !== null ? 'ATS' : 'Session'}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </motion.div>
-      </div>
-
-      {/* Performance chart */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.4, ease: EASE }}
-        className="glass-card p-6"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--color-ink)]">Performance Over Time</h2>
-            <p className="text-xs text-[var(--color-ink-faint)] mt-0.5">ATS score and interview performance trends</p>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-[var(--color-ink-dim)]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-[2.5px] rounded-full bg-[var(--color-accent)]" />
-              ATS Score
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-[2.5px] rounded-full bg-[var(--color-accent-light)]" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${palette.accentLight} 0 3px, transparent 3px 5px)` }} />
-              Interview
-            </div>
-          </div>
-        </div>
-
-        <div className="h-64 md:h-72 -ml-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={PERFORMANCE_DATA} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="atsFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={palette.accent} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={palette.accent} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke="#1e1e1e" strokeDasharray="3 5" />
-              <XAxis
-                dataKey="month"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: palette.inkFaint, fontSize: 11 }}
-                dy={8}
-              />
-              <YAxis hide domain={[0, 100]} />
-              <Tooltip content={<ChartTooltip />} cursor={{ stroke: '#262626', strokeWidth: 1 }} />
-              <Area
-                type="monotone"
-                dataKey="ats"
-                name="ATS Score"
-                stroke={palette.accent}
-                strokeWidth={2.5}
-                fill="url(#atsFill)"
-                activeDot={{ r: 4, fill: palette.accent, stroke: '#0A0A0A', strokeWidth: 2 }}
-                animationDuration={900}
-              />
-              <Line
-                type="monotone"
-                dataKey="interview"
-                name="Interview Score"
-                stroke={palette.accentLight}
-                strokeWidth={2}
-                strokeDasharray="5 4"
-                dot={false}
-                activeDot={{ r: 4, fill: palette.accentLight, stroke: '#0A0A0A', strokeWidth: 2 }}
-                animationDuration={900}
-                animationBegin={150}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
+      {home && !isError && <DashboardContent home={home} />}
 
       {/* Co-branding. Placed at the foot of the page rather than the header:
           it is an attribution, not a product claim. */}
-      <div className="flex items-center justify-center gap-2 border-t border-[var(--color-canvas-line)] pt-5">
-        <span className="h-1 w-1 rounded-full bg-[var(--color-ink-faint)]" />
-        <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--color-ink-faint)]">
+      <div className="flex items-center justify-center gap-2 border-t border-(--color-canvas-line) pt-5">
+        <span className="h-1 w-1 rounded-full bg-(--color-ink-faint)" />
+        <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-(--color-ink-faint)">
           Developed in collaboration with Chieac Organisation
         </span>
-        <span className="h-1 w-1 rounded-full bg-[var(--color-ink-faint)]" />
+        <span className="h-1 w-1 rounded-full bg-(--color-ink-faint)" />
       </div>
     </div>
   );

@@ -2,9 +2,6 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as SwitchPrimitive from '@radix-ui/react-switch';
-import * as SelectPrimitive from '@radix-ui/react-select';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Bell,
   Lock,
@@ -18,15 +15,26 @@ import {
   CalendarClock,
   Eye,
   EyeOff,
-  TriangleAlert,
-  ChevronDown,
-  Check,
 } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
+import { useToast } from '@/components/ui/toast';
+import { useAuth } from '@/lib/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 import { springSnappy } from '@/lib/motion';
+
+const MIN_PASSWORD_LENGTH = 8;
 
 const SECTIONS = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -45,51 +53,30 @@ const NOTIFICATION_INFO: Record<string, { title: string; desc: string; icon: typ
 
 const DIGEST_FREQUENCIES = ['Daily', 'Weekly', 'Monthly'];
 
-function Switch({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: () => void }) {
-  return (
-    <SwitchPrimitive.Root
-      checked={checked}
-      onCheckedChange={onCheckedChange}
-      className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50 data-[state=checked]:bg-[var(--color-accent)] data-[state=unchecked]:bg-[var(--color-canvas-line)]"
-    >
-      <SwitchPrimitive.Thumb className="pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0" />
-    </SwitchPrimitive.Root>
-  );
-}
-
+/* Both controls used to be re-implemented inline here against the raw Radix
+   primitives, shadowing the project's own ui/switch and ui/select. The local
+   copies had drifted: a hardcoded `bg-white` thumb (wrong in either theme,
+   since the track is what carries the accent), a
+   `shadow-[0_20px_60px_rgba(0,0,0,0.6)]` popover that is far too heavy on
+   porcelain, and `focus:outline-none` on the trigger with only a border
+   colour to signal focus. The shared components already handle all three. */
 function FrequencySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <SelectPrimitive.Root value={value} onValueChange={onChange}>
-      <SelectPrimitive.Trigger className="relative w-full sm:w-48 flex items-center gap-2 bg-[var(--color-canvas)] border border-[var(--color-canvas-line)] rounded-xl pl-10 pr-3 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-accent)] data-[state=open]:border-[var(--color-accent)] transition-colors">
-        <CalendarClock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-ink-faint)] pointer-events-none" />
-        <SelectPrimitive.Value className="flex-1 text-left" />
-        <SelectPrimitive.Icon>
-          <ChevronDown className="w-4 h-4 text-[var(--color-ink-faint)]" />
-        </SelectPrimitive.Icon>
-      </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal>
-        <SelectPrimitive.Content
-          position="popper"
-          sideOffset={6}
-          className="overflow-hidden bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] z-50 w-[var(--radix-select-trigger-width)]"
-        >
-          <SelectPrimitive.Viewport className="p-1">
-            {DIGEST_FREQUENCIES.map((freq) => (
-              <SelectPrimitive.Item
-                key={freq}
-                value={freq}
-                className="flex items-center justify-between px-3 py-2 rounded-lg text-sm text-[var(--color-ink-dim)] data-[highlighted]:bg-[var(--color-accent)]/10 data-[highlighted]:text-[var(--color-ink)] outline-none cursor-pointer transition-colors"
-              >
-                <SelectPrimitive.ItemText>{freq}</SelectPrimitive.ItemText>
-                <SelectPrimitive.ItemIndicator>
-                  <Check className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                </SelectPrimitive.ItemIndicator>
-              </SelectPrimitive.Item>
-            ))}
-          </SelectPrimitive.Viewport>
-        </SelectPrimitive.Content>
-      </SelectPrimitive.Portal>
-    </SelectPrimitive.Root>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-full sm:w-48" aria-label="Digest frequency">
+        <span className="flex min-w-0 items-center gap-2">
+          <CalendarClock className="size-4 shrink-0 text-(--color-ink-faint)" aria-hidden="true" />
+          <SelectValue />
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {DIGEST_FREQUENCIES.map((freq) => (
+          <SelectItem key={freq} value={freq}>
+            {freq}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -97,10 +84,14 @@ function PasswordField({
   label,
   value,
   onChange,
+  error,
+  autoComplete,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  error?: string;
+  autoComplete?: string;
 }) {
   const [visible, setVisible] = useState(false);
   /* Derive a stable id from the label so the control is properly labelled
@@ -108,14 +99,14 @@ function PasswordField({
   const id = `pw-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
   return (
-    <Field label={label} htmlFor={id}>
+    <Field label={label} htmlFor={id} error={error}>
       <Input
         id={id}
         type={visible ? 'text' : 'password'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="••••••••"
-        autoComplete="off"
+        autoComplete={autoComplete ?? 'off'}
         startAdornment={<Lock />}
         endAdornment={
           <Button
@@ -136,6 +127,8 @@ function PasswordField({
 }
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const toast = useToast();
   const [activeSection, setActiveSection] = useState('notifications');
   const [notifications, setNotifications] = useState({
     emailDigest: true,
@@ -146,27 +139,65 @@ export default function SettingsPage() {
   const [digestFrequency, setDigestFrequency] = useState('Weekly');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
-  const handleDelete = () => {
-    setDeleting(true);
-    setTimeout(() => {
-      setDeleting(false);
-      setDeleteOpen(false);
-    }, 1200);
-  };
+  // Supabase's updateUser() trusts the active session rather than
+  // re-checking the current password — so "Current Password" is verified
+  // for real here via a sign-in call, rather than collected and silently
+  // ignored. A field that implies a check it doesn't perform is the same
+  // false-success problem as a button that does nothing.
+  async function handleUpdatePassword() {
+    setPasswordError('');
+    if (!currentPassword) {
+      setPasswordError('Enter your current password.');
+      return;
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (!user?.email) {
+      setPasswordError('Could not verify your account. Try signing in again.');
+      return;
+    }
+
+    setUpdatingPassword(true);
+    const supabase = createClient();
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signInError) {
+        setPasswordError('Current password is incorrect.');
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) {
+        setPasswordError(updateError.message);
+        return;
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      toast({ title: 'Password updated', description: 'Use your new password next time you sign in.' });
+    } catch {
+      setPasswordError('Something went wrong. Try again.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <span className="section-eyebrow-violet mb-3 inline-flex">
-          <Shield className="w-3 h-3" />
-          Preferences
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-display font-semibold text-[var(--color-ink)] mb-1">Settings</h1>
-        <p className="text-sm text-[var(--color-ink-dim)]">Manage your account preferences.</p>
-      </motion.div>
+      <PageHeader
+        eyebrow="Preferences"
+        eyebrowIcon={Shield}
+        title="Settings"
+        description="Manage your account preferences."
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5">
         {/* Sidebar */}
@@ -217,20 +248,20 @@ export default function SettingsPage() {
           >
             {activeSection === 'notifications' && (
               <div className="space-y-1">
-                <h2 className="text-base font-semibold text-[var(--color-ink)] mb-4">Notification Preferences</h2>
+                <h2 className="text-base font-semibold text-(--color-ink) mb-4">Notification Preferences</h2>
                 {Object.entries(notifications).map(([key, value]) => {
                   const info = NOTIFICATION_INFO[key];
                   const Icon = info.icon;
                   return (
-                    <div key={key} className="border-b border-[var(--color-canvas-line-soft)] last:border-0">
+                    <div key={key} className="border-b border-(--color-canvas-line-soft) last:border-0">
                       <div className="flex items-center justify-between py-3.5 gap-4">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-white/[0.03] border border-[var(--color-canvas-line)] flex items-center justify-center shrink-0">
-                            <Icon className="w-4 h-4 text-[var(--color-ink-dim)]" />
+                          <div className="w-8 h-8 rounded-lg bg-white/[0.03] border border-(--color-canvas-line) flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4 text-(--color-ink-dim)" />
                           </div>
                           <div className="min-w-0">
-                            <div className="text-sm font-medium text-[var(--color-ink)]">{info.title}</div>
-                            <div className="text-xs text-[var(--color-ink-faint)] mt-0.5">{info.desc}</div>
+                            <div className="text-sm font-medium text-(--color-ink)">{info.title}</div>
+                            <div className="text-xs text-(--color-ink-faint) mt-0.5">{info.desc}</div>
                           </div>
                         </div>
                         <Switch
@@ -249,7 +280,7 @@ export default function SettingsPage() {
                               className="overflow-hidden"
                             >
                               <div className="pb-4 pl-11">
-                                <label className="block text-xs font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-2">
+                                <label className="block text-xs font-mono uppercase tracking-widest text-(--color-ink-faint) mb-2">
                                   Digest frequency
                                 </label>
                                 <FrequencySelect value={digestFrequency} onChange={setDigestFrequency} />
@@ -261,22 +292,44 @@ export default function SettingsPage() {
                     </div>
                   );
                 })}
-                <Button className="mt-4">
-                  <Save />
-                  Save preferences
-                </Button>
+                {/* Deliberately disabled, not wired to a no-op. There is no
+                    preferences endpoint and no column on `profiles` to store
+                    any of this yet, so the toggles above are a local preview.
+                    A button that appears to save and silently discards is
+                    worse than one that says so. */}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button disabled>
+                    <Save />
+                    Save preferences
+                  </Button>
+                  <p className="text-xs text-(--color-ink-faint)">
+                    Notification preferences aren&apos;t stored yet — these toggles preview the
+                    settings, they don&apos;t persist.
+                  </p>
+                </div>
               </div>
             )}
 
             {activeSection === 'security' && (
               <div className="space-y-5">
-                <h2 className="text-base font-semibold text-[var(--color-ink)]">Security Settings</h2>
+                <h2 className="text-base font-semibold text-(--color-ink)">Security Settings</h2>
                 <div className="space-y-4 max-w-sm">
-                  <PasswordField label="Current Password" value={currentPassword} onChange={setCurrentPassword} />
-                  <PasswordField label="New Password" value={newPassword} onChange={setNewPassword} />
-                  <Button>
-                    <Lock />
-                    Update password
+                  <PasswordField
+                    label="Current Password"
+                    value={currentPassword}
+                    onChange={setCurrentPassword}
+                    autoComplete="current-password"
+                  />
+                  <PasswordField
+                    label="New Password"
+                    value={newPassword}
+                    onChange={setNewPassword}
+                    error={passwordError || undefined}
+                    autoComplete="new-password"
+                  />
+                  <Button onClick={handleUpdatePassword} disabled={updatingPassword} aria-busy={updatingPassword || undefined}>
+                    {updatingPassword ? <Spinner className="text-on-accent" label="Updating" /> : <Lock />}
+                    {updatingPassword ? 'Updating…' : 'Update password'}
                   </Button>
                 </div>
               </div>
@@ -284,83 +337,33 @@ export default function SettingsPage() {
 
             {activeSection === 'danger' && (
               <div className="space-y-5">
-                <h2 className="text-base font-semibold text-[var(--color-error)]">Danger Zone</h2>
-                <div className="p-4 bg-[var(--color-error)]/5 border border-[var(--color-error)]/20 rounded-xl">
-                  <div className="text-sm font-medium text-[var(--color-ink)] mb-1">Delete Account</div>
-                  <div className="text-xs text-[var(--color-ink-dim)] mb-4">
+                <h2 className="text-base font-semibold text-(--color-error)">Danger Zone</h2>
+                <div className="p-4 bg-(--color-error)/5 border border-(--color-error)/20 rounded-xl">
+                  <div className="text-sm font-medium text-(--color-ink) mb-1">Delete Account</div>
+                  <div className="text-xs text-(--color-ink-dim) mb-4">
                     Permanently delete your account and all associated data. This action cannot be undone.
                   </div>
 
-                  <DialogPrimitive.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
-                    <DialogPrimitive.Trigger asChild>
-                      <Button
-                        variant="outline"
-                        className="border-danger/25 bg-danger/10 text-danger hover:bg-danger/20"
-                      >
-                        <Trash2 />
-                        Delete my account
-                      </Button>
-                    </DialogPrimitive.Trigger>
-
-                    <AnimatePresence>
-                      {deleteOpen && (
-                        <DialogPrimitive.Portal forceMount>
-                          <DialogPrimitive.Overlay asChild forceMount>
-                            <motion.div
-                              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.15 }}
-                            />
-                          </DialogPrimitive.Overlay>
-                          <DialogPrimitive.Content asChild forceMount>
-                            <motion.div
-                              className="fixed left-1/2 top-1/2 w-[90vw] max-w-md bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-2xl p-6 z-50 shadow-[0_20px_80px_rgba(0,0,0,0.6)]"
-                              initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%' }}
-                              animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-                              exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-45%' }}
-                              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                            >
-                              <div className="w-11 h-11 rounded-full bg-[var(--color-error)]/10 border border-[var(--color-error)]/25 flex items-center justify-center mb-4">
-                                <TriangleAlert className="w-5 h-5 text-[var(--color-error)]" />
-                              </div>
-                              <DialogPrimitive.Title className="text-base font-semibold text-[var(--color-ink)] mb-1.5">
-                                Delete your account?
-                              </DialogPrimitive.Title>
-                              <DialogPrimitive.Description className="text-sm text-[var(--color-ink-dim)] mb-6 leading-relaxed">
-                                This permanently deletes your resumes, interview history, and progress. This action cannot
-                                be undone.
-                              </DialogPrimitive.Description>
-                              <div className="flex items-center justify-end gap-3">
-                                <DialogPrimitive.Close asChild>
-                                  <Button variant="ghost">Cancel</Button>
-                                </DialogPrimitive.Close>
-                                <Button
-                                  variant="destructive"
-                                  onClick={handleDelete}
-                                  disabled={deleting}
-                                  aria-busy={deleting || undefined}
-                                >
-                                  {deleting ? (
-                                    <>
-                                      <Spinner className="text-on-accent" label="Deleting" />
-                                      Deleting…
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Trash2 />
-                                      Yes, delete account
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            </motion.div>
-                          </DialogPrimitive.Content>
-                        </DialogPrimitive.Portal>
-                      )}
-                    </AnimatePresence>
-                  </DialogPrimitive.Root>
+                  {/* Deliberately disabled, not wired to a fake confirm dialog.
+                      Deleting an account for real means removing the Supabase
+                      auth user (an admin-only, service-role operation) and
+                      cascading through every table this user owns — neither
+                      exists yet. A dialog that runs a spinner and closes as
+                      if it worked, with no request behind it, is worse than
+                      a disabled button that says so. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled
+                    className="border-danger/25 bg-danger/10 text-danger"
+                  >
+                    <Trash2 />
+                    Delete my account
+                  </Button>
+                  <p className="mt-2 text-xs text-(--color-ink-faint)">
+                    Account deletion isn&apos;t available yet. To close your account now, contact support and we&apos;ll
+                    handle it manually.
+                  </p>
                 </div>
               </div>
             )}
@@ -369,19 +372,19 @@ export default function SettingsPage() {
               <div className="flex flex-col items-center justify-center py-14 text-center">
                 <div className="relative w-14 h-14 mb-4">
                   <div className="absolute inset-0 rounded-full heartbeat-glow" style={{ boxShadow: '0 0 22px 6px rgba(var(--glow-rgb),0.12)' }} />
-                  <div className="relative w-14 h-14 rounded-full bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 flex items-center justify-center">
+                  <div className="relative w-14 h-14 rounded-full bg-(--color-accent)/10 border border-(--color-accent)/20 flex items-center justify-center">
                     {activeSection === 'appearance' ? (
-                      <Palette className="w-5 h-5 text-[var(--color-accent)]" />
+                      <Palette className="w-5 h-5 text-(--color-accent)" />
                     ) : (
-                      <Shield className="w-5 h-5 text-[var(--color-accent)]" />
+                      <Shield className="w-5 h-5 text-(--color-accent)" />
                     )}
                   </div>
                 </div>
-                <span className="section-eyebrow-violet mb-3">Coming soon</span>
-                <div className="text-sm font-medium text-[var(--color-ink)]">
+                <span className="eyebrow mb-3">Coming soon</span>
+                <div className="text-sm font-medium text-(--color-ink)">
                   {activeSection === 'appearance' ? 'Custom appearance controls' : 'Advanced privacy controls'}
                 </div>
-                <div className="text-xs text-[var(--color-ink-faint)] mt-1 max-w-xs">
+                <div className="text-xs text-(--color-ink-faint) mt-1 max-w-xs">
                   {activeSection === 'appearance'
                     ? "We're building theme and density options. This section is under development."
                     : 'Data export and granular sharing controls are on the way.'}

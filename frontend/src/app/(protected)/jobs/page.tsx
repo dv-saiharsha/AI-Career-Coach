@@ -1,16 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Briefcase, Clock, MapPin, Search } from 'lucide-react'
+import { Briefcase, Clock, MapPin, Search, Sparkles } from 'lucide-react'
 import { getJobs, type JobFeed, type JobListing, type WorkMode } from '../../../lib/jobsData'
 import { CompanyLogo } from '@/components/jobs/CompanyLogo'
 import { ApplyTrackerButton } from '@/components/jobs/ApplyTrackerButton'
 import { useApplyTracker } from '@/hooks/useApplyTracker'
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer'
 import { stashJobContext } from '@/lib/jobContext'
+import { PageHeader } from '@/components/PageHeader'
 import { createApplication, getUserProfile } from '@/lib/apiClient'
+import { bandColor } from '@/lib/scoreBands'
+import { hasAnyMatchScores, JOB_SORT_OPTIONS, sortJobs, type JobSortOption } from '@/lib/jobSort'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -51,9 +54,9 @@ function refreshLabel(iso: string): string {
 }
 
 const MODE_STYLES: Record<WorkMode, string> = {
-  Remote: 'text-[var(--color-ok)] border-[var(--color-ok)]/25 bg-[var(--color-ok)]/5',
-  Hybrid: 'text-[var(--color-accent)] border-[var(--color-accent)]/25 bg-[var(--color-accent)]/5',
-  'On-site': 'text-[var(--color-warn)] border-[var(--color-warn)]/25 bg-[var(--color-warn)]/5',
+  Remote: 'text-(--color-ok) border-(--color-ok)/25 bg-(--color-ok)/5',
+  Hybrid: 'text-(--color-accent) border-(--color-accent)/25 bg-(--color-accent)/5',
+  'On-site': 'text-(--color-warn) border-(--color-warn)/25 bg-(--color-warn)/5',
 }
 
 // A search that misses the server cache costs a paid scraper run, so the input
@@ -85,6 +88,15 @@ export default function JobsPage() {
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved'>>({})
   const loading = loadedTerm !== `${searchTerm}|${h1b ?? ''}|${experience ?? ''}`
 
+  // Best Match becomes the default the first time a feed with any scored
+  // listing arrives — then never again, so a later background refresh (or
+  // a filter change that briefly returns an unscored feed) can't silently
+  // override a sort the user picked themselves. "Preserve the existing
+  // default ordering" is exactly what happens when this ref never fires:
+  // sortBy stays 'newest', sortJobs treats that as "leave the feed alone."
+  const [sortBy, setSortBy] = useState<JobSortOption>('newest')
+  const defaultSortApplied = useRef(false)
+
   // Debounce the raw input down to the term we actually send.
   useEffect(() => {
     const timer = setTimeout(() => setSearchTerm(query.trim()), SEARCH_DEBOUNCE_MS)
@@ -114,6 +126,18 @@ export default function JobsPage() {
     }
   }, [searchTerm, h1b, experience])
 
+  useEffect(() => {
+    if (defaultSortApplied.current || !feed) return
+    if (hasAnyMatchScores(feed.jobs)) {
+      defaultSortApplied.current = true
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- one-time
+         default derived from async data (the fetched feed), matching the
+         same pattern already used above for consumeJobContext: this fires
+         at most once (guarded by the ref), not on every render. */
+      setSortBy('match')
+    }
+  }, [feed])
+
   // Target roles drive the quick-filter chips. Failure is silent: the chips
   // simply don't render, and the full feed still works.
   useEffect(() => {
@@ -135,6 +159,11 @@ export default function JobsPage() {
     // isn't a literal substring ("Machine Learning Engineer" for "ml engineer").
     return feed.jobs.filter((job) => mode === 'All' || job.workMode === mode)
   }, [feed, mode])
+
+  // Sorted on top of the existing filter, never instead of it — every sort
+  // option orders the same already-filtered set the grid already computed.
+  const sorted = useMemo(() => sortJobs(filtered, sortBy), [filtered, sortBy])
+  const showingBestMatch = sortBy === 'match' && hasAnyMatchScores(filtered)
 
   // Stash the listing, then navigate. The destination reads it on mount via
   // consumeJobContext — see lib/jobContext.ts.
@@ -182,26 +211,19 @@ export default function JobsPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <span className="section-eyebrow-violet mb-3 inline-flex">
-          <Briefcase className="w-3 h-3" />
-          Job Market
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-display font-semibold text-[var(--color-ink)] mb-1">
-          Openings worth your scan.
-        </h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-sm text-[var(--color-ink-dim)]">
-            Fresh listings matched to the roles ApplyCenter coaches for.
-          </p>
-          {feed?.lastUpdated && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-ink-faint)]">
-              <Clock className="w-3 h-3" />
-              Refreshed daily · last updated {refreshLabel(feed.lastUpdated)}
-            </span>
-          )}
-        </div>
-      </motion.div>
+      <PageHeader
+        eyebrow="Job Market"
+        eyebrowIcon={Briefcase}
+        title="Openings worth your scan."
+        description="Fresh listings matched to the roles ApplyCenter coaches for."
+      >
+        {feed?.lastUpdated && (
+          <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-(--color-ink-faint)">
+            <Clock className="w-3 h-3" aria-hidden="true" />
+            Refreshed daily · last updated {refreshLabel(feed.lastUpdated)}
+          </span>
+        )}
+      </PageHeader>
 
       {/* Target-role quick filters. Rendered only once onboarding has
           supplied roles — an empty strip would just be dead space. */}
@@ -212,7 +234,7 @@ export default function JobsPage() {
           transition={{ delay: 0.1 }}
           className="flex flex-wrap items-center gap-2"
         >
-          <span className="text-xs text-[var(--color-ink-faint)]">Your roles</span>
+          <span className="text-xs text-(--color-ink-faint)">Your roles</span>
           {targetRoles.map((role) => {
             const active = roleFilter === role
             return (
@@ -235,8 +257,8 @@ export default function JobsPage() {
                 }}
                 className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                   active
-                    ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                    : 'border-[var(--color-canvas-line)] text-[var(--color-ink-subtle)] hover:border-[var(--color-line-strong)]'
+                    ? 'border-(--color-accent) bg-(--color-accent) text-(--color-on-accent)'
+                    : 'border-(--color-canvas-line) text-(--color-ink-subtle) hover:border-(--color-line-strong)'
                 }`}
               >
                 {role}
@@ -278,7 +300,38 @@ export default function JobsPage() {
             ))}
           </TabsList>
         </Tabs>
+
+        <div>
+          <label htmlFor="job-sort" className="sr-only">
+            Sort jobs
+          </label>
+          <select
+            id="job-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as JobSortOption)}
+            className="h-10 rounded-full border border-(--color-canvas-line) bg-(--color-canvas-raise) px-3.5 text-xs font-medium text-(--color-ink-dim) transition-colors hover:border-(--color-line-strong) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-accent)"
+          >
+            {JOB_SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                Sort: {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </motion.div>
+
+      {/* States a manual choice as clearly as an automatic one — this only
+          reflects sortBy, it never re-decides it. */}
+      {showingBestMatch && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center gap-1.5 text-xs text-(--color-ink-faint)"
+        >
+          <Sparkles className="w-3 h-3" aria-hidden="true" />
+          Sorted by Best Match based on your latest resume.
+        </motion.p>
+      )}
 
       {/* Enrichment filters. Counts come from the unfiltered feed so a pill
           shows what it would match, and a zero-count pill is disabled rather
@@ -308,7 +361,7 @@ export default function JobsPage() {
                 title={pill.hint}
               >
                 {pill.label}
-                <span className="text-[var(--color-ink-faint)]">{count}</span>
+                <span className="text-(--color-ink-faint)">{count}</span>
               </button>
             )
           })}
@@ -331,7 +384,7 @@ export default function JobsPage() {
                 }}
               >
                 {pill.label}
-                <span className="text-[var(--color-ink-faint)]">{count}</span>
+                <span className="text-(--color-ink-faint)">{count}</span>
               </button>
             )
           })}
@@ -340,7 +393,7 @@ export default function JobsPage() {
             <button
               type="button"
               onClick={() => { setH1b(null); setExperience(null) }}
-              className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
+              className="text-[10px] font-mono uppercase tracking-wide text-(--color-ink-faint) hover:text-(--color-ink)"
             >
               clear
             </button>
@@ -349,7 +402,7 @@ export default function JobsPage() {
           {/* Stated rather than hidden: filters only cover classified rows,
               and a candidate should know how much of the feed that leaves out. */}
           {feed.filterCounts.unenriched > 0 && (
-            <span className="ml-auto text-[10px] text-[var(--color-ink-faint)]">
+            <span className="ml-auto text-[10px] text-(--color-ink-faint)">
               {feed.filterCounts.unenriched} listing
               {feed.filterCounts.unenriched === 1 ? '' : 's'} not yet classified
             </span>
@@ -364,11 +417,11 @@ export default function JobsPage() {
             <div key={i} className="card p-5 h-44 shimmer-bg" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="card p-10 text-center">
-          <Briefcase className="w-8 h-8 text-[var(--color-ink-faint)] mx-auto mb-3" />
-          <div className="text-sm font-medium text-[var(--color-ink)] mb-1">No matching openings</div>
-          <p className="text-xs text-[var(--color-ink-dim)]">
+          <Briefcase className="w-8 h-8 text-(--color-ink-faint) mx-auto mb-3" />
+          <div className="text-sm font-medium text-(--color-ink) mb-1">No matching openings</div>
+          <p className="text-xs text-(--color-ink-dim)">
             {failed
               ? "Couldn't reach the job feed. Check your connection and try again."
               : searchTerm
@@ -378,7 +431,7 @@ export default function JobsPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
-          {filtered.map((job, i) => (
+          {sorted.map((job, i) => (
             <motion.article
               key={job.id}
               initial={{ opacity: 0, y: 16 }}
@@ -398,16 +451,16 @@ export default function JobsPage() {
                   setSelectedJob(job)
                 }
               }}
-              className="card-hover p-5 flex flex-col gap-4 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+              className="card-hover p-5 flex flex-col gap-4 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-accent)"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <CompanyLogo company={job.company} src={job.companyLogo} />
                   <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-[var(--color-ink)] truncate">{job.title}</h2>
-                    <div className="text-xs text-[var(--color-ink-dim)] flex items-center gap-1.5 mt-0.5">
+                    <h2 className="text-sm font-semibold text-(--color-ink) truncate">{job.title}</h2>
+                    <div className="text-xs text-(--color-ink-dim) flex items-center gap-1.5 mt-0.5">
                       <span>{job.company}</span>
-                      <span className="text-[var(--color-canvas-line)]">·</span>
+                      <span className="text-(--color-canvas-line)">·</span>
                       <span className="inline-flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3 shrink-0" />
                         {job.location}
@@ -415,9 +468,19 @@ export default function JobsPage() {
                     </div>
                   </div>
                 </div>
-                <span className={`shrink-0 text-[10px] font-medium px-2 py-1 rounded-full border ${MODE_STYLES[job.workMode]}`}>
-                  {job.workMode}
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className={`text-[10px] font-medium px-2 py-1 rounded-full border ${MODE_STYLES[job.workMode]}`}>
+                    {job.workMode}
+                  </span>
+                  {job.match?.overallMatch != null && job.match.band && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[10px] font-mono font-medium tabular-nums"
+                      style={{ color: bandColor(job.match.band) }}
+                    >
+                      {Math.round(job.match.overallMatch)}% match
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-1.5">
@@ -427,9 +490,9 @@ export default function JobsPage() {
               </div>
 
               <div className="flex items-center justify-between mt-auto pt-1">
-                <div className="text-xs text-[var(--color-ink-dim)]">
-                  <span className="font-medium text-[var(--color-ink)]">{job.salaryRange}</span>
-                  <span className="mx-1.5 text-[var(--color-canvas-line)]">·</span>
+                <div className="text-xs text-(--color-ink-dim)">
+                  <span className="font-medium text-(--color-ink)">{job.salaryRange}</span>
+                  <span className="mx-1.5 text-(--color-canvas-line)">·</span>
                   {postedLabel(job.postedDaysAgo)}
                 </div>
                 {/* Now a real third-party URL, not the old '#' placeholder:

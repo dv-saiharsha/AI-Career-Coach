@@ -19,6 +19,9 @@ import {
   Moon,
   Sun,
   LogIn,
+  KanbanSquare,
+  Newspaper,
+  Scale,
 } from 'lucide-react'
 import {
   CommandDialog,
@@ -45,11 +48,23 @@ export function useCommandPalette() {
   return ctx
 }
 
+/* Every workspace route the app actually serves. This list had drifted a
+   long way behind the product — Career Coach and the Application Tracker,
+   two of the largest features, were unreachable from ⌘K entirely, as were
+   Cover Letter, Offers and Policy News. Anything added under
+   app/(protected) belongs here as well as in DashboardNav. */
 const WORKSPACE = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Career Coach', href: '/coach', icon: Sparkles },
   { label: 'Resume Analyzer', href: '/resume', icon: FileSearch },
   { label: 'Interview Coach', href: '/interview', icon: MessageSquareCode },
   { label: 'Job Market', href: '/jobs', icon: Briefcase },
+  { label: 'Applications', href: '/applications', icon: KanbanSquare },
+  { label: 'Offers', href: '/offers', icon: Scale },
+  /* /cover-letter is deliberately absent: it needs a job_id from the Job
+     Market drawer to generate anything, so arriving cold would land the
+     user on a page they cannot use. */
+  { label: 'Policy News', href: '/news', icon: Newspaper },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Analytics', href: '/analytics', icon: BarChart3 },
   { label: 'History', href: '/history', icon: TrendingUp },

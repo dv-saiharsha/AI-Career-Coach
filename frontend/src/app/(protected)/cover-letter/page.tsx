@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import { AlertCircle, Download, FileText, Mail, Sparkles } from 'lucide-react'
 
 import {
@@ -14,6 +13,7 @@ import {
   type CoverLetterTone,
 } from '@/lib/apiClient'
 import { useAuth } from '@/lib/AuthContext'
+import { PageHeader } from '@/components/PageHeader'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/ui/copy-button'
 
@@ -121,20 +121,18 @@ function CoverLetterStudio() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <span className="eyebrow mb-2 inline-flex items-center gap-1.5">
-          <Mail strokeWidth={1.5} className="h-3 w-3" />
-          Cover letter
-        </span>
-        <h1 className="mt-2 font-display text-2xl font-medium italic text-[var(--color-ink)] md:text-3xl">
-          {letter ? `${letter.job_title} at ${letter.company}.` : 'Write a targeted letter.'}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
-          Written from your resume and this posting. It won&apos;t claim a number your resume
-          doesn&apos;t contain — and anything it does assert that we can&apos;t find in your resume
-          is listed underneath, so you see it before a recruiter does.
-        </p>
-      </motion.div>
+      <PageHeader
+        eyebrow="Cover letter"
+        eyebrowIcon={Mail}
+        title={letter ? `${letter.job_title} at ${letter.company}.` : 'Write a targeted letter.'}
+        description={
+          <>
+            Written from your resume and this posting. It won&apos;t claim a number your resume
+            doesn&apos;t contain — and anything it does assert that we can&apos;t find in your
+            resume is listed underneath, so you see it before a recruiter does.
+          </>
+        }
+      />
 
       <div className="card p-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -149,8 +147,8 @@ function CoverLetterStudio() {
                   aria-pressed={tone === option.key}
                   className={`rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
                     tone === option.key
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                      : 'border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] text-[var(--color-ink-dim)] hover:border-[var(--color-line-strong)]'
+                      ? 'border-(--color-accent) bg-(--color-accent) text-(--color-on-accent)'
+                      : 'border-(--color-canvas-line) bg-(--color-canvas-deep) text-(--color-ink-dim) hover:border-(--color-line-strong)'
                   }`}
                 >
                   <span className="block font-medium">{option.label}</span>
@@ -160,7 +158,7 @@ function CoverLetterStudio() {
             </div>
             {/* Tone changes register, not content. Saying so here stops
                 "confident" being read as "claim more". */}
-            <p className="mt-2 text-[11px] text-[var(--color-ink-faint)]">
+            <p className="mt-2 text-[11px] text-(--color-ink-faint)">
               Tone changes how it reads, never what it claims.
             </p>
           </div>
@@ -172,7 +170,7 @@ function CoverLetterStudio() {
             className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
           >
             {loading ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)]" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-(--color-on-accent)/30 border-t-(--color-on-accent)" />
             ) : (
               <Sparkles strokeWidth={1.5} className="h-4 w-4" />
             )}
@@ -182,7 +180,7 @@ function CoverLetterStudio() {
       </div>
 
       {error && (
-        <div className="card flex items-start gap-2 p-5 text-sm text-[var(--color-error)]">
+        <div className="card flex items-start gap-2 p-5 text-sm text-(--color-error)">
           <AlertCircle strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             {error}{' '}
@@ -204,11 +202,11 @@ function CoverLetterStudio() {
       {letter && (
         <>
           {letter.unsupported_claims.length > 0 && (
-            <div className="card border-l-[3px] border-l-[var(--color-warning)] p-5">
+            <div className="card border-l-[3px] border-l-(--color-warning) p-5">
               <div className="eyebrow mb-1.5">Check these before you send</div>
-              <p className="text-xs leading-relaxed text-[var(--color-ink-dim)]">
+              <p className="text-xs leading-relaxed text-(--color-ink-dim)">
                 These figures appear in the letter but not in your resume:{' '}
-                <span className="font-mono font-semibold text-[var(--color-ink)]">
+                <span className="font-mono font-semibold text-(--color-ink)">
                   {letter.unsupported_claims.join(', ')}
                 </span>
                 . That may be fine — your resume might phrase it differently — but you&apos;ll be
@@ -218,12 +216,12 @@ function CoverLetterStudio() {
           )}
 
           <div className="card p-6">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-canvas-line)] pb-3">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-(--color-canvas-line) pb-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-[var(--color-ink)]">
+                <p className="text-xs font-semibold text-(--color-ink)">
                   {letter.job_title} — {letter.company}
                 </p>
-                <p className="mt-0.5 truncate font-mono text-[10px] text-[var(--color-ink-faint)]">
+                <p className="mt-0.5 truncate font-mono text-[10px] text-(--color-ink-faint)">
                   {letter.download_filename}
                 </p>
               </div>
@@ -244,14 +242,14 @@ function CoverLetterStudio() {
 
             <div className="space-y-3.5">
               {letter.paragraphs.map((paragraph, i) => (
-                <p key={i} className="text-sm leading-relaxed text-[var(--color-ink-dim)]">
+                <p key={i} className="text-sm leading-relaxed text-(--color-ink-dim)">
                   {paragraph}
                 </p>
               ))}
             </div>
 
             {!pdfUrl && (
-              <p className="mt-4 flex items-start gap-2 text-xs text-[var(--color-ink-faint)]">
+              <p className="mt-4 flex items-start gap-2 text-xs text-(--color-ink-faint)">
                 <FileText strokeWidth={1.5} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 This server has no LaTeX toolchain, so there&apos;s no PDF — the text above is the
                 full letter and can be copied straight out.
@@ -264,7 +262,7 @@ function CoverLetterStudio() {
               <div className="eyebrow mb-2">What each claim rests on</div>
               <ul className="space-y-1.5">
                 {letter.grounded_in.map((quote, i) => (
-                  <li key={i} className="text-[11px] leading-relaxed text-[var(--color-ink-faint)]">
+                  <li key={i} className="text-[11px] leading-relaxed text-(--color-ink-faint)">
                     — {quote}
                   </li>
                 ))}

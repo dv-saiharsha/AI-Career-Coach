@@ -12,6 +12,8 @@ import {
   type JobOffer,
 } from '@/lib/apiClient'
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
+import { PageHeader } from '@/components/PageHeader'
+import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -55,7 +57,7 @@ function CompositionBar({ offer }: { offer: JobOffer }) {
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
         {parts.map((part) => (
-          <span key={part.label} className="flex items-center gap-1 text-[10px] text-[var(--color-ink-faint)]">
+          <span key={part.label} className="flex items-center gap-1 text-[10px] text-(--color-ink-faint)">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: part.color }} />
             {part.label} {Math.round((part.value / total) * 100)}%
           </span>
@@ -67,6 +69,7 @@ function CompositionBar({ offer }: { offer: JobOffer }) {
 
 export default function OffersPage() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const reduceMotion = usePrefersReducedMotion()
   const [showAdd, setShowAdd] = useState(false)
   const [draft, setDraft] = useState({
@@ -102,8 +105,15 @@ export default function OffersPage() {
         estimated_tax_rate: '', col_index: '',
       })
       setShowAdd(false)
+      toast({ title: 'Offer added', description: 'It is now included in the comparison.' })
       queryClient.invalidateQueries({ queryKey: OFFERS_KEY })
     },
+    onError: () =>
+      toast({
+        title: "Couldn't add that offer",
+        description: 'Nothing was saved. Check your connection and try again.',
+        variant: 'error',
+      }),
   })
 
   const deleteMutation = useMutation({
@@ -122,6 +132,11 @@ export default function OffersPage() {
     // from the screen but present in the database.
     onError: (_e, _v, context) => {
       if (context?.previous) queryClient.setQueryData(OFFERS_KEY, context.previous)
+      toast({
+        title: "Couldn't delete that offer",
+        description: 'It has been restored to the comparison.',
+        variant: 'error',
+      })
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: OFFERS_KEY }),
   })
@@ -134,25 +149,17 @@ export default function OffersPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <span className="eyebrow mb-2 inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-            Offer Comparison
-          </span>
-          <h1 className="mt-2 font-display text-2xl font-medium italic text-[var(--color-ink)] md:text-3xl">
-            What each offer is really worth.
-          </h1>
-          <p className="mt-2 text-sm text-[var(--color-ink-dim)]">
-            Signing bonuses are counted in year one only, so a one-off payment can&apos;t disguise a
-            weaker package.
-          </p>
-        </div>
-        <Button type="button" size="sm" onClick={() => setShowAdd((v) => !v)}>
-          <Plus strokeWidth={1.5} />
-          Add offer
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Offer Comparison"
+        title="What each offer is really worth."
+        description="Signing bonuses are counted in year one only, so a one-off payment can't disguise a weaker package."
+        action={
+          <Button type="button" size="sm" onClick={() => setShowAdd((v) => !v)}>
+            <Plus strokeWidth={1.5} />
+            Add offer
+          </Button>
+        }
+      />
 
       <AnimatePresence initial={false}>
         {showAdd && (
@@ -252,7 +259,7 @@ export default function OffersPage() {
 
       {isError && (
         <div className="card p-6">
-          <p className="text-sm text-[var(--color-ink-dim)]">
+          <p className="text-sm text-(--color-ink-dim)">
             Could not load your offers. Check that the API is running and try again.
           </p>
         </div>
@@ -268,7 +275,7 @@ export default function OffersPage() {
 
       {!isLoading && !isError && offers.length === 0 && (
         <div className="card px-8 py-16 text-center">
-          <p className="mx-auto max-w-sm text-sm leading-relaxed text-[var(--color-ink-faint)]">
+          <p className="mx-auto max-w-sm text-sm leading-relaxed text-(--color-ink-faint)">
             No offers yet. Add one to see its true annual value broken down, and compare it against
             anything else on the table.
           </p>
@@ -296,11 +303,11 @@ export default function OffersPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="eyebrow text-[10px]">{offer.company}</span>
-                      <h2 className="mt-1 truncate text-base font-medium text-[var(--color-ink)]">
+                      <h2 className="mt-1 truncate text-base font-medium text-(--color-ink)">
                         {offer.role_title}
                       </h2>
                       {(offer.location || offer.is_remote) && (
-                        <span className="mt-1 flex items-center gap-1 text-xs text-[var(--color-ink-faint)]">
+                        <span className="mt-1 flex items-center gap-1 text-xs text-(--color-ink-faint)">
                           <MapPin strokeWidth={1.5} className="h-3 w-3 shrink-0" />
                           {offer.is_remote ? 'Remote' : offer.location}
                         </span>
@@ -310,7 +317,7 @@ export default function OffersPage() {
                       type="button"
                       onClick={() => deleteMutation.mutate(offer.id)}
                       aria-label={`Remove the ${offer.company} offer`}
-                      className="shrink-0 text-[var(--color-ink-faint)] transition-colors hover:text-[var(--color-signal-low)]"
+                      className="shrink-0 text-(--color-ink-faint) transition-colors hover:text-(--color-signal-low)"
                     >
                       <Trash2 strokeWidth={1.5} className="h-3.5 w-3.5" />
                     </button>
@@ -319,17 +326,17 @@ export default function OffersPage() {
                   {/* Recurring leads, not first-year: it's the number that
                       holds true beyond year one. */}
                   <div
-                    className="rounded-[12px] p-4"
+                    className="rounded-md p-4"
                     style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-canvas-line)' }}
                   >
                     <span className="eyebrow text-[10px]">
                       {offer.is_adjusted ? 'Net adjusted annual' : 'Recurring annual'}
                     </span>
-                    <p className="mt-1 font-display text-2xl tabular-nums text-[var(--color-ink)]">
+                    <p className="mt-1 font-display text-2xl tabular-nums text-(--color-ink)">
                       {money(offer.is_adjusted ? offer.net_adjusted_comp : offer.recurring_annual)}
                     </p>
                     {offer.is_adjusted && (
-                      <p className="mt-0.5 text-xs text-[var(--color-ink-dim)]">
+                      <p className="mt-0.5 text-xs text-(--color-ink-dim)">
                         from {money(offer.recurring_annual)} gross
                         {offer.estimated_tax_rate !== null &&
                           ` · ${(offer.estimated_tax_rate * 100).toFixed(offer.estimated_tax_rate * 100 % 1 === 0 ? 0 : 1)}% tax`}
@@ -337,17 +344,17 @@ export default function OffersPage() {
                           ` · ${offer.col_index}x COL`}
                       </p>
                     )}
-                    <p className="mt-1 text-xs text-[var(--color-ink-dim)]">
+                    <p className="mt-1 text-xs text-(--color-ink-dim)">
                       {money(offer.total_first_year)} in year one
                       {offer.signing_bonus > 0 && ` (incl. ${money(offer.signing_bonus)} signing)`}
                     </p>
                     {!offer.is_adjusted && (
-                      <p className="mt-1 text-[10px] text-[var(--color-ink-faint)]">
+                      <p className="mt-1 text-[10px] text-(--color-ink-faint)">
                         No tax or cost-of-living adjustment applied.
                       </p>
                     )}
                     {isBest && (
-                      <span className="mt-2 inline-block text-[10px] font-mono uppercase tracking-wide text-[var(--color-signal-high)]">
+                      <span className="mt-2 inline-block text-[10px] font-mono uppercase tracking-wide text-(--color-signal-high)">
                         Highest net
                       </span>
                     )}
@@ -358,15 +365,15 @@ export default function OffersPage() {
                   <dl className="flex flex-col gap-1.5">
                     {COMPONENTS.map((component) => (
                       <div key={component.key} className="flex items-center justify-between gap-3">
-                        <dt className="text-xs text-[var(--color-ink-dim)]">
+                        <dt className="text-xs text-(--color-ink-dim)">
                           {component.label}
                           {'yearOneOnly' in component && component.yearOneOnly && (
-                            <span className="ml-1 text-[10px] text-[var(--color-ink-faint)]">
+                            <span className="ml-1 text-[10px] text-(--color-ink-faint)">
                               yr 1
                             </span>
                           )}
                         </dt>
-                        <dd className="font-mono text-xs tabular-nums text-[var(--color-ink-subtle)]">
+                        <dd className="font-mono text-xs tabular-nums text-(--color-ink-subtle)">
                           {money(offer[component.key])}
                         </dd>
                       </div>
@@ -374,7 +381,7 @@ export default function OffersPage() {
                   </dl>
 
                   {offer.notes && (
-                    <p className="text-xs leading-relaxed text-[var(--color-ink-faint)]">{offer.notes}</p>
+                    <p className="text-xs leading-relaxed text-(--color-ink-faint)">{offer.notes}</p>
                   )}
                 </motion.article>
               )
@@ -384,7 +391,7 @@ export default function OffersPage() {
       )}
 
       {offers.length > 0 && (
-        <p className="mt-5 text-xs leading-relaxed text-[var(--color-ink-faint)]">
+        <p className="mt-5 text-xs leading-relaxed text-(--color-ink-faint)">
           Figures are the ones you entered — no cost-of-living or tax adjustment is applied, since
           effective rates depend on filing status, deductions, and state and local rules this
           app doesn&apos;t know.

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Tabs from '@radix-ui/react-tabs'
 import CountUp from 'react-countup'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import {
   ResponsiveContainer,
@@ -93,7 +94,7 @@ function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }
           />
         )}
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[var(--color-ink)] tabular-nums">
+      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-(--color-ink) tabular-nums">
         {score === null ? '—' : Math.round(score)}
       </div>
     </div>
@@ -103,9 +104,9 @@ function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }
 function TrendTooltip({ active, payload, label, unit }: TrendTooltipProps) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] rounded-xl px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-      <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ink-faint)] mb-1">{label}</div>
-      <div className="text-xs font-semibold text-[var(--color-ink)] tabular-nums">
+    <div className="bg-(--color-canvas-raise) border border-(--color-canvas-line) rounded-xl px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+      <div className="text-[10px] font-mono uppercase tracking-widest text-(--color-ink-faint) mb-1">{label}</div>
+      <div className="text-xs font-semibold text-(--color-ink) tabular-nums">
         {payload[0].value}
         {unit}
       </div>
@@ -131,9 +132,9 @@ function TrendCard({
   const palette = useAccentPalette()
   const chart = useChartTheme()
   return (
-    <div className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-6">
-      <h2 className="text-sm font-semibold text-[var(--color-ink)] mb-1">{title}</h2>
-      <p className="text-xs text-[var(--color-ink-faint)] mb-4">{sub}</p>
+    <div className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-6">
+      <h2 className="text-sm font-semibold text-(--color-ink) mb-1">{title}</h2>
+      <p className="text-xs text-(--color-ink-faint) mb-4">{sub}</p>
       {data.length >= 2 ? (
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={data} margin={{ top: 4, right: 8, left: -30, bottom: 0 }}>
@@ -162,8 +163,8 @@ function TrendCard({
         </ResponsiveContainer>
       ) : (
         <div className="h-[160px] flex flex-col items-center justify-center gap-2 text-center">
-          <LineChart className="w-5 h-5 text-[var(--color-ink-faint)]" />
-          <p className="text-xs text-[var(--color-ink-faint)] max-w-[220px]">
+          <LineChart className="w-5 h-5 text-(--color-ink-faint)" />
+          <p className="text-xs text-(--color-ink-faint) max-w-[220px]">
             Not enough data yet — keep going and your trend will appear here.
           </p>
         </div>
@@ -173,7 +174,7 @@ function TrendCard({
 }
 
 function SkeletonBlock({ className }: { className: string }) {
-  return <div className={`bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl animate-pulse ${className}`} />
+  return <div className={`bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl animate-pulse ${className}`} />
 }
 
 export default function History() {
@@ -262,12 +263,12 @@ export default function History() {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-display font-semibold text-[var(--color-ink)] mb-1">History</h1>
-        <p className="text-sm text-[var(--color-ink-dim)]">
-          Every scan and every rehearsed answer, saved so you can track progress over time.
-        </p>
-      </motion.div>
+      <PageHeader
+        eyebrow="History"
+        eyebrowIcon={TrendingUp}
+        title="Everything you've run so far."
+        description="Every scan and every rehearsed answer, saved so you can track progress over time."
+      />
 
       {status === 'error' && (
         <motion.div
@@ -276,7 +277,7 @@ export default function History() {
           className="flex items-center gap-3 bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-2xl px-5 py-4"
         >
           <AlertCircle className="w-4 h-4 text-[#EF4444] shrink-0" />
-          <p className="text-sm text-[var(--color-ink-dim)]">Couldn&rsquo;t load your history. Try refreshing.</p>
+          <p className="text-sm text-(--color-ink-dim)">Couldn&rsquo;t load your history. Try refreshing.</p>
         </motion.div>
       )}
 
@@ -292,15 +293,15 @@ export default function History() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.07 }}
-                    className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-5 hover:border-[var(--color-canvas-line)] transition-colors"
+                    className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-5 hover:border-(--color-canvas-line) transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center mb-3">
-                      <Icon className="w-4 h-4 text-[var(--color-accent)]" />
+                    <div className="w-8 h-8 rounded-lg bg-(--color-accent)/10 flex items-center justify-center mb-3">
+                      <Icon className="w-4 h-4 text-(--color-accent)" />
                     </div>
-                    <div className="text-xl font-display font-bold text-[var(--color-accent)] tabular-nums">
+                    <div className="text-xl font-display font-bold text-(--color-accent) tabular-nums">
                       <CountUp end={value} duration={1.4} decimals={decimals} suffix={suffix} />
                     </div>
-                    <div className="text-xs font-medium text-[var(--color-ink)] mt-0.5">{label}</div>
+                    <div className="text-xs font-medium text-(--color-ink) mt-0.5">{label}</div>
                   </motion.div>
                 ))}
           </div>
@@ -349,7 +350,7 @@ export default function History() {
                       <Tabs.Trigger
                         key={f}
                         value={f}
-                        className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-[var(--color-ink-faint)] hover:text-[var(--color-ink-dim)] hover:bg-canvas-elevated data-[state=active]:border-[var(--color-accent)]/20 data-[state=active]:text-[var(--color-accent)] data-[state=active]:bg-[var(--color-accent)]/10"
+                        className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border border-transparent text-(--color-ink-faint) hover:text-(--color-ink-dim) hover:bg-canvas-elevated data-[state=active]:border-(--color-accent)/20 data-[state=active]:text-(--color-accent) data-[state=active]:bg-(--color-accent)/10"
                       >
                         {f}
                       </Tabs.Trigger>
@@ -362,20 +363,20 @@ export default function History() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl overflow-hidden"
+                className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl overflow-hidden"
               >
                 {status === 'loading' ? (
-                  <div className="divide-y divide-[var(--color-canvas)]">
+                  <div className="divide-y divide-(--color-canvas)">
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="h-[72px] animate-pulse bg-[var(--color-canvas-raise)]" />
+                      <div key={i} className="h-[72px] animate-pulse bg-(--color-canvas-raise)" />
                     ))}
                   </div>
                 ) : filteredTimeline.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-14 px-6 text-center">
-                    <div className="w-11 h-11 rounded-xl bg-[var(--color-accent)]/10 flex items-center justify-center">
-                      <Inbox className="w-5 h-5 text-[var(--color-accent)]" />
+                    <div className="w-11 h-11 rounded-xl bg-(--color-accent)/10 flex items-center justify-center">
+                      <Inbox className="w-5 h-5 text-(--color-accent)" />
                     </div>
-                    <p className="text-sm text-[var(--color-ink-dim)]">No {filter.toLowerCase()} activity yet.</p>
+                    <p className="text-sm text-(--color-ink-dim)">No {filter.toLowerCase()} activity yet.</p>
                   </div>
                 ) : (
                   <AnimatePresence initial={false}>
@@ -386,26 +387,26 @@ export default function History() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
                         transition={{ delay: Math.min(i, 8) * 0.05, duration: 0.35 }}
-                        className="flex items-center gap-4 px-5 py-4 border-b border-[var(--color-canvas)] hover:bg-white/[0.03] transition-colors last:border-0"
+                        className="flex items-center gap-4 px-5 py-4 border-b border-(--color-canvas) hover:bg-white/[0.03] transition-colors last:border-0"
                       >
                         <div
                           className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                            item.kind === 'resume' ? 'bg-[var(--color-accent)]/10' : 'bg-[var(--color-accent-light)]/10'
+                            item.kind === 'resume' ? 'bg-(--color-accent)/10' : 'bg-(--color-accent-light)/10'
                           }`}
                         >
                           {item.kind === 'resume' ? (
-                            <FileSearch className="w-4 h-4 text-[var(--color-accent)]" />
+                            <FileSearch className="w-4 h-4 text-(--color-accent)" />
                           ) : (
-                            <MessageSquareCode className="w-4 h-4 text-[var(--color-accent-light)]" />
+                            <MessageSquareCode className="w-4 h-4 text-(--color-accent-light)" />
                           )}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm text-[var(--color-ink)] truncate">{item.title}</div>
-                          <div className="flex items-center gap-2 text-xs text-[var(--color-ink-faint)] mt-0.5">
+                          <div className="text-sm text-(--color-ink) truncate">{item.title}</div>
+                          <div className="flex items-center gap-2 text-xs text-(--color-ink-faint) mt-0.5">
                             <span
                               className={`px-1.5 py-0.5 rounded-full font-medium ${
-                                item.kind === 'resume' ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'bg-[var(--color-accent-light)]/10 text-[var(--color-accent-light)]'
+                                item.kind === 'resume' ? 'bg-(--color-accent)/10 text-(--color-accent)' : 'bg-(--color-accent-light)/10 text-(--color-accent-light)'
                               }`}
                             >
                               {item.kind === 'resume' ? 'Resume' : 'Interview'}
@@ -426,7 +427,7 @@ export default function History() {
                             {/* A failed view or delete must say so — silently
                                 doing nothing reads as a dead button. */}
                             {actionError === item.id && (
-                              <span className="mr-1 text-[10px] text-[var(--color-signal-low)]">
+                              <span className="mr-1 text-[10px] text-(--color-signal-low)">
                                 Didn&apos;t work
                               </span>
                             )}
@@ -489,14 +490,14 @@ export default function History() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center gap-4 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl py-20 px-6 text-center"
+              className="flex flex-col items-center justify-center gap-4 bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl py-20 px-6 text-center"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[var(--color-accent)]/10 flex items-center justify-center">
-                <Inbox className="w-6 h-6 text-[var(--color-accent)]" />
+              <div className="w-12 h-12 rounded-2xl bg-(--color-accent)/10 flex items-center justify-center">
+                <Inbox className="w-6 h-6 text-(--color-accent)" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-[var(--color-ink)] mb-1">Nothing here yet</h2>
-                <p className="text-sm text-[var(--color-ink-dim)] max-w-sm">
+                <h2 className="text-sm font-semibold text-(--color-ink) mb-1">Nothing here yet</h2>
+                <p className="text-sm text-(--color-ink-dim) max-w-sm">
                   Scan a resume or practice a mock interview and it&rsquo;ll show up here.
                 </p>
               </div>
@@ -512,14 +513,14 @@ export default function History() {
           >
             <Link
               href="/resume"
-              className="flex items-center gap-2 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] text-[var(--color-ink)] px-4 py-2.5 rounded-xl text-sm font-medium hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all"
+              className="flex items-center gap-2 bg-(--color-canvas-raise) border border-(--color-canvas-line) text-(--color-ink) px-4 py-2.5 rounded-xl text-sm font-medium hover:border-(--color-accent)/30 hover:text-(--color-accent) transition-all"
             >
               <FileSearch className="w-4 h-4" />
               Scan another resume
             </Link>
             <Link
               href="/interview"
-              className="flex items-center gap-2 bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line)] text-[var(--color-ink)] px-4 py-2.5 rounded-xl text-sm font-medium hover:border-[var(--color-accent)]/30 hover:text-[var(--color-accent)] transition-all"
+              className="flex items-center gap-2 bg-(--color-canvas-raise) border border-(--color-canvas-line) text-(--color-ink) px-4 py-2.5 rounded-xl text-sm font-medium hover:border-(--color-accent)/30 hover:text-(--color-accent) transition-all"
             >
               <MessageSquareCode className="w-4 h-4" />
               Practice another question

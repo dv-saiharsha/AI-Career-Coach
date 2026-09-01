@@ -8,9 +8,9 @@ import {
   LayoutDashboard,
   FileSearch,
   MessageSquareCode,
+  Sparkles,
   User,
   Settings,
-  Bell,
   LogOut,
   Menu,
   TrendingUp,
@@ -18,9 +18,13 @@ import {
   KanbanSquare,
   Search,
   Newspaper,
+  BarChart3,
+  FileText,
+  Scale,
 } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
 import { ApplyCenterMark } from './ApplyCenterMark'
+import { NotificationBell } from './notifications/NotificationBell'
 import ThemeToggle from './ThemeToggle'
 import { LimelightNav } from './ui/limelight-nav'
 import { Button } from '@/components/ui/button'
@@ -31,13 +35,26 @@ import { useCommandPalette } from '@/components/CommandPalette'
 import { springSnappy } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
+/* Split into two labelled groups rather than one long list. Analytics,
+   Reports and Offers used to appear in neither the sidebar nor (for Offers)
+   the command palette — three finished pages with no inbound link anywhere
+   in the product, reachable only by typing the URL. "Applications & Offers"
+   also promised a destination it didn't lead to; Offers is its own entry
+   now, so every label matches where it actually goes. */
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Overview', href: '/dashboard' },
+  { icon: Sparkles, label: 'Career Coach', href: '/coach' },
   { icon: FileSearch, label: 'Resume Analyzer', href: '/resume' },
   { icon: MessageSquareCode, label: 'Interview Coach', href: '/interview' },
   { icon: Briefcase, label: 'Job Market', href: '/jobs' },
+  { icon: KanbanSquare, label: 'Applications', href: '/applications' },
+  { icon: Scale, label: 'Offers', href: '/offers' },
   { icon: Newspaper, label: 'Policy News', href: '/news' },
-  { icon: KanbanSquare, label: 'Applications & Offers', href: '/applications' },
+]
+
+const INSIGHT_ITEMS = [
+  { icon: BarChart3, label: 'Analytics', href: '/analytics' },
+  { icon: FileText, label: 'Reports', href: '/reports' },
   { icon: TrendingUp, label: 'History', href: '/history' },
 ]
 
@@ -45,6 +62,15 @@ const BOTTOM_ITEMS = [
   { icon: User, label: 'Profile', href: '/profile' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ]
+
+/* Contextual routes with no nav entry of their own still need a correct
+   title in the top bar — without them the header silently fell back to
+   "Overview" on /cover-letter and the resume sub-pages. */
+const CONTEXTUAL_LABELS: Record<string, string> = {
+  '/cover-letter': 'Cover Letter',
+  '/resume/analysis': 'Resume Analysis',
+  '/resume/tailor': 'Tailor Resume',
+}
 
 const MOBILE_NAV_ITEMS = [
   { id: '/dashboard', icon: <LayoutDashboard />, label: 'Overview' },
@@ -130,6 +156,19 @@ function SidebarContent({
             scope={scope}
           />
         ))}
+
+        <p className="mb-2 mt-5 px-5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+          Insights
+        </p>
+        {INSIGHT_ITEMS.map((item) => (
+          <NavLink
+            key={item.href}
+            item={item}
+            active={pathname === item.href}
+            onNavigate={onNavigate}
+            scope={scope}
+          />
+        ))}
       </nav>
 
       <Separator />
@@ -185,7 +224,10 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
   const { toggle } = useCommandPalette()
 
   const currentLabel =
-    [...NAV_ITEMS, ...BOTTOM_ITEMS].find((item) => item.href === pathname)?.label ?? 'Overview'
+    [...NAV_ITEMS, ...INSIGHT_ITEMS, ...BOTTOM_ITEMS].find((item) => item.href === pathname)
+      ?.label ??
+    CONTEXTUAL_LABELS[pathname] ??
+    'Overview'
   const mobileActiveIndex = MOBILE_NAV_ITEMS.findIndex((item) => item.id === pathname)
 
   return (
@@ -213,9 +255,14 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
               </SheetContent>
             </Sheet>
 
-            <h1 className="truncate font-display text-lg tracking-[-0.02em] text-ink">
+            {/* Not an <h1> — this lives in the <header> landmark, not
+                <main>, and every route's own PageHeader already renders the
+                real <h1> for its content. Two top-level headings per screen
+                broke the "jump to main heading" shortcut most screen
+                readers offer and confused heading-level navigation. */}
+            <p className="truncate font-display text-lg tracking-[-0.02em] text-ink">
               {currentLabel}
-            </h1>
+            </p>
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -230,13 +277,7 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
 
             <ThemeToggle />
 
-            <Button variant="ghost" size="icon-sm" className="relative" aria-label="Notifications">
-              <Bell />
-              <span
-                aria-hidden="true"
-                className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-accent"
-              />
-            </Button>
+            <NotificationBell />
 
             <Link
               href="/profile"
