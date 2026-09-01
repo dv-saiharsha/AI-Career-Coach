@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Presence, EXIT_SLOW } from '@/lib/presence'
 import {
   ArrowRight,
   Briefcase,
@@ -135,28 +135,22 @@ export function ApplicationDetailDrawer({ applicationId, onClose }: ApplicationD
   const application = detail?.application
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <Presence open={Boolean(isOpen)} duration={EXIT_SLOW}>
+      {(state) => (
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+          <div
+            data-state={state}
             onClick={onClose}
-            className="fixed inset-0 z-40"
+            className="presence-scrim fixed inset-0 z-40"
             style={{ background: 'color-mix(in srgb, black 45%, transparent)' }}
             aria-hidden="true"
           />
-          <motion.div
+          <div
             role="dialog"
             aria-modal="true"
             aria-label={application ? `${application.job_title} at ${application.company}` : 'Application detail'}
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[560px] flex-col overflow-y-auto"
+            data-state={state}
+            className="presence-drawer fixed inset-y-0 right-0 z-50 flex w-full max-w-[560px] flex-col overflow-y-auto"
             style={{ background: 'var(--color-canvas)', borderLeft: '1px solid var(--color-canvas-line)' }}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-(--color-canvas-line) bg-(--color-canvas) px-5 py-4">
@@ -418,9 +412,9 @@ export function ApplicationDetailDrawer({ applicationId, onClose }: ApplicationD
                 </>
               )}
             </div>
-          </motion.div>
+          </div>
         </>
       )}
-    </AnimatePresence>
+    </Presence>
   )
 }

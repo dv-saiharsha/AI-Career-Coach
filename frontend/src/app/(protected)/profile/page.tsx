@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Select,
   SelectContent,
@@ -211,11 +210,11 @@ export default function ProfilePage() {
       />
 
       {/* Identity hero */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-card overflow-hidden"
+      <div
+       
+       
+       
+        className="glass-card overflow-hidden panel-enter"
       >
         <div className="relative h-20 bg-linear-to-r from-(--color-accent)/25 via-(--color-accent-dim)/15 to-transparent">
           <div
@@ -302,22 +301,21 @@ export default function ProfilePage() {
             </span>
           </div>
           <div className="h-1.5 bg-(--color-canvas-line-soft) rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-linear-to-r from-(--color-accent) to-(--color-accent-lighter) rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${completeness}%` }}
-              transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
-            />
+            <div
+              className="h-full bg-linear-to-r from-(--color-accent) to-(--color-accent-lighter) rounded-full panel-enter"
+             
+             
+              />
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Personal information */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="glass-card p-6 space-y-5"
+      <div
+       
+       
+       
+        className="glass-card p-6 space-y-5 panel-enter"
       >
         <h2 className="text-sm font-semibold text-(--color-ink)">Personal Information</h2>
 
@@ -362,23 +360,19 @@ export default function ProfilePage() {
             className="resize-none"
           />
         </Field>
-      </motion.div>
+      </div>
 
       {/* Connected accounts */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
+      <div className="panel-enter">
         <ConnectedAccounts />
-      </motion.div>
+      </div>
 
       {/* Career details */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
-        className="glass-card p-6 space-y-5"
+      <div
+       
+       
+       
+        className="glass-card p-6 space-y-5 panel-enter"
       >
         <h2 className="text-sm font-semibold text-(--color-ink)">Career Details</h2>
 
@@ -410,38 +404,36 @@ export default function ProfilePage() {
         </Field>
 
         <Button onClick={handleSave} disabled={saving} aria-busy={saving || undefined}>
-          <AnimatePresence mode="wait" initial={false}>
             {saving ? (
-              <motion.span key="saving" className="flex items-center gap-2">
+              <span key="saving" className="flex items-center gap-2 panel-enter">
                 <Spinner className="text-on-accent" label="Saving" />
                 Saving…
-              </motion.span>
+              </span>
             ) : saved ? (
-              <motion.span
+              <span
                 key="saved"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                className="flex items-center gap-2"
+               
+               
+               
+                className="flex items-center gap-2 panel-enter"
               >
                 <CircleCheckBig className="w-4 h-4" />
                 Saved!
-              </motion.span>
+              </span>
             ) : (
-              <motion.span
+              <span
                 key="save"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                className="flex items-center gap-2"
+               
+               
+               
+                className="flex items-center gap-2 panel-enter"
               >
                 <Save className="w-4 h-4" />
                 Save changes
-              </motion.span>
+              </span>
             )}
-          </AnimatePresence>
         </Button>
-      </motion.div>
+      </div>
     </div>
   );
 }

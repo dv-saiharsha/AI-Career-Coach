@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, Check, ChevronDown, Clock, Layers, X } from 'lucide-react'
 import { getQualityReport, type QualityReport } from '@/lib/apiClient'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -167,14 +166,13 @@ export function ResumeQualityPanel({ analysisId }: ResumeQualityPanelProps) {
               />
             </button>
 
-            <AnimatePresence initial={false}>
               {expanded && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
+                <div
+                 
+                 
+                 
+                 
+                  className="overflow-hidden panel-enter"
                 >
                   <div className="mt-3 flex flex-col gap-3">
                     {weakBullets.map((evaluation, index) => (
@@ -207,9 +205,8 @@ export function ResumeQualityPanel({ analysisId }: ResumeQualityPanelProps) {
                       </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
           </div>
         )}
 

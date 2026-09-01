@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowRight, Briefcase, Check, FileText, Sparkles, Upload, X } from 'lucide-react'
 
 /**
@@ -180,14 +179,14 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-ink)]/40 p-4 backdrop-blur-md">
-      <motion.div
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      <div
+       
+       
+       
         role="dialog"
         aria-modal="true"
         aria-labelledby="onboarding-title"
-        className="w-full max-w-xl rounded-3xl border border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)] p-7 shadow-[var(--shadow-pop)]"
+        className="w-full max-w-xl rounded-3xl border border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)] p-7 shadow-[var(--shadow-pop)] panel-enter"
       >
         {/* Reachable from either step. Nothing in this modal is required to
             use the product — roles only re-rank the job feed — so a user who
@@ -350,28 +349,25 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
               </span>
             </div>
 
-            <AnimatePresence>
               {error && (
-                <motion.p
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="text-xs font-medium text-[var(--color-danger)]"
+                <p
+                 
+                 
+                 
+                  className="text-xs font-medium text-[var(--color-danger)] panel-enter"
                 >
                   {error}
-                </motion.p>
+                </p>
               )}
-            </AnimatePresence>
 
             {/* Progress readout. Replaces the button row while running so the
                 slow stage has a name attached to it. */}
-            <AnimatePresence>
               {isSubmitting && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-3 overflow-hidden"
+                <div
+                 
+                 
+                 
+                  className="mb-3 overflow-hidden panel-enter"
                 >
                   <div className="flex flex-col gap-2 rounded-[10px] border border-[var(--color-canvas-line)] bg-[var(--color-canvas-deep)] p-3">
                     {SETUP_STAGES.map((label, index) => {
@@ -411,9 +407,8 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
                       Scoring a resume takes a few seconds. This won&apos;t time out.
                     </p>
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
 
             <div className="flex gap-3">
               <button
@@ -447,7 +442,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip, error }: Onboardin
             )}
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   )
 }

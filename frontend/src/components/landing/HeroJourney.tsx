@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { Upload, ScanLine, Sparkles, FileCheck2, MessageSquareCode, FileText } from 'lucide-react'
 import { ScoreRing } from '../ScoreRing'
 
-const EASE = [0.22, 1, 0.36, 1] as const
 
 const STAGES = [
   { key: 'upload', label: 'Uploading resume', icon: Upload },
@@ -48,61 +46,52 @@ export function HeroJourney() {
         </div>
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-ink-dim">
           <StageIcon className="h-3 w-3" />
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={current.key}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.2 }}
-            >
+            <span
+              key={current.key} className="panel-enter">
               {current.label}
-            </motion.span>
-          </AnimatePresence>
+            </span>
         </div>
       </div>
 
       {/* Stage content */}
       <div className="relative h-[220px] overflow-hidden rounded-xl border border-border bg-background/60">
-        <AnimatePresence mode="wait">
           {current.key === 'upload' && (
-            <motion.div
+            <div
               key="upload"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex h-full flex-col items-center justify-center gap-4 px-8"
+             
+             
+             
+             
+              className="flex h-full flex-col items-center justify-center gap-4 px-8 panel-enter"
             >
-              <motion.div
-                initial={{ y: 16, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.5, ease: EASE }}
-                className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-none"
+              <div
+               
+               
+               
+                className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-none panel-enter"
               >
                 <FileText className="h-5 w-5 text-primary" />
                 <span className="text-xs font-medium text-foreground">resume.pdf</span>
-              </motion.div>
-              <div className="h-1.5 w-48 overflow-hidden rounded-full bg-surface-raised">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: 'var(--gradient-brand)' }}
-                  initial={{ width: '0%' }}
-                  animate={{ width: '100%' }}
-                  transition={{ duration: STAGE_MS / 1000 - 0.4, ease: 'easeInOut' }}
-                />
               </div>
-            </motion.div>
+              <div className="h-1.5 w-48 overflow-hidden rounded-full bg-surface-raised">
+                <div
+                  className="h-full rounded-full panel-enter"
+                  style={{ background: 'var(--gradient-brand)' }}
+                 
+                 
+                  />
+              </div>
+            </div>
           )}
 
           {current.key === 'scan' && (
-            <motion.div
+            <div
               key="scan"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex h-full items-center justify-center"
+             
+             
+             
+             
+              className="flex h-full items-center justify-center panel-enter"
             >
               <div className="relative w-40 rounded-lg border border-border bg-surface p-4">
                 <div className="flex flex-col gap-2">
@@ -110,52 +99,51 @@ export function HeroJourney() {
                     <div key={i} className="h-1.5 rounded-full bg-surface-raised" style={{ width: `${w * 100}%` }} />
                   ))}
                 </div>
-                <motion.div
-                  className="absolute inset-x-0 h-8"
+                <div
+                  className="absolute inset-x-0 h-8 panel-enter"
                   style={{
                     background:
                       'linear-gradient(180deg, transparent, color-mix(in srgb, var(--primary) 25%, transparent) 50%, transparent)',
                   }}
-                  initial={{ top: '-20%' }}
-                  animate={{ top: '110%' }}
-                  transition={{ duration: 1.3, repeat: Infinity, ease: 'linear' }}
-                />
+                 
+                 
+                  />
               </div>
-            </motion.div>
+            </div>
           )}
 
           {current.key === 'tailor' && (
-            <motion.div
+            <div
               key="tailor"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex h-full flex-col items-center justify-center gap-2.5"
+             
+             
+             
+             
+              className="flex h-full flex-col items-center justify-center gap-2.5 panel-enter"
             >
-              {TAILOR_SKILLS.map((skill, i) => (
-                <motion.div
+              {TAILOR_SKILLS.map((skill) => (
+                <div
                   key={skill}
-                  initial={{ opacity: 0, x: -12, scale: 0.9 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  transition={{ delay: 0.25 + i * 0.3, duration: 0.35, ease: EASE }}
-                  className="flex items-center gap-2 rounded-full border border-primary/25 bg-primary/5 px-3.5 py-1.5"
+                 
+                 
+                 
+                  className="flex items-center gap-2 rounded-full border border-primary/25 bg-primary/5 px-3.5 py-1.5 panel-enter"
                 >
                   <Sparkles className="h-3 w-3 text-primary" />
                   <span className="text-xs font-medium text-foreground">+ {skill}</span>
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           )}
 
           {current.key === 'result' && (
-            <motion.div
+            <div
               key="result"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex h-full flex-col items-center justify-center gap-4"
+             
+             
+             
+             
+              className="flex h-full flex-col items-center justify-center gap-4 panel-enter"
             >
               <div className="flex items-center gap-5">
                 <ScoreRing value={92} size={76} strokeWidth={7} />
@@ -165,17 +153,13 @@ export function HeroJourney() {
                 </div>
               </div>
               <svg viewBox="0 0 140 60" className="h-12 w-36 overflow-visible">
-                <motion.path
+                <path
                   d={CHART_PATH}
                   fill="none"
                   stroke="url(#journey-chart-gradient)"
                   strokeWidth={2.5}
                   strokeLinecap="round"
-                  strokeLinejoin="round"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1, delay: 0.2, ease: 'easeOut' }}
-                />
+                  strokeLinejoin="round" className="panel-enter" />
                 <defs>
                   <linearGradient id="journey-chart-gradient" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor="var(--primary)" />
@@ -183,17 +167,17 @@ export function HeroJourney() {
                   </linearGradient>
                 </defs>
               </svg>
-            </motion.div>
+            </div>
           )}
 
           {current.key === 'interview' && (
-            <motion.div
+            <div
               key="interview"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex h-full items-center justify-center"
+             
+             
+             
+             
+              className="flex h-full items-center justify-center panel-enter"
             >
               <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--gradient-brand)' }}>
@@ -205,19 +189,17 @@ export function HeroJourney() {
                   <div className="text-xs font-medium text-foreground">Interview Coach</div>
                   <div className="mt-2 flex gap-1">
                     {[0, 1, 2].map((i) => (
-                      <motion.span
+                      <span
                         key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-muted"
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }}
-                      />
+                        className="h-1.5 w-1.5 rounded-full bg-muted panel-enter"
+                       
+                        />
                     ))}
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </div>
     </div>
   )

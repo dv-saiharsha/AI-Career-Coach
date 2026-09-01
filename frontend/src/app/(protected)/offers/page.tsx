@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'framer-motion'
 import { MapPin, Plus, Trash2 } from 'lucide-react'
 import {
   createOffer,
@@ -11,7 +10,6 @@ import {
   type CreateOfferPayload,
   type JobOffer,
 } from '@/lib/apiClient'
-import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
 import { PageHeader } from '@/components/PageHeader'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
@@ -70,8 +68,7 @@ function CompositionBar({ offer }: { offer: JobOffer }) {
 export default function OffersPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
-  const reduceMotion = usePrefersReducedMotion()
-  const [showAdd, setShowAdd] = useState(false)
+    const [showAdd, setShowAdd] = useState(false)
   const [draft, setDraft] = useState({
     company: '',
     role_title: '',
@@ -161,13 +158,12 @@ export default function OffersPage() {
         }
       />
 
-      <AnimatePresence initial={false}>
         {showAdd && (
-          <motion.form
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          <form
+           
+           
+           
+           
             onSubmit={(event) => {
               event.preventDefault()
               if (!draft.company.trim() || !draft.role_title.trim() || !draftCurrent()) return
@@ -189,7 +185,7 @@ export default function OffersPage() {
                   draft.col_index.trim() === '' ? null : Number(draft.col_index),
               })
             }}
-            className="overflow-hidden"
+            className="overflow-hidden panel-enter"
           >
             <div className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
               <Input
@@ -253,9 +249,8 @@ export default function OffersPage() {
                 {addMutation.isPending ? 'Adding…' : 'Add offer'}
               </Button>
             </div>
-          </motion.form>
+          </form>
         )}
-      </AnimatePresence>
 
       {isError && (
         <div className="card p-6">
@@ -284,18 +279,16 @@ export default function OffersPage() {
 
       {offers.length > 0 && (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          <AnimatePresence initial={false} mode="popLayout">
             {offers.map((offer) => {
               const isBest = offers.length > 1 && offer.net_adjusted_comp === bestNet
               return (
-                <motion.article
+                <article
                   key={offer.id}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  className="card flex flex-col gap-4 p-5"
+                 
+                 
+                 
+                 
+                  className="card flex flex-col gap-4 p-5 panel-enter"
                   style={
                     isBest ? { borderColor: 'var(--color-signal-high)' } : undefined
                   }
@@ -383,10 +376,9 @@ export default function OffersPage() {
                   {offer.notes && (
                     <p className="text-xs leading-relaxed text-(--color-ink-faint)">{offer.notes}</p>
                   )}
-                </motion.article>
+                </article>
               )
             })}
-          </AnimatePresence>
         </div>
       )}
 

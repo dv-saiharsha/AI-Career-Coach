@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, Send, Sparkles } from 'lucide-react'
 import {
   useCareerCoachChat,
@@ -178,18 +177,16 @@ export default function CareerCoachPage() {
         </div>
 
         <div className="mt-3">
-          <AnimatePresence>
             {sendError && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-2 overflow-hidden"
+              <div
+               
+               
+               
+                className="mb-2 overflow-hidden panel-enter"
               >
                 <InlineError message={sendError} />
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
           <div className="card flex items-end gap-2 p-3">
             <Textarea
               ref={textareaRef}

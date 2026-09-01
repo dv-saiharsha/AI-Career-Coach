@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import * as Tabs from '@radix-ui/react-tabs'
 import {
   CheckCircle2, Sparkles, RotateCcw,
@@ -15,16 +14,7 @@ import type { AnalysisResult } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InlineError } from './InlineError'
-import { SCAN_EASE, type GenStatus, type ResultTab } from './scanShared'
-
-const containerVariants: Variants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-}
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: SCAN_EASE } },
-}
+import { type GenStatus, type ResultTab } from './scanShared'
 
 type BuildMode = 'quick' | 'studio'
 
@@ -109,13 +99,13 @@ export function ScanResultsPanel({
   }, [result.keyword_analysis])
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="space-y-5"
+    <div
+     
+     
+     
+      className="space-y-5 panel-enter"
     >
-      <motion.div variants={itemVariants} className="flex items-center justify-between">
+      <div className="flex items-center justify-between panel-enter">
         <div>
           <span className="eyebrow mb-2 inline-flex">
             <span className="w-1.5 h-1.5 rounded-full bg-(--color-accent)" />
@@ -127,24 +117,23 @@ export function ScanResultsPanel({
           <RotateCcw strokeWidth={1.5} aria-hidden="true" />
           Run new scan
         </Button>
-      </motion.div>
+      </div>
 
-      <motion.div variants={itemVariants}>
+      <div className="panel-enter">
         <Waveform
           score={result.ats_score}
           subtitle={`${result.matched_skills.length} skills matched · ${result.missing_skills.length} missing · ${result.extracted_skills.length} decoded from your resume.`}
         />
-      </motion.div>
+      </div>
 
-      <AnimatePresence mode="wait">
         {selectedSkills.size > 0 && projectedScore !== null && (
-          <motion.div
+          <div
             key="projected"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.25 }}
-            className="flex items-center gap-2.5 card px-4 py-3"
+           
+           
+           
+           
+            className="flex items-center gap-2.5 card px-4 py-3 panel-enter"
           >
             <span className="text-xs text-(--color-ink-dim)">Projected after fixes:</span>
             <span className="text-sm font-display font-medium text-(--color-ink) tabular-nums">{projectedScore}%</span>
@@ -156,22 +145,21 @@ export function ScanResultsPanel({
             <span className="text-[10px] font-mono text-(--color-ink-faint) ml-auto">
               {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''} staged
             </span>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Resume Review: named scores, why each is what it is, and what to do
           next. Reads the same stored scan through a second, free endpoint.
           ResumeQualityPanel below stays untouched — it covers weak-bullet
           and skill-context detail this doesn't reproduce. */}
-      <motion.div variants={itemVariants}>
+      <div className="panel-enter">
         <ResumeReviewPanel key={result.id} analysisId={result.id} suggestions={result.suggestions} />
-      </motion.div>
+      </div>
 
       {/* Result tabs. General suggestions used to have a third trigger here —
           folded into Resume Review's Recommendations tab instead, since both
           were free-text improvement advice a tab apart from each other. */}
-      <motion.div variants={itemVariants}>
+      <div className="panel-enter">
         <div className="eyebrow mb-1">Detailed breakdown</div>
         <p className="text-xs text-(--color-ink-dim) mb-4">
           The specific skills and keywords behind the scores above.
@@ -315,18 +303,18 @@ export function ScanResultsPanel({
             </Tabs.Content>
           )}
         </Tabs.Root>
-      </motion.div>
+      </div>
 
       {/* Why the resume reads the way it does — diagnostics, no score.
           Sits between the score and the fix actions so the reasoning is
           read before the user decides what to change. */}
-      <motion.div variants={itemVariants}>
+      <div className="panel-enter">
         <ResumeQualityPanel key={result.id} analysisId={result.id} />
-      </motion.div>
+      </div>
 
       {/* The choice: patch the existing file, or rebuild it in the Studio.
           Both panels stay mounted (forceMount) — see the component docstring. */}
-      <motion.div variants={itemVariants}>
+      <div className="panel-enter">
         <Tabs.Root value={buildMode} onValueChange={(v) => setBuildMode(v as BuildMode)}>
           <Tabs.List
             aria-label="How to produce your updated resume"
@@ -394,19 +382,17 @@ export function ScanResultsPanel({
               </Button>
             </div>
 
-            <AnimatePresence>
               {genStatus === 'done' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
+                 
+                 
                   role="status"
-                  className="mt-3 flex items-center gap-2 text-sm text-(--color-accent)"
+                  className="mt-3 flex items-center gap-2 text-sm text-(--color-accent) panel-enter"
                 >
                   <CheckCircle2 strokeWidth={1.5} className="w-4 h-4" aria-hidden="true" />
                   Your tailored resume has been downloaded.
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
             {genError && (
               <div className="mt-3">
                 <InlineError message={genError} />
@@ -423,7 +409,7 @@ export function ScanResultsPanel({
             />
           </Tabs.Content>
         </Tabs.Root>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }

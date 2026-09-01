@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import * as Tabs from '@radix-ui/react-tabs'
 import {
   Briefcase, ChevronDown, FileSearch, Layers, Lightbulb,
@@ -131,14 +130,13 @@ function RecommendationCard({ category }: { category: ReviewCategory }) {
         </div>
       </button>
 
-      <AnimatePresence initial={false}>
         {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+          <div
+           
+           
+           
+           
+            className="overflow-hidden panel-enter"
           >
             <div className="px-4 pb-4 flex flex-col gap-3 border-t border-(--color-canvas-line) pt-3">
               <div>
@@ -166,9 +164,8 @@ function RecommendationCard({ category }: { category: ReviewCategory }) {
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ScanLine } from 'lucide-react'
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
 
@@ -65,11 +64,11 @@ export function ScanProgressPanel() {
   }, [])
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="min-h-[60vh] flex items-center justify-center"
+    <div
+     
+     
+     
+      className="min-h-[60vh] flex items-center justify-center panel-enter"
     >
       {/* The whole narration is one live region: a screen reader gets the
           stage changes and the flavor line, not silence for several seconds. */}
@@ -95,16 +94,15 @@ export function ScanProgressPanel() {
             ))}
           </div>
           {!reduceMotion && (
-            <motion.div
-              className="absolute left-0 right-0 h-9"
+            <div
+              className="absolute left-0 right-0 h-9 panel-enter"
               style={{
                 background:
                   'linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 35%, transparent) 50%, transparent)',
               }}
-              initial={{ top: '-20%' }}
-              animate={{ top: '110%' }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
-            />
+             
+             
+              />
           )}
           <div
             className="absolute inset-0"
@@ -128,12 +126,11 @@ export function ScanProgressPanel() {
                     />
                   )}
                   {current && !reduceMotion && (
-                    <motion.span
-                      className="absolute w-[7px] h-[7px] rounded-full"
+                    <span
+                      className="absolute w-[7px] h-[7px] rounded-full panel-enter"
                       style={{ background: 'var(--color-accent)' }}
-                      animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
-                      transition={{ duration: 1.1, repeat: Infinity, ease: 'easeOut' }}
-                    />
+                     
+                      />
                   )}
                 </span>
                 <span
@@ -148,20 +145,18 @@ export function ScanProgressPanel() {
         </div>
 
         <div className="mt-6 pt-5 border-t border-(--color-canvas-line) h-5">
-          <AnimatePresence mode="wait">
-            <motion.p
+            <p
               key={flavorIndex}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.25 }}
-              className="text-xs font-mono text-(--color-ink-faint) text-center"
+             
+             
+             
+             
+              className="text-xs font-mono text-(--color-ink-faint) text-center panel-enter"
             >
               {FLAVOR_LINES[flavorIndex]}
-            </motion.p>
-          </AnimatePresence>
+            </p>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }

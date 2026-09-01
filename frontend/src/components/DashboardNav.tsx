@@ -3,7 +3,6 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { motion, useReducedMotion } from 'framer-motion'
 import {
   LayoutDashboard,
   FileSearch,
@@ -32,7 +31,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { useCommandPalette } from '@/components/command-palette'
-import { springSnappy } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 /* Split into two labelled groups rather than one long list. Analytics,
@@ -83,15 +81,12 @@ function NavLink({
   item,
   active,
   onNavigate,
-  scope,
 }: {
   item: { icon: React.ElementType; label: string; href: string }
   active: boolean
   onNavigate?: () => void
-  scope: string
 }) {
   const Icon = item.icon
-  const reduce = useReducedMotion()
 
   return (
     <Link
@@ -105,11 +100,15 @@ function NavLink({
         active ? 'text-ink' : 'text-ink-dim hover:text-ink'
       )}
     >
+      {/* The active pill was a shared-layout element that slid between nav
+          items. Losing that slide is the one real cost of leaving Framer:
+          the pill now appears on the new item rather than travelling to it.
+          It fades rather than cutting, so the change still reads as a
+          change — and unlike the slide it is correct the moment the route
+          resolves, instead of after a spring settles. */}
       {active && (
-        <motion.span
-          layoutId={reduce ? undefined : `sidebar-pill-${scope}`}
-          className="absolute inset-0 -z-10 rounded-xl bg-canvas-elevated"
-          transition={springSnappy}
+        <span
+          className="absolute inset-0 -z-10 rounded-xl bg-canvas-elevated motion-safe:animate-[panel-enter_180ms_var(--ease-enter)_both]"
         />
       )}
       <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -120,11 +119,9 @@ function NavLink({
 
 function SidebarContent({
   pathname,
-  scope,
   onNavigate,
 }: {
   pathname: string
-  scope: string
   onNavigate?: () => void
 }) {
   const { user, logout } = useAuth()
@@ -153,7 +150,6 @@ function SidebarContent({
             item={item}
             active={pathname === item.href}
             onNavigate={onNavigate}
-            scope={scope}
           />
         ))}
 
@@ -166,7 +162,6 @@ function SidebarContent({
             item={item}
             active={pathname === item.href}
             onNavigate={onNavigate}
-            scope={scope}
           />
         ))}
       </nav>
@@ -183,7 +178,6 @@ function SidebarContent({
             item={item}
             active={pathname === item.href}
             onNavigate={onNavigate}
-            scope={scope}
           />
         ))}
         <Button
@@ -233,7 +227,7 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-canvas">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 shrink-0 flex-col border-r border-canvas-line bg-canvas md:flex">
-        <SidebarContent pathname={pathname} scope="desktop" />
+        <SidebarContent pathname={pathname} />
       </aside>
 
       <div className="flex flex-1 flex-col md:ml-60">
@@ -249,7 +243,6 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
                 <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
                 <SidebarContent
                   pathname={pathname}
-                  scope="mobile"
                   onNavigate={() => setMobileOpen(false)}
                 />
               </SheetContent>

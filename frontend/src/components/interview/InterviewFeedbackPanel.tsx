@@ -10,13 +10,10 @@
  */
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, RotateCcw, Sparkles, Target, TrendingUp } from 'lucide-react'
 import type { SessionReport } from '@/lib/apiClient'
 import { bandColor, bandLabel } from '@/lib/scoreBands'
 import { categoryLabel } from '@/lib/interviewCategories'
-import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
-import { EASE_OUT as EASE } from '@/lib/motion'
 import { NextActionCard } from '@/components/NextActionCard'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -48,14 +45,13 @@ function ReportQuestionRow({ item }: { item: import('@/lib/apiClient').QuestionF
         <span className="flex-1 min-w-0 text-sm text-(--color-ink) truncate">{item.question_text}</span>
         <span className="text-xs font-mono shrink-0" style={{ color: scoreColor(item.score) }}>{item.score.toFixed(1)}/10</span>
       </button>
-      <AnimatePresence initial={false}>
         {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+          <div
+           
+           
+           
+           
+            className="overflow-hidden panel-enter"
           >
             <div className="p-4 pt-0 space-y-3 border-t border-(--color-canvas-line) mt-0">
               <p className="text-xs text-(--color-ink-subtle) leading-relaxed pt-3 whitespace-pre-line">{item.answer_text}</p>
@@ -80,9 +76,8 @@ function ReportQuestionRow({ item }: { item: import('@/lib/apiClient').QuestionF
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }
@@ -104,8 +99,7 @@ export function InterviewFeedbackPanel({
   onExit: () => void
   restarting: boolean
 }) {
-  const reduceMotion = usePrefersReducedMotion()
-
+  
   if (loading || (!report && !error)) {
     return (
       <div className="flex flex-col gap-2.5">
@@ -128,11 +122,11 @@ export function InterviewFeedbackPanel({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: EASE }}
-      className="space-y-6"
+    <div
+     
+     
+     
+      className="space-y-6 panel-enter"
     >
       <div className="card p-8 text-center">
         <span className="eyebrow mb-3 inline-flex">
@@ -143,13 +137,12 @@ export function InterviewFeedbackPanel({
         <div className="flex items-center justify-center gap-3 max-w-xs mx-auto mb-3">
           <span className="text-xs text-(--color-ink-dim) w-24 shrink-0 text-left">Overall score</span>
           <div className="flex-1 h-1 rounded-full bg-(--color-canvas-line) overflow-hidden">
-            <motion.div
-              className="h-full rounded-full"
+            <div
+              className="h-full rounded-full panel-enter"
               style={{ background: scoreColor(report.overall_score) }}
-              initial={{ width: reduceMotion ? `${(report.overall_score / 10) * 100}%` : 0 }}
-              animate={{ width: `${(report.overall_score / 10) * 100}%` }}
-              transition={reduceMotion ? { duration: 0 } : { duration: 0.6, ease: EASE }}
-            />
+             
+             
+              />
           </div>
           <span className="text-xs font-mono tabular-nums shrink-0" style={{ color: scoreColor(report.overall_score) }}>
             {report.overall_score.toFixed(1)} / 10
@@ -252,6 +245,6 @@ export function InterviewFeedbackPanel({
           Exit interview
         </Button>
       </div>
-    </motion.div>
+    </div>
   )
 }

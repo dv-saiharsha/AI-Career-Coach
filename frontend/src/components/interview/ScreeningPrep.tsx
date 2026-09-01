@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, ChevronDown, Lightbulb, Radar, Sparkles } from 'lucide-react'
 import { CopyButton } from '@/components/ui/copy-button'
 import { generateScreeningPrep, type ScreeningPrep as Prep } from '@/lib/apiClient'
@@ -9,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
-const EASE = [0.22, 1, 0.36, 1] as const
 
 /**
  * Highlights the [bracketed placeholders] that the answer templates are built
@@ -115,18 +113,16 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
           />
         </div>
 
-        <AnimatePresence>
           {error && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden border-l-[3px] border-[var(--color-error)] py-1.5 pl-3 text-sm text-[var(--color-error)]"
+            <div
+             
+             
+             
+              className="overflow-hidden border-l-[3px] border-[var(--color-error)] py-1.5 pl-3 text-sm text-[var(--color-error)] panel-enter"
             >
               {error}
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
 
         <Button type="button" onClick={handleGenerate} disabled={loading} aria-busy={loading || undefined}>
           {loading ? (
@@ -144,11 +140,11 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
       </div>
 
       {prep && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: EASE }}
-          className="space-y-5"
+        <div
+         
+         
+         
+          className="space-y-5 panel-enter"
         >
           <div
             className="flex items-start gap-2.5 rounded-[10px] p-4"
@@ -177,23 +173,22 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
                       <div className="eyebrow text-[10px]">{q.type}</div>
                       <p className="text-sm font-medium leading-relaxed text-[var(--color-ink)]">{q.question}</p>
                     </div>
-                    <motion.span animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.18 }} className="shrink-0">
+                    <span className="shrink-0 panel-enter">
                       <ChevronDown strokeWidth={1.5} className="h-4 w-4 text-[var(--color-ink-faint)]" />
-                    </motion.span>
+                    </span>
                   </button>
 
                   <div className="flex justify-end px-5 pb-2">
                     <CopyButton value={q.question} label="question" />
                   </div>
 
-                  <AnimatePresence initial={false}>
                     {isOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
+                      <div
+                       
+                       
+                       
+                       
+                        className="overflow-hidden panel-enter"
                       >
                         <div
                           className="space-y-4 border-t border-[var(--color-canvas-line)] p-5"
@@ -231,9 +226,8 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
                             )}
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     )}
-                  </AnimatePresence>
                 </div>
               )
             })}
@@ -253,7 +247,7 @@ export function ScreeningPrep({ initialRole = '' }: { initialRole?: string }) {
               ))}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   )

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
-import { AnimatePresence } from 'framer-motion'
 import { ScanUploadForm } from '@/components/resume/ScanUploadForm'
 import { ScanProgressPanel } from '@/components/resume/ScanProgressPanel'
 import { ScanResultsPanel } from '@/components/resume/ScanResultsPanel'
@@ -159,7 +158,6 @@ export default function ResumeAnalyzer() {
           child.key via Children.forEach, deliberately without React's
           auto-assigned positional fallback), which silently turned every
           transition into a hard cut. */}
-      <AnimatePresence mode="wait">
         {status === 'loading' && <ScanProgressPanel key="loading" />}
 
         {status === 'success' && result && (
@@ -204,7 +202,6 @@ export default function ResumeAnalyzer() {
             onSubmit={handleSubmit}
           />
         )}
-      </AnimatePresence>
     </div>
   )
 }

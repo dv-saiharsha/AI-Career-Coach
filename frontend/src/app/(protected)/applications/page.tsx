@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'framer-motion'
 import { KanbanSquare, List, Plus, TrendingUp } from 'lucide-react'
 import {
   APPLICATION_STAGES,
@@ -22,7 +21,6 @@ import { PageHeader } from '@/components/PageHeader'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
 
 const PIPELINE_KEY = ['applications', 'pipeline'] as const
 
@@ -45,8 +43,7 @@ const VIEW_TABS: { value: ViewMode; label: string; icon: typeof KanbanSquare }[]
 export default function ApplicationsPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
-  const reduceMotion = usePrefersReducedMotion()
-  const [view, setView] = useState<ViewMode>('kanban')
+    const [view, setView] = useState<ViewMode>('kanban')
   const [showAdd, setShowAdd] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftCompany, setDraftCompany] = useState('')
@@ -189,11 +186,10 @@ export default function ApplicationsPage() {
               className="relative h-auto gap-1.5 rounded-[4px] px-3.5 py-1.5 text-sm font-medium hover:bg-transparent"
             >
               {active && (
-                <motion.span
-                  layoutId="applications-view-thumb"
-                  className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line)"
-                  transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                />
+                <span
+                 
+                  className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line) panel-enter"
+                  />
               )}
               <span className={`relative z-10 flex items-center gap-1.5 ${active ? 'text-(--color-ink)' : 'text-(--color-ink-faint) hover:text-(--color-ink-dim)'}`}>
                 <Icon strokeWidth={1.5} className="h-3.5 w-3.5" />
@@ -204,13 +200,12 @@ export default function ApplicationsPage() {
         })}
       </div>
 
-      <AnimatePresence initial={false}>
         {showAdd && (
-          <motion.form
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          <form
+           
+           
+           
+           
             onSubmit={(event) => {
               event.preventDefault()
               if (!draftTitle.trim() || !draftCompany.trim()) return
@@ -219,7 +214,7 @@ export default function ApplicationsPage() {
                 company: draftCompany.trim(),
               })
             }}
-            className="overflow-hidden"
+            className="overflow-hidden panel-enter"
           >
             <div className="card mb-5 flex flex-col gap-3 p-4 sm:flex-row">
               <Input
@@ -244,9 +239,8 @@ export default function ApplicationsPage() {
                 {addMutation.isPending ? 'Adding…' : 'Add to Saved'}
               </Button>
             </div>
-          </motion.form>
+          </form>
         )}
-      </AnimatePresence>
 
       {isError && (
         <div className="card p-6">

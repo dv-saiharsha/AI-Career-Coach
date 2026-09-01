@@ -1,14 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, RotateCcw, LogOut } from 'lucide-react'
 import { ScreeningPrep } from '@/components/interview/ScreeningPrep'
 import { InterviewPrep } from '@/components/interview/InterviewPrep'
 import { VoiceAnswerComposer } from '@/components/interview/VoiceAnswerComposer'
 import { QuestionCard } from '@/components/interview/SessionQuestionCard'
 import { InterviewFeedbackPanel } from '@/components/interview/InterviewFeedbackPanel'
-import { EASE_OUT as EASE } from '@/lib/motion'
 import type {
   ModelAnswerState,
   SessionQuestion,
@@ -358,10 +356,10 @@ export default function InterviewCoach() {
         </div>
 
         {mode === 'drills' && !checkingResumable && resumable && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="card p-5 mb-6 flex items-start justify-between gap-4 flex-wrap"
+          <div
+           
+           
+            className="card p-5 mb-6 flex items-start justify-between gap-4 flex-wrap panel-enter"
             style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-tint)' }}
           >
             <div>
@@ -381,7 +379,7 @@ export default function InterviewCoach() {
                 Start new instead
               </Button>
             </div>
-          </motion.div>
+          </div>
         )}
 
         <div className="relative inline-flex mb-8 flex-wrap rounded-[6px] border border-(--color-canvas-line) p-1">
@@ -401,11 +399,10 @@ export default function InterviewCoach() {
                 className="relative h-auto rounded-[4px] px-4 py-1.5 text-sm font-medium hover:bg-transparent"
               >
                 {active && (
-                  <motion.span
-                    layoutId="interview-mode-thumb"
-                    className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line)"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
+                  <span
+                   
+                    className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line) panel-enter"
+                    />
                 )}
                 <span className={`relative z-10 ${active ? 'text-(--color-ink)' : 'text-(--color-ink-faint) hover:text-(--color-ink-dim)'}`}>
                   {label}
@@ -426,17 +423,17 @@ export default function InterviewCoach() {
             same line as the inline-flex mode-tab pill row above it. */}
         <div className="eyebrow mb-3" style={{ display: 'block' }}>Role</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-          {ROLE_PRESETS.map((preset, i) => {
+          {ROLE_PRESETS.map((preset) => {
             const selected = selectedRoleKey === preset.key
             return (
-              <motion.button
+              <button
                 key={preset.key}
                 type="button"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.04, ease: EASE }}
+               
+               
+               
                 onClick={() => setSelectedRoleKey(preset.key)}
-                className="text-left rounded-[10px] p-4 transition-colors"
+                className="text-left rounded-[10px] p-4 transition-colors panel-enter"
                 style={{
                   border: selected ? '1px solid var(--color-accent)' : '1px solid var(--color-canvas-line)',
                   background: selected ? 'var(--color-accent-tint)' : 'var(--color-canvas-raise)',
@@ -445,16 +442,16 @@ export default function InterviewCoach() {
                 <div className="eyebrow text-[10px] mb-1.5">{preset.family}</div>
                 <div className="text-sm font-medium text-(--color-ink) mb-1">{preset.label}</div>
                 <div className="text-xs text-(--color-ink-dim) leading-relaxed">{preset.desc}</div>
-              </motion.button>
+              </button>
             )
           })}
 
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: ROLE_PRESETS.length * 0.04, ease: EASE }}
+          <div
+           
+           
+           
             onClick={() => setSelectedRoleKey('custom')}
-            className="text-left rounded-[10px] p-4 cursor-text transition-colors"
+            className="text-left rounded-[10px] p-4 cursor-text transition-colors panel-enter"
             style={{
               border: selectedRoleKey === 'custom' ? '1px solid var(--color-accent)' : '1px solid var(--color-canvas-line)',
               background: selectedRoleKey === 'custom' ? 'var(--color-accent-tint)' : 'var(--color-canvas-raise)',
@@ -471,7 +468,7 @@ export default function InterviewCoach() {
               placeholder="Type any role — e.g. Staff Backend Engineer"
               className="h-auto border-0 bg-transparent px-0 text-sm font-medium shadow-none focus-visible:border-0 focus-visible:shadow-none"
             />
-          </motion.div>
+          </div>
         </div>
 
         <div className="eyebrow mb-3" style={{ display: 'block' }}>Seniority</div>
@@ -488,11 +485,10 @@ export default function InterviewCoach() {
                 className="relative h-auto rounded-[4px] px-4 py-1.5 text-sm font-medium hover:bg-transparent"
               >
                 {active && (
-                  <motion.span
-                    layoutId="seniority-thumb"
-                    className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line)"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
+                  <span
+                   
+                    className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line) panel-enter"
+                    />
                 )}
                 <span className={`relative z-10 ${active ? 'text-(--color-ink)' : 'text-(--color-ink-faint) hover:text-(--color-ink-dim)'}`}>
                   {s}
@@ -535,11 +531,10 @@ export default function InterviewCoach() {
                 className="relative h-auto rounded-[4px] px-4 py-1.5 text-sm font-medium hover:bg-transparent"
               >
                 {active && (
-                  <motion.span
-                    layoutId="input-mode-thumb"
-                    className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line)"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
+                  <span
+                   
+                    className="absolute inset-0 rounded-[4px] bg-(--color-canvas-raise) border border-(--color-canvas-line) panel-enter"
+                    />
                 )}
                 <span className={`relative z-10 ${active ? 'text-(--color-ink)' : 'text-(--color-ink-faint) hover:text-(--color-ink-dim)'}`}>
                   {m === 'text' ? 'Type answers' : 'Speak answers'}
@@ -566,18 +561,16 @@ export default function InterviewCoach() {
           </div>
         </div>
 
-        <AnimatePresence>
           {setupError && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-start gap-2 text-sm text-(--color-error) border-l-[3px] border-(--color-error) pl-3 py-1.5 mb-4 overflow-hidden"
+            <div
+             
+             
+             
+              className="flex items-start gap-2 text-sm text-(--color-error) border-l-[3px] border-(--color-error) pl-3 py-1.5 mb-4 overflow-hidden panel-enter"
             >
               {setupError}
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
 
         <Button
           type="button"
@@ -623,11 +616,10 @@ export default function InterviewCoach() {
       </div>
 
       <div className="w-full h-[1.5px] bg-(--color-canvas-line) rounded-full mb-6 overflow-hidden">
-        <motion.div
-          className="h-full bg-(--color-accent)"
-          animate={{ width: questions.length > 0 ? `${(answeredCount / questions.length) * 100}%` : '0%' }}
-          transition={{ duration: 0.4, ease: EASE }}
-        />
+        <div
+          className="h-full bg-(--color-accent) panel-enter"
+         
+          />
       </div>
 
       {allAnswered ? (
@@ -663,11 +655,9 @@ export default function InterviewCoach() {
       {!allAnswered && activeQuestion && activeQuestion.status !== 'answered' && (
         <div className="sticky bottom-4 sm:bottom-6 mt-4">
           <div className="card p-4" style={{ boxShadow: 'var(--shadow-raised)' }}>
-            <AnimatePresence>
               {submitError && (
                 <div className="text-xs text-(--color-error) mb-2">{submitError}</div>
               )}
-            </AnimatePresence>
 
             {inputMode === 'voice' && (
               <div className={answerDraft.trim() ? 'mb-3 pb-3 border-b border-(--color-canvas-line)' : ''}>

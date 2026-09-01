@@ -9,11 +9,8 @@
  */
 
 import { forwardRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react'
 import { DIMENSION_LABELS } from '@/lib/apiClient'
-import { EASE_OUT as EASE } from '@/lib/motion'
-import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
 import { Button } from '@/components/ui/button'
 import { ModelAnswerPanel } from './ModelAnswerPanel'
 import { BulletList, scoreColor, type ModelAnswerState, type SessionQuestion } from './interviewShared'
@@ -30,8 +27,7 @@ export const QuestionCard = forwardRef<HTMLDivElement, {
   onExit: () => void
 }>(function QuestionCard({ question, index, tag, isActive, modelAnswer, onRetryModelAnswer, onSelect, onNext, onExit }, ref) {
   const [showImproved, setShowImproved] = useState(false)
-  const reduceMotion = usePrefersReducedMotion()
-
+  
   return (
     <div
       ref={ref}
@@ -78,35 +74,33 @@ export const QuestionCard = forwardRef<HTMLDivElement, {
           {question.status === 'evaluating' && (
             <div className="relative mt-4 pt-3">
               <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-(--color-canvas-line) overflow-hidden">
-                <motion.div
-                  className="h-full w-1/3 bg-(--color-accent)"
-                  animate={{ x: ['-100%', '300%'] }}
-                  transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
-                />
+                <div
+                  className="h-full w-1/3 bg-(--color-accent) panel-enter"
+                 
+                  />
               </div>
               <span className="eyebrow text-[10px] text-(--color-ink-dim)">Evaluating</span>
             </div>
           )}
 
           {question.status === 'answered' && question.feedback && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: EASE }}
-              className="mt-4 pt-4 border-t border-(--color-canvas-line)"
+            <div
+             
+             
+             
+              className="mt-4 pt-4 border-t border-(--color-canvas-line) panel-enter"
             >
               <span className="eyebrow text-[10px] mb-3 block">Feedback — Question {String(index).padStart(2, '0')}</span>
 
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-xs text-(--color-ink-dim) w-10 shrink-0">Score</span>
                 <div className="flex-1 h-1 rounded-full bg-(--color-canvas-line) overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full"
+                  <div
+                    className="h-full rounded-full panel-enter"
                     style={{ background: scoreColor(question.feedback.score) }}
-                    initial={{ width: reduceMotion ? `${(question.feedback.score / 10) * 100}%` : 0 }}
-                    animate={{ width: `${(question.feedback.score / 10) * 100}%` }}
-                    transition={reduceMotion ? { duration: 0 } : { duration: 0.6, ease: EASE }}
-                  />
+                   
+                   
+                    />
                 </div>
                 <span className="text-xs font-mono tabular-nums shrink-0" style={{ color: scoreColor(question.feedback.score) }}>
                   {question.feedback.score.toFixed(1)} / 10
@@ -192,19 +186,18 @@ export const QuestionCard = forwardRef<HTMLDivElement, {
                     aria-expanded={showImproved}
                     className="h-auto gap-1.5 px-0 font-mono text-xs uppercase tracking-widest text-ink-dim hover:bg-transparent hover:text-ink"
                   >
-                    <motion.span animate={{ rotate: showImproved ? 90 : 0 }} transition={{ duration: 0.15 }}>
+                    <span className="panel-enter">
                       <ChevronRight strokeWidth={1.5} className="w-3.5 h-3.5" />
-                    </motion.span>
+                    </span>
                     View improved answer
                   </Button>
-                  <AnimatePresence initial={false}>
                     {showImproved && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.15 }}
-                        className="overflow-hidden"
+                      <div
+                       
+                       
+                       
+                       
+                        className="overflow-hidden panel-enter"
                       >
                         <p
                           className="text-sm text-(--color-ink-dim) leading-relaxed mt-3 pl-3.5 py-0.5"
@@ -212,9 +205,8 @@ export const QuestionCard = forwardRef<HTMLDivElement, {
                         >
                           {question.feedback.sample_answer}
                         </p>
-                      </motion.div>
+                      </div>
                     )}
-                  </AnimatePresence>
                 </div>
               )}
 
@@ -227,7 +219,7 @@ export const QuestionCard = forwardRef<HTMLDivElement, {
                   Exit interview
                 </Button>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
       )}

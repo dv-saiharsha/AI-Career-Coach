@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import {
   Plus, Trash2, Sparkles, Download, AlertCircle, ArrowRight, FileCheck2, Wand2,
 } from 'lucide-react'
@@ -476,13 +475,12 @@ export function ResumeBuilderPanel({
         </div>
       )}
 
-      <AnimatePresence>
         {(missingKeywords.length > 0 || suggestions.length > 0) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="rounded-xl border border-[var(--color-canvas-line)] p-4 space-y-4"
+          <div
+           
+           
+           
+            className="rounded-xl border border-[var(--color-canvas-line)] p-4 space-y-4 panel-enter"
           >
             {missingKeywords.length > 0 && (
               <div>
@@ -520,16 +518,14 @@ export function ResumeBuilderPanel({
                 </div>
               </div>
             )}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
         {compileResult && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-[var(--color-canvas-line)] p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+          <div
+           
+           
+            className="rounded-xl border border-[var(--color-canvas-line)] p-4 flex flex-col sm:flex-row sm:items-center gap-4 panel-enter"
           >
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
@@ -558,9 +554,8 @@ export function ResumeBuilderPanel({
               <Download strokeWidth={1.5} className="w-4 h-4" />
               Download PDF
             </Button>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

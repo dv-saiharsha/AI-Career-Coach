@@ -11,7 +11,6 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { AnimatePresence } from 'framer-motion'
 import { APPLICATION_STAGES, type ApplicationStatus, type JobApplication, type Pipeline } from '@/lib/apiClient'
 import { STAGE_LABELS, STAGE_MARKERS } from '@/lib/applicationStages'
 import { ApplicationCard } from '@/components/applications/ApplicationCard'
@@ -79,7 +78,7 @@ function KanbanColumn({
         ) : cards.length === 0 ? (
           <p className="px-1 py-6 text-center text-xs text-(--color-ink-faint)">Nothing here yet.</p>
         ) : (
-          <AnimatePresence initial={false} mode="popLayout">
+          <>
             {cards.map((application) => (
               <ApplicationCard
                 key={application.id}
@@ -90,7 +89,7 @@ function KanbanColumn({
                 disabled={busy}
               />
             ))}
-          </AnimatePresence>
+          </>
         )}
       </div>
     </section>

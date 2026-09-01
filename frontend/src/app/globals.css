@@ -672,6 +672,136 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   PRESENCE
+
+   Enter and exit transitions for anything that mounts and unmounts —
+   panels, drawers, modals, toasts. Driven entirely by the data-state
+   attribute that lib/presence.tsx sets, so the animation lives here with
+   the rest of the system rather than as props on a component.
+
+   Four shapes, because four is what the product actually uses. Each has a
+   matching duration constant in presence.tsx; changing a duration here
+   means changing it there, or the element unmounts mid-exit.
+
+   Every one animates opacity and transform only. No height, no filter —
+   both repaint, and a height tween on a panel of unknown size is where
+   layout thrash comes from.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+  /* Inline panels and reveals — 180ms, matches EXIT_FAST. */
+  .presence-panel {
+    transition:
+      opacity 180ms var(--ease-enter),
+      transform 180ms var(--ease-enter);
+  }
+  .presence-panel[data-state='closed'] {
+    transition-timing-function: var(--ease-exit);
+  }
+  .presence-panel[data-state='open'] {
+    opacity: 1;
+    transform: none;
+  }
+  .presence-panel[data-state='closed'] {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+
+  /* Drawers, from the right — 240ms, matches EXIT_SLOW. */
+  .presence-drawer {
+    transition:
+      opacity 240ms var(--ease-enter),
+      transform 240ms var(--ease-enter);
+  }
+  .presence-drawer[data-state='closed'] {
+    transition-timing-function: var(--ease-exit);
+  }
+  .presence-drawer[data-state='open'] {
+    opacity: 1;
+    transform: none;
+  }
+  .presence-drawer[data-state='closed'] {
+    opacity: 0;
+    /* A side sheet leaves the way it came — all the way off, not a nudge. */
+    transform: translate3d(100%, 0, 0);
+  }
+
+  /* Modals — settle in place rather than sliding. */
+  .presence-modal {
+    transition:
+      opacity 240ms var(--ease-enter),
+      transform 240ms var(--ease-spring);
+  }
+  .presence-modal[data-state='open'] {
+    opacity: 1;
+    transform: none;
+  }
+  .presence-modal[data-state='closed'] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  /* Scrims behind a drawer or modal — opacity only, never movement. */
+  .presence-scrim {
+    transition: opacity 240ms var(--ease-enter);
+  }
+  .presence-scrim[data-state='open'] {
+    opacity: 1;
+  }
+  .presence-scrim[data-state='closed'] {
+    opacity: 0;
+  }
+}
+
+/* Enter-only, for the many inline panels where an exit transition was never
+   worth holding the element in the tree for: a disclosure body, a details
+   block, an inline result. Runs on mount, needs no JavaScript at all, and is
+   the same trade the auth rebuild already made when it stopped tweening
+   error banners open. */
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.panel-enter {
+  animation: panel-enter 180ms var(--ease-enter) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-enter {
+    animation: none;
+  }
+}
+
+/* Reduced motion gets the end state immediately, in both directions, the
+   same as the reveal system and route-enter. The element is still held in
+   the tree for its exit window — harmless, and it keeps one code path. */
+/* Reduced motion is a gentler equivalent, not the absence of feedback: the
+   travel and the overshoot go, a short opacity cross-fade stays. An element
+   that simply blinks out of existence is harder to follow than one that
+   fades, and opacity is not vestibular. */
+@media (prefers-reduced-motion: reduce) {
+  .presence-panel,
+  .presence-drawer,
+  .presence-modal,
+  .presence-scrim {
+    transition: opacity 150ms linear;
+    transform: none !important;
+  }
+  .presence-panel[data-state='closed'],
+  .presence-drawer[data-state='closed'],
+  .presence-modal[data-state='closed'],
+  .presence-scrim[data-state='closed'] {
+    opacity: 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    ROUTE ENTER
 
    Runs once per navigation inside the workspace. Keyed on the pathname in

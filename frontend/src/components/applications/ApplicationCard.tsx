@@ -1,9 +1,9 @@
 'use client'
 
+import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { motion } from 'framer-motion'
 import { Building2, GripVertical, MapPin, Trash2 } from 'lucide-react'
 import { APPLICATION_STAGES, type ApplicationStatus, type JobApplication } from '@/lib/apiClient'
 import { STAGE_LABELS } from '@/lib/applicationStages'
@@ -29,14 +29,14 @@ export function ApplicationCard({ application, onOpen, onMove, onDelete, disable
   const style = transform && !overlay ? { transform: CSS.Translate.toString(transform) } : undefined
 
   return (
-    <motion.div
+    <div
       ref={overlay ? undefined : setNodeRef}
-      layout={!overlay}
-      initial={overlay ? undefined : { opacity: 0, y: 6 }}
-      animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="rounded-md p-3.5"
+     
+     
+     
+     
+     
+      className={cn('rounded-md p-3.5 panel-enter', isDragging && 'opacity-60 scale-[0.98]')}
       style={{
         ...style,
         background: 'var(--color-canvas-raise)',
@@ -123,6 +123,6 @@ export function ApplicationCard({ application, onOpen, onMove, onDelete, disable
           </button>
         </div>
       )}
-    </motion.div>
+    </div>
   )
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -57,7 +56,7 @@ function ScoreRing({ score, size = 40 }: { score: number | null; size?: number }
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={chart.grid} strokeWidth={stroke} />
         {score !== null && (
-          <motion.circle
+          <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
@@ -66,9 +65,10 @@ function ScoreRing({ score, size = 40 }: { score: number | null; size?: number }
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={circumference}
-            initial={{ strokeDashoffset: circumference }}
-            animate={{ strokeDashoffset: offset }}
-            transition={{ duration: 1, ease: 'easeOut', delay: 0.15 }}
+            /* The offset IS the score — without it the ring draws full at
+               every value. It grows from empty via a CSS transition. */
+            strokeDashoffset={offset}
+            className="motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700 motion-safe:ease-(--ease-enter)"
           />
         )}
       </svg>
@@ -184,13 +184,13 @@ export default function ReportsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {status === 'loading'
               ? Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} className="h-[104px]" />)
-              : summary.map(({ icon: Icon, label, value, sub }, i) => (
-                  <motion.div
+              : summary.map(({ icon: Icon, label, value, sub }) => (
+                  <div
                     key={label}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-5 hover:border-(--color-canvas-line) transition-colors"
+                   
+                   
+                   
+                    className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-5 hover:border-(--color-canvas-line) transition-colors panel-enter"
                   >
                     <div className="w-8 h-8 rounded-lg bg-(--color-accent)/10 flex items-center justify-center mb-3">
                       <Icon className="w-4 h-4 text-(--color-accent)" />
@@ -198,12 +198,12 @@ export default function ReportsPage() {
                     <div className="text-xl font-display font-bold text-(--color-accent) tabular-nums">{value}</div>
                     <div className="text-xs font-medium text-(--color-ink) mt-0.5">{label}</div>
                     <div className="text-xs text-(--color-ink-faint) mt-0.5">{sub}</div>
-                  </motion.div>
+                  </div>
                 ))}
           </div>
 
           {!isEmpty && status !== 'loading' && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <div className="panel-enter">
               <Tabs.Root value={filter} onValueChange={(v) => setFilter(v as Filter)}>
                 <Tabs.List className="flex items-center gap-1">
                   {FILTERS.map((f) => (
@@ -217,15 +217,15 @@ export default function ReportsPage() {
                   ))}
                 </Tabs.List>
               </Tabs.Root>
-            </motion.div>
+            </div>
           )}
 
           {/* Ledger */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl overflow-hidden"
+          <div
+           
+           
+           
+            className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl overflow-hidden panel-enter"
           >
             {status === 'loading' ? (
               <div className="divide-y divide-(--color-canvas)">
@@ -245,16 +245,15 @@ export default function ReportsPage() {
                 </p>
               </div>
             ) : (
-              <AnimatePresence initial={false}>
-                {filtered.map((report, i) => (
-                  <motion.div
+              <>
+                {filtered.map((report) => (
+                  <div
                     key={`${report.kind}-${report.id}`}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ delay: Math.min(i, 8) * 0.05, duration: 0.35 }}
-                    className="flex items-center gap-4 px-5 py-4 border-b border-(--color-canvas-line-soft) hover:bg-canvas-elevated transition-colors last:border-0"
+                   
+                   
+                   
+                   
+                    className="flex items-center gap-4 px-5 py-4 border-b border-(--color-canvas-line-soft) hover:bg-canvas-elevated transition-colors last:border-0 panel-enter"
                   >
                     <div className="w-9 h-9 rounded-lg bg-(--color-accent)/10 flex items-center justify-center shrink-0">
                       {report.kind === 'resume' ? (
@@ -350,11 +349,11 @@ export default function ReportsPage() {
                       // honest choice for the same row kind.
                       <div className="w-8 shrink-0" />
                     )}
-                  </motion.div>
+                  </div>
                 ))}
-              </AnimatePresence>
+              </>
             )}
-          </motion.div>
+          </div>
         </>
       )}
     </div>

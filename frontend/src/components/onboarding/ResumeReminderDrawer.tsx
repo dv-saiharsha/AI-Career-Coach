@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Presence, EXIT_SLOW } from '@/lib/presence'
 import { FileText, Sparkles, Upload, X } from 'lucide-react'
-import { springSoft } from '@/lib/motion'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const ACCEPTED = ['.pdf', '.docx']
@@ -59,16 +58,13 @@ export function ResumeReminderDrawer({ isOpen, onDismiss, onUpload, error }: Res
   }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.aside
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={springSoft}
+    <Presence open={isOpen} duration={EXIT_SLOW}>
+      {(state) => (
+        <aside
+          data-state={state}
           role="complementary"
           aria-label="Add your resume"
-          className="fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col justify-between border-l border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)] p-6 shadow-[var(--shadow-pop)]"
+          className="presence-drawer fixed right-0 top-0 z-40 flex h-full w-full max-w-sm flex-col justify-between border-l border-[var(--color-canvas-line)] bg-[var(--color-canvas-raise)] p-6 shadow-[var(--shadow-pop)]"
         >
           <div className="space-y-5">
             <div className="flex items-start justify-between gap-3">
@@ -140,8 +136,8 @@ export function ResumeReminderDrawer({ isOpen, onDismiss, onUpload, error }: Res
               Not right now
             </button>
           </div>
-        </motion.aside>
+        </aside>
       )}
-    </AnimatePresence>
+    </Presence>
   )
 }

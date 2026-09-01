@@ -1,13 +1,11 @@
 'use client'
 
 import { type DragEvent, type FormEvent, type RefObject } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { FileText, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { InlineError } from './InlineError'
-import { SCAN_EASE } from './scanShared'
 
 interface ScanUploadFormProps {
   file: File | null
@@ -57,12 +55,7 @@ export function ScanUploadForm({
   onSubmit,
 }: ScanUploadFormProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.25, ease: SCAN_EASE }}
-    >
+    <div className="panel-enter">
       <div className="mb-8">
         <span className="eyebrow mb-3 inline-flex">
           <span className="w-1.5 h-1.5 rounded-full bg-(--color-accent)" />
@@ -151,29 +144,26 @@ export function ScanUploadForm({
               <label htmlFor="jobDescription" className="eyebrow">
                 Job Description
               </label>
-              <AnimatePresence>
                 {pasteNotice && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="text-[10px] font-mono text-(--color-accent)"
+                  <span
+                   
+                   
+                   
+                    className="text-[10px] font-mono text-(--color-accent) panel-enter"
                   >
                     {pasteNotice}
-                  </motion.span>
+                  </span>
                 )}
-              </AnimatePresence>
             </div>
             {/* Tells the user why the field arrived pre-filled — an
                 auto-populated textarea with no explanation reads as a
                 bug. Dismissible because it stops being useful once read. */}
-            <AnimatePresence>
               {jobContextNotice && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-(--color-accent)/20 bg-(--color-accent)/5 px-3 py-2"
+                <div
+                 
+                 
+                 
+                  className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-(--color-accent)/20 bg-(--color-accent)/5 px-3 py-2 panel-enter"
                 >
                   <span className="text-xs text-(--color-ink-dim)">
                     Filled from <span className="font-medium text-(--color-ink)">{jobContextNotice}</span>
@@ -186,9 +176,8 @@ export function ScanUploadForm({
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
             <Textarea
               id="jobDescription"
               value={jobDescription}
@@ -203,18 +192,16 @@ export function ScanUploadForm({
             </div>
           </div>
 
-          <AnimatePresence>
             {hasError && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
+              <div
+               
+               
+               
+                className="overflow-hidden panel-enter"
               >
                 <InlineError message={error} />
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
           <Button type="submit" disabled={!file} className="w-fit">
             Run the scan
@@ -230,6 +217,6 @@ export function ScanUploadForm({
           </p>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }

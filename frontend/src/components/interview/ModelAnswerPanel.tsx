@@ -7,7 +7,6 @@
  */
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, Lightbulb, Sparkles } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
@@ -64,14 +63,13 @@ export function ModelAnswerPanel({
         </p>
       )}
 
-      <AnimatePresence initial={false}>
         {showContent && data && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+          <div
+           
+           
+           
+           
+            className="overflow-hidden panel-enter"
           >
             <div
               className="mt-3 rounded-[10px] p-4 space-y-4"
@@ -117,9 +115,8 @@ export function ModelAnswerPanel({
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

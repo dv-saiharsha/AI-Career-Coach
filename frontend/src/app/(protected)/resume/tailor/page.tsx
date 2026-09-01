@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, ArrowLeft, Check, CheckCircle2, FileText, Sparkles, Wand2 } from 'lucide-react'
 
 import {
@@ -188,7 +187,7 @@ function TailorWorkspace() {
         Back
       </button>
 
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+      <div className="mb-6 panel-enter">
         <span className="eyebrow mb-2 inline-flex items-center gap-1.5">
           <Wand2 strokeWidth={1.5} className="h-3 w-3" />
           Tailor
@@ -200,7 +199,7 @@ function TailorWorkspace() {
           Your resume on the left, what we propose changing on the right. Nothing is saved or
           downloaded until you accept.
         </p>
-      </motion.div>
+      </div>
 
       {STEPS.some((s) => progress.stateOf(s.key) !== 'pending') && (
         <TailorProgressStepper
@@ -360,18 +359,16 @@ function TailorWorkspace() {
               {preview.download_filename}
             </p>
 
-            <AnimatePresence>
               {built && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-3 flex items-center gap-2 text-sm text-[var(--color-accent)]"
+                <div
+                 
+                 
+                  className="mt-3 flex items-center gap-2 text-sm text-[var(--color-accent)] panel-enter"
                 >
                   <CheckCircle2 strokeWidth={1.5} className="h-4 w-4" />
                   Downloaded. Your original scan is untouched.
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
           </div>
         </>
       )}

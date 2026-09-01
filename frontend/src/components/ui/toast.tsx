@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Check, TriangleAlert, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +27,8 @@ export interface ToastOptions {
 }
 
 interface ToastRecord extends Required<Omit<ToastOptions, 'description'>> {
+  /** Set while the exit transition runs, before the row leaves state. */
+  leaving?: boolean
   id: number
   description?: string
 }
@@ -47,6 +48,9 @@ const DEFAULT_DURATION: Record<ToastVariant, number> = {
 }
 
 // Bounded so a loop that fires repeatedly can't paper over the whole screen.
+/** Must match .presence-panel's transition in globals.css. */
+const TOAST_EXIT_MS = 180
+
 const MAX_VISIBLE = 3
 
 let nextId = 0
@@ -55,8 +59,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = React.useState<ToastRecord[]>([])
   const timers = React.useRef(new Map<number, ReturnType<typeof setTimeout>>())
 
+  /* Two-step removal: the toast is marked leaving, its CSS exit runs, and
+     the row is dropped from state once the transition has had time to
+     finish. AnimatePresence used to hold the element in the tree for this;
+     a flag and a timeout do the same job without the library. */
   const dismiss = React.useCallback((id: number) => {
-    setToasts((current) => current.filter((t) => t.id !== id))
+    setToasts((current) => current.map((t) => (t.id === id ? { ...t, leaving: true } : t)))
+    setTimeout(() => {
+      setToasts((current) => current.filter((t) => t.id !== id))
+    }, TOAST_EXIT_MS)
     const timer = timers.current.get(id)
     if (timer) {
       clearTimeout(timer)
@@ -108,7 +119,6 @@ function ToastViewport({
   toasts: ToastRecord[]
   onDismiss: (id: number) => void
 }) {
-  const reduce = useReducedMotion()
 
   return (
     /* polite, not assertive: a confirmation should wait for a natural pause
@@ -120,17 +130,12 @@ function ToastViewport({
       aria-atomic="false"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:right-0 sm:items-end"
     >
-      <AnimatePresence initial={false}>
         {toasts.map((t) => (
-          <motion.div
+          <div
             key={t.id}
-            layout={!reduce}
-            initial={reduce ? false : { opacity: 0, y: 12, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+            data-state={t.leaving ? 'closed' : 'open'}
             className={cn(
-              'pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border p-3.5',
+              'presence-panel pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border p-3.5',
               'border-canvas-line bg-canvas-raise shadow-(--shadow-pop)'
             )}
           >
@@ -163,9 +168,8 @@ function ToastViewport({
             >
               <X className="size-3.5" aria-hidden="true" />
             </button>
-          </motion.div>
+          </div>
         ))}
-      </AnimatePresence>
     </div>
   )
 }

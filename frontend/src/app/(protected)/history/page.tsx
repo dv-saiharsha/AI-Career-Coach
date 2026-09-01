@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'framer-motion'
 import * as Tabs from '@radix-ui/react-tabs'
 import CountUp from 'react-countup'
 import { PageHeader } from '@/components/PageHeader'
@@ -64,7 +63,7 @@ function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={chart.grid} strokeWidth={stroke} />
         {score !== null && (
-          <motion.circle
+          <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
@@ -73,9 +72,10 @@ function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={circumference}
-            initial={{ strokeDashoffset: circumference }}
-            animate={{ strokeDashoffset: offset }}
-            transition={{ duration: 1, ease: 'easeOut', delay: 0.15 }}
+            /* The offset IS the score — without it the ring draws full at
+               every value. It grows from empty via a CSS transition. */
+            strokeDashoffset={offset}
+            className="motion-safe:transition-[stroke-dashoffset] motion-safe:duration-700 motion-safe:ease-(--ease-enter)"
           />
         )}
       </svg>
@@ -218,14 +218,14 @@ export default function History() {
       />
 
       {status === 'error' && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-2xl px-5 py-4"
+        <div
+         
+         
+          className="flex items-center gap-3 bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-2xl px-5 py-4 panel-enter"
         >
           <AlertCircle className="w-4 h-4 text-[#EF4444] shrink-0" />
           <p className="text-sm text-(--color-ink-dim)">Couldn&rsquo;t load your history. Try refreshing.</p>
-        </motion.div>
+        </div>
       )}
 
       {status !== 'error' && (
@@ -234,13 +234,13 @@ export default function History() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {status === 'loading'
               ? Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} className="h-[104px]" />)
-              : STAT_CARDS.map(({ icon: Icon, label, value, suffix, decimals }, i) => (
-                  <motion.div
+              : STAT_CARDS.map(({ icon: Icon, label, value, suffix, decimals }) => (
+                  <div
                     key={label}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.07 }}
-                    className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-5 hover:border-(--color-canvas-line) transition-colors"
+                   
+                   
+                   
+                    className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-5 hover:border-(--color-canvas-line) transition-colors panel-enter"
                   >
                     <div className="w-8 h-8 rounded-lg bg-(--color-accent)/10 flex items-center justify-center mb-3">
                       <Icon className="w-4 h-4 text-(--color-accent)" />
@@ -249,7 +249,7 @@ export default function History() {
                       <CountUp end={value} duration={1.4} decimals={decimals} suffix={suffix} />
                     </div>
                     <div className="text-xs font-medium text-(--color-ink) mt-0.5">{label}</div>
-                  </motion.div>
+                  </div>
                 ))}
           </div>
 
@@ -261,11 +261,11 @@ export default function History() {
             </div>
           ) : (
             !isEmpty && (
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="grid grid-cols-1 lg:grid-cols-2 gap-5"
+              <div
+               
+               
+               
+                className="grid grid-cols-1 lg:grid-cols-2 gap-5 panel-enter"
               >
                 <TrendCard
                   title="ATS Score Trend"
@@ -281,14 +281,14 @@ export default function History() {
                   unit="/10"
                   gradientId="historyInterviewFill"
                 />
-              </motion.div>
+              </div>
             )
           )}
 
           {/* Timeline */}
           {!isEmpty && (
             <>
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <div className="panel-enter">
                 <Tabs.Root value={filter} onValueChange={(v) => setFilter(v as Filter)}>
                   <Tabs.List className="flex items-center gap-1">
                     {FILTERS.map((f) => (
@@ -302,13 +302,13 @@ export default function History() {
                     ))}
                   </Tabs.List>
                 </Tabs.Root>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 }}
-                className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl overflow-hidden"
+              <div
+               
+               
+               
+                className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl overflow-hidden panel-enter"
               >
                 {status === 'loading' ? (
                   <div className="divide-y divide-(--color-canvas)">
@@ -324,15 +324,15 @@ export default function History() {
                     <p className="text-sm text-(--color-ink-dim)">No {filter.toLowerCase()} activity yet.</p>
                   </div>
                 ) : (
-                  <AnimatePresence initial={false}>
-                    {filteredTimeline.map((item, i) => (
-                      <motion.div
+                  <>
+                    {filteredTimeline.map((item) => (
+                      <div
                         key={`${item.kind}-${item.id}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ delay: Math.min(i, 8) * 0.05, duration: 0.35 }}
-                        className="flex items-center gap-4 px-5 py-4 border-b border-(--color-canvas) hover:bg-white/[0.03] transition-colors last:border-0"
+                       
+                       
+                       
+                       
+                        className="flex items-center gap-4 px-5 py-4 border-b border-(--color-canvas) hover:bg-white/[0.03] transition-colors last:border-0 panel-enter"
                       >
                         <div
                           className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
@@ -422,20 +422,20 @@ export default function History() {
                         ) : (
                           <div className="w-8 shrink-0" />
                         )}
-                      </motion.div>
+                      </div>
                     ))}
-                  </AnimatePresence>
+                  </>
                 )}
-              </motion.div>
+              </div>
             </>
           )}
 
           {/* Empty state */}
           {isEmpty && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center gap-4 bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl py-20 px-6 text-center"
+            <div
+             
+             
+              className="flex flex-col items-center justify-center gap-4 bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl py-20 px-6 text-center panel-enter"
             >
               <div className="w-12 h-12 rounded-2xl bg-(--color-accent)/10 flex items-center justify-center">
                 <Inbox className="w-6 h-6 text-(--color-accent)" />
@@ -446,15 +446,15 @@ export default function History() {
                   Scan a resume or practice a mock interview and it&rsquo;ll show up here.
                 </p>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex flex-wrap gap-3"
+          <div
+           
+           
+           
+            className="flex flex-wrap gap-3 panel-enter"
           >
             <Link
               href="/resume"
@@ -470,7 +470,7 @@ export default function History() {
               <MessageSquareCode className="w-4 h-4" />
               Practice another question
             </Link>
-          </motion.div>
+          </div>
         </>
       )}
     </div>

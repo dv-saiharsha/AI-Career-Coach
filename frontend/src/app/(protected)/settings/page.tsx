@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
   Lock,
@@ -32,7 +31,6 @@ import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { springSnappy } from '@/lib/motion';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -201,11 +199,11 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5">
         {/* Sidebar */}
-        <motion.div
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
-          className="glass-card p-2 h-fit md:sticky md:top-6"
+        <div
+         
+         
+         
+          className="glass-card p-2 h-fit md:sticky md:top-6 panel-enter"
         >
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <Button
@@ -222,29 +220,27 @@ export default function SettingsPage() {
               }`}
             >
               {activeSection === id && (
-                <motion.span
-                  layoutId="settings-active-pill"
+                <span
+                 
                   className={`absolute inset-0 rounded-xl ${
                     id === 'danger' ? 'bg-danger/10' : 'bg-canvas-elevated'
-                  }`}
-                  transition={springSnappy}
-                />
+                  } panel-enter`}
+                  />
               )}
               <Icon className="relative z-10 size-4 shrink-0" />
               <span className="relative z-10">{label}</span>
             </Button>
           ))}
-        </motion.div>
+        </div>
 
         {/* Content */}
-        <AnimatePresence mode="wait">
-          <motion.div
+          <div
             key={activeSection}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            className="glass-card p-6"
+           
+           
+           
+           
+            className="glass-card p-6 panel-enter"
           >
             {activeSection === 'notifications' && (
               <div className="space-y-1">
@@ -269,15 +265,13 @@ export default function SettingsPage() {
                           onCheckedChange={() => setNotifications((n) => ({ ...n, [key]: !n[key as keyof typeof n] }))}
                         />
                       </div>
-                      {key === 'emailDigest' && (
-                        <AnimatePresence initial={false}>
-                          {value && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
+                      {key === 'emailDigest' && value && (
+                            <div
+                             
+                             
+                             
+                             
+                              className="overflow-hidden panel-enter"
                             >
                               <div className="pb-4 pl-11">
                                 <label className="block text-xs font-mono uppercase tracking-widest text-(--color-ink-faint) mb-2">
@@ -285,9 +279,7 @@ export default function SettingsPage() {
                                 </label>
                                 <FrequencySelect value={digestFrequency} onChange={setDigestFrequency} />
                               </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                            </div>
                       )}
                     </div>
                   );
@@ -391,8 +383,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-          </motion.div>
-        </AnimatePresence>
+          </div>
       </div>
     </div>
   );

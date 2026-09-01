@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bookmark, Check, ChevronDown, Clock, Lightbulb, MessageCircleQuestion,
   Sparkles, Target, TriangleAlert,
@@ -171,14 +170,13 @@ export function PrepQuestionCard({ question, onStateChange }: PrepQuestionCardPr
         </div>
       </div>
 
-      <AnimatePresence initial={false}>
         {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+          <div
+           
+           
+           
+           
+            className="overflow-hidden panel-enter"
           >
             <div className="flex flex-col gap-4 px-4 pb-4 pt-1 border-t border-(--color-canvas-line)">
               <Section icon={Target} label="What the interviewer is testing">
@@ -245,9 +243,8 @@ export function PrepQuestionCard({ question, onStateChange }: PrepQuestionCardPr
                 {savingNotes && <p className="mt-1 text-[10px] text-(--color-ink-faint)">Saving…</p>}
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }
