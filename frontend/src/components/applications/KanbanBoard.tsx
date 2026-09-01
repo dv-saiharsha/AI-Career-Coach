@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { APPLICATION_STAGES, type ApplicationStatus, type JobApplication, type Pipeline } from '@/lib/apiClient'
-import { STAGE_LABELS, STAGE_MARKERS } from '@/lib/applicationStages'
+import { STAGE_GROUPS, stageForDrop, type StageGroup } from '@/lib/applicationStages'
 import { ApplicationCard } from '@/components/applications/ApplicationCard'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -31,7 +31,7 @@ interface KanbanBoardProps {
 }
 
 function KanbanColumn({
-  stage,
+  group,
   cards,
   isLoading,
   onOpen,
@@ -39,7 +39,7 @@ function KanbanColumn({
   onDelete,
   busy,
 }: {
-  stage: ApplicationStatus
+  group: StageGroup
   cards: JobApplication[]
   isLoading: boolean
   onOpen: (application: JobApplication) => void
@@ -47,13 +47,13 @@ function KanbanColumn({
   onDelete: (id: number) => void
   busy: boolean
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage })
+  const { setNodeRef, isOver } = useDroppable({ id: group.id })
 
   return (
     <section
       ref={setNodeRef}
-      aria-label={STAGE_LABELS[stage]}
-      className="flex min-h-[420px] w-[280px] shrink-0 flex-col rounded-lg p-3 transition-colors"
+      aria-label={group.label}
+      className="flex min-h-[420px] w-[280px] shrink-0 flex-col rounded-lg p-3 transition-colors lg:w-auto lg:shrink"
       style={{
         background: isOver ? 'var(--color-accent-tint)' : 'var(--color-canvas)',
         border: isOver ? '1px dashed var(--color-accent)' : '1px solid var(--color-canvas-line)',
@@ -61,8 +61,8 @@ function KanbanColumn({
     >
       <div className="mb-3 flex items-center justify-between border-b border-(--color-canvas-line) px-1 pb-2.5">
         <span className="flex items-center gap-2 text-xs font-medium text-(--color-ink)">
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: STAGE_MARKERS[stage] }} aria-hidden="true" />
-          {STAGE_LABELS[stage]}
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: group.marker }} aria-hidden="true" />
+          {group.label}
         </span>
         <span className="font-mono text-[11px] tabular-nums text-(--color-ink-faint)">
           {isLoading ? '—' : cards.length}
@@ -111,20 +111,31 @@ export function KanbanBoard({ pipeline, isLoading, onMove, onDelete, onOpen, bus
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveCard(null)
-    const overStage = event.over?.id as ApplicationStatus | undefined
-    if (!overStage) return
+    const groupId = event.over?.id as StageGroup['id'] | undefined
+    if (!groupId) return
     const application = allCards.find((a) => a.id === event.active.id)
-    if (application && application.status !== overStage) onMove(application.id, overStage)
+    if (!application) return
+
+    /* The column is a group; the backend takes one of the twelve stages. A
+       card dropped on the column it already lives in keeps its precise
+       stage, so a nudge never demotes Final Interview to Recruiter
+       Screening. */
+    const next = stageForDrop(groupId, application.status)
+    if (next !== application.status) onMove(application.id, next)
   }
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveCard(null)}>
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {APPLICATION_STAGES.map((stage) => (
+      {/* Four columns fit a desktop, so they share the width rather than
+          scrolling. Below lg they stay a horizontal rail — four 280px columns
+          will not fit a phone, and squeezing them would make every card
+          unreadable rather than the row scrollable. */}
+      <div className="flex gap-4 overflow-x-auto pb-4 lg:grid lg:grid-cols-4 lg:overflow-visible">
+        {STAGE_GROUPS.map((group) => (
           <KanbanColumn
-            key={stage}
-            stage={stage}
-            cards={pipeline[stage] ?? []}
+            key={group.id}
+            group={group}
+            cards={group.members.flatMap((stage) => pipeline[stage] ?? [])}
             isLoading={isLoading}
             onOpen={onOpen}
             onMove={onMove}

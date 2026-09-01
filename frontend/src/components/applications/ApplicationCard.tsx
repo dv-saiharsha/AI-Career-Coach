@@ -5,8 +5,8 @@ import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Building2, GripVertical, MapPin, Trash2 } from 'lucide-react'
-import { APPLICATION_STAGES, type ApplicationStatus, type JobApplication } from '@/lib/apiClient'
-import { STAGE_LABELS } from '@/lib/applicationStages'
+import { type ApplicationStatus, type JobApplication } from '@/lib/apiClient'
+import { CLOSED_STAGES, STAGE_GROUPS, STAGE_LABELS } from '@/lib/applicationStages'
 
 interface ApplicationCardProps {
   application: JobApplication
@@ -100,11 +100,26 @@ export function ApplicationCard({ application, onOpen, onMove, onDelete, disable
             className="min-w-0 flex-1 rounded-lg px-2 py-1 text-[11px] font-medium text-(--color-ink-subtle) transition-colors disabled:opacity-50"
             style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-canvas-line)' }}
           >
-            {APPLICATION_STAGES.map((stage) => (
-              <option key={stage} value={stage}>
-                {STAGE_LABELS[stage]}
-              </option>
+            {/* Grouped under the same four headings the board columns use, so
+                the control and the board agree on where a stage lives — while
+                still offering all twelve, which is the only place the precise
+                stage can be set. */}
+            {STAGE_GROUPS.map((group) => (
+              <optgroup key={group.id} label={group.label}>
+                {group.members.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {STAGE_LABELS[stage]}
+                  </option>
+                ))}
+              </optgroup>
             ))}
+            <optgroup label="Closed">
+              {CLOSED_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {STAGE_LABELS[stage]}
+                </option>
+              ))}
+            </optgroup>
           </select>
 
           <button
