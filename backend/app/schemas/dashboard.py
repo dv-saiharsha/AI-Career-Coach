@@ -2,6 +2,12 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+from app.schemas.analytics import AtsHistoryPointSchema, FunnelSchema
+from app.schemas.application import ApplicationSchema
+from app.schemas.job import JobListingSchema
+from app.schemas.profile import ActivityItemSchema
+from app.schemas.resume_review import NextActionSchema
+
 
 class FreshJobSchema(BaseModel):
     id: str
@@ -64,3 +70,73 @@ class DashboardOverviewSchema(BaseModel):
     # feed is unavailable rather than presenting stale items as current.
     news_reachable: bool = True
     news_cached: bool = False
+
+
+# ── Career Dashboard (Milestone 9) ──────────────────────────────────────────
+#
+# Every field below is produced by an existing engine's own function — see
+# dashboard/services.py's home(). Nothing here introduces a new score.
+
+
+class DashboardResumeSchema(BaseModel):
+    resumes_analyzed: int
+    avg_ats_score: Optional[float] = None
+    latest_ats_score: Optional[float] = None
+    latest_band: str
+    latest_filename: Optional[str] = None
+    #: The latest scan's own stored missing_skills, capped — not recomputed.
+    suggested_improvements: List[str] = []
+
+
+class DashboardApplicationsSchema(BaseModel):
+    total: int
+    active: int
+    offers: int
+    rejections: int
+    success_rate: Optional[float] = None
+
+
+class DashboardInterviewReportSchema(BaseModel):
+    session_id: int
+    role: str
+    category: Optional[str] = None
+    overall_score: Optional[float] = None
+    readiness_band: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class DashboardInterviewSchema(BaseModel):
+    completed_sessions: int
+    average_score: Optional[float] = None
+    voice_answers_count: int = 0
+    latest_report: Optional[DashboardInterviewReportSchema] = None
+    prep_completed_count: int = 0
+
+
+class DashboardJobsSchema(BaseModel):
+    top_matches: List[JobListingSchema] = []
+    missing_skills: List[str] = []
+    recruiter_perspective: Optional[str] = None
+
+
+class DashboardActivitySchema(BaseModel):
+    recent_activity: List[ActivityItemSchema] = []
+    upcoming_interviews: List[ApplicationSchema] = []
+    recent_applications: List[ApplicationSchema] = []
+
+
+class DashboardAnalyticsSchema(BaseModel):
+    ats_history: List[AtsHistoryPointSchema] = []
+    weekly_progress: List[dict] = []
+    monthly_progress: List[dict] = []
+    funnel: FunnelSchema
+
+
+class DashboardHomeSchema(BaseModel):
+    resume: DashboardResumeSchema
+    applications: DashboardApplicationsSchema
+    interview: DashboardInterviewSchema
+    jobs: DashboardJobsSchema
+    activity: DashboardActivitySchema
+    analytics: DashboardAnalyticsSchema
+    next_actions: List[NextActionSchema] = []

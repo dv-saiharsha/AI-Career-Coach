@@ -1,17 +1,43 @@
-"""Dashboard overview: fresh job matches plus real policy news."""
+"""Dashboard overview: fresh job matches plus real policy news.
 
+home() (Milestone 9) is a second, larger entry point living in this same
+file: the Career Dashboard's one request, composing the Resume, Job
+Matching, Interview, Application, and Career Coach engines' own existing
+functions. It computes nothing those engines don't already compute —
+see each section below for exactly which function it reuses.
+"""
+
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, defer
 
-from app.models.application import JobApplication
+from app.models.application import APPLICATION_STATUSES, INTERVIEW_STAGES, JobApplication
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
 from app.ml.inference import model_available, predict_score
+from app.modules.analytics.services import progress_buckets, summary as analytics_summary
+from app.modules.applications.services import get_pipeline
 from app.modules.dashboard import news
+from app.modules.interview_coach import prep as interview_prep
+from app.modules.interview_coach.dashboard import dashboard_summary as interview_summary
+from app.modules.job_market.services import top_matches
+from app.modules.resume_analyzer.rubric import band
+from app.modules.user_profile.services import dashboard_stats, recent_activity
 
 logger = logging.getLogger(__name__)
+
+# Stages that mean the pipeline is actively moving on this application —
+# past "saved" (a bookmark) and short of a terminal outcome either way.
+ACTIVE_STAGES = ("applied", *INTERVIEW_STAGES)
+POSITIVE_TERMINAL_STAGES = ("offer", "accepted")
+NEGATIVE_TERMINAL_STAGES = ("rejected", "withdrawn")
+
+# A recruiter-stage application untouched this long is worth a nudge — not
+# so short that a normal review cycle triggers it, not so long the
+# suggestion arrives after the user already moved on themselves.
+FOLLOW_UP_STALE_DAYS = 5
 
 # Freshness is measured on posted_at — when the employer listed the role — not
 # fetched_at, which is when we happened to scrape it. A sweep run an hour ago
@@ -91,8 +117,10 @@ def _latest_scan(db: Session, user_id: str) -> ResumeAnalysis | None:
 
 # Stages that mean an application was actually sent. "saved" is a bookmark,
 # not an application, and counting it would inflate the number a user reads as
-# "how many jobs have I applied to".
-SENT_STAGES = ("applied", "interviewing", "offer", "rejected")
+# "how many jobs have I applied to". Every other stage counts — sourced from
+# the model's own tuple rather than repeated here, so a future stage addition
+# can't silently fall out of this count the way a second hardcoded list would.
+SENT_STAGES = tuple(stage for stage in APPLICATION_STATUSES if stage != "saved")
 
 # Scored lazily, but bounded. Each score is a ~127ms model call, so a first
 # load on a large pipeline stays under a second rather than scaling with it;
@@ -110,7 +138,7 @@ def _pipeline_metrics(db: Session, user_id: str, resume_text: str | None) -> dic
     """
     rows = db.query(JobApplication).filter(JobApplication.user_id == user_id).all()
 
-    by_stage = {stage: 0 for stage in ("saved", "applied", "interviewing", "offer", "rejected")}
+    by_stage = {stage: 0 for stage in APPLICATION_STATUSES}
     for row in rows:
         if row.status in by_stage:
             by_stage[row.status] += 1
@@ -182,4 +210,226 @@ def overview(db: Session, user_id: str) -> dict:
         "news": feed["articles"],
         "news_reachable": feed["reachable"],
         "news_cached": feed["cached"],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Career Dashboard (Milestone 9) — GET /api/dashboard/home
+#
+# Every section below calls an existing engine's own function. Nothing here
+# recomputes a score, refits a match, or re-derives a figure another module
+# already owns — this file only composes and, where named in the spec but
+# genuinely missing (marked "new"), adds a small aggregate next to the data
+# it aggregates rather than reaching across module boundaries for it.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _resume_section(db: Session, user_id: str) -> dict:
+    """Resume Health / ATS Score / Resume Version / Resume Match.
+
+    dashboard_stats (user_profile) already owns avg/latest ATS; this adds
+    only what that function doesn't return — the latest scan's filename,
+    band, and stored missing_skills, all already computed and stored at
+    scan time, read here rather than recomputed.
+    """
+    stats = dashboard_stats(db, user_id)
+    latest = _latest_scan(db, user_id)
+
+    missing_skills: list[str] = []
+    if latest:
+        try:
+            missing_skills = (json.loads(latest.result_json) or {}).get("missing_skills", [])
+        except (ValueError, TypeError):
+            pass
+
+    return {
+        "resumes_analyzed": stats["resumes_analyzed"],
+        "avg_ats_score": stats["avg_ats_score"],
+        "latest_ats_score": stats["latest_ats_score"],
+        "latest_band": band(latest.ats_score) if latest else "NOT CHECKED",
+        "latest_filename": latest.resume_filename if latest else None,
+        "suggested_improvements": missing_skills[:5],
+    }
+
+
+def _applications_section(pipeline_data: dict, funnel: dict) -> dict:
+    """Total / Active / Offers / Rejections / Success rate — every figure
+    either a stage-count already in get_pipeline's response, or
+    funnel['offer_rate'] (analytics.pipeline_funnel), never recomputed."""
+    by_stage = pipeline_data["pipeline"]
+    return {
+        "total": pipeline_data["total"],
+        "active": sum(len(by_stage.get(stage, [])) for stage in ACTIVE_STAGES),
+        "offers": sum(len(by_stage.get(stage, [])) for stage in POSITIVE_TERMINAL_STAGES),
+        "rejections": sum(len(by_stage.get(stage, [])) for stage in NEGATIVE_TERMINAL_STAGES),
+        # None, not 0.0, when nothing has been applied to yet — matches
+        # funnel's own convention for "no data" vs. a genuine 0%.
+        "success_rate": funnel["offer_rate"],
+    }
+
+
+def _jobs_section(db: Session, user_id: str) -> dict:
+    """Top Matching Jobs / Missing Skills / Recruiter Perspective — all
+    read off job_market.services.top_matches, which itself reuses
+    matching.attach_matches verbatim. [] when there's no primary resume to
+    match against, not an error."""
+    matches = top_matches(db, user_id, limit=5)
+    if not matches:
+        return {"top_matches": [], "missing_skills": [], "recruiter_perspective": None}
+
+    top = matches[0]
+    skills_match = top["match"].get("skillsMatch") or {}
+    return {
+        "top_matches": matches,
+        # Already ranked by cross-listing frequency (annotate_priority_skills,
+        # called inside attach_matches) — the skill most worth closing given
+        # everything else this user is currently matched against.
+        "missing_skills": skills_match.get("prioritySkills") or skills_match.get("missingSkills", []),
+        "recruiter_perspective": top["match"].get("explanation"),
+    }
+
+
+def _activity_section(db: Session, user_id: str, pipeline_data: dict) -> dict:
+    """Recent Activity / Upcoming Interviews / Recent Applications.
+
+    "Upcoming interviews" means what it can honestly mean here: applications
+    currently sitting at an interview stage. Nothing in this schema tracks a
+    scheduled date, so this is not a calendar — it's real pipeline state,
+    not a fabricated one.
+    """
+    by_stage = pipeline_data["pipeline"]
+    upcoming = [app for stage in INTERVIEW_STAGES for app in by_stage.get(stage, [])]
+
+    all_apps = [app for apps in by_stage.values() for app in apps]
+    all_apps.sort(key=lambda a: a["updated_at"] or "", reverse=True)
+
+    return {
+        "recent_activity": recent_activity(db, user_id),
+        "upcoming_interviews": upcoming[:5],
+        "recent_applications": all_apps[:5],
+    }
+
+
+def _stale_recruiter_stage_application(pipeline_data: dict, now: datetime) -> dict | None:
+    """The oldest-touched application still sitting at an early interview
+    stage with a recruiter contact on file — what "Follow Up With
+    Recruiter" points at, if anything currently warrants it."""
+    by_stage = pipeline_data["pipeline"]
+    candidates = [
+        app
+        for stage in ("recruiter_contacted", "recruiter_screening")
+        for app in by_stage.get(stage, [])
+        if app.get("recruiter_email") and app.get("updated_at")
+    ]
+    stale = [
+        app for app in candidates
+        if (now - _as_utc(datetime.fromisoformat(app["updated_at"].replace("Z", "+00:00")))).days >= FOLLOW_UP_STALE_DAYS
+    ]
+    stale.sort(key=lambda a: a["updated_at"])
+    return stale[0] if stale else None
+
+
+def _next_actions_for_dashboard(
+    resume: dict, applications_section: dict, interview: dict, jobs: dict, pipeline_data: dict, now: datetime
+) -> list[dict]:
+    """Deterministic, not LLM-generated — the same {key,label,description,
+    href,priority} shape resume_analyzer/review.py's own _next_actions and
+    the Mock Interview report's next_actions already use, applied here for
+    the fourth time rather than inventing a new suggestion format."""
+    actions: list[dict] = []
+
+    if resume["latest_band"] in ("NOT CHECKED", "WEAK", "NEEDS WORK"):
+        actions.append({
+            "key": "improve_resume",
+            "label": "Improve Resume",
+            "description": (
+                "You haven't scanned a resume yet." if resume["latest_band"] == "NOT CHECKED"
+                else f"Your latest resume scored {resume['latest_band']} — a few fixes could move it up a band."
+            ),
+            "href": "/resume",
+            "priority": "high" if resume["latest_band"] != "GOOD" else "medium",
+        })
+
+    if interview["completed_sessions"] == 0:
+        actions.append({
+            "key": "practice_interview",
+            "label": "Practice Interview",
+            "description": "You haven't completed a mock interview yet — a session gives you a real readiness score.",
+            "href": "/interview",
+            "priority": "high",
+        })
+    elif interview["average_score"] is not None and interview["average_score"] < 6.0:
+        actions.append({
+            "key": "practice_interview",
+            "label": "Practice Interview",
+            "description": f"Your average mock interview score is {interview['average_score']}/10 — more practice would help.",
+            "href": "/interview",
+            "priority": "medium",
+        })
+
+    if applications_section["active"] == 0 and applications_section["total"] < 3:
+        actions.append({
+            "key": "apply_to_jobs",
+            "label": "Apply to Matching Jobs",
+            "description": "Your pipeline is quiet — browse jobs matched against your resume.",
+            "href": "/jobs",
+            "priority": "high",
+        })
+
+    stale_application = _stale_recruiter_stage_application(pipeline_data, now)
+    if stale_application:
+        actions.append({
+            "key": "follow_up_recruiter",
+            "label": "Follow Up With Recruiter",
+            "description": f"Your application to {stale_application['company']} has been quiet for a few days — a follow-up email can help.",
+            "href": "/applications",
+            "priority": "medium",
+        })
+
+    if jobs["missing_skills"]:
+        actions.append({
+            "key": "review_missing_skills",
+            "label": "Review Missing Skills",
+            "description": f"{', '.join(jobs['missing_skills'][:2])} shows up across your top matches.",
+            "href": "/jobs",
+            "priority": "medium",
+        })
+
+    actions.append({
+        "key": "open_career_coach",
+        "label": "Open Career Coach",
+        "description": "Ask what to do next, grounded in everything above.",
+        "href": "/coach",
+        "priority": "low",
+    })
+    return actions
+
+
+def home(db: Session, user_id: str) -> dict:
+    """The Career Dashboard's one request. See the section functions above
+    for exactly which existing engine each figure comes from."""
+    now = datetime.now(timezone.utc)
+
+    resume = _resume_section(db, user_id)
+    pipeline_data = get_pipeline(db, user_id)
+    analytics = analytics_summary(db, user_id)
+    interview = interview_summary(db, user_id)
+    prep_progress = interview_prep.dashboard_progress(db, user_id)
+    jobs = _jobs_section(db, user_id)
+    applications_section = _applications_section(pipeline_data, analytics["funnel"])
+    activity = _activity_section(db, user_id, pipeline_data)
+
+    return {
+        "resume": resume,
+        "applications": applications_section,
+        "interview": {**interview, "prep_completed_count": prep_progress["completed_count"]},
+        "jobs": jobs,
+        "activity": activity,
+        "analytics": {
+            "ats_history": analytics["ats_history"],
+            "weekly_progress": progress_buckets(analytics["ats_history"], "week"),
+            "monthly_progress": progress_buckets(analytics["ats_history"], "month"),
+            "funnel": analytics["funnel"],
+        },
+        "next_actions": _next_actions_for_dashboard(resume, applications_section, interview, jobs, pipeline_data, now),
     }

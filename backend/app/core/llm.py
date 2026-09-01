@@ -1,7 +1,8 @@
 import json
 import re
+from typing import AsyncIterator
 
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic, Anthropic
 
 from app.core.config import settings
 
@@ -11,6 +12,14 @@ class ClaudeClient:
 
     def __init__(self) -> None:
         self._client = Anthropic(api_key=settings.ANTHROPIC_API_KEY) if settings.ANTHROPIC_API_KEY else None
+        # Separate async client for streaming only. Every other method on this
+        # class is synchronous and called from ordinary `def` route handlers;
+        # introducing async there for one feature would ripple through every
+        # call site. The Career Coach's streaming chat is the one caller that
+        # actually needs a non-blocking, awaitable token stream.
+        self._async_client = (
+            AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY) if settings.ANTHROPIC_API_KEY else None
+        )
 
     @property
     def available(self) -> bool:
@@ -55,6 +64,25 @@ class ClaudeClient:
             if block.type == "tool_use":
                 return block.input
         raise ValueError("Model did not return a tool_use block")
+
+    async def stream_message(
+        self, system: str, messages: list[dict], max_tokens: int = 1500
+    ) -> AsyncIterator[str]:
+        """Yield text deltas as Claude generates them, for the Career Coach's
+        streaming chat. `messages` is the full conversation turn list
+        (`[{"role": "user"|"assistant", "content": str}, ...]`) — unlike the
+        single-shot methods above, a chat turn needs prior turns for context.
+        """
+        if not self._async_client:
+            raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+        async with self._async_client.messages.stream(
+            model=settings.ANTHROPIC_MODEL,
+            max_tokens=max_tokens,
+            system=system,
+            messages=messages,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
 
 
 def parse_json_response(raw: str) -> dict:

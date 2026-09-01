@@ -101,7 +101,10 @@ class ActivityItemSchema(BaseModel):
     kind: str  # "resume" | "interview"
     title: str
     score: Optional[float] = None
-    created_at: str
+    # Optional, not required: a row inserted before created_at had a
+    # server_default could still have it NULL — see recent_activity's own
+    # defensive sort for the same edge case.
+    created_at: Optional[str] = None
 
 
 class ActivityResponseSchema(BaseModel):

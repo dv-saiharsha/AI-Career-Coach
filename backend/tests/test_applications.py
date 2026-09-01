@@ -91,7 +91,11 @@ class TestPipeline:
         """A column with no cards still has to render — a missing key would
         make the column disappear from the board entirely."""
         pipeline = client.get("/api/applications/pipeline").json()["pipeline"]
-        assert set(pipeline) == {"saved", "applied", "interviewing", "offer", "rejected"}
+        assert set(pipeline) == {
+            "saved", "applied", "recruiter_contacted", "recruiter_screening",
+            "online_assessment", "technical_interview", "manager_interview",
+            "final_interview", "offer", "accepted", "rejected", "withdrawn",
+        }
         assert all(v == [] for v in pipeline.values())
 
     def test_groups_by_stage(self, client):
@@ -106,9 +110,9 @@ class TestPipeline:
 class TestStatusTransitions:
     def test_moves_between_stages(self, client):
         app_id = client.post("/api/applications", json=PAYLOAD).json()["id"]
-        response = client.patch(f"/api/applications/{app_id}/status", json={"status": "interviewing"})
+        response = client.patch(f"/api/applications/{app_id}/status", json={"status": "technical_interview"})
         assert response.status_code == 200
-        assert response.json()["status"] == "interviewing"
+        assert response.json()["status"] == "technical_interview"
 
     def test_moving_to_applied_stamps_date(self, client):
         app_id = client.post("/api/applications", json=PAYLOAD).json()["id"]
@@ -119,7 +123,7 @@ class TestStatusTransitions:
         interviewing and back must not rewrite that date."""
         app_id = client.post("/api/applications", json=PAYLOAD).json()["id"]
         first = client.patch(f"/api/applications/{app_id}/status", json={"status": "applied"}).json()["applied_at"]
-        client.patch(f"/api/applications/{app_id}/status", json={"status": "interviewing"})
+        client.patch(f"/api/applications/{app_id}/status", json={"status": "technical_interview"})
         again = client.patch(f"/api/applications/{app_id}/status", json={"status": "applied"}).json()
         assert again["applied_at"] == first
 

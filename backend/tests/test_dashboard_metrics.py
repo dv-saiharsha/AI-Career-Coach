@@ -43,7 +43,8 @@ def add_app(db, status, jd="Need Python and Kubernetes.", score=None):
         user_id=ALICE, job_title="Engineer", company="Acme",
         status=status, job_description=jd, match_score=score,
     )
-    db.add(row); db.commit()
+    db.add(row)
+    db.commit()
     return row
 
 
@@ -59,7 +60,7 @@ class TestAppliedCount:
 
     def test_later_stages_still_count_as_sent(self, client, db):
         """Someone at the offer stage certainly applied."""
-        for stage in ("applied", "interviewing", "offer", "rejected"):
+        for stage in ("applied", "technical_interview", "offer", "rejected"):
             add_app(db, stage)
         assert client.get("/api/dashboard/overview").json()["metrics"]["total_applied"] == 4
 

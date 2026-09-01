@@ -2,6 +2,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # "development" (default — permissive, no .env required to boot, matches
+    # local dev/CI) or "production", which turns on validate_startup()'s
+    # fail-fast checks below. Never inferred from DB_URL/other settings: an
+    # explicit flag can't be silently defeated by one forgotten variable.
+    ENVIRONMENT: str = "development"
+
+    # Comma-separated request origins the API accepts. Never "*" in
+    # production — see validate_startup(). The dev default covers the two
+    # ports this project's frontend actually runs on locally.
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # Root logger level. INFO in dev/prod alike by default; turned down for
+    # noisy dependencies rather than the whole app, so a real WARNING from
+    # this codebase's own modules is never lost in the same silence.
+    LOG_LEVEL: str = "INFO"
+
     DB_URL: str = "sqlite:///./career_coach.db"
 
     # Concurrency ceiling for the whole process: pool_size + max_overflow is
@@ -31,6 +47,13 @@ class Settings(BaseSettings):
     JOB_FEED_CACHE_SECONDS: int = 60
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"
+
+    # Voice Interview's speech-to-text provider. Unset means the feature
+    # degrades to "unavailable" (a clear error, not a crash) — same shape as
+    # ANTHROPIC_API_KEY being unset, so local dev and CI need no Deepgram
+    # account to boot.
+    DEEPGRAM_API_KEY: str = ""
+    DEEPGRAM_TIMEOUT_SECONDS: float = 30.0
 
     # Apify — the live job source (cheap_scraper/linkedin-job-scraper).
     # Billed per event, not per month: $0.005 per GB of memory at actor start
@@ -99,5 +122,49 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT.strip().lower() == "production"
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
 
 settings = Settings()
+
+
+def validate_startup() -> None:
+    """Fail loudly at import time rather than deep inside a request.
+
+    Only enforced when ENVIRONMENT=production — every other required-looking
+    setting below has a permissive default specifically so local dev and CI
+    need no .env to boot (DEEPGRAM_API_KEY/APIFY_API_TOKEN degrade features
+    gracefully when unset, by design; the ones checked here don't have a
+    degraded mode, so silently booting without them just moves the failure
+    from "won't start" to "500s on the first real request").
+    """
+    if not settings.is_production:
+        return
+
+    missing: list[str] = []
+    if settings.DB_URL.startswith("sqlite"):
+        missing.append("DB_URL (still the local SQLite default — set it to the production Postgres URL)")
+    if not settings.SUPABASE_URL:
+        missing.append("SUPABASE_URL")
+    if not settings.SUPABASE_JWT_SECRET:
+        missing.append("SUPABASE_JWT_SECRET")
+    if not settings.ANTHROPIC_API_KEY:
+        missing.append("ANTHROPIC_API_KEY")
+    if not settings.allowed_origins_list or settings.ALLOWED_ORIGINS.strip() == "*":
+        missing.append("ALLOWED_ORIGINS (must be a real, non-wildcard origin list in production)")
+
+    if missing:
+        raise RuntimeError(
+            "Refusing to start with ENVIRONMENT=production while required configuration is "
+            "missing or still at its development default: " + "; ".join(missing) + ". "
+            "Set these in the environment before starting the app — see .env.example."
+        )
+
+
+validate_startup()

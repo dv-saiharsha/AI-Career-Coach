@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.main import app
-from app.models.application import JobApplication
+from app.models.application import ApplicationStatusHistory, JobApplication
 from app.models.resume import ResumeAnalysis
 
 USER_A = "00000000-0000-0000-0000-00000000000a"
@@ -65,6 +65,10 @@ def add_scan(db, user_id, score, filename, days=0, diagnostics=None):
 
 
 def add_application(db, user_id, status, applied=False):
+    """Also writes a status_history row, matching what
+    applications/services.create_application does in production — the
+    funnel's reached_interviewing/reached_offer now query that table, not
+    the current status column directly."""
     record = JobApplication(
         user_id=user_id,
         job_title="Engineer",
@@ -73,6 +77,9 @@ def add_application(db, user_id, status, applied=False):
         applied_at=BASE_TIME if applied else None,
     )
     db.add(record)
+    db.commit()
+    db.refresh(record)
+    db.add(ApplicationStatusHistory(application_id=record.id, from_status=None, to_status=status))
     db.commit()
     return record
 
@@ -139,7 +146,7 @@ class TestFunnel:
     def test_progressed_cards_still_count_as_applied(self, client, db_session):
         """The core correction: status is current-state, so grouping by it
         alone would report applied=0 for someone with interviews booked."""
-        add_application(db_session, USER_A, "interviewing", applied=True)
+        add_application(db_session, USER_A, "technical_interview", applied=True)
         add_application(db_session, USER_A, "offer", applied=True)
         funnel = client.get("/api/analytics/summary").json()["funnel"]
         assert funnel["by_stage"]["applied"] == 0
@@ -156,7 +163,7 @@ class TestFunnel:
         for _ in range(8):
             add_application(db_session, USER_A, "saved")
         add_application(db_session, USER_A, "applied", applied=True)
-        add_application(db_session, USER_A, "interviewing", applied=True)
+        add_application(db_session, USER_A, "technical_interview", applied=True)
         funnel = client.get("/api/analytics/summary").json()["funnel"]
         assert funnel["total_tracked"] == 10
         assert funnel["reached_applied"] == 2
@@ -171,7 +178,11 @@ class TestFunnel:
 
     def test_all_stage_keys_present_when_empty(self, client):
         funnel = client.get("/api/analytics/summary").json()["funnel"]
-        assert set(funnel["by_stage"]) == {"saved", "applied", "interviewing", "offer", "rejected"}
+        assert set(funnel["by_stage"]) == {
+            "saved", "applied", "recruiter_contacted", "recruiter_screening",
+            "online_assessment", "technical_interview", "manager_interview",
+            "final_interview", "offer", "accepted", "rejected", "withdrawn",
+        }
 
     def test_offer_rate(self, client, db_session):
         add_application(db_session, USER_A, "applied", applied=True)

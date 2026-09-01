@@ -217,6 +217,15 @@ def recent_activity(db: Session, user_id: str) -> list[dict]:
 
     # created_at is server_default=now() and non-null in both tables, but a row
     # inserted before that default existed could still be None — sort defensively
-    # so one legacy row can't crash the dashboard.
+    # so one legacy row can't crash the dashboard. Sorted on the raw datetime
+    # (before the isoformat() conversion below) since ordering by the
+    # eventual string would work too, but there is no reason to rely on that.
     items.sort(key=lambda item: (item["created_at"] is not None, item["created_at"]), reverse=True)
-    return items[:ACTIVITY_LIMIT]
+    items = items[:ACTIVITY_LIMIT]
+    for item in items:
+        # ActivityItemSchema.created_at is a str — this was previously left
+        # as a raw datetime, which FastAPI's response_model validation
+        # rejects; caught by Milestone 9 reusing this function through an
+        # endpoint that actually exercises response serialization.
+        item["created_at"] = item["created_at"].isoformat() if item["created_at"] else None
+    return items
