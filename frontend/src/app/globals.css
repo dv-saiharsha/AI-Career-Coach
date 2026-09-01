@@ -1249,3 +1249,66 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   SCROLL-DRIVEN BEHAVIOURS
+
+   Both of these are things that would normally be written as a scroll
+   listener. They are CSS scroll-driven animations instead, which run on the
+   compositor with no main-thread work at all — no listener, no rAF loop, no
+   React state, nothing to clean up on unmount. On a mid-range Android over
+   4G that is the difference between a smooth page and a janky one.
+
+   Where `animation-timeline` is unsupported the @supports guard means the
+   effect simply does not happen: the nav keeps its flush resting state and
+   the wash does not drift. Neither is load-bearing, so degrading to nothing
+   is correct.
+   ══════════════════════════════════════════════════════════════════════ */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* The hero wash drifts upward at ~0.3x scroll speed. Applied to a
+       pointer-events-none layer behind the hero, never to the hero itself. */
+    @keyframes wash-drift {
+      to {
+        transform: translate3d(0, -30vh, 0);
+      }
+    }
+    .parallax-wash {
+      will-change: transform;
+      animation: wash-drift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 100vh;
+    }
+
+    /* The nav capsule sits flush over the hero and gains its raised shadow
+       across the first 40px of scroll. The shadow lives on a pseudo-element
+       so only opacity animates — a box-shadow keyframe would repaint the
+       capsule on every frame of the range. */
+    @keyframes nav-lift {
+      to {
+        opacity: 1;
+      }
+    }
+    .nav-capsule::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: var(--canvas-raise);
+      box-shadow: var(--neu-raised-sm);
+      opacity: 0;
+      animation: nav-lift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 40px;
+    }
+  }
+}
+
+/* The capsule needs its own stacking context in every browser, supported or
+   not, so the pseudo-element lands behind the nav content rather than behind
+   the page. */
+.nav-capsule {
+  position: relative;
+  isolation: isolate;
+}
