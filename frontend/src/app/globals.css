@@ -672,6 +672,163 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   REVEAL VARIANTS, AMBIENT LIFE, AND ROW FEEDBACK
+
+   Extensions to the scroll-reveal system rather than a second one. All of
+   them key off the same [data-revealed] attribute the shared observer sets,
+   so nothing here needs its own listener.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  /* Stat tiles, charts and metric cards settle up from 0.95 rather than
+     rising 22px. A tile that slides has to travel past its neighbours; one
+     that scales stays in its own footprint, which reads as arriving rather
+     than as moving house. Opacity is paired with it so the scale is never
+     the only cue. */
+  [data-reveal].reveal-scale {
+    opacity: 0;
+    transform: scale(0.95);
+    transition:
+      opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  [data-reveal].reveal-scale[data-revealed] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Rows, cards and list items that respond to a pointer. Uses the shadow
+   language rather than a scale — a row that grows on hover pushes its
+   neighbours, and in a table that reads as the layout breaking. */
+.row-interactive {
+  transition:
+    box-shadow 180ms var(--ease-enter),
+    background-color 180ms var(--ease-enter);
+}
+.row-interactive:hover {
+  background: var(--canvas-hover);
+  box-shadow: var(--neu-raised-sm);
+}
+.row-interactive:active {
+  box-shadow: var(--neu-inset-sm);
+  transition: none;
+}
+
+/* Ambient fields that breathe.
+
+   Deliberately slow and shallow: one cycle every 14 seconds, opacity moving
+   ~8%, no movement at all. A 4-6 second pulse sits right in the band that
+   reads as restless in peripheral vision, and this runs for as long as
+   someone is on the page. Scale is avoided for the same reason — a
+   large blurred field that grows repaints a lot of pixels for an effect
+   nobody should consciously notice. */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .breathe {
+    animation: breathe 14s ease-in-out infinite;
+  }
+  .breathe-offset {
+    animation: breathe 18s ease-in-out infinite;
+    animation-delay: -6s;
+  }
+}
+
+/* ── Typewriter ──────────────────────────────────────────────────────────
+   Lines type in, hold, and clear, in sequence, with no JavaScript. Each line
+   animates its own width in steps() behind an overflow clip, and the whole
+   set shares one cycle with staggered delays.
+
+   The container reserves the height of the tallest line, so nothing below it
+   moves as lines change — a caret that reflows the page is worse than no
+   caret. Under reduced motion the first line is simply shown.
+   ─────────────────────────────────────────────────────────────────────── */
+.typewriter {
+  display: grid;
+  min-height: 3.4em;
+}
+.typewriter > * {
+  grid-area: 1 / 1;
+}
+
+.typewriter-line {
+  width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  border-right: 2px solid var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .typewriter-line {
+    animation:
+      typewriter-type var(--typewriter-cycle, 13.5s) steps(38, end) infinite,
+      typewriter-show var(--typewriter-cycle, 13.5s) step-end infinite,
+      typewriter-caret 1.05s step-end infinite;
+    animation-delay: var(--typewriter-delay, 0s), var(--typewriter-delay, 0s), 0s;
+  }
+}
+
+/* Reduced motion: the first line, complete, with no caret and no cycle. */
+@media (prefers-reduced-motion: reduce) {
+  .typewriter-line:first-child {
+    width: auto;
+    opacity: 1;
+    border-right-color: transparent;
+  }
+}
+
+@keyframes typewriter-type {
+  0% {
+    width: 0;
+  }
+  16% {
+    width: 100%;
+  }
+  30% {
+    width: 100%;
+  }
+  33.33% {
+    width: 0;
+  }
+  100% {
+    width: 0;
+  }
+}
+
+@keyframes typewriter-show {
+  0%,
+  33.32% {
+    opacity: 1;
+  }
+  33.33%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes typewriter-caret {
+  0%,
+  49% {
+    border-right-color: var(--accent);
+  }
+  50%,
+  100% {
+    border-right-color: transparent;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    COUNT UP
 
    A number that climbs to its value without JavaScript. @property makes the

@@ -37,6 +37,7 @@ export function AuthCard({
   className,
   asideHeading,
   asidePoints,
+  asideTicker,
 }: {
   title: string
   subtitle?: string
@@ -46,6 +47,8 @@ export function AuthCard({
   /** Left-panel headline. Omitted on interstitials like "check your email". */
   asideHeading?: string
   asidePoints?: AuthAsidePoint[]
+  /** Short lines that type in and clear, in sequence. CSS only. */
+  asideTicker?: string[]
 }) {
   const hasAside = Boolean(asideHeading && asidePoints?.length)
 
@@ -53,17 +56,21 @@ export function AuthCard({
     <div className={cn('min-h-[100dvh]', hasAside && 'lg:grid lg:grid-cols-[44%_1fr]')}>
       {hasAside && (
         <aside className="relative hidden overflow-hidden bg-canvas-deep px-12 py-14 lg:flex lg:flex-col lg:justify-between">
-          {/* Two static blurred fields. Static deliberately: a slow looping
-              glow is the exact kind of ambient movement that reads as
-              restless in peripheral vision, and it would run for as long as
-              someone sits on this page. */}
+          {/* Two blurred fields that breathe — opacity only, one cycle every
+              14 and 18 seconds, offset so they never pulse together. Slow and
+              shallow on purpose: a 4-6 second pulse sits in the band that
+              reads as restless in peripheral vision, and this runs for as
+              long as someone sits deciding whether to hand over their CV.
+              Neither moves or scales; a large blurred field that grows
+              repaints a lot of pixels for an effect nobody should
+              consciously notice. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -left-32 -top-40 size-[30rem] rounded-full bg-accent/12 blur-[110px]"
+            className="breathe pointer-events-none absolute -left-32 -top-40 size-[30rem] rounded-full bg-accent/12 blur-[110px]"
           />
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -bottom-40 -right-28 size-[26rem] rounded-full bg-accent-light/10 blur-[110px]"
+            className="breathe-offset pointer-events-none absolute -bottom-40 -right-28 size-[26rem] rounded-full bg-accent-light/10 blur-[110px]"
           />
 
           <Link
@@ -78,6 +85,35 @@ export function AuthCard({
             <h2 className="text-balance text-[2.1rem] font-semibold leading-[1.12] tracking-[-0.03em] text-ink">
               {asideHeading}
             </h2>
+
+            {asideTicker && asideTicker.length > 0 && (
+              <div
+                className="typewriter mt-5 font-mono text-[12.5px] text-accent-text"
+                style={
+                  {
+                    '--typewriter-cycle': `${asideTicker.length * 4.5}s`,
+                  } as React.CSSProperties
+                }
+              >
+                {/* The full set is read out once, statically, for anyone not
+                    watching it type. */}
+                <span className="sr-only">{asideTicker.join('. ')}</span>
+                {asideTicker.map((line, i) => (
+                  <span
+                    key={line}
+                    aria-hidden="true"
+                    className="typewriter-line"
+                    style={
+                      {
+                        '--typewriter-delay': `${i * 4.5}s`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    {line}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <ul className="mt-9 flex flex-col gap-5">
               {asidePoints?.map((point) => (

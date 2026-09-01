@@ -135,6 +135,11 @@ function RegisterForm() {
       title="Create your account"
       subtitle="Free, and it stays free. No card needed."
       asideHeading="Three things, from one upload."
+      asideTicker={[
+        'Upload a CV. Get the reasons, not just a score.',
+        'Track every application in one place.',
+        'Practise the interview before it happens.',
+      ]}
       asidePoints={[
         {
           title: 'See your CV the way a filter does',
@@ -217,9 +222,13 @@ function RegisterForm() {
               {[1, 2, 3].map((step) => (
                 <span key={step} className="h-1.5 flex-1 rounded-full bg-canvas neu-inset-sm">
                   <span
-                    className="block h-full rounded-full transition-colors duration-200"
+                    /* Fills across rather than switching on. A bar that
+                       appears at full width reads as a result; one that grows
+                       reads as a measurement responding to what is typed. */
+                    className="block h-full origin-left rounded-full transition-[transform,background-color] duration-300 ease-(--ease-enter) motion-reduce:transition-none"
                     style={{
                       background: step <= strength ? STRENGTH[strength].color : 'transparent',
+                      transform: step <= strength ? 'scaleX(1)' : 'scaleX(0)',
                     }}
                   />
                 </span>

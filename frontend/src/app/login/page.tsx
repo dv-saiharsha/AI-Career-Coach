@@ -66,6 +66,11 @@ function LoginForm() {
       title="Welcome back"
       subtitle="Sign in to pick up where you left off."
       asideHeading="Everything is where you left it."
+      asideTicker={[
+        'Your scans are still scored.',
+        'Your pipeline is still counted.',
+        'Nothing was shared while you were away.',
+      ]}
       asidePoints={[
         {
           title: 'Your scans have not expired',

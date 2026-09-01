@@ -73,7 +73,7 @@ function StatCard({
      
      
      
-      className="rounded-2xl border border-(--color-canvas-line-soft) bg-(--color-canvas-raise) p-5 transition-colors hover:border-(--color-canvas-line)"
+      className="reveal-scale rounded-2xl border border-(--color-canvas-line-soft) bg-(--color-canvas-raise) p-5 transition-colors hover:border-(--color-canvas-line)"
     >
       <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-(--color-accent)/10">
         <Icon className="h-4 w-4 text-(--color-accent)" />

@@ -42,7 +42,7 @@ function StatCard({
      
      
      
-      className="glass-card-hover p-5 group hover:-translate-y-0.5"
+      className="reveal-scale glass-card-hover p-5 group hover:-translate-y-0.5"
     >
       <div className="flex items-center justify-between mb-4">
         <div
