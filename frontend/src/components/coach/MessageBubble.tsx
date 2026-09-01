@@ -1,11 +1,10 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import type { ChatMessage } from '@/hooks/useCareerCoachChat'
 import { CoachMarkdown } from './CoachMarkdown'
+import { Reveal } from '@/lib/reveal'
 
-const EASE = [0.22, 1, 0.36, 1] as const
 
 export function FollowUpChips({ items, onPick, disabled }: { items: string[]; onPick: (text: string) => void; disabled: boolean }) {
   if (items.length === 0) return null
@@ -31,24 +30,24 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
 
   if (isUser) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: EASE }}
+      <Reveal
+       
+       
+       
         className="flex justify-end"
       >
         <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] bg-(--color-ink) px-4 py-2.5">
           <p className="text-sm text-(--color-on-accent) leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
-      </motion.div>
+      </Reveal>
     )
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: EASE }}
+    <Reveal
+     
+     
+     
       className="flex items-start gap-2.5"
     >
       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-(--color-accent-tint)">
@@ -60,16 +59,16 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         ) : message.streaming ? (
           <span className="inline-flex gap-1 py-1" aria-label="Thinking">
             {[0, 1, 2].map((i) => (
-              <motion.span
+              <Reveal as="span"
                 key={i}
                 className="h-1.5 w-1.5 rounded-full bg-(--color-ink-faint)"
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+               
+               
               />
             ))}
           </span>
         ) : null}
       </div>
-    </motion.div>
+    </Reveal>
   )
 }

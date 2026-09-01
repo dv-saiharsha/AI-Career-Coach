@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
 import {
   FileSearch, Cpu, Target, Search, TrendingUp, Star, FileText, CheckCircle2,
   BrainCircuit, MessageCircle, MessageSquareCode, BarChart2, Trophy, Clock, Users, Sparkles
@@ -10,6 +8,7 @@ import {
 import { MetricsSection } from '../../components/landing/MetricsSection';
 import { CTASection } from '../../components/landing/CTASection';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Reveal, RevealGroup } from '@/lib/reveal'
 
 const RESUME_FEATURES = [
   { icon: FileSearch, title: 'Resume Upload', desc: 'Drag-and-drop or click to upload PDF or DOCX files up to 10MB. Multi-format support with intelligent parsing.', badge: 'Core' },
@@ -43,16 +42,15 @@ const BADGE_COLORS: Record<string, string> = {
 };
 
 function FeatureGrid({ features }: { features: typeof RESUME_FEATURES }) {
-  const { ref, inView } = useInView({ threshold: 0.05, triggerOnce: true });
 
   return (
-    <div ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {features.map(({ icon: Icon, title, desc, badge }, i) => (
-        <motion.div
+    <RevealGroup className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {features.map(({ icon: Icon, title, desc, badge }) => (
+        <Reveal
           key={title}
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+         
+         
+         
           className="glass-card-hover group p-5 hover:-translate-y-1"
         >
           <div className="flex items-start justify-between mb-4">
@@ -65,9 +63,9 @@ function FeatureGrid({ features }: { features: typeof RESUME_FEATURES }) {
           </div>
           <h3 className="font-display font-semibold text-[var(--color-ink)] mb-2">{title}</h3>
           <p className="text-sm text-[var(--color-ink-dim)] leading-relaxed">{desc}</p>
-        </motion.div>
+        </Reveal>
       ))}
-    </div>
+    </RevealGroup>
   );
 }
 
@@ -80,10 +78,10 @@ export function FeaturesPageClient() {
       <section className="relative overflow-hidden pt-36 pb-16 px-4">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[420px] bg-[var(--color-accent)]/8 rounded-full blur-[160px] pointer-events-none" />
         <div className="max-w-4xl mx-auto text-center relative">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <Reveal
+           
+           
+           
           >
             <span className="eyebrow mb-4 inline-flex">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
@@ -96,7 +94,7 @@ export function FeaturesPageClient() {
             <p className="text-[var(--color-ink-dim)] text-lg max-w-2xl mx-auto leading-relaxed">
               ApplyCenter is built around two tightly integrated tools. Here&apos;s a complete breakdown of every feature in both.
             </p>
-          </motion.div>
+          </Reveal>
         </div>
       </section>
 
@@ -106,11 +104,11 @@ export function FeaturesPageClient() {
       <section className="py-24 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)] relative overflow-hidden">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-[var(--color-accent)]/[0.05] rounded-full blur-[180px] pointer-events-none" />
         <div className="max-w-6xl mx-auto relative">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4 }}
+          <Reveal
+           
+           
+           
+           
             className="flex items-center justify-center mb-12"
           >
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
@@ -125,16 +123,16 @@ export function FeaturesPageClient() {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-          </motion.div>
+          </Reveal>
 
-          <motion.div
+          <Reveal
             key={activeTab}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+           
+           
+           
           >
             <FeatureGrid features={activeTab === 'resume' ? RESUME_FEATURES : INTERVIEW_FEATURES} />
-          </motion.div>
+          </Reveal>
         </div>
       </section>
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
   FileSearch, MessageSquareCode, TrendingUp, ArrowRight, Clock, Target, CalendarDays,
   Briefcase, KanbanSquare, Mic, GraduationCap, Sparkles,
@@ -21,9 +20,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { InlineError } from '@/components/resume/InlineError';
 import ResumeTrendChart from '@/components/dashboard/ResumeTrendChart';
 import { useDashboardData } from '../../../lib/useDashboardData';
+import { Reveal, RevealGroup } from '@/lib/reveal'
 
-
-const EASE = [0.22, 1, 0.36, 1] as const;
 
 const NEXT_ACTION_ICON: Record<string, typeof Sparkles> = {
   improve_resume: FileSearch,
@@ -35,15 +33,15 @@ const NEXT_ACTION_ICON: Record<string, typeof Sparkles> = {
 };
 
 function StatCard({
-  icon: Icon, label, value, change, color, delay,
+  icon: Icon, label, value, change, color,
 }: {
-  icon: typeof Sparkles; label: string; value: string; change: string; color: string; delay: number;
+  icon: typeof Sparkles; label: string; value: string; change: string; color: string;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay, ease: EASE }}
+    <Reveal
+     
+     
+     
       className="glass-card-hover p-5 group hover:-translate-y-0.5"
     >
       <div className="flex items-center justify-between mb-4">
@@ -60,7 +58,7 @@ function StatCard({
         <TrendingUp className="w-3 h-3" />
         {change}
       </div>
-    </motion.div>
+    </Reveal>
   );
 }
 
@@ -116,26 +114,26 @@ function DashboardContent({ home }: { home: DashboardHome }) {
     <>
       {/* Next Actions — answers "what should I do next", right under the fold */}
       {home.next_actions.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1, ease: EASE }}>
+        <Reveal>
           <h2 className="text-sm font-semibold text-(--color-ink) mb-3">What to do next</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {home.next_actions.map((action) => (
               <NextActionCard key={action.key} action={action} icon={NEXT_ACTION_ICON[action.key]} />
             ))}
           </div>
-        </motion.div>
+        </Reveal>
       )}
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card, i) => (
-          <StatCard key={card.label} {...card} delay={i * 0.06} />
+      <RevealGroup className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((card) => (
+          <StatCard key={card.label} {...card} />
         ))}
-      </div>
+      </RevealGroup>
 
       {/* Interview + Jobs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45, delay: 0.2, ease: EASE }} className="glass-card p-5">
+        <Reveal className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-(--color-ink)">Interview Progress</h2>
             <Link href="/interview" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
@@ -183,9 +181,9 @@ function DashboardContent({ home }: { home: DashboardHome }) {
           ) : (
             <p className="text-sm text-(--color-ink-faint) text-center py-4">No completed mock interview yet.</p>
           )}
-        </motion.div>
+        </Reveal>
 
-        <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45, delay: 0.25, ease: EASE }} className="glass-card p-5">
+        <Reveal className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-(--color-ink)">Top Matching Jobs</h2>
             <Link href="/jobs" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
@@ -239,12 +237,12 @@ function DashboardContent({ home }: { home: DashboardHome }) {
               )}
             </div>
           )}
-        </motion.div>
+        </Reveal>
       </div>
 
       {/* Activity + Upcoming Interviews */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.3, ease: EASE }} className="glass-card p-5">
+        <Reveal className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-(--color-ink)">Recent Activity</h2>
             <Link href="/history" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
@@ -287,9 +285,9 @@ function DashboardContent({ home }: { home: DashboardHome }) {
               ))}
             </div>
           )}
-        </motion.div>
+        </Reveal>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.35, ease: EASE }} className="glass-card p-5">
+        <Reveal className="glass-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-(--color-ink)">Upcoming Interviews</h2>
             <Link href="/applications" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
@@ -314,11 +312,11 @@ function DashboardContent({ home }: { home: DashboardHome }) {
               ))}
             </div>
           )}
-        </motion.div>
+        </Reveal>
       </div>
 
       {/* Performance chart — real data (analytics.ats_history), not a fixture */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.4, ease: EASE }} className="glass-card p-6">
+      <Reveal className="glass-card p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <h2 className="text-sm font-semibold text-(--color-ink)">Resume Improvement Trend</h2>
@@ -333,7 +331,7 @@ function DashboardContent({ home }: { home: DashboardHome }) {
         ) : (
           <ResumeTrendChart data={chartData} />
         )}
-      </motion.div>
+      </Reveal>
     </>
   );
 }
@@ -378,10 +376,10 @@ export default function DashboardPage() {
       />
 
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: EASE }}
+      <Reveal
+       
+       
+       
         className="flex flex-col md:flex-row md:items-end md:justify-between gap-4"
       >
         <div>
@@ -411,7 +409,7 @@ export default function DashboardPage() {
             {dateLabel}
           </div>
         </div>
-      </motion.div>
+      </Reveal>
 
       {isError && (
         <InlineError message="Could not load your dashboard. Check that the API is running and try again." />

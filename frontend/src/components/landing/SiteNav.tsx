@@ -2,11 +2,13 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet'
 import { ApplyCenterMark } from '@/components/ApplyCenterMark'
 import ThemeToggle from '@/components/ThemeToggle'
+import { cn } from '@/lib/utils'
 
 const LINKS = [
   { label: 'How it works', href: '/how-it-works' },
@@ -28,6 +30,13 @@ const LINKS = [
  */
 export function SiteNav() {
   const [open, setOpen] = React.useState(false)
+  const pathname = usePathname()
+
+  /* Marks the current section for assistive tech and gives it the inset
+     treatment the other links only get on press — the same "you are here"
+     the capsule's sliding pill used to carry on the pages this nav replaced
+     it on. Prefix match so /features/anything still reads as Features. */
+  const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
 
   return (
     <header className="sticky top-0 z-50 w-full px-4 pt-4">
@@ -48,7 +57,11 @@ export function SiteNav() {
             <li key={link.href}>
               <Link
                 href={link.href}
-                className="inline-flex h-11 items-center rounded-full px-4 text-[13px] font-medium text-ink-dim transition-colors duration-200 ease-(--ease-enter) hover:text-ink active:shadow-(--neu-inset-sm) outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+                aria-current={isCurrent(link.href) ? 'page' : undefined}
+                className={cn(
+                  'inline-flex h-11 items-center rounded-full px-4 text-[13px] font-medium transition-colors duration-200 ease-(--ease-enter) hover:text-ink active:shadow-(--neu-inset-sm) outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
+                  isCurrent(link.href) ? 'text-ink shadow-(--neu-inset-sm)' : 'text-ink-dim',
+                )}
               >
                 {link.label}
               </Link>
@@ -81,7 +94,11 @@ export function SiteNav() {
                     <SheetClose asChild>
                       <Link
                         href={link.href}
-                        className="flex min-h-12 items-center rounded-md px-4 text-[15px] text-ink outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 active:shadow-(--neu-inset-sm)"
+                        aria-current={isCurrent(link.href) ? 'page' : undefined}
+                        className={cn(
+                          'flex min-h-12 items-center rounded-md px-4 text-[15px] text-ink outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 active:shadow-(--neu-inset-sm)',
+                          isCurrent(link.href) && 'shadow-(--neu-inset-sm)',
+                        )}
                       >
                         {link.label}
                       </Link>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import CountUp from 'react-countup';
 import { TrendingUp, Target, FileSearch, Trophy } from 'lucide-react';
@@ -9,6 +8,7 @@ import { TrendChart } from '@/components/charts/TrendChart';
 import { getAnalyticsSummary, type AnalyticsSummary } from '@/lib/apiClient';
 import { PageHeader } from '@/components/PageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Reveal } from '@/lib/reveal'
 
 const ANALYTICS_KEY = ['analytics', 'summary'] as const;
 
@@ -60,7 +60,6 @@ function StatCard({
   suffix = '',
   prefix = '',
   sub,
-  index,
 }: {
   icon: React.ElementType;
   label: string;
@@ -68,13 +67,12 @@ function StatCard({
   suffix?: string;
   prefix?: string;
   sub: string;
-  index: number;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.07 }}
+    <Reveal
+     
+     
+     
       className="rounded-2xl border border-(--color-canvas-line-soft) bg-(--color-canvas-raise) p-5 transition-colors hover:border-(--color-canvas-line)"
     >
       <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-(--color-accent)/10">
@@ -91,7 +89,7 @@ function StatCard({
       </div>
       <div className="mt-0.5 text-xs font-medium text-(--color-ink)">{label}</div>
       <div className="mt-0.5 text-xs text-(--color-ink-faint)">{sub}</div>
-    </motion.div>
+    </Reveal>
   );
 }
 
@@ -156,30 +154,26 @@ export default function AnalyticsPage() {
         <StatCard
           icon={Target} label="Best ATS score" value={data.best_score} suffix="%"
           sub={data.scan_count > 0 ? `Across ${data.scan_count} scan${data.scan_count === 1 ? '' : 's'}` : 'No scans yet'}
-          index={0}
         />
         <StatCard
           icon={TrendingUp} label="Change" value={data.score_delta}
           prefix={data.score_delta !== null && data.score_delta > 0 ? '+' : ''} suffix=" pts"
           sub={data.score_delta === null ? 'Needs two scans' : 'First scan to latest'}
-          index={1}
         />
         <StatCard
           icon={FileSearch} label="Interview rate" value={funnel.interview_rate} suffix="%"
           sub={funnel.reached_applied > 0 ? `Of ${funnel.reached_applied} applied` : 'Nothing applied yet'}
-          index={2}
         />
         <StatCard
           icon={Trophy} label="Offer rate" value={funnel.offer_rate} suffix="%"
           sub={funnel.reached_offer > 0 ? `${funnel.reached_offer} offer${funnel.reached_offer === 1 ? '' : 's'}` : 'No offers yet'}
-          index={3}
         />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <Reveal
+       
+       
+       
         className="rounded-2xl border border-(--color-canvas-line-soft) bg-(--color-canvas-raise) p-6"
       >
         <div className="mb-6">
@@ -211,12 +205,12 @@ export default function AnalyticsPage() {
             summary={`ATS score across ${trend.length} scans, from ${trend[0].score} on ${trend[0].label} to ${trend[trend.length - 1].score} on ${trend[trend.length - 1].label}.`}
           />
         )}
-      </motion.div>
+      </Reveal>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <Reveal
+       
+       
+       
         className="rounded-2xl border border-(--color-canvas-line-soft) bg-(--color-canvas-raise) p-6"
       >
         <div className="mb-5">
@@ -255,7 +249,7 @@ export default function AnalyticsPage() {
             </p>
           </>
         )}
-      </motion.div>
+      </Reveal>
     </div>
   );
 }

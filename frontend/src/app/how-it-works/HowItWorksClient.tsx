@@ -1,15 +1,13 @@
 'use client';
 
 import { useRef } from 'react';
-import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import { ProductShowcase } from '../../components/landing/ProductShowcase';
 import { CTASection } from '../../components/landing/CTASection';
 import { useAccentPalette } from '../../lib/useAccentPalette';
-import { spring, springSoft } from '@/lib/motion';
+import { Reveal, RevealGroup } from '@/lib/reveal'
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -105,36 +103,26 @@ function buildPhases(palette: ReturnType<typeof useAccentPalette>) { return [
 type Phase = ReturnType<typeof buildPhases>[number];
 type Step = Phase['steps'][number];
 
-function StepCard({ step, color, index }: {
+function StepCard({ step, color }: {
   step: Step;
   color: string;
-  index: number;
 }) {
-  const { ref, inView } = useInView({ threshold: 0.2, triggerOnce: true });
 
   return (
     /* Choreographed reveal: the node lands first, its card follows a beat
        later, so the eye tracks down the rail instead of seeing whole rows pop
        at once. Springs rather than durations, so a fast scroll settles
        cleanly instead of restarting. */
-    <motion.div
-      ref={ref}
-      initial="hidden"
-      animate={inView ? 'show' : 'hidden'}
-      variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: 0.09, delayChildren: index * 0.05 } },
-      }}
+    <Reveal
+     
+     
+     
       className="group relative grid grid-cols-[auto_1fr] items-start gap-6"
     >
       {/* Step number — sits on the rail, so its background must be fully
           opaque. An 8-digit hex tint here would let the line show through the
           numeral; color-mix keeps the tint but stays solid. */}
-      <motion.div
-        variants={{
-          hidden: { opacity: 0, scale: 0.6 },
-          show: { opacity: 1, scale: 1, transition: spring },
-        }}
+      <Reveal
         className="relative z-10 flex size-14 shrink-0 items-center justify-center rounded-xl border font-mono text-sm font-semibold tabular-nums transition-transform duration-200 group-hover:scale-105"
         style={{
           background: `color-mix(in srgb, ${color} 12%, var(--canvas))`,
@@ -143,25 +131,19 @@ function StepCard({ step, color, index }: {
         }}
       >
         {step.num}
-      </motion.div>
+      </Reveal>
 
       {/* Content */}
-      <motion.div
-        variants={{
-          hidden: { opacity: 0, y: 18 },
-          show: { opacity: 1, y: 0, transition: springSoft },
-        }}
+      <Reveal
+       
         className="glass-card-hover p-5"
       >
-        <motion.h3
-          variants={{
-            hidden: { opacity: 0, y: 8 },
-            show: { opacity: 1, y: 0, transition: springSoft },
-          }}
+        <Reveal as="h3"
+         
           className="mb-2 font-semibold tracking-tight text-ink"
         >
           {step.title}
-        </motion.h3>
+        </Reveal>
         <p className="mb-3 text-sm leading-relaxed text-ink-dim">{step.desc}</p>
         <div
           className="rounded-lg p-3 font-mono text-xs leading-relaxed"
@@ -173,8 +155,8 @@ function StepCard({ step, color, index }: {
         >
           {step.detail}
         </div>
-      </motion.div>
-    </motion.div>
+      </Reveal>
+    </Reveal>
   );
 }
 
@@ -203,11 +185,11 @@ function PhaseBlock({ phase }: { phase: Phase }) {
   return (
     <div>
       {/* Phase header */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
+      <Reveal
+       
+       
+       
+       
         /* Same column geometry as StepCard, so the phase badge, the step
            badges, and the rail all sit on one 28px axis. */
         className="mb-10 grid grid-cols-[auto_1fr] items-center gap-6"
@@ -242,7 +224,7 @@ function PhaseBlock({ phase }: { phase: Phase }) {
             style={{ background: `color-mix(in srgb, ${phase.color} 22%, transparent)` }}
           />
         </div>
-      </motion.div>
+      </Reveal>
 
       {/* Steps with scroll-linked progress rail */}
       <div ref={railRef} className="relative">
@@ -252,11 +234,11 @@ function PhaseBlock({ phase }: { phase: Phase }) {
           className="absolute left-7 top-2 w-px"
           style={{ height: '0%', background: `linear-gradient(to bottom, ${phase.color}, transparent)` }}
         />
-        <div className="space-y-4">
-          {phase.steps.map((step, i) => (
-            <StepCard key={step.num} step={step} color={phase.color} index={i} />
+        <RevealGroup className="space-y-4">
+          {phase.steps.map((step) => (
+            <StepCard key={step.num} step={step} color={phase.color} />
           ))}
-        </div>
+        </RevealGroup>
       </div>
     </div>
   );
@@ -270,10 +252,10 @@ export function HowItWorksClient() {
       {/* Hero */}
       <section className="relative overflow-hidden pt-36 pb-16 px-4">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[420px] bg-[var(--color-accent)]/8 rounded-full blur-[160px] pointer-events-none" />
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <Reveal
+         
+         
+         
           className="max-w-4xl mx-auto text-center relative"
         >
           <span className="eyebrow mb-4 inline-flex">
@@ -287,7 +269,7 @@ export function HowItWorksClient() {
           <p className="text-[var(--color-ink-dim)] text-lg max-w-2xl mx-auto leading-relaxed">
             ApplyCenter runs a complete, automated 12-step pipeline that transforms your resume into a fully optimized application and your preparation into a competitive advantage.
           </p>
-        </motion.div>
+        </Reveal>
       </section>
 
       {/* Phase sections */}

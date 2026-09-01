@@ -1,7 +1,7 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion'
+import { Reveal } from '@/lib/reveal'
 
 const FAQS = [
   {
@@ -42,18 +42,18 @@ export function FAQSection() {
   return (
     <section className="border-t border-border py-28 px-6 sm:py-36">
       <div className="mx-auto max-w-3xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6 }}
+        <Reveal
+         
+         
+         
+         
           className="mb-12 text-center"
         >
           <span className="text-xs font-semibold uppercase tracking-widest text-primary">FAQ</span>
           <h2 className="mt-4 font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             Common questions
           </h2>
-        </motion.div>
+        </Reveal>
 
         <div className="rounded-2xl border border-border bg-surface px-6">
           <Accordion type="single" collapsible>

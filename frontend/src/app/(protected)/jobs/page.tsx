@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
 import { Briefcase, Clock, MapPin, Search, Sparkles } from 'lucide-react'
 import { getJobs, type JobFeed, type JobListing, type WorkMode } from '../../../lib/jobsData'
 import { CompanyLogo } from '@/components/jobs/CompanyLogo'
@@ -16,6 +15,7 @@ import { bandColor } from '@/lib/scoreBands'
 import { hasAnyMatchScores, JOB_SORT_OPTIONS, sortJobs, type JobSortOption } from '@/lib/jobSort'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Reveal, RevealGroup } from '@/lib/reveal'
 
 const MODE_FILTERS = ['All', 'Remote', 'Hybrid', 'On-site'] as const
 type ModeFilter = (typeof MODE_FILTERS)[number]
@@ -228,10 +228,10 @@ export default function JobsPage() {
       {/* Target-role quick filters. Rendered only once onboarding has
           supplied roles — an empty strip would just be dead space. */}
       {targetRoles.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <Reveal
+         
+         
+         
           className="flex flex-wrap items-center gap-2"
         >
           <span className="text-xs text-(--color-ink-faint)">Your roles</span>
@@ -265,14 +265,14 @@ export default function JobsPage() {
               </button>
             )
           })}
-        </motion.div>
+        </Reveal>
       )}
 
       {/* Search + mode filters */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
+      <Reveal
+       
+       
+       
         className="flex flex-col sm:flex-row gap-3"
       >
         <div className="flex-1">
@@ -318,28 +318,28 @@ export default function JobsPage() {
             ))}
           </select>
         </div>
-      </motion.div>
+      </Reveal>
 
       {/* States a manual choice as clearly as an automatic one — this only
           reflects sortBy, it never re-decides it. */}
       {showingBestMatch && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        <Reveal as="p"
+         
+         
           className="flex items-center gap-1.5 text-xs text-(--color-ink-faint)"
         >
           <Sparkles className="w-3 h-3" aria-hidden="true" />
           Sorted by Best Match based on your latest resume.
-        </motion.p>
+        </Reveal>
       )}
 
       {/* Enrichment filters. Counts come from the unfiltered feed so a pill
           shows what it would match, and a zero-count pill is disabled rather
           than leading to an empty grid. */}
       {feed?.filterCounts && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        <Reveal
+         
+         
           className="mb-5 flex flex-wrap items-center gap-2"
         >
           <span className="eyebrow text-[10px]">Sponsorship</span>
@@ -407,7 +407,7 @@ export default function JobsPage() {
               {feed.filterCounts.unenriched === 1 ? '' : 's'} not yet classified
             </span>
           )}
-        </motion.div>
+        </Reveal>
       )}
 
       {/* Listings */}
@@ -430,13 +430,13 @@ export default function JobsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {sorted.map((job, i) => (
-            <motion.article
+        <RevealGroup className="grid sm:grid-cols-2 gap-4">
+          {sorted.map((job) => (
+            <Reveal as="article"
               key={job.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * i, duration: 0.4 }}
+             
+             
+             
               onClick={() => setSelectedJob(job)}
               // role/tabIndex/onKeyDown rather than a bare onClick: a
               // click-only card is invisible to keyboard and screen-reader
@@ -507,9 +507,9 @@ export default function JobsPage() {
                   onUndo={applyTracker.undo}
                 />
               </div>
-            </motion.article>
+            </Reveal>
           ))}
-        </div>
+        </RevealGroup>
       )}
 
       <JobDetailDrawer

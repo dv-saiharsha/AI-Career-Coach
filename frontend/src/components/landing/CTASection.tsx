@@ -1,12 +1,10 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { Reveal } from '@/lib/reveal'
 
 export function CTASection() {
-  const { ref, inView } = useInView({ threshold: 0.2, triggerOnce: true });
 
   return (
     <section className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)] relative overflow-hidden">
@@ -18,11 +16,10 @@ export function CTASection() {
       </div>
 
       <div className="max-w-4xl mx-auto relative">
-        <motion.div
-          ref={ref}
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={inView ? { opacity: 1, scale: 1 } : {}}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        <Reveal
+         
+         
+         
           className="relative bg-gradient-to-br from-[color-mix(in_srgb,var(--color-accent)_12%,var(--color-canvas))] to-[var(--color-canvas)] border border-[var(--color-accent)]/25 rounded-3xl p-12 md:p-16 text-center overflow-hidden"
         >
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -86,7 +83,7 @@ export function CTASection() {
               </span>
             </div>
           </div>
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   );

@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import {
   AlertCircle,
   Check,
@@ -27,6 +26,7 @@ import {
 } from '@/lib/apiClient'
 import { useAuth } from '@/lib/AuthContext'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Reveal } from '@/lib/reveal'
 
 /** Emerald 75+, amber 60-74, crimson below — mapped onto the design tokens. */
 function scoreColor(score: number | null): string {
@@ -174,9 +174,9 @@ function AnalysisDashboard() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 pb-28">
       {/* Headline */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
+      <Reveal
+       
+       
         className="card flex flex-col items-start gap-6 p-6 sm:flex-row sm:items-center"
       >
         <ScoreGauge score={data.model_score} />
@@ -200,7 +200,7 @@ function AnalysisDashboard() {
             </p>
           )}
         </div>
-      </motion.div>
+      </Reveal>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Rubric */}
@@ -303,15 +303,15 @@ function ScoreGauge({ score }: { score: number }) {
           stroke="var(--color-canvas-line)"
           strokeWidth="3"
         />
-        <motion.path
+        <Reveal as="path"
           d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831"
           fill="none"
           stroke={color}
           strokeWidth="3"
           strokeLinecap="round"
-          initial={{ strokeDasharray: '0, 100' }}
-          animate={{ strokeDasharray: `${Math.max(0, Math.min(100, score))}, 100` }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+         
+         
+         
         />
       </svg>
       <span className="absolute font-display text-2xl font-semibold" style={{ color }}>
@@ -347,12 +347,12 @@ function MetricBar({ metric }: { metric: RubricMetric }) {
         {/* A skipped metric renders an empty track, not a zero-width bar
             styled as failure — "not measured" is not "scored nothing". */}
         {!notChecked && (
-          <motion.div
+          <Reveal
             className="h-full rounded-full"
-            style={{ background: color }}
-            initial={{ width: 0 }}
-            animate={{ width: `${metric.score}%` }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+           
+           
+           
+           
           />
         )}
       </div>

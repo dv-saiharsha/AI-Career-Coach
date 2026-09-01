@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { MessageSquarePlus, Trash2 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import type { CoachConversation } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Reveal } from '@/lib/reveal'
 
 function relativeLabel(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -101,9 +101,9 @@ export function ConversationSidebar({
                   className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                 >
                   {confirmId === c.id ? (
-                    <motion.span initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-[10px] font-mono text-(--color-error)">
+                    <Reveal as="span" className="text-[10px] font-mono text-(--color-error)">
                       Sure?
-                    </motion.span>
+                    </Reveal>
                   ) : (
                     <Trash2 strokeWidth={1.5} className="h-3.5 w-3.5 text-(--color-ink-faint)" />
                   )}

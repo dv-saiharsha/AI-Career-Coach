@@ -1,9 +1,9 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Check, X } from 'lucide-react'
 
 import type { ProgressStep, StepState } from '@/hooks/useTailorProgress'
+import { Reveal } from '@/lib/reveal'
 
 /**
  * Step-by-step progress for the tailoring pipeline.
@@ -108,13 +108,11 @@ export function TailorProgressStepper({
                   {state === 'failed' && ' — failed'}
                 </p>
                 {state === 'active' && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -2 }}
-                    animate={{ opacity: 1, y: 0 }}
+                  <Reveal as="p"
                     className="mt-0.5 text-[11px] leading-snug text-[var(--color-accent)]"
                   >
                     {step.description}
-                  </motion.p>
+                  </Reveal>
                 )}
               </div>
             </li>

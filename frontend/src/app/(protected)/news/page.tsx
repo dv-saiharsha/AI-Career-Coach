@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
 import { Scale } from 'lucide-react'
 import { getDashboardOverview, type DashboardOverview } from '@/lib/apiClient'
 import { PolicyNewsPanel } from '@/components/dashboard/PolicyNewsPanel'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Reveal } from '@/lib/reveal'
 
 /**
  * Immigration policy filings, on their own page.
@@ -34,7 +34,7 @@ export default function PolicyNewsPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+      <Reveal className="mb-6">
         <span className="eyebrow mb-2 inline-flex items-center gap-1.5">
           <Scale strokeWidth={1.5} className="h-3 w-3" />
           Federal Register
@@ -47,7 +47,7 @@ export default function PolicyNewsPage() {
           government&apos;s own record. Nothing here is written by ApplyCenter — every item links to
           the document it describes.
         </p>
-      </motion.div>
+      </Reveal>
 
       {failed ? (
         <div className="card p-6">
@@ -63,9 +63,9 @@ export default function PolicyNewsPage() {
           ))}
         </div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <Reveal>
           <PolicyNewsPanel articles={overview.news} reachable={overview.news_reachable} />
-        </motion.div>
+        </Reveal>
       )}
     </div>
   )

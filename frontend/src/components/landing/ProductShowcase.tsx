@@ -1,13 +1,11 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
 import { FileSearch, MessageSquareCode, Target, BarChart2 } from 'lucide-react';
 import { useAccentPalette } from '../../lib/useAccentPalette';
 import { LiveChart } from './LiveChart';
+import { Reveal, RevealGroup } from '@/lib/reveal'
 
 export function ProductShowcase() {
-  const { ref, inView } = useInView({ threshold: 0.15, triggerOnce: true });
   const palette = useAccentPalette();
   const STAT_CARDS = [
     { icon: FileSearch, label: 'Resumes Analyzed', value: '12', color: palette.accent },
@@ -17,14 +15,14 @@ export function ProductShowcase() {
   ];
 
   return (
-    <section id="product-preview" ref={ref} className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)] overflow-hidden">
+    <section id="product-preview" className="py-16 md:py-28 lg:py-36 px-4 border-t border-[var(--color-canvas-line-soft)] relative bg-[var(--color-canvas-deep)] overflow-hidden">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-[var(--color-accent)]/6 rounded-full blur-[180px] pointer-events-none" />
 
       <div className="max-w-5xl mx-auto relative">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
+        <Reveal
+         
+         
+         
           className="text-center mb-14"
         >
           <span className="eyebrow mb-4 inline-flex">
@@ -37,12 +35,12 @@ export function ProductShowcase() {
           <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto">
             One view of every resume score, every mock interview, and exactly what to fix next.
           </p>
-        </motion.div>
+        </Reveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 40, scale: 0.97 }}
-          animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
-          transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        <Reveal
+         
+         
+         
           className="relative rounded-2xl overflow-hidden border border-[var(--color-canvas-line)] shadow-[0_40px_120px_-20px_rgba(var(--glow-rgb),0.12)]"
         >
           {/* Browser chrome */}
@@ -59,13 +57,13 @@ export function ProductShowcase() {
 
           {/* Mock dashboard */}
           <div className="bg-[var(--color-canvas)] p-6 md:p-8">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-              {STAT_CARDS.map(({ icon: Icon, label, value, color }, i) => (
-                <motion.div
+            <RevealGroup className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+              {STAT_CARDS.map(({ icon: Icon, label, value, color }) => (
+                <Reveal
                   key={label}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={inView ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.4, delay: 0.4 + i * 0.08 }}
+                 
+                 
+                 
                   className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-4"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${color}15` }}>
@@ -73,14 +71,14 @@ export function ProductShowcase() {
                   </div>
                   <div className="text-xl font-display font-bold text-[var(--color-ink)]">{value}</div>
                   <div className="text-xs text-[var(--color-ink-dim)] mt-0.5">{label}</div>
-                </motion.div>
+                </Reveal>
               ))}
-            </div>
+            </RevealGroup>
 
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.4, delay: 0.7 }}
+            <Reveal
+             
+             
+             
               className="bg-[var(--color-canvas-raise)] border border-[var(--color-canvas-line-soft)] rounded-2xl p-5"
             >
               <div className="flex items-center justify-between mb-5">
@@ -97,9 +95,9 @@ export function ProductShowcase() {
                 </div>
               </div>
               <LiveChart colorA={palette.accent} colorB={palette.accentLight} />
-            </motion.div>
+            </Reveal>
           </div>
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   );

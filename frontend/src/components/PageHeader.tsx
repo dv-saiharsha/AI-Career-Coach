@@ -1,9 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Reveal } from '@/lib/reveal'
 
 /**
  * The one page header for every workspace route.
@@ -42,12 +42,8 @@ export function PageHeader({
   children,
   className,
 }: PageHeaderProps) {
-  const reduce = useReducedMotion()
-
   return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
+    <Reveal
       className={cn('mb-6 flex flex-wrap items-end justify-between gap-4', className)}
     >
       <div className="min-w-0">
@@ -77,6 +73,6 @@ export function PageHeader({
         {children}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
-    </motion.div>
+    </Reveal>
   )
 }

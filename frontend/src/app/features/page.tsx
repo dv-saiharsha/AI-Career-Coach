@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { FeaturesPageClient } from './FeaturesPageClient';
-import { FloatingNav } from '@/components/FloatingNav';
+import { SiteNav } from '@/components/landing/SiteNav';
 import Footer from '../../components/Footer';
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function FeaturesPage() {
   return (
     <div className="bg-[var(--color-canvas-deep)] min-h-screen">
-      <FloatingNav />
+      <SiteNav />
       <FeaturesPageClient />
       <Footer />
     </div>

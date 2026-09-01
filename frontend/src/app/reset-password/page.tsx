@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { Reveal, RevealGroup } from '@/lib/reveal'
 import { ArrowRight, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { ApplyCenterMark } from '../../components/ApplyCenterMark'
 import { createClient } from '../../lib/supabase/client'
@@ -51,25 +51,15 @@ export default function ResetPassword() {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[380px] bg-[var(--color-accent)]/8 rounded-full blur-[120px]" />
       </div>
 
-      <div className="w-full max-w-md relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex justify-center mb-8"
-        >
+      <RevealGroup className="w-full max-w-md relative z-10">
+        <Reveal className="flex justify-center mb-8">
           <Link href="/" className="flex items-center gap-2.5">
             <ApplyCenterMark className="w-8 h-8" />
             <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">ApplyCenter</span>
           </Link>
-        </motion.div>
+        </Reveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 24, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]"
-        >
+        <Reveal className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]">
           {status === 'done' ? (
             <div className="text-center py-4">
               <div className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5">
@@ -149,8 +139,8 @@ export default function ResetPassword() {
               </form>
             </>
           )}
-        </motion.div>
-      </div>
+        </Reveal>
+      </RevealGroup>
     </div>
   )
 }

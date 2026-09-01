@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useInView } from 'react-intersection-observer';
 import { Check, Zap, Building2, Sparkles, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAccentPalette } from '../../lib/useAccentPalette';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Reveal, RevealGroup } from '@/lib/reveal'
 
 function buildPlans(palette: ReturnType<typeof useAccentPalette>) { return [
   {
@@ -74,7 +73,6 @@ function buildPlans(palette: ReturnType<typeof useAccentPalette>) { return [
 ]; }
 
 export function PricingSection() {
-  const { ref, inView } = useInView({ threshold: 0.05, triggerOnce: true });
   const [annual, setAnnual] = useState(false);
   const palette = useAccentPalette();
   const PLANS = buildPlans(palette);
@@ -84,11 +82,10 @@ export function PricingSection() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-accent)]/[0.03] to-transparent pointer-events-none" />
 
       <div className="max-w-6xl mx-auto">
-        <motion.div
-          ref={ref}
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6 }}
+        <Reveal
+         
+         
+         
           className="text-center mb-10"
         >
           <span className="eyebrow mb-4 inline-flex">
@@ -125,7 +122,7 @@ export function PricingSection() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-        </motion.div>
+        </Reveal>
 
         {/* Mobile: a manually-swiped, scroll-snapped rail — same side-by-side
             reading as the team carousel, but driven entirely by the user's
@@ -134,21 +131,21 @@ export function PricingSection() {
             md and up: the plans fit abreast, so it reverts to a plain grid.
             Vertical padding on the rail leaves room for the "Most Popular"
             badge, which overflow-x would otherwise clip. */}
-        <div
+        <RevealGroup
           role="group"
           aria-label="Pricing plans"
           className="flex snap-x snap-mandatory gap-4 overflow-x-auto py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:py-0"
         >
-          {PLANS.map((plan, i) => {
+          {PLANS.map((plan) => {
             const Icon = plan.icon;
             const price = plan.monthly === null ? 'Custom' : plan.monthly === 0 ? 'Free' : `$${(annual ? plan.annual : plan.monthly)?.toFixed(annual ? 2 : 0)}`;
             const period = plan.monthly ? '/ month' : '';
             return (
-              <motion.div
+              <Reveal
                 key={plan.name}
-                initial={{ opacity: 0, y: 32 }}
-                animate={inView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+               
+               
+               
                 className={`relative flex w-[84vw] max-w-sm shrink-0 snap-center flex-col rounded-2xl border p-7 transition-all duration-300 md:w-auto md:max-w-none md:shrink ${
                   plan.highlight
                     ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-canvas))] border-[var(--color-accent)]/40 shadow-[var(--shadow-raised)]'
@@ -204,19 +201,19 @@ export function PricingSection() {
                   {plan.cta}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
-              </motion.div>
+              </Reveal>
             );
           })}
-        </div>
+        </RevealGroup>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : {}}
-          transition={{ delay: 0.5 }}
+        <Reveal as="p"
+         
+         
+         
           className="text-center text-xs text-[var(--color-ink-faint)] mt-8"
         >
           All plans include a 7-day free trial. No credit card required to start.
-        </motion.p>
+        </Reveal>
       </div>
     </section>
   );

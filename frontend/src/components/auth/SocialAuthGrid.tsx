@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -12,7 +11,6 @@ import {
   PROVIDER_LABELS,
   type OAuthProvider,
 } from '@/lib/auth/oauth'
-import { ease } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 /* Brand marks as inline SVG. currentColor everywhere except Google, whose
@@ -119,21 +117,18 @@ export function SocialAuthGrid({
         })}
       </div>
 
-      <AnimatePresence initial={false}>
-        {error && (
-          <motion.p
-            role="alert"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={ease}
-            className="flex items-start gap-2 rounded-xl border border-danger/25 bg-danger/10 p-3 text-sm text-danger"
-          >
-            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {/* Rendered at once rather than tweened open, matching FormError and
+          the auth rebuild's own reasoning: a sign-in failure the user cannot
+          read for 240ms is one they have already started retyping past. */}
+      {error && (
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-danger/25 bg-danger/10 p-3 text-sm text-danger"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
     </div>
   )
 }

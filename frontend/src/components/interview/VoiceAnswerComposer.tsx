@@ -13,10 +13,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
 import { AlertCircle, Mic, Pause, Play, RotateCcw, Square } from 'lucide-react'
 import { transcribeInterviewAnswer, type VoiceMetrics } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
+import { Reveal } from '@/lib/reveal'
 
 type Phase = 'idle' | 'recording' | 'paused' | 'transcribing' | 'ready' | 'error' | 'unsupported' | 'permission-denied'
 
@@ -238,10 +238,10 @@ export function VoiceAnswerComposer({ disabled, onTranscriptReady, onReset }: Vo
       <div className="flex items-center gap-3" role="status" aria-live="polite">
         <span className="relative flex h-2.5 w-2.5">
           {phase === 'recording' && (
-            <motion.span
+            <Reveal as="span"
               className="absolute inline-flex h-full w-full rounded-full bg-(--color-error)"
-              animate={{ opacity: [0.6, 0, 0.6], scale: [1, 1.8, 1] }}
-              transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+             
+             
             />
           )}
           <span

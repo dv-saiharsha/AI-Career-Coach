@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
 import { GraduationCap, Search, Target } from 'lucide-react'
 import { getPrepQuestions, type PrepCategory, type PrepDifficulty, type PrepQuestion } from '@/lib/apiClient'
 import { INTERVIEW_CATEGORIES } from '@/lib/interviewCategories'
@@ -10,8 +9,8 @@ import { InlineError } from '@/components/resume/InlineError'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Reveal } from '@/lib/reveal'
 
-const EASE = [0.22, 1, 0.36, 1] as const
 
 // Same five categories Mock Interview sources its questions from — one
 // vocabulary for the whole Interview Engine, not a per-feature copy.
@@ -205,21 +204,21 @@ export function InterviewPrep({ initialRole = '' }: { initialRole?: string }) {
               </p>
             </div>
           ) : (
-            <motion.div
-              initial="hidden"
-              animate="show"
-              variants={{ show: { transition: { staggerChildren: 0.04 } } }}
+            <Reveal
+             
+             
+             
               className="flex flex-col gap-2.5"
             >
               {filtered.map((q) => (
-                <motion.div
+                <Reveal
                   key={q.id}
-                  variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: EASE } } }}
+                 
                 >
                   <PrepQuestionCard question={q} onStateChange={(state) => handleStateChange(q.id, state)} />
-                </motion.div>
+                </Reveal>
               ))}
-            </motion.div>
+            </Reveal>
           )}
         </>
       )}

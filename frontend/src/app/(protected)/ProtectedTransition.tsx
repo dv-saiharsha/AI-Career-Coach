@@ -1,46 +1,29 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { motion, useReducedMotion } from 'framer-motion'
 import type { ReactNode } from 'react'
-import { PAGE_TRANSITION, PAGE_TRANSITION_FAST } from '@/lib/motion'
 
 /**
  * Route-level enter choreography for the workspace.
  *
- * Blur is skipped on the chart- and list-dense routes: `filter` repaints the
- * whole subtree per frame, and on those pages the subtree is hundreds of
- * nodes plus an SVG chart. The lighter variant is visually near-identical at
- * the speed this runs, and costs nothing.
+ * The animation is a CSS keyframe on `.route-enter` (see globals.css). The
+ * pathname key is what drives it: a navigation remounts this element, and a
+ * freshly mounted element runs its animation again. No state, no library, no
+ * JavaScript on the transition path at all.
+ *
+ * The Framer version chose between two presets by route, because the richer
+ * one used a backdrop blur and `filter` repaints the whole subtree per frame
+ * — unaffordable on the chart- and list-dense pages. Dropping the blur drops
+ * the need to special-case those routes, so the HEAVY_ROUTES list goes with
+ * it. Reduced motion is handled in the stylesheet rather than by branching
+ * here on useReducedMotion.
  */
-const HEAVY_ROUTES = ['/dashboard', '/analytics', '/history', '/applications', '/interview']
-
 export function ProtectedTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const reduce = useReducedMotion()
-
-  const preset = HEAVY_ROUTES.some((route) => pathname.startsWith(route))
-    ? PAGE_TRANSITION_FAST
-    : PAGE_TRANSITION
-
-  // Reduced motion keeps the fade (an opacity change is not vestibular) but
-  // drops the travel and the blur entirely.
-  if (reduce) {
-    return (
-      <motion.div key={pathname} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        {children}
-      </motion.div>
-    )
-  }
 
   return (
-    <motion.div
-      key={pathname}
-      initial={preset.initial}
-      animate={preset.animate}
-      transition={preset.transition}
-    >
+    <div key={pathname} className="route-enter">
       {children}
-    </motion.div>
+    </div>
   )
 }

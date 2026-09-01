@@ -1,11 +1,11 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { Check, X, Zap, Sparkles, Building2 } from 'lucide-react';
 import { PricingSection } from '../../components/landing/PricingSection';
 import { FAQSection } from '../../components/landing/FAQSection';
 import { CTASection } from '../../components/landing/CTASection';
 import { useAccentPalette } from '../../lib/useAccentPalette';
+import { Reveal } from '@/lib/reveal'
 
 function buildPlanColumns(palette: ReturnType<typeof useAccentPalette>) { return [
   { name: 'Starter', icon: Zap, color: palette.inkDim, highlight: false },
@@ -74,10 +74,10 @@ export function PricingPageClient() {
       {/* Hero */}
       <section className="relative overflow-hidden pt-36 pb-8 px-4">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[420px] bg-[var(--color-accent)]/8 rounded-full blur-[160px] pointer-events-none" />
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <Reveal
+         
+         
+         
           className="max-w-3xl mx-auto text-center relative"
         >
           <span className="eyebrow mb-4 inline-flex">
@@ -92,7 +92,7 @@ export function PricingPageClient() {
           <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto">
             Start free. Upgrade when you&apos;re landing interviews. No long-term contracts.
           </p>
-        </motion.div>
+        </Reveal>
       </section>
 
       <PricingSection />
@@ -100,11 +100,11 @@ export function PricingPageClient() {
       {/* Full comparison table */}
       <section className="relative overflow-hidden py-24 px-4 border-t border-[var(--color-canvas-line-soft)] bg-[var(--color-canvas-deep)]">
         <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+          <Reveal
+           
+           
+           
+           
             className="text-center mb-12"
           >
             <span className="eyebrow mb-4 inline-flex">
@@ -114,13 +114,13 @@ export function PricingPageClient() {
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4">
               Every feature, side by side.
             </h2>
-          </motion.div>
+          </Reveal>
 
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+          <Reveal
+           
+           
+           
+           
             className="glass-card overflow-hidden"
           >
             {/* The comparison grid is wider than a phone. It scrolls inside its
@@ -160,7 +160,7 @@ export function PricingPageClient() {
               </div>
             ))}
             </div>
-          </motion.div>
+          </Reveal>
         </div>
       </section>
 

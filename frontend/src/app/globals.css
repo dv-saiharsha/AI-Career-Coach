@@ -672,6 +672,51 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   ROUTE ENTER
+
+   Runs once per navigation inside the workspace. Keyed on the pathname in
+   ProtectedTransition, so the element remounts and the animation restarts;
+   there is no state and no observer involved.
+
+   The Framer version this replaces varied its preset by route, skipping a
+   backdrop blur on the chart- and list-dense pages because `filter` repaints
+   the whole subtree every frame. There is no blur here at all, so that
+   distinction — and the route list it needed — goes away: opacity and
+   transform only, which the compositor handles without repainting anything.
+   ══════════════════════════════════════════════════════════════════════ */
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes route-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.route-enter {
+  animation: route-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* An opacity change is not vestibular, so reduced motion keeps the fade and
+   drops the travel rather than removing the transition entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .route-enter {
+    animation: route-fade 180ms linear both;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    UTILITIES
    ══════════════════════════════════════════════════════════════════════ */
 

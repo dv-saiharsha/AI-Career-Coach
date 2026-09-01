@@ -1,12 +1,7 @@
-'use client'
-
 import * as React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import { Button, type ButtonProps } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { ease, spring } from '@/lib/motion'
 
 export interface SubmitButtonProps extends Omit<ButtonProps, 'children' | 'asChild'> {
   loading?: boolean
@@ -15,11 +10,16 @@ export interface SubmitButtonProps extends Omit<ButtonProps, 'children' | 'asChi
 }
 
 /**
- * Submit control with a spring cross-fade between resting and pending states.
+ * Submit control.
  *
- * The button keeps its own width while the label swaps, so the control never
- * resizes under the pointer mid-submit, and it stays disabled for the whole
- * pending window to make double submission impossible.
+ * This used to cross-fade its own label through AnimatePresence, which
+ * predated the Button primitive growing a `loading` prop that does the same
+ * job — spinner, disabled, aria-busy — without a second implementation. It
+ * now delegates, so there is one loading treatment in the product rather
+ * than two that drift apart.
+ *
+ * No longer a client component either: it holds no state and runs no effect,
+ * so it renders on the server like the rest of the form.
  */
 export function SubmitButton({
   loading = false,
@@ -34,37 +34,13 @@ export function SubmitButton({
     <Button
       type="submit"
       size={size}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
+      loading={loading}
+      loadingLabel={loadingLabel}
+      disabled={disabled}
       className={cn('w-full', className)}
       {...props}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        {loading ? (
-          <motion.span
-            key="loading"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={spring}
-            className="inline-flex items-center gap-2"
-          >
-            <Spinner className="text-on-accent" label={loadingLabel} />
-            {loadingLabel}
-          </motion.span>
-        ) : (
-          <motion.span
-            key="idle"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={spring}
-            className="inline-flex items-center gap-2"
-          >
-            {children}
-          </motion.span>
-        )}
-      </AnimatePresence>
+      {loading ? loadingLabel : children}
     </Button>
   )
 }
@@ -72,23 +48,21 @@ export function SubmitButton({
 /**
  * Form-level failure banner. Use for errors that belong to the submission as
  * a whole; anything attributable to one input belongs in that field's `error`.
+ *
+ * It appears at once. This was a height tween, and the auth rebuild had
+ * already made the same call for the same reason: an error that takes 240ms
+ * to open is one the user has started retyping past before they can read it.
  */
 export function FormError({ message }: { message?: string | null }) {
+  if (!message) return null
+
   return (
-    <AnimatePresence initial={false}>
-      {message ? (
-        <motion.p
-          role="alert"
-          initial={{ opacity: 0, height: 0, y: -6 }}
-          animate={{ opacity: 1, height: 'auto', y: 0 }}
-          exit={{ opacity: 0, height: 0, y: -6 }}
-          transition={ease}
-          className="flex items-start gap-2 rounded-xl border border-danger/25 bg-danger/10 p-3 text-sm text-danger"
-        >
-          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {message}
-        </motion.p>
-      ) : null}
-    </AnimatePresence>
+    <p
+      role="alert"
+      className="flex items-start gap-2 rounded-xl border border-danger/25 bg-danger/10 p-3 text-sm text-danger"
+    >
+      <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      {message}
+    </p>
   )
 }

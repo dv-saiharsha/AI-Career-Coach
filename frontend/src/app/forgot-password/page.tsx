@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { Reveal, RevealGroup } from '@/lib/reveal'
 import { ArrowRight, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { ApplyCenterMark } from '../../components/ApplyCenterMark'
 import { createClient } from '../../lib/supabase/client'
@@ -45,40 +45,22 @@ export default function ForgotPassword() {
         />
       </div>
 
-      <div className="w-full max-w-md relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex justify-center mb-8"
-        >
+      <RevealGroup className="w-full max-w-md relative z-10">
+        <Reveal className="flex justify-center mb-8">
           <Link href="/" className="flex items-center gap-2.5">
             <ApplyCenterMark className="w-8 h-8" />
             <span className="wordmark font-semibold text-[var(--color-ink)] text-lg">ApplyCenter</span>
           </Link>
-        </motion.div>
+        </Reveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 24, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]"
-        >
+        <Reveal className="glass rounded-3xl p-8 shadow-[var(--shadow-pop)]">
           {status === 'sent' ? (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="text-center py-4"
-            >
-              <motion.div
-                initial={{ scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.4, delay: 0.1, ease: 'easeOut' }}
+            <div className="text-center py-4">
+              <div
                 className="w-14 h-14 rounded-full bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 flex items-center justify-center mx-auto mb-5 shadow-[0_0_24px_rgba(var(--glow-rgb),0.12)]"
               >
                 <CheckCircle2 className="w-7 h-7 text-[var(--color-accent)]" />
-              </motion.div>
+              </div>
               <h1 className="text-xl font-display font-semibold text-[var(--color-ink)] mb-2">Check your email</h1>
               <p className="text-sm text-[var(--color-ink-dim)] mb-6">
                 We sent a password reset link to <strong className="text-[var(--color-ink)]">{email}</strong>. Check your inbox and spam folder.
@@ -86,7 +68,7 @@ export default function ForgotPassword() {
               <Link href="/login" className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-light)] transition-colors">
                 Back to sign in
               </Link>
-            </motion.div>
+            </div>
           ) : (
             <>
               <div className="mb-7">
@@ -118,20 +100,15 @@ export default function ForgotPassword() {
               </form>
             </>
           )}
-        </motion.div>
+        </Reveal>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          className="flex justify-center mt-6"
-        >
+        <Reveal className="flex justify-center mt-6">
           <Link href="/login" className="flex items-center gap-1.5 text-sm text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to sign in
           </Link>
-        </motion.div>
-      </div>
+        </Reveal>
+      </RevealGroup>
     </div>
   )
 }
