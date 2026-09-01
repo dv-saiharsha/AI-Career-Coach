@@ -7,7 +7,6 @@ import {
   Briefcase, KanbanSquare, Mic, GraduationCap, Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { useAuth } from '../../../lib/AuthContext';
 import { useAccentPalette } from '../../../lib/useAccentPalette';
 import { getDashboardHome, type DashboardHome } from '@/lib/apiClient';
@@ -20,16 +19,9 @@ import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { ResumeReminderDrawer } from '@/components/onboarding/ResumeReminderDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InlineError } from '@/components/resume/InlineError';
+import ResumeTrendChart from '@/components/dashboard/ResumeTrendChart';
 import { useDashboardData } from '../../../lib/useDashboardData';
 
-/* recharts is the single largest chunk in the bundle (~360KB) and this chart
-   is the last block on the page, below the fold on every viewport. Loading it
-   on demand keeps it out of the dashboard's initial JS. ssr:false because the
-   chart measures its own container, so there is nothing useful to prerender. */
-const ResumeTrendChart = dynamic(() => import('@/components/dashboard/ResumeTrendChart'), {
-  ssr: false,
-  loading: () => <Skeleton className="h-64 w-full rounded-xl md:h-72" />,
-});
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 

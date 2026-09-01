@@ -7,22 +7,7 @@ import * as Tabs from '@radix-ui/react-tabs'
 import CountUp from 'react-countup'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from 'recharts'
-
-interface TrendTooltipProps {
-  active?: boolean
-  payload?: { value?: number }[]
-  label?: string
-  unit?: string
-}
+import { TrendChart } from '@/components/charts/TrendChart'
 import {
   FileSearch,
   MessageSquareCode,
@@ -101,66 +86,31 @@ function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }
   )
 }
 
-function TrendTooltip({ active, payload, label, unit }: TrendTooltipProps) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-(--color-canvas-raise) border border-(--color-canvas-line) rounded-xl px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-      <div className="text-[10px] font-mono uppercase tracking-widest text-(--color-ink-faint) mb-1">{label}</div>
-      <div className="text-xs font-semibold text-(--color-ink) tabular-nums">
-        {payload[0].value}
-        {unit}
-      </div>
-    </div>
-  )
-}
-
 function TrendCard({
   title,
   sub,
   data,
-  color,
   unit,
   gradientId,
 }: {
   title: string
   sub: string
   data: { date: string; score: number }[]
-  color: string
   unit: string
   gradientId: string
 }) {
-  const palette = useAccentPalette()
-  const chart = useChartTheme()
   return (
     <div className="bg-(--color-canvas-raise) border border-(--color-canvas-line-soft) rounded-2xl p-6">
       <h2 className="text-sm font-semibold text-(--color-ink) mb-1">{title}</h2>
       <p className="text-xs text-(--color-ink-faint) mb-4">{sub}</p>
       {data.length >= 2 ? (
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={data} margin={{ top: 4, right: 8, left: -30, bottom: 0 }}>
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.32} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke={chart.grid} strokeDasharray="3 3" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: palette.inkFaint }} axisLine={false} tickLine={false} />
-            <YAxis hide />
-            <Tooltip content={<TrendTooltip unit={unit} />} cursor={{ stroke: palette.inkFaint, strokeWidth: 1 }} />
-            <Area
-              type="monotone"
-              dataKey="score"
-              stroke={color}
-              strokeWidth={2.5}
-              fill={`url(#${gradientId})`}
-              dot={{ r: 3, fill: color, strokeWidth: 0 }}
-              activeDot={{ r: 5, strokeWidth: 0 }}
-              isAnimationActive
-              animationDuration={900}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <TrendChart
+          id={gradientId}
+          points={data}
+          unit={unit}
+          height={180}
+          summary={`${title}: ${data.length} points, from ${data[0].score}${unit} on ${data[0].date} to ${data[data.length - 1].score}${unit} on ${data[data.length - 1].date}.`}
+        />
       ) : (
         <div className="h-[160px] flex flex-col items-center justify-center gap-2 text-center">
           <LineChart className="w-5 h-5 text-(--color-ink-faint)" />
@@ -178,9 +128,6 @@ function SkeletonBlock({ className }: { className: string }) {
 }
 
 export default function History() {
-  const palette = useAccentPalette()
-  const violet = palette.accent
-  const violetLight = palette.accentLight
   const [resumeHistory, setResumeHistory] = useState<ResumeHistoryItem[]>([])
   // Delete is two-step: the first click arms it, the second commits. Tracked
   // by id so arming one row cannot arm another.
@@ -324,7 +271,6 @@ export default function History() {
                   title="ATS Score Trend"
                   sub="Resume scans over time"
                   data={resumeTrend}
-                  color={violet}
                   unit="%"
                   gradientId="historyAtsFill"
                 />
@@ -332,7 +278,6 @@ export default function History() {
                   title="Interview Score Trend"
                   sub="Average score per session"
                   data={interviewTrend}
-                  color={violetLight}
                   unit="/10"
                   gradientId="historyInterviewFill"
                 />

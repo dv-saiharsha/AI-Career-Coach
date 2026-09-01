@@ -5,18 +5,8 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import CountUp from 'react-countup';
 import { TrendingUp, Target, FileSearch, Trophy } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  ComposedChart,
-  Area,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from 'recharts';
+import { TrendChart } from '@/components/charts/TrendChart';
 import { getAnalyticsSummary, type AnalyticsSummary } from '@/lib/apiClient';
-import { useAccentPalette, useChartTheme } from '../../../lib/useAccentPalette';
 import { PageHeader } from '@/components/PageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -30,26 +20,6 @@ interface TrendPoint {
   score: number;
   label: string;
   quantified?: number;
-}
-
-interface TrendTooltipProps {
-  active?: boolean;
-  payload?: { payload: TrendPoint }[];
-}
-
-function TrendTooltip({ active, payload }: TrendTooltipProps) {
-  if (!active || !payload?.length) return null;
-  const point = payload[0].payload;
-  return (
-    <div className="rounded-xl border border-(--color-canvas-line) bg-(--color-canvas-raise) px-3.5 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-      <div className="mb-1 text-xs font-semibold text-(--color-ink)">{point.label}</div>
-      <div className="text-xs text-(--color-ink-dim)">
-        <span className="font-semibold tabular-nums text-(--color-accent)">{point.score}</span> ATS
-        {point.quantified !== undefined && ` · ${point.quantified}% bullets quantified`}
-      </div>
-      <div className="mt-0.5 text-[10px] text-(--color-ink-faint)">{point.date}</div>
-    </div>
-  );
 }
 
 /** Conversion step. Width is relative to the widest stage, not to 100%. */
@@ -126,10 +96,6 @@ function StatCard({
 }
 
 export default function AnalyticsPage() {
-  const palette = useAccentPalette();
-  const chart = useChartTheme();
-  const accent = chart.data[0];
-
   const { data, isLoading, isError } = useQuery<AnalyticsSummary>({
     queryKey: ANALYTICS_KEY,
     queryFn: getAnalyticsSummary,
@@ -237,39 +203,13 @@ export default function AnalyticsPage() {
             </p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="atsFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={accent} stopOpacity={0.3} />
-                  <stop offset="100%" stopColor={accent} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke={chart.grid} strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: palette.inkFaint }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fontSize: 11, fill: palette.inkFaint }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<TrendTooltip />} cursor={{ stroke: chart.grid }} />
-              <Area type="monotone" dataKey="score" stroke="none" fill="url(#atsFill)" />
-              <Line
-                type="monotone"
-                dataKey="score"
-                stroke={accent}
-                strokeWidth={2}
-                dot={{ r: 3, fill: accent }}
-                activeDot={{ r: 5 }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <TrendChart
+            id="analytics-ats-trend"
+            points={trend}
+            fixedScale
+            height={240}
+            summary={`ATS score across ${trend.length} scans, from ${trend[0].score} on ${trend[0].label} to ${trend[trend.length - 1].score} on ${trend[trend.length - 1].label}.`}
+          />
         )}
       </motion.div>
 
