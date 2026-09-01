@@ -347,12 +347,12 @@ function MetricBar({ metric }: { metric: RubricMetric }) {
         {/* A skipped metric renders an empty track, not a zero-width bar
             styled as failure — "not measured" is not "scored nothing". */}
         {!notChecked && (
-          <Reveal
-            className="h-full rounded-full"
-           
-           
-           
-           
+          /* Width is the value, so it stays inline. It grows from 0 via a CSS
+             transition rather than an animated prop — the element mounts at
+             0% and the browser transitions to the score on the next frame. */
+          <div
+            className="h-full rounded-full transition-[width] duration-500 ease-(--ease-enter) motion-reduce:transition-none"
+            style={{ background: color, width: `${metric.score}%` }}
           />
         )}
       </div>
