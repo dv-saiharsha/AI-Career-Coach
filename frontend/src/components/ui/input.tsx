@@ -10,6 +10,12 @@ export interface InputProps extends React.ComponentPropsWithoutRef<'input'> {
   endAdornment?: React.ReactNode
 }
 
+/* A field receives input, so it is inset: recessed into the canvas rather
+   than sitting on it. That is the same rule as a pressed button, which is
+   why the system only has to be learned once.
+
+   Error state is carried by the label colour and the message below, never by
+   the shadow — depth is not a signal anyone can read from contrast alone. */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, invalid, startAdornment, endAdornment, type = 'text', ...props }, ref) => {
     const field = (
@@ -18,13 +24,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         type={type}
         aria-invalid={invalid || undefined}
         className={cn(
-          'h-11 w-full rounded-xl bg-canvas-raise px-4 text-sm text-ink',
-          'border transition-[border-color,box-shadow] duration-200 ease-[var(--ease-enter)]',
+          'h-11 w-full rounded-md bg-canvas px-4 text-sm text-ink',
+          'neu-inset',
           'placeholder:text-ink-faint',
-          'outline-none focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--accent-tint)]',
-          'disabled:cursor-not-allowed disabled:opacity-50',
+          'outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
+          'disabled:cursor-not-allowed disabled:text-ink-faint disabled:shadow-none',
           'file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-ink',
-          invalid ? 'border-danger focus-visible:border-danger' : 'border-line-strong',
+          invalid && 'text-danger placeholder:text-danger/60',
           startAdornment && 'pl-10',
           endAdornment && 'pr-10',
           className

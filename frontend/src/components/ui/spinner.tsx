@@ -1,8 +1,9 @@
 import { cn } from '@/lib/utils'
 
 /**
- * Indeterminate progress. A thin rotating arc rather than a filled ring —
- * it reads as a hairline against cream at small sizes.
+ * Indeterminate work only — parsing a file, waiting on a model. Anything
+ * content-shaped uses <Skeleton> instead, which tells the user what is
+ * coming rather than only that something is.
  */
 export function Spinner({
   className,
@@ -17,15 +18,10 @@ export function Spinner({
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"
-        className={cn('size-4 animate-spin text-ink-dim', className)}
+        className={cn('size-4 animate-spin text-accent-text motion-reduce:animate-none', className)}
       >
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.18" />
-        <path
-          d="M21 12a9 9 0 0 0-9-9"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.2" />
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
       </svg>
       <span className="sr-only">{label}</span>
     </span>

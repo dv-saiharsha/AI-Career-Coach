@@ -2,53 +2,18 @@
 
 import * as React from 'react'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
-import { motion, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { springSnappy } from '@/lib/motion'
 
-/* Radix exposes the active tab only as a data attribute, which React cannot
-   read during render. We mirror the value into context so the trigger knows
-   whether to host the shared layout pill. */
-type TabsCtx = { value: string | undefined; layoutId: string }
-const TabsContext = React.createContext<TabsCtx>({ value: undefined, layoutId: 'tab-pill' })
+/* The selected tab is INSET with accent text — the same opposition as a
+   pressed button and a selected chip.
 
-let tabsAutoId = 0
+   The sliding accent pill this used to render is gone. It needed a mirrored
+   value context, an auto-incrementing layoutId, and a Framer layout
+   animation per tab set, all to express a state the inset shadow states more
+   plainly. Selection is now carried by shadow, colour and aria-selected
+   together, so it survives both a screen reader and a contrast-only read. */
 
-export type TabsProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
-
-const Tabs = React.forwardRef<React.ComponentRef<typeof TabsPrimitive.Root>, TabsProps>(
-  ({ value, defaultValue, onValueChange, children, ...props }, ref) => {
-    const [internal, setInternal] = React.useState(defaultValue)
-    const current = value ?? internal
-
-    /* Each Tabs instance needs its own layoutId, or two tab sets on one page
-       would animate the pill between them. */
-    const layoutId = React.useMemo(() => `tab-pill-${++tabsAutoId}`, [])
-
-    const handleChange = React.useCallback(
-      (next: string) => {
-        setInternal(next)
-        onValueChange?.(next)
-      },
-      [onValueChange]
-    )
-
-    return (
-      <TabsContext.Provider value={{ value: current, layoutId }}>
-        <TabsPrimitive.Root
-          ref={ref}
-          value={value}
-          defaultValue={defaultValue}
-          onValueChange={handleChange}
-          {...props}
-        >
-          {children}
-        </TabsPrimitive.Root>
-      </TabsContext.Provider>
-    )
-  }
-)
-Tabs.displayName = TabsPrimitive.Root.displayName
+const Tabs = TabsPrimitive.Root
 
 const TabsList = React.forwardRef<
   React.ComponentRef<typeof TabsPrimitive.List>,
@@ -57,7 +22,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex items-center gap-1 rounded-full border border-canvas-line bg-canvas-elevated p-1',
+      'inline-flex items-center gap-1.5 rounded-full bg-canvas p-1.5 neu-inset-sm',
       'max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
       className
     )}
@@ -69,37 +34,24 @@ TabsList.displayName = TabsPrimitive.List.displayName
 const TabsTrigger = React.forwardRef<
   React.ComponentRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, children, value, ...props }, ref) => {
-  const { value: active, layoutId } = React.useContext(TabsContext)
-  const reduce = useReducedMotion()
-  const isActive = active === value
-
-  return (
-    <TabsPrimitive.Trigger
-      ref={ref}
-      value={value}
-      className={cn(
-        'relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full px-4',
-        'text-[13px] font-medium whitespace-nowrap transition-colors duration-200',
-        'outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-        'disabled:pointer-events-none disabled:opacity-50',
-        '[&_svg]:size-4 [&_svg]:shrink-0',
-        isActive ? 'text-on-accent' : 'text-ink-dim hover:text-ink',
-        className
-      )}
-      {...props}
-    >
-      {isActive && (
-        <motion.span
-          layoutId={reduce ? undefined : layoutId}
-          className="absolute inset-0 rounded-full bg-accent"
-          transition={springSnappy}
-        />
-      )}
-      <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
-    </TabsPrimitive.Trigger>
-  )
-})
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      'relative inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full px-5',
+      'text-[13px] font-medium whitespace-nowrap',
+      'transition-[box-shadow,color,transform] duration-200 ease-(--ease-enter)',
+      'outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
+      'disabled:pointer-events-none disabled:text-ink-faint',
+      '[&_svg]:size-4 [&_svg]:shrink-0',
+      'text-ink-dim hover:text-ink',
+      'data-[state=active]:bg-canvas-raise data-[state=active]:text-accent-text data-[state=active]:shadow-(--neu-raised-sm)',
+      'active:shadow-(--neu-inset-sm) active:transition-none',
+      className
+    )}
+    {...props}
+  />
+))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 
 const TabsContent = React.forwardRef<
@@ -109,7 +61,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      'mt-6 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+      'mt-6 outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
       className
     )}
     {...props}

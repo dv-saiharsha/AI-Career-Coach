@@ -599,11 +599,14 @@
   }
 
   /* Focus is an accent ring, never removed. Offset so it clears the
-     extruded shadow rather than sitting inside it. */
+     extruded shadow rather than sitting inside it.
+
+     No border-radius here: modern browsers already follow the element's own
+     radius, and declaring one actively reshapes the element the moment it
+     takes focus — a pill button squaring off to 6px on Tab. */
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
-    border-radius: 6px;
   }
 
   * {

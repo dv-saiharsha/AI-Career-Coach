@@ -4,6 +4,8 @@ import * as React from 'react'
 import * as SeparatorPrimitive from '@radix-ui/react-separator'
 import { cn } from '@/lib/utils'
 
+/* One of exactly two places a hairline is allowed (the other is inside an
+   SVG chart). Everywhere else, grouping is negative space. */
 const Separator = React.forwardRef<
   React.ComponentRef<typeof SeparatorPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>
@@ -13,7 +15,7 @@ const Separator = React.forwardRef<
     decorative={decorative}
     orientation={orientation}
     className={cn(
-      'shrink-0 bg-canvas-line',
+      'shrink-0 bg-line',
       orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
       className
     )}
