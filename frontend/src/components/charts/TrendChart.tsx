@@ -90,6 +90,12 @@ export function TrendChart({
      they collide before that. */
   const labelStep = points.length > 8 ? Math.ceil(points.length / 6) : 1
 
+  /* Keyed by index throughout, not by date. Two scans on the same day are
+     ordinary — a user uploads, fixes something, uploads again — and every
+     date-keyed element then collides, which React reports as duplicate keys
+     and resolves by dropping one of the points. Index is the correct
+     identity here: the series is positional, nothing reorders or is inserted
+     mid-array, and none of these elements holds state. */
   return (
     <figure className={cn('w-full', className)}>
       <style>{`
@@ -119,8 +125,8 @@ export function TrendChart({
 
         {/* Hairlines are allowed inside a chart — one of the two places in
             this system where a line is not a mistake. */}
-        {gridLines.map((v) => (
-          <g key={v}>
+        {gridLines.map((v, gi) => (
+          <g key={gi}>
             <line
               x1={padX}
               x2={width - padX}
@@ -155,13 +161,13 @@ export function TrendChart({
         />
 
         {points.map((p, i) => (
-          <circle key={`d${p.date}`} cx={x(i)} cy={y(p.score)} r="3" fill="var(--accent)" />
+          <circle key={i} cx={x(i)} cy={y(p.score)} r="3" fill="var(--accent)" />
         ))}
 
         {points.map((p, i) =>
           i % labelStep === 0 || i === points.length - 1 ? (
             <text
-              key={`l${p.date}`}
+              key={i}
               x={x(i)}
               y={height - 7}
               textAnchor="middle"
@@ -182,7 +188,7 @@ export function TrendChart({
           const band = (width - padX * 2) / Math.max(1, points.length - 1)
 
           return (
-            <g key={`t${p.date}`}>
+            <g key={i}>
               <rect
                 className="pt-hit"
                 x={x(i) - band / 2}
@@ -245,8 +251,8 @@ export function TrendChart({
             </tr>
           </thead>
           <tbody>
-            {points.map((p) => (
-              <tr key={p.date}>
+            {points.map((p, i) => (
+              <tr key={i}>
                 <th scope="row">{p.label ?? p.date}</th>
                 <td>
                   {p.score}
