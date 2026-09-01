@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { createClient } from './supabase/client'
+import { parseFrame, splitFrames } from './realtimeStream'
+import type { ScoreBand } from './scoreBands'
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api',
@@ -152,35 +154,169 @@ export const deleteResumeAnalysis = async (analysisId: number): Promise<void> =>
   await apiClient.delete(`/resume/${analysisId}`)
 }
 
+export type PrepCategory = 'hr' | 'technical' | 'behavioral' | 'screening' | 'scenario'
+export type PrepDifficulty = 'easy' | 'medium' | 'hard'
+
 export interface InterviewQuestion {
   id: number
   text: string
   type: string
-  difficulty?: 'easy' | 'medium' | 'hard'
-  tags?: string[]
+  sequence_order: number
 }
 
 export const generateInterviewQuestions = async (payload: {
   role: string
   seniority: string
-}): Promise<{ session_id: number; questions: InterviewQuestion[] }> => {
+  category: PrepCategory
+}): Promise<{ session_id: number; role: string; seniority: string; category: PrepCategory; questions: InterviewQuestion[] }> => {
   const response = await apiClient.post('/interview/questions', payload)
   return response.data
 }
 
+// The seven dimensions every Mock Interview answer is scored on — mirrors
+// evaluation.py's DIMENSION_LABELS exactly, so a dimension key never has to
+// be prettified twice under two different rules.
+export const DIMENSION_LABELS: Record<string, string> = {
+  technical_accuracy: 'Technical Accuracy',
+  completeness: 'Completeness',
+  communication: 'Communication',
+  structure: 'Structure',
+  problem_solving: 'Problem Solving',
+  relevance: 'Relevance',
+  practical_thinking: 'Practical Thinking',
+}
+
 export interface InterviewFeedback {
   score: number
-  feedback: string
-  improvement_tips: string
+  dimension_scores: Record<string, number>
+  strengths: string[]
+  weaknesses: string[]
+  missing_points: string[]
+  learning_suggestions: string[]
+  /** The candidate's own answer, rewritten to fix the gaps found above. */
   sample_answer?: string | null
-  key_points?: string[]
+  voice_metrics?: VoiceMetrics | null
 }
 
 export const evaluateInterviewAnswer = async (payload: {
   question_id: number
   answer_text: string
+  voice_metrics?: VoiceMetrics | null
 }): Promise<InterviewFeedback> => {
   const response = await apiClient.post('/interview/evaluate', payload)
+  return response.data
+}
+
+// ── Voice Interview ─────────────────────────────────────────────────────
+//
+// Voice is an input method, not a second interview system: the accepted
+// transcript flows into evaluateInterviewAnswer above exactly like a typed
+// answer. This is the one new endpoint — pure transformation, touches no
+// session/question/answer row. No audio is ever stored past this call.
+
+/** Every field independently optional — omitted, not fabricated, when
+ *  Deepgram's response couldn't support it for that recording. */
+export interface VoiceMetrics {
+  speaking_duration_seconds?: number | null
+  average_confidence?: number | null
+  speaking_rate_wpm?: number | null
+  long_pause_count?: number | null
+  filler_word_count?: number | null
+}
+
+export interface TranscribeResult {
+  transcript: string
+  voice_metrics: VoiceMetrics
+}
+
+export const transcribeInterviewAnswer = async (
+  audioBlob: Blob,
+  filename: string,
+  onUploadProgress?: (percent: number) => void,
+): Promise<TranscribeResult> => {
+  const formData = new FormData()
+  formData.append('audio', audioBlob, filename)
+  const response = await apiClient.post('/interview/transcribe', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (evt) => {
+      if (!onUploadProgress) return
+      const total = evt.total ?? evt.loaded
+      onUploadProgress(total ? Math.round((evt.loaded / total) * 100) : 100)
+    },
+  })
+  return response.data
+}
+
+// ── Mock Interview session lifecycle (the Interview Engine) ────────────────
+//
+// A session persists every answer the moment it's submitted, so "Continue
+// Later" and surviving a refresh both just mean: re-fetch the active session
+// and rehydrate local state from it — there is no separate resume endpoint.
+
+export interface ActiveAnswer extends InterviewFeedback {
+  answer_text: string
+}
+
+export interface ActiveQuestion extends InterviewQuestion {
+  answer: ActiveAnswer | null
+}
+
+export interface ActiveSession {
+  session_id: number
+  role: string
+  seniority: string
+  category: PrepCategory
+  status: 'in_progress' | 'completed' | 'abandoned'
+  questions: ActiveQuestion[]
+}
+
+/** Null when the user has no interview in progress. */
+export const getActiveInterviewSession = async (): Promise<ActiveSession | null> => {
+  const response = await apiClient.get('/interview/sessions/active')
+  return response.data
+}
+
+/** Powers Restart Interview — abandon the current attempt, then call
+ *  generateInterviewQuestions again for a fresh one. */
+export const abandonInterviewSession = async (sessionId: number): Promise<void> => {
+  await apiClient.post(`/interview/sessions/${sessionId}/abandon`)
+}
+
+export interface QuestionFeedback extends InterviewFeedback {
+  question_id: number
+  question_text: string
+  answer_text: string
+}
+
+export interface CategoryPerformance {
+  key: string
+  label: string
+  average_score: number
+}
+
+// NextAction is declared once, further down alongside ResumeReview — the
+// same {key,label,description,href,priority} shape Resume Review already
+// established, reused here rather than a second copy for this module.
+
+export interface SessionReport {
+  session_id: number
+  role: string
+  seniority: string
+  category: PrepCategory
+  overall_score: number
+  readiness_band: ScoreBand
+  performance_summary: string
+  question_feedback: QuestionFeedback[]
+  category_performance: CategoryPerformance[]
+  strongest_skills: string[]
+  weakest_skills: string[]
+  topics_to_improve: string[]
+  practice_plan: string[]
+  next_actions: NextAction[]
+}
+
+export const getInterviewSessionReport = async (sessionId: number): Promise<SessionReport> => {
+  const response = await apiClient.get(`/interview/sessions/${sessionId}/report`)
   return response.data
 }
 
@@ -261,6 +397,9 @@ export interface InterviewHistoryItem {
   id: number
   role: string
   seniority: string
+  /** Null for sessions created before the Mock Interview category scheme existed. */
+  category: PrepCategory | null
+  status: 'in_progress' | 'completed' | 'abandoned'
   created_at: string
   average_score: number | null
   answered_count: number
@@ -269,6 +408,64 @@ export interface InterviewHistoryItem {
 
 export const getInterviewHistory = async (): Promise<InterviewHistoryItem[]> => {
   const response = await apiClient.get('/interview/history')
+  return response.data
+}
+
+// ── Interview Preparation (teaching, not testing) ──────────────────────────
+//
+// Distinct from the drills flow above: nothing here is gated behind an
+// attempt. A question's full content — answer, explanations, tips — is
+// returned the moment it's fetched. Shared cache server-side (generated once
+// per role+category, not per user); only bookmark/completed/notes are
+// user-specific.
+
+export interface PrepQuestionUserState {
+  bookmarked: boolean
+  completed: boolean
+  notes: string | null
+}
+
+export interface PrepQuestion {
+  id: number
+  category: PrepCategory
+  difficulty: PrepDifficulty
+  text: string
+  estimated_answer_time: string
+  ideal_answer: string
+  concept_explanation: string
+  beginner_explanation: string
+  real_world_example: string
+  /** What the interviewer is actually testing — stated outright. */
+  interviewer_intent: string
+  interview_tips: string[]
+  common_mistakes: string[]
+  important_keywords: string[]
+  follow_up_questions: string[]
+  user_state: PrepQuestionUserState | null
+}
+
+export interface PrepQuestionsResponse {
+  role: string
+  category: PrepCategory
+  questions: PrepQuestion[]
+}
+
+export const getPrepQuestions = async (role: string, category: PrepCategory): Promise<PrepQuestionsResponse> => {
+  const response = await apiClient.get('/interview/prep/questions', { params: { role, category } })
+  return response.data
+}
+
+export interface PrepQuestionStateUpdate {
+  bookmarked?: boolean
+  completed?: boolean
+  notes?: string | null
+}
+
+export const updatePrepQuestionState = async (
+  questionId: number,
+  payload: PrepQuestionStateUpdate,
+): Promise<PrepQuestionUserState> => {
+  const response = await apiClient.patch(`/interview/prep/questions/${questionId}/state`, payload)
   return response.data
 }
 
@@ -306,6 +503,42 @@ export interface JobListing {
   /** Which JOB_DOMAINS group this role belongs to. Null for on-demand
    *  searches outside the warm set. */
   domain?: string | null
+  /** null when the caller has no primary resume on file — matching is
+   *  skipped entirely in that case, not computed against a placeholder. */
+  match?: JobFeedMatch | null
+}
+
+export interface SkillsMatchDetail {
+  score: number
+  band: ScoreBand
+  matchingSkills: string[]
+  missingSkills: string[]
+  skillCategories: Record<string, string[]>
+  /** Ranked by how many OTHER listings in the same feed also need them —
+   *  the skill most worth learning is the one that unlocks the most of
+   *  what's currently on screen, not just this one posting. */
+  prioritySkills: string[]
+  learningRecommendations: string[]
+}
+
+/**
+ * One listing's match against the caller's primary resume.
+ *
+ * Named distinctly from `JobMatch` (Resume Review's single resume-vs-one-
+ * pasted-JD score) — this is feed-scoped and richer, not the same concept
+ * reused under one name for two different shapes.
+ *
+ * `overallMatch` is Resume Match's own score, never blended with Skills
+ * Match — each dimension stays inspectable on its own rather than
+ * disappearing into a weighted average nobody can unpack.
+ */
+export interface JobFeedMatch {
+  overallMatch: number | null
+  band: ScoreBand | null
+  resumeMatch: { score: number; band: ScoreBand } | null
+  skillsMatch: SkillsMatchDetail | null
+  explanation: string
+  generatedBy: 'deterministic' | 'llm'
 }
 
 export interface JobFilterCounts {
@@ -552,6 +785,75 @@ export const getQualityReport = async (analysisId: number): Promise<QualityRepor
   return response.data
 }
 
+export interface ReviewCategory {
+  key: string
+  label: string
+  score: number | null
+  band: ScoreBand
+  /** high | medium | low | none — ranked by recoverable weight, not raw score. */
+  priority: 'high' | 'medium' | 'low' | 'none'
+  /** What this dimension measures. */
+  explanation: string
+  /** What *this* resume did — the score can be argued with. */
+  reason: string
+  improvements: string[]
+  available: boolean
+}
+
+export interface ResumeHealth {
+  score: number | null
+  band: ScoreBand
+  weight_applied: number
+  skipped: string[]
+}
+
+export interface JobMatch {
+  score: number
+  band: ScoreBand
+  source: string
+}
+
+export interface BulletImprovement {
+  bullet: string
+  grade: number
+  has_strong_verb: boolean
+  has_metric: boolean
+  has_tool_context: boolean
+  suggestions: string[]
+}
+
+export interface NextAction {
+  key: string
+  label: string
+  description: string
+  href: string
+  priority: 'high' | 'medium' | 'low' | 'none'
+}
+
+export interface ResumeReview {
+  analysis_id: number | null
+  resume_filename: string | null
+  /** general | job_specific — derived server-side from whether a job description exists. */
+  mode: 'general' | 'job_specific'
+  resume_health: ResumeHealth
+  /** Present only in job_specific mode — the trained model's own score, never re-derived. */
+  job_match: JobMatch | null
+  categories: ReviewCategory[]
+  missing_skills: string[]
+  matched_skills: string[]
+  missing_keywords: string[]
+  bullet_improvements: BulletImprovement[]
+  next_actions: NextAction[]
+  generated_by: 'deterministic' | 'llm'
+}
+
+/** Job-specific review (Mode B) for an existing scan. Free, no write —
+ *  parallels getQualityReport's cost profile. */
+export const getResumeReview = async (analysisId: number): Promise<ResumeReview> => {
+  const response = await apiClient.get(`/resume/review/${analysisId}`)
+  return response.data
+}
+
 export interface CompileResumeRequest {
   job_description: string
   candidate_name: string
@@ -600,7 +902,22 @@ export const downloadCompiledResumePdf = (pdfBase64: string, candidateName: stri
 // passing an id from the client would let any caller read or move another
 // account's applications by editing a string.
 
-export const APPLICATION_STAGES = ['saved', 'applied', 'interviewing', 'offer', 'rejected'] as const
+// Expanded in Milestone 8 from the original 5 stages (saved/applied/
+// interviewing/offer/rejected) into the real shape of a hiring pipeline.
+export const APPLICATION_STAGES = [
+  'saved',
+  'applied',
+  'recruiter_contacted',
+  'recruiter_screening',
+  'online_assessment',
+  'technical_interview',
+  'manager_interview',
+  'final_interview',
+  'offer',
+  'accepted',
+  'rejected',
+  'withdrawn',
+] as const
 export type ApplicationStatus = (typeof APPLICATION_STAGES)[number]
 
 export interface JobApplication {
@@ -614,6 +931,10 @@ export interface JobApplication {
   job_description: string | null
   tailored_resume_id: number | null
   notes: string | null
+  recruiter_name: string | null
+  recruiter_email: string | null
+  /** Lazily computed elsewhere (the Dashboard); read-only here. 0-100. */
+  match_score: number | null
   /** Set the first time the card reaches "applied", never rewritten after. */
   applied_at: string | null
   created_at: string | null
@@ -636,6 +957,8 @@ export interface CreateApplicationPayload {
   job_description?: string | null
   tailored_resume_id?: number | null
   notes?: string | null
+  recruiter_name?: string | null
+  recruiter_email?: string | null
 }
 
 export const getApplicationPipeline = async (): Promise<Pipeline> => {
@@ -669,6 +992,73 @@ export const updateApplication = async (
 
 export const deleteApplication = async (applicationId: number): Promise<void> => {
   await apiClient.delete(`/applications/${applicationId}`)
+}
+
+// -- Milestone 8: status history, activity feed, cross-engine detail -------
+//
+// Everything below is read-only aggregation the backend already computed
+// from the Resume, Job Matching, and Interview engines — see
+// applications/services.py's get_application_detail. No new scoring logic
+// lives on this side either.
+
+export interface StatusHistoryEntry {
+  from_status: ApplicationStatus | null
+  to_status: ApplicationStatus
+  changed_at: string
+}
+
+// Named distinctly from the user-level ActivityItem above (resume scans /
+// interview sessions) — this is an application status-change event, a
+// different concept that happened to share the obvious name.
+export interface ApplicationActivityItem extends StatusHistoryEntry {
+  application_id: number
+  job_title: string
+  company: string
+}
+
+export interface ResumeSummary {
+  analysis_id: number
+  filename: string
+  ats_score: number
+  band: ScoreBand
+  scanned_at: string
+}
+
+export interface JobMatchSummary {
+  overall_match: number | null
+  band: ScoreBand | null
+  matching_skills: string[]
+  missing_skills: string[]
+  explanation: string
+}
+
+export interface InterviewSummary {
+  session_id: number
+  overall_score: number
+  readiness_band: ScoreBand
+  topics_to_improve: string[]
+  completed_at: string
+}
+
+export interface ApplicationDetail {
+  application: JobApplication
+  status_history: StatusHistoryEntry[]
+  resume: ResumeSummary | null
+  job_match: JobMatchSummary | null
+  interview: InterviewSummary | null
+  has_in_progress_interview: boolean
+}
+
+export const getApplicationDetail = async (applicationId: number): Promise<ApplicationDetail> => {
+  const response = await apiClient.get(`/applications/${applicationId}`)
+  return response.data
+}
+
+/** Every status change across the whole pipeline, newest first — powers the
+ *  Timeline view. */
+export const getApplicationActivity = async (): Promise<ApplicationActivityItem[]> => {
+  const response = await apiClient.get('/applications/activity')
+  return response.data
 }
 
 // ── Offer comparison ─────────────────────────────────────────────────────
@@ -840,6 +1230,145 @@ export interface DashboardOverview {
 
 export const getDashboardOverview = async (): Promise<DashboardOverview> => {
   const response = await apiClient.get('/dashboard/overview')
+  return response.data
+}
+
+// ── Career Dashboard (Milestone 9) ──────────────────────────────────────
+//
+// One request, composing what every other engine already computes — see
+// backend/app/modules/dashboard/services.py's home(). Nothing here is a
+// new score; each field traces back to an existing endpoint's own logic.
+
+export interface DashboardResume {
+  resumes_analyzed: number
+  avg_ats_score: number | null
+  latest_ats_score: number | null
+  latest_band: ScoreBand
+  latest_filename: string | null
+  suggested_improvements: string[]
+}
+
+export interface DashboardApplications {
+  total: number
+  active: number
+  offers: number
+  rejections: number
+  success_rate: number | null
+}
+
+export interface DashboardInterviewReport {
+  session_id: number
+  role: string
+  category: string | null
+  overall_score: number | null
+  readiness_band: ScoreBand | null
+  completed_at: string | null
+}
+
+export interface DashboardInterview {
+  completed_sessions: number
+  average_score: number | null
+  voice_answers_count: number
+  latest_report: DashboardInterviewReport | null
+  prep_completed_count: number
+}
+
+export interface DashboardJobs {
+  top_matches: JobListing[]
+  missing_skills: string[]
+  recruiter_perspective: string | null
+}
+
+export interface DashboardActivity {
+  recent_activity: ActivityItem[]
+  upcoming_interviews: JobApplication[]
+  recent_applications: JobApplication[]
+}
+
+export interface DashboardAnalytics {
+  ats_history: { id: number; date: string | null; score: number; label: string }[]
+  weekly_progress: { period: string; score: number }[]
+  monthly_progress: { period: string; score: number }[]
+  funnel: {
+    by_stage: Record<string, number>
+    total_tracked: number
+    reached_applied: number
+    reached_interviewing: number
+    reached_offer: number
+    interview_rate: number | null
+    offer_rate: number | null
+  }
+}
+
+export interface DashboardHome {
+  resume: DashboardResume
+  applications: DashboardApplications
+  interview: DashboardInterview
+  jobs: DashboardJobs
+  activity: DashboardActivity
+  analytics: DashboardAnalytics
+  next_actions: NextAction[]
+}
+
+export const getDashboardHome = async (): Promise<DashboardHome> => {
+  const response = await apiClient.get('/dashboard/home')
+  return response.data
+}
+
+// -- Notifications (Milestone 10) --------------------------------------------
+
+export type NotificationCategory =
+  | 'resume'
+  | 'jobs'
+  | 'interview'
+  | 'application'
+  | 'career_coach'
+  | 'analytics'
+
+export type NotificationPriority = 'high' | 'medium' | 'low'
+
+export interface AppNotification {
+  id: number
+  type: string
+  category: NotificationCategory
+  priority: NotificationPriority
+  title: string
+  message: string
+  href: string | null
+  occurrence_count: number
+  read_at: string | null
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NotificationList {
+  notifications: AppNotification[]
+  unread_count: number
+}
+
+export const getNotifications = async (): Promise<NotificationList> => {
+  const response = await apiClient.get('/notifications')
+  return response.data
+}
+
+export const getUnreadNotificationCount = async (): Promise<number> => {
+  const response = await apiClient.get('/notifications/unread-count')
+  return response.data.unread_count
+}
+
+export const markNotificationRead = async (id: number): Promise<AppNotification> => {
+  const response = await apiClient.post(`/notifications/${id}/read`)
+  return response.data
+}
+
+export const markAllNotificationsRead = async (): Promise<number> => {
+  const response = await apiClient.post('/notifications/read-all')
+  return response.data.updated
+}
+
+export const archiveNotification = async (id: number): Promise<AppNotification> => {
+  const response = await apiClient.post(`/notifications/${id}/archive`)
   return response.data
 }
 
@@ -1027,4 +1556,101 @@ export const generateCoverLetter = async (payload: {
 export const pdfBlobUrl = (pdfBase64: string): string => {
   const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))
   return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+}
+
+// ── Career Coach ─────────────────────────────────────────────────────────
+//
+// Orchestrates the other engines rather than reimplementing them — see
+// backend/app/modules/career_coach. Conversations persist every message
+// immediately, so history survives a refresh with no separate resume step.
+
+export interface CoachConversation {
+  id: number
+  title: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CoachMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  follow_ups: string[]
+  created_at: string
+}
+
+export const listCoachConversations = async (): Promise<CoachConversation[]> => {
+  const response = await apiClient.get('/career-coach/conversations')
+  return response.data
+}
+
+export const createCoachConversation = async (): Promise<CoachConversation> => {
+  const response = await apiClient.post('/career-coach/conversations')
+  return response.data
+}
+
+export const getCoachMessages = async (conversationId: number): Promise<CoachMessage[]> => {
+  const response = await apiClient.get(`/career-coach/conversations/${conversationId}/messages`)
+  return response.data
+}
+
+export const deleteCoachConversation = async (conversationId: number): Promise<void> => {
+  await apiClient.delete(`/career-coach/conversations/${conversationId}`)
+}
+
+export interface CoachStreamEvent {
+  type: 'token' | 'followups' | 'error' | 'done'
+  data: unknown
+}
+
+/**
+ * Streams one assistant reply over SSE — a one-shot request/response, not a
+ * long-lived subscription like realtimeStream.ts's connectRealtimeStream
+ * (no reconnect-with-backoff; the stream simply ends when the reply does).
+ * Built on fetch rather than EventSource for the same reason as that file:
+ * the backend authenticates with a Bearer token EventSource cannot send.
+ * Reuses parseFrame/splitFrames from realtimeStream.ts, which are already
+ * transport-agnostic — the wire format is identical.
+ */
+export async function streamCoachMessage(
+  conversationId: number,
+  message: string,
+  { onEvent, signal }: { onEvent: (event: CoachStreamEvent) => void; signal: AbortSignal },
+): Promise<void> {
+  const supabase = createClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  const response = await fetch(
+    `${apiClient.defaults.baseURL}/career-coach/conversations/${conversationId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ message }),
+      signal,
+    },
+  )
+  if (!response.ok || !response.body) {
+    throw new Error(`chat stream failed: ${response.status}`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const { frames, rest } = splitFrames(buffer)
+    buffer = rest
+    for (const frame of frames) {
+      const event = parseFrame(frame)
+      if (event) onEvent({ type: event.type as CoachStreamEvent['type'], data: event.data })
+    }
+  }
 }

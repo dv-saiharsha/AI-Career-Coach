@@ -107,7 +107,14 @@ export async function connectRealtimeStream({
       if (!session?.access_token) {
         // Not signed in yet. Wait rather than opening a stream that would be
         // rejected — a 401 loop would retry forever at full speed.
+        //
+        // The backoff has to grow here too, not just on the failure paths
+        // below. This branch used to `continue` straight past the doubling at
+        // the bottom of the loop, which pinned retryDelay at 1s forever: a
+        // signed-out or expired-session tab re-polled getSession() once a
+        // second for as long as it stayed open.
         await delay(retryDelay, signal)
+        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_MS)
         continue
       }
 

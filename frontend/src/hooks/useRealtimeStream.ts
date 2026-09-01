@@ -21,6 +21,7 @@ const INVALIDATIONS: Record<string, readonly (readonly unknown[])[]> = {
   pipeline_update: [['applications'], ['analytics', 'summary']],
   offer_update: [['offers'], ['analytics', 'summary']],
   scan_complete: [['analytics', 'summary'], ['resume', 'history']],
+  notification: [['notifications']],
 }
 
 export interface UseRealtimeStreamOptions {

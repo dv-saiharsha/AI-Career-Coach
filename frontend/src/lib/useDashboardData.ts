@@ -7,21 +7,27 @@ import {
   completeOnboarding,
   skipOnboarding as skipOnboardingRequest,
   getJobs,
-  getUserActivity,
   getUserProfile,
-  getUserStats,
   updateUserProfile,
 } from './apiClient'
 import type { OnboardingResult } from '@/components/onboarding/OnboardingModal'
 
 /**
- * Loads everything the dashboard renders, and owns the onboarding handoff.
+ * Owns onboarding and the profile itself — nothing else. Stats and recent
+ * activity used to live here too (their own `/user/stats` / `/user/activity`
+ * queries, fetched independently of the dashboard's other data via a
+ * separate raw useEffect); Milestone 9's `/dashboard/home` now supersedes
+ * both with richer, already-composed figures, and the dashboard page reads
+ * that instead. This was the "known duplicate-fetch" issue flagged since
+ * Milestone 3 — two different fetching paradigms on one page for
+ * overlapping data — resolved by removing the redundant path here rather
+ * than reconciling two copies of the same numbers.
  *
  * Built on react-query (already provided in components/Providers.tsx) rather
  * than useEffect + useState. Fetching in an effect means manually handling
  * cancellation, refetch-after-mutation, and the render cascade React 19's
  * set-state-in-effect rule warns about; the query cache handles all three,
- * and invalidation after onboarding is what refreshes the stat cards.
+ * and invalidation after onboarding is what refreshes the profile.
  */
 export function useDashboardData() {
   const queryClient = useQueryClient()
@@ -31,18 +37,6 @@ export function useDashboardData() {
   const profileQuery = useQuery({
     queryKey: ['user', 'profile'],
     queryFn: getUserProfile,
-  })
-
-  // Independent queries rather than one combined fetch: a failure in stats
-  // shouldn't blank the activity list, and each can refetch on its own.
-  const statsQuery = useQuery({
-    queryKey: ['user', 'stats'],
-    queryFn: getUserStats,
-  })
-
-  const activityQuery = useQuery({
-    queryKey: ['user', 'activity'],
-    queryFn: getUserActivity,
   })
 
   /**
@@ -91,8 +85,7 @@ export function useDashboardData() {
     },
     onSuccess: (profile) => {
       queryClient.setQueryData(['user', 'profile'], profile)
-      void queryClient.invalidateQueries({ queryKey: ['user', 'stats'] })
-      void queryClient.invalidateQueries({ queryKey: ['user', 'activity'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'home'] })
       setReminderDismissed(true)
     },
     onError: () => {
@@ -145,8 +138,7 @@ export function useDashboardData() {
       // Seed the profile immediately so the modal closes on this render, then
       // refetch the metrics the new analysis just changed.
       queryClient.setQueryData(['user', 'profile'], profile)
-      void queryClient.invalidateQueries({ queryKey: ['user', 'stats'] })
-      void queryClient.invalidateQueries({ queryKey: ['user', 'activity'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'home'] })
     },
     onError: () => {
       setSubmitError('Could not save your preferences. Please try again.')
@@ -185,8 +177,6 @@ export function useDashboardData() {
 
   return {
     profile,
-    stats: statsQuery.data ?? null,
-    activity: activityQuery.data ?? [],
     loading: profileQuery.isPending,
     // Only intercept once the profile is actually known — gating on
     // `!profile?.onboarding_completed` alone would flash the modal during the

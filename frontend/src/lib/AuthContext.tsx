@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createClient } from './supabase/client'
 
 export interface AuthUser {
@@ -104,12 +104,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [supabase])
 
-  const login = async (email: string, password: string) => {
+  // Wrapped in useCallback (none of these close over `user`/`ready`, only
+  // over `supabase` and setters, both already stable) so the context value
+  // below can be memoized for real — otherwise every consumer of useAuth()
+  // re-rendered on every AuthProvider render (e.g. each onAuthStateChange
+  // tick), memoized or not, since a fresh function reference here would
+  // have failed the memo's own equality check anyway.
+  const login = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw new Error(error.message)
-  }
+  }, [supabase])
 
-  const register = async (email: string, password: string, firstName: string, lastName: string) => {
+  const register = useCallback(async (email: string, password: string, firstName: string, lastName: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -119,9 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     })
     if (error) throw new Error(error.message)
-  }
+  }, [supabase])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     // Cleared before the network call, not after. signOut() round-trips to
     // Supabase to revoke the refresh token, and until it returned the user
     // still saw their name, avatar and dashboard — a sign-out that visibly
@@ -143,18 +149,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.assign('/login')
       }
     }
-  }
+  }, [supabase])
 
-  const updateProfile = async ({ firstName, lastName }: { firstName: string; lastName: string }) => {
+  const updateProfile = useCallback(async ({ firstName, lastName }: { firstName: string; lastName: string }) => {
     const { data, error } = await supabase.auth.updateUser({
       data: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`.trim() },
     })
     if (error) throw new Error(error.message)
     if (data.user) setUser(toAuthUser(data.user))
-  }
+  }, [supabase])
+
+  const value = useMemo(
+    () => ({ user, ready, login, register, logout, updateProfile }),
+    [user, ready, login, register, logout, updateProfile],
+  )
 
   return (
-    <AuthContext.Provider value={{ user, ready, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )
