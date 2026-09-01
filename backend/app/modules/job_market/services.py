@@ -26,7 +26,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.job import JobListing
+from app.models.profile import Profile
+from app.models.resume import ResumeAnalysis
 from app.modules.job_market import apify_jobs
+from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
 
@@ -471,6 +474,69 @@ def to_payload(row: JobListing) -> dict:
         "experienceLevel": row.experience_level,
         "employmentType": row.employment_type,
     }
+
+
+def resolve_primary_resume_text(db: Session, user_id: str) -> str | None:
+    """The text of the resume the user has designated primary — shared by
+    the router (matching every listing on a normal feed load) and the
+    dashboard's top_matches below, so this lookup exists in exactly one
+    place rather than twice."""
+    profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+    if not profile or not profile.primary_resume_analysis_id:
+        return None
+    analysis = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == profile.primary_resume_analysis_id, ResumeAnalysis.user_id == user_id)
+        .first()
+    )
+    return analysis.resume_text if analysis and analysis.resume_text else None
+
+
+#  attach_matches's own docstring reasoned that scoring is cheap enough to
+# run uncached "over a feed of a few dozen listings" — true when that was
+# written, not true now that JOB_DOMAINS spans 18 warm roles at
+# JOB_RESULTS_PER_QUERY=40 each: up to 720 rows, each a real ~127ms model
+# call (see dashboard/services.py's own comment quantifying that cost).
+# top_matches only ever keeps the top `limit`, so scoring the full feed just
+# to throw away everything past the top 5 is exactly the "duplicate,
+# discarded work" this cap exists to stop.
+_TOP_MATCHES_CANDIDATE_CAP = 80
+
+
+def top_matches(db: Session, user_id: str, limit: int = 5) -> list[dict]:
+    """Top-N cached listings by resume match, for the dashboard's Jobs
+    section.
+
+    Scores only the `_TOP_MATCHES_CANDIDATE_CAP` most-recently-posted rows
+    (get_jobs's own ranking already puts these first), not the whole warm
+    feed — a disclosed, bounded tradeoff: a strong match sitting outside the
+    cap among older postings won't surface here, in exchange for not paying
+    an ML call for hundreds of rows that would be discarded anyway. The
+    /jobs page itself is unaffected — this cap is local to top_matches.
+
+    Returns [] rather than an error when there's no primary resume to match
+    against — an unscored feed isn't a failure, it's simply not this user's
+    situation yet.
+    """
+    resume_text = resolve_primary_resume_text(db, user_id)
+    if not resume_text:
+        return []
+
+    profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+    target_roles: list[str] = []
+    if profile and profile.target_roles:
+        try:
+            target_roles = json.loads(profile.target_roles) or []
+        except (ValueError, TypeError):
+            target_roles = []
+
+    rows, _last_updated, _refresh_needed = get_jobs(db, None, target_roles)
+    candidates = rows[:_TOP_MATCHES_CANDIDATE_CAP]
+    jobs_payload = [to_payload(row) for row in candidates]
+    jobs_payload = attach_matches(jobs_payload, resume_text)
+    scored = [job for job in jobs_payload if job["match"]["overallMatch"] is not None]
+    scored.sort(key=lambda job: job["match"]["overallMatch"], reverse=True)
+    return scored[:limit]
 
 
 # Filter values the API accepts. Kept here rather than in the router so the

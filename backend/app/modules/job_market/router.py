@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
-from app.modules.job_market import services
+from app.modules.job_market import matching, services
 from app.schemas.job import JobFeedSchema
 
 router = APIRouter()
@@ -46,18 +46,21 @@ def list_jobs(
         # so typing in the search box still shows results as it narrows.
         query = None
 
+    # Fetched unconditionally now (used to be only when there's no query):
+    # target-role personalisation still only applies to the default grid,
+    # but resume matching below applies to every load, searched or not.
+    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
+
     # The default grid is personalised to the caller's own target roles.
     # Read from the profile rather than accepted as a parameter: a role list
     # in the query string would let one user shape another's feed, and it is
     # already stored server-side.
     target_roles: list[str] = []
-    if not query:
-        profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
-        if profile and profile.target_roles:
-            try:
-                target_roles = json.loads(profile.target_roles) or []
-            except (ValueError, TypeError):
-                target_roles = []
+    if not query and profile and profile.target_roles:
+        try:
+            target_roles = json.loads(profile.target_roles) or []
+        except (ValueError, TypeError):
+            target_roles = []
 
     rows, last_updated, refresh_needed = services.get_jobs(db, query, target_roles)
 
@@ -75,10 +78,18 @@ def list_jobs(
     # would match after another pill has already narrowed the grid.
     counts = services.filter_counts(rows)
     rows = services.apply_filters(rows, h1b=h1b, experience=experience, employment=employment)
+    jobs_payload = [services.to_payload(row) for row in rows]
+
+    # Resume matching, only when there's a primary resume to match against.
+    # No attempt is made otherwise — a user with no resume on file sees the
+    # feed exactly as before, not a feed of nulls computed for nothing.
+    resume_text = services.resolve_primary_resume_text(db, current_user.id)
+    if resume_text:
+        jobs_payload = matching.attach_matches(jobs_payload, resume_text)
 
     return {
         "lastUpdated": last_updated.isoformat() if last_updated else None,
-        "jobs": [services.to_payload(row) for row in rows],
+        "jobs": jobs_payload,
         "filterCounts": counts,
         # True when a scrape for this query is running in the background, so
         # the UI can say results are on the way instead of implying the cache

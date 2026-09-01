@@ -1,6 +1,43 @@
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel
+
+
+class ResumeMatchDetailSchema(BaseModel):
+    score: float
+    band: str
+
+
+class SkillsMatchDetailSchema(BaseModel):
+    score: float
+    band: str
+    matchingSkills: List[str]
+    missingSkills: List[str]
+    skillCategories: Dict[str, List[str]]
+    #: Ranked by how many OTHER listings in the same feed also need them —
+    #: see job_market/matching.annotate_priority_skills.
+    prioritySkills: List[str]
+    learningRecommendations: List[str]
+
+
+class JobMatchSchema(BaseModel):
+    """One listing's match against the caller's primary resume. Named
+    distinctly from resume_review's JobMatchSchema (a single resume-vs-one-
+    pasted-JD score) — this is richer and feed-scoped, not the same concept
+    reused, so it gets its own name rather than an ambiguous shared one.
+
+    overallMatch is Resume Match's own score, not a blend with Skills
+    Match — each dimension stays inspectable on its own rather than
+    disappearing into a weighted average. null when the listing has no
+    stored description to score against, never a fabricated number.
+    """
+
+    overallMatch: Optional[float]
+    band: Optional[str]
+    resumeMatch: Optional[ResumeMatchDetailSchema]
+    skillsMatch: Optional[SkillsMatchDetailSchema]
+    explanation: str
+    generatedBy: str = "deterministic"
 
 
 class JobListingSchema(BaseModel):
@@ -45,6 +82,10 @@ class JobListingSchema(BaseModel):
     employmentType: Optional[
         Literal["full_time", "part_time", "contract", "internship"]
     ] = None
+
+    # None whenever the caller has no primary resume on file — matching is
+    # skipped entirely in that case, not computed with a placeholder input.
+    match: Optional[JobMatchSchema] = None
 
 
 class FilterCountsSchema(BaseModel):
