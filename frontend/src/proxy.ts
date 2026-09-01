@@ -37,6 +37,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  /* The verified subject is handed forward on a request header so the
+     protected layout does not have to verify the same JWT a second time.
+     Both calls were signature verification against Supabase's published
+     keys, run sequentially, before a single byte of HTML could be produced —
+     on every protected navigation.
+
+     This header cannot be forged from outside: NextResponse.next() rewrites
+     the request headers for this hop only, and any inbound header of the
+     same name is overwritten here rather than passed through. */
+  response.headers.set('x-verified-user', String(data!.claims.sub ?? ''))
+  request.headers.set('x-verified-user', String(data!.claims.sub ?? ''))
+
   return response
 }
 
