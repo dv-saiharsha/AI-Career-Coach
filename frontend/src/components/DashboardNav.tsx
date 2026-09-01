@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   FileSearch,
   MessageSquareCode,
-  Sparkles,
   User,
   Settings,
   LogOut,
@@ -41,7 +40,6 @@ import { cn } from '@/lib/utils'
    now, so every label matches where it actually goes. */
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Overview', href: '/dashboard' },
-  { icon: Sparkles, label: 'Career Coach', href: '/coach' },
   { icon: FileSearch, label: 'Resume Analyzer', href: '/resume' },
   { icon: MessageSquareCode, label: 'Interview Coach', href: '/interview' },
   { icon: Briefcase, label: 'Job Market', href: '/jobs' },

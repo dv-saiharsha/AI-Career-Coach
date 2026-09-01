@@ -75,9 +75,14 @@ class TestEmptyState:
         assert body["activity"]["recent_applications"] == []
         assert body["activity"]["upcoming_interviews"] == []
 
-    def test_open_career_coach_always_present(self, client):
+    def test_next_actions_are_never_empty(self, client):
+        """Every action is conditional, so a user with nothing wrong would get
+        none — and an empty panel reads as broken rather than as "you are on
+        top of it". "Open Career Coach" used to be the unconditional last
+        entry and covered this by accident; the fallback is explicit now, and
+        this is the test that stops it being dropped again."""
         actions = client.get("/api/dashboard/home").json()["next_actions"]
-        assert any(a["key"] == "open_career_coach" for a in actions)
+        assert len(actions) > 0
 
     def test_new_user_gets_improve_resume_and_practice_interview(self, client):
         actions = {a["key"] for a in client.get("/api/dashboard/home").json()["next_actions"]}

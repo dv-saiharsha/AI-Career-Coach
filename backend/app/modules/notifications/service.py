@@ -402,10 +402,10 @@ def _check_coach_suggestions(db: Session, user_id: str, background_tasks) -> Non
     if resume["latest_band"] in ("WEAK", "NEEDS WORK"):
         create_notification(
             db, user_id,
-            type="resume_advice", category="career_coach", priority="low",
+            type="resume_advice", category="resume", priority="low",
             title="Resume Advice",
-            message="Ask the Career Coach how to raise your resume score.",
-            href="/coach?prompt=" + "Improve my resume for this role.",
+            message="Your latest scan came back weak. The breakdown says which parts to fix first.",
+            href="/resume",
             dedupe_key=f"resume_advice:{resume['latest_band']}",
             dedupe_window=timedelta(days=REMINDER_WINDOW_DAYS),
             background_tasks=background_tasks,
@@ -415,10 +415,10 @@ def _check_coach_suggestions(db: Session, user_id: str, background_tasks) -> Non
     if interview["average_score"] is not None and interview["average_score"] < 6.0:
         create_notification(
             db, user_id,
-            type="interview_advice", category="career_coach", priority="low",
+            type="interview_advice", category="interview", priority="low",
             title="Interview Advice",
-            message=f"Your average mock interview score is {interview['average_score']}/10 — ask the Career Coach for focused prep.",
-            href="/coach?prompt=" + "Prepare me for this company.",
+            message=f"Your average mock interview score is {interview['average_score']}/10. Another practice round would help.",
+            href="/interview",
             dedupe_key="interview_advice",
             dedupe_window=timedelta(days=REMINDER_WINDOW_DAYS),
             background_tasks=background_tasks,
@@ -432,10 +432,10 @@ def _check_coach_suggestions(db: Session, user_id: str, background_tasks) -> Non
             skill = priority_skills[0]
             create_notification(
                 db, user_id,
-                type="suggested_learning", category="career_coach", priority="low",
+                type="suggested_learning", category="jobs", priority="low",
                 title="Suggested Learning",
-                message=f"{skill} shows up across your top job matches — ask the Career Coach how to close the gap.",
-                href="/coach?prompt=" + f"How can I build {skill} skills for the roles I'm targeting?",
+                message=f"{skill} shows up across your top job matches, and not on your resume.",
+                href="/jobs",
                 dedupe_key=f"suggested_learning:{skill}",
                 dedupe_window=timedelta(days=REMINDER_WINDOW_DAYS * 2),
                 background_tasks=background_tasks,

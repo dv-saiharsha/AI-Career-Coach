@@ -14,7 +14,6 @@ import {
   User,
   Settings,
   Home,
-  Sparkles,
   CreditCard,
   Moon,
   Sun,
@@ -41,7 +40,6 @@ import { useCommandPalette } from './index'
    app/(protected) belongs here as well as in DashboardNav. */
 const WORKSPACE = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Career Coach', href: '/coach', icon: Sparkles },
   { label: 'Resume Analyzer', href: '/resume', icon: FileSearch },
   { label: 'Interview Coach', href: '/interview', icon: MessageSquareCode },
   { label: 'Jobs', href: '/jobs', icon: Briefcase },

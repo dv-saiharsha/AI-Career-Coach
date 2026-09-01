@@ -395,13 +395,29 @@ def _next_actions_for_dashboard(
             "priority": "medium",
         })
 
-    actions.append({
-        "key": "open_career_coach",
-        "label": "Open Career Coach",
-        "description": "Ask what to do next, grounded in everything above.",
-        "href": "/coach",
-        "priority": "low",
-    })
+    # Every action above is conditional, so a user with nothing wrong has
+    # none — and an empty panel on the dashboard reads as broken rather than
+    # as "you are on top of it". "Open Career Coach" used to be the
+    # unconditional last entry and did this job incidentally; with it gone
+    # the fallback has to be stated.
+    #
+    # Deliberately not an invented task. Keeping applications moving is the
+    # one thing that is always true for someone with a live pipeline, and
+    # reviewing the board is where that starts.
+    if not actions:
+        has_pipeline = applications_section["total"] > 0
+        actions.append({
+            "key": "review_pipeline" if has_pipeline else "apply_to_jobs",
+            "label": "Review your pipeline" if has_pipeline else "Find roles to apply for",
+            "description": (
+                "Nothing needs fixing right now. Keeping what you have sent moving is the next thing."
+                if has_pipeline
+                else "Nothing needs fixing right now. The next step is finding roles worth applying to."
+            ),
+            "href": "/applications" if has_pipeline else "/jobs",
+            "priority": "low",
+        })
+
     return actions
 
 

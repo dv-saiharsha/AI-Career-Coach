@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.modules.analytics.router import router as analytics_router
 from app.modules.applications.router import router as applications_router
-from app.modules.career_coach.router import router as career_coach_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.events.router import router as events_router
 from app.modules.auth.router import router as auth_router
@@ -60,7 +59,6 @@ app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"]
 app.include_router(events_router, prefix="/api/events", tags=["Real-Time Stream"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(user_router, prefix="/api/user", tags=["User Profile"])
-app.include_router(career_coach_router, prefix="/api/career-coach", tags=["Career Coach"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 
 

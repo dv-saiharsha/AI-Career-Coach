@@ -29,7 +29,6 @@ const NEXT_ACTION_ICON: Record<string, typeof Sparkles> = {
   apply_to_jobs: Briefcase,
   follow_up_recruiter: KanbanSquare,
   review_missing_skills: Target,
-  open_career_coach: Sparkles,
 };
 
 function StatCard({

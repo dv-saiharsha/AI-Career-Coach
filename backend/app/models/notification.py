@@ -25,7 +25,9 @@ NOTIFICATION_TYPES = (
     # application
     "application_status_changed",
     "follow_up_reminder",
-    # career_coach
+    # advice — these were the Career Coach's, and outlived it. Each is a real
+    # signal with somewhere useful to send the user, so they were repointed
+    # at the feature they are about rather than removed with the chat.
     "suggested_learning",
     "resume_advice",
     "interview_advice",
@@ -35,6 +37,9 @@ NOTIFICATION_TYPES = (
     "career_milestone",
 )
 
+# "career_coach" is retained although nothing writes it any more: rows
+# created before the feature was removed still carry it, and dropping it from
+# the CHECK constraint would invalidate them. It costs nothing to keep.
 NOTIFICATION_CATEGORIES = ("resume", "jobs", "interview", "application", "career_coach", "analytics")
 
 NOTIFICATION_PRIORITIES = ("high", "medium", "low")
