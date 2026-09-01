@@ -65,6 +65,21 @@ function LoginForm() {
     <AuthCard
       title="Welcome back"
       subtitle="Sign in to pick up where you left off."
+      asideHeading="Everything is where you left it."
+      asidePoints={[
+        {
+          title: 'Your scans have not expired',
+          body: 'Every CV you have scored is still here, with the reasoning that produced each number.',
+        },
+        {
+          title: 'Your pipeline kept counting',
+          body: 'What you sent, when you sent it, and which ones have gone quiet since.',
+        },
+        {
+          title: 'Nothing was shared',
+          body: 'Your CV is not sold, listed, or shown to employers. It is read to score it, and that is all.',
+        },
+      ]}
       footer={
         <>
           No account yet?{' '}

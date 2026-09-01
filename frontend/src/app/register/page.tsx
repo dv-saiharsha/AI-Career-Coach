@@ -134,6 +134,21 @@ function RegisterForm() {
     <AuthCard
       title="Create your account"
       subtitle="Free, and it stays free. No card needed."
+      asideHeading="Three things, from one upload."
+      asidePoints={[
+        {
+          title: 'See your CV the way a filter does',
+          body: 'A score, and underneath it the specific reasons — the missing skills, the bullets with no number in them.',
+        },
+        {
+          title: 'Keep every application in one place',
+          body: 'What you applied for, what stage it reached, and what is worth a follow-up this week.',
+        },
+        {
+          title: 'Practise before the interview',
+          body: 'Questions for the actual role and seniority, with written feedback on each answer.',
+        },
+      ]}
       footer={
         <>
           Already have an account?{' '}
