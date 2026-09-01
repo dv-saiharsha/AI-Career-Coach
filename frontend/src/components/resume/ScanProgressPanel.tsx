@@ -78,7 +78,13 @@ export function ScanProgressPanel() {
           Scanning your document
         </div>
 
-        {/* Document silhouette with a repeating scan beam sweeping down it */}
+        {/* The document under the scanner. Four layers: the ruled page, a
+            measurement grid, the beam, and the inner bloom that travels with
+            it. Decorative in full — the live region below carries the state.
+
+            The beam animates on translate3d rather than a moving gradient
+            position, so several seconds of scanning costs the compositor a
+            transform per frame instead of the browser a repaint. */}
         <div
           className="relative mx-auto mb-7 w-[104px] h-[132px] rounded-[6px] overflow-hidden"
           style={{ background: 'var(--color-canvas)', border: '1px solid var(--color-canvas-line)' }}
@@ -93,21 +99,37 @@ export function ScanProgressPanel() {
               />
             ))}
           </div>
-          {!reduceMotion && (
-            <div
-              className="absolute left-0 right-0 h-9 panel-enter"
-              style={{
-                background:
-                  'linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 35%, transparent) 50%, transparent)',
-              }}
-             
-             
-              />
-          )}
+
+          <div className="scan-grid absolute inset-0 opacity-40" />
+
           <div
-            className="absolute inset-0"
-            style={{ boxShadow: 'inset 0 0 24px color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
+            className="scan-beam absolute inset-x-0 top-0 h-[18px]"
+            style={{
+              background:
+                'linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 55%, transparent) 50%, transparent)',
+              boxShadow: '0 0 14px 2px color-mix(in srgb, var(--color-accent) 30%, transparent)',
+            }}
           />
+
+          <div
+            className="scan-bloom absolute inset-0"
+            style={{ boxShadow: 'inset 0 0 26px color-mix(in srgb, var(--color-accent) 22%, transparent)' }}
+          />
+        </div>
+
+        {/* Tracking readout. Monospace because the values change while it is
+            being read, and a proportional face reflows every time they do. */}
+        <div
+          aria-hidden="true"
+          className="mb-6 flex items-center justify-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-(--color-ink-faint)"
+        >
+          <span className="scan-pulse inline-flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-(--color-accent)" />
+            Live
+          </span>
+          <span className="tabular-nums">
+            Pass {String(Math.min(stage + 1, STAGES.length)).padStart(2, '0')} / {String(STAGES.length).padStart(2, '0')}
+          </span>
         </div>
 
         <div className="flex flex-col gap-2.5">

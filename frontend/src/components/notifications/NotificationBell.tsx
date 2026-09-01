@@ -105,7 +105,7 @@ function NotificationRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="size-7"
+            className="size-7 touch-target"
             aria-label="Mark as read"
             onClick={() => onRead(notification.id)}
           >
@@ -115,7 +115,7 @@ function NotificationRow({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="size-7"
+          className="size-7 touch-target"
           aria-label="Archive notification"
           onClick={() => onArchive(notification.id)}
         >

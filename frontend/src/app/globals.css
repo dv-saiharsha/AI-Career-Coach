@@ -829,6 +829,153 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   TOUCH TARGET
+
+   For controls that must stay visually small — a 28px archive icon inside a
+   dense notification row, a 32px social link in the footer — but must still
+   be reachable by a thumb.
+
+   The hit area is a centred pseudo-element rather than padding, because
+   padding would change the box and reflow the row it sits in. This adds
+   nothing to layout: the control keeps its size, the target grows around it.
+   The Button primitive already floors every one of its own sizes at 44px, so
+   this is only for the deliberate exceptions.
+   ══════════════════════════════════════════════════════════════════════ */
+@utility touch-target {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+    /* Behind the icon so it never intercepts a pointer meant for something
+       painted above it, but still inside the control's own hit testing. */
+    z-index: 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DOCUMENT SCAN
+
+   The resume-scanning moment. Four layers over a document silhouette: a
+   ruled grid, a beam that sweeps top to bottom, a bloom that travels with
+   it, and a tick that draws itself once the scan lands.
+
+   All of it is CSS on transform and opacity. The beam is one element moving
+   on translate3d rather than a repainting gradient position, so a scan that
+   runs for several seconds does not cost a repaint per frame on a phone.
+
+   The whole thing is decorative — the panel carries a live region with the
+   real stage text — so under reduced motion it simply holds still rather
+   than degrading to something else.
+   ══════════════════════════════════════════════════════════════════════ */
+.scan-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--accent) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 14%, transparent) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+@keyframes scan-sweep {
+  0% {
+    transform: translate3d(0, -120%, 0);
+  }
+  100% {
+    transform: translate3d(0, 780%, 0);
+  }
+}
+
+@keyframes scan-bloom {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+}
+
+@keyframes scan-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scan-beam {
+    animation: scan-sweep 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    will-change: transform;
+  }
+  .scan-bloom {
+    animation: scan-bloom 2.4s linear infinite;
+  }
+  .scan-pulse {
+    animation: scan-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+/* Reduced motion: the beam rests over the document rather than sweeping,
+   so the layer still reads as a scanner without anything moving. */
+@media (prefers-reduced-motion: reduce) {
+  .scan-beam {
+    transform: translate3d(0, 240%, 0);
+    opacity: 0.6;
+  }
+}
+
+/* ── The completion tick ─────────────────────────────────────────────────
+   Drawn rather than faded in: the stroke has its full length as a dash and
+   animates the offset to zero, so the check is written on screen. The
+   circle draws first and the check follows it.
+
+   Ends on a single overshoot from --ease-spring, which is the one place in
+   this system a bounce is earned — something just completed, and the
+   gesture that preceded it was the user's upload. */
+@keyframes tick-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes tick-settle {
+  0% {
+    transform: scale(0.82);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tick-mark {
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tick-mark {
+    animation: tick-settle 420ms var(--ease-spring) both;
+  }
+  .tick-ring {
+    stroke-dasharray: 88;
+    stroke-dashoffset: 88;
+    animation: tick-draw 460ms var(--ease-enter) forwards;
+  }
+  .tick-check {
+    stroke-dasharray: 30;
+    stroke-dashoffset: 30;
+    animation: tick-draw 300ms var(--ease-enter) 340ms forwards;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    COUNT UP
 
    A number that climbs to its value without JavaScript. @property makes the
