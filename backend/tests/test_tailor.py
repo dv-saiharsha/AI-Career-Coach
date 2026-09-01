@@ -41,7 +41,8 @@ def add_job(db, description="Seeking Kubernetes and Terraform experience."):
         company="Acme", location="Remote", work_mode="Remote",
         apply_url="https://example.com/j", description=description,
     )
-    db.add(row); db.commit()
+    db.add(row)
+    db.commit()
     return row
 
 
@@ -50,7 +51,8 @@ def add_scan(db, user_id=ALICE, text="Built pipelines with Docker and PyTorch.")
         user_id=user_id, resume_filename="r.pdf", job_description="old jd",
         ats_score=61.0, result_json=json.dumps({}), resume_text=text,
     )
-    db.add(row); db.commit()
+    db.add(row)
+    db.commit()
     return row
 
 
@@ -110,7 +112,8 @@ class TestHandoff:
             raise AssertionError("tailor-handoff must not call Claude")
 
         monkeypatch.setattr(services.llm_client, "complete_tool_json", fail)
-        job = add_job(db); scan = add_scan(db)
+        job = add_job(db)
+        scan = add_scan(db)
         assert client.post("/api/resume-builder/tailor-handoff",
                            json={"job_id": job.id, "analysis_id": scan.id}).status_code == 200
 

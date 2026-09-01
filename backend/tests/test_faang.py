@@ -73,14 +73,16 @@ def add_job(db, description="Requires Kubernetes and Terraform."):
     row = JobListing(query_key="devops engineer", external_id="j1", title="DevOps Engineer",
                      company="Acme Corp", location="Remote", work_mode="Remote",
                      apply_url="https://e.com/j", description=description)
-    db.add(row); db.commit()
+    db.add(row)
+    db.commit()
     return row
 
 
 def add_scan(db, user_id=ALICE, text="Built pipelines with Docker."):
     row = ResumeAnalysis(user_id=user_id, resume_filename="r.pdf", job_description="old",
                          ats_score=58.0, result_json=json.dumps({}), resume_text=text)
-    db.add(row); db.commit()
+    db.add(row)
+    db.commit()
     return row
 
 

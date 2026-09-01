@@ -37,7 +37,7 @@ _RESUME_SIGNAL_KEYWORDS = (
 )
 
 
-def _looks_like_resume(text: str) -> bool:
+def looks_like_resume(text: str) -> bool:
     stripped = text.strip()
     if not (80 <= len(stripped) <= 30000):
         return False
@@ -297,7 +297,7 @@ def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> d
         raise ValueError("Paste the job description you're targeting.")
     # Cheap, free pre-filter — catches obviously-not-a-resume uploads (random
     # documents, images, empty files) before spending an LLM call on them.
-    if not _looks_like_resume(resume_text):
+    if not looks_like_resume(resume_text):
         raise NotAResumeError(NOT_A_RESUME_MESSAGE)
 
     if llm_client.available:

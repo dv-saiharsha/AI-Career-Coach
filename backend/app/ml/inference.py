@@ -1,7 +1,8 @@
 """
 Phase 4 — serves the trained ATS model for live scoring.
 
-Loads the joblib model once at import time (not per-request) and exposes
+Loads the joblib model once, lazily on first use, and caches it in a module
+singleton (not per-request) — see _load_model() — and exposes
 predict_score(), the single function the resume analyzer calls to get an
 ats_score. Deterministic and free, unlike the LLM path it replaces: the same
 (resume, job_description) pair always yields the same score, and scoring a

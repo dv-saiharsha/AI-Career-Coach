@@ -1,27 +1,48 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
+from app.core.ratelimit import check_rate_limit
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_analyzer import parse_checks, rubric
+from app.modules.notifications.service import notify_resume_scanned
+from app.modules.resume_analyzer import parse_checks, review, rubric
 from app.modules.resume_analyzer.report import build_report_pdf, build_updated_resume_pdf
-from app.modules.resume_analyzer.services import analyze_resume_against_job
+from app.modules.resume_analyzer.services import (
+    NOT_A_RESUME_MESSAGE,
+    analyze_resume_against_job,
+    extract_text,
+    looks_like_resume,
+)
 from app.schemas.resume import (
     AnalysisResultSchema,
     GenerateResumeRequestSchema,
     ResumeHistoryItemSchema,
     ScoreBreakdownSchema,
 )
+from app.schemas.resume_review import ResumeReviewSchema
 
 router = APIRouter()
 
 _MODEL_METADATA_PATH = Path(__file__).resolve().parents[3] / "app" / "ml" / "models" / "ats_model_metadata.json"
+
+# /analyze calls Claude (or, on failure, the free rule-based fallback) — real
+# per-call cost with no other ceiling on it. 20/hour is generous for
+# iterating on one resume across several job descriptions in a sitting while
+# still bounding worst-case spend from one account.
+MAX_ANALYSES_PER_WINDOW = 20
+ANALYSIS_WINDOW_SECONDS = 3600
+
+# Read fully into memory before parsing (pdfplumber/python-docx have no
+# streaming API this project uses) — bounded so a very large or repeated
+# upload can't exhaust worker memory or get handed wholesale to a PDF parser
+# with no size floor.
+MAX_RESUME_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 @router.get("/model-info")
@@ -35,16 +56,31 @@ def model_info():
 
 @router.post("/analyze", response_model=AnalysisResultSchema)
 async def analyze_resume(
+    background_tasks: BackgroundTasks,
     resume: UploadFile = File(...),
     job_description: str = Form(...),
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
+    if not check_rate_limit(f"resume_analyze:{current_user.id}", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS):
+        raise HTTPException(status_code=429, detail="Too many resume scans. Try again in a while.")
+
     content = await resume.read()
+    if len(content) > MAX_RESUME_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="That file is too large. Resumes should be under 10MB.")
     try:
         result = analyze_resume_against_job(resume.filename or "resume", content, job_description)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Read before this scan is saved, so it's genuinely the *previous* one —
+    # the notification below compares against it.
+    previous = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.user_id == current_user.id)
+        .order_by(ResumeAnalysis.created_at.desc())
+        .first()
+    )
 
     resume_text = result.pop("resume_text", "")
     record = ResumeAnalysis(
@@ -59,6 +95,15 @@ async def analyze_resume(
     db.add(record)
     db.commit()
     db.refresh(record)
+
+    notify_resume_scanned(
+        db, current_user.id,
+        analysis_id=record.id,
+        new_score=float(record.ats_score),
+        previous_score=float(previous.ats_score) if previous else None,
+        latest_band=rubric.band(record.ats_score),
+        background_tasks=background_tasks,
+    )
 
     return {**result, "id": record.id, "created_at": record.created_at.isoformat()}
 
@@ -266,3 +311,79 @@ def score_breakdown(
         "missing_keywords": stored.get("missing_skills", []),
         "matched_keywords": stored.get("matched_skills", []),
     }
+
+
+@router.get("/review/{analysis_id}", response_model=ResumeReviewSchema)
+def resume_review_job_specific(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Job-specific Resume Review (Mode B) for an existing scan.
+
+    Deliberately parallel to /breakdown: free, no LLM call, no write — every
+    number comes from the stored row and the same deterministic analysers
+    /breakdown already calls. job_match is the model's own stored ats_score,
+    never recomputed, so it can never drift from the score the user was
+    originally shown for this scan.
+    """
+    record = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id, ResumeAnalysis.user_id == current_user.id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    if not record.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="The original resume text isn't available for this scan. Please re-scan your resume.",
+        )
+
+    stored = json.loads(record.result_json) if record.result_json else {}
+    return review.build_review(
+        record.resume_text,
+        record.job_description or "",
+        pdf_bytes=record.resume_file_bytes,
+        stored_result=stored,
+        model_score=record.ats_score,
+        resume_filename=record.resume_filename,
+        analysis_id=record.id,
+    )
+
+
+@router.post("/review/general", response_model=ResumeReviewSchema)
+async def resume_review_general(
+    resume: UploadFile = File(...),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """General Resume Review (Mode A) — a resume with no job description.
+
+    Not persisted: resume_analyses.job_description and .ats_score are both
+    NOT NULL, so a JD-less scan has no row shape to fit without a migration,
+    and Phase 1 makes none. This is a stateless compute-and-return, same as
+    /breakdown's read path but with nothing stored to read from — everything
+    comes from the upload in this one request.
+    """
+    content = await resume.read()
+    try:
+        resume_text = extract_text(resume.filename or "resume", content)
+    except ValueError as exc:
+        # Same conversion /analyze applies around analyze_resume_against_job
+        # (which calls extract_text internally) — an unsupported file type is
+        # a 400, not a 500.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not resume_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't read any text from that file. Try exporting it again as a text-based PDF.",
+        )
+    if not looks_like_resume(resume_text):
+        raise HTTPException(status_code=400, detail=NOT_A_RESUME_MESSAGE)
+
+    return review.build_review(
+        resume_text,
+        "",
+        pdf_bytes=content,
+        resume_filename=resume.filename,
+    )

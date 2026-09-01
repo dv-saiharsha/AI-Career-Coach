@@ -92,7 +92,7 @@ def _tokens(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z]+", (text or "").lower()) if w not in _STOPWORDS and len(w) > 2}
 
 
-def _bullets(resume_text: str) -> list[str]:
+def extract_bullets(resume_text: str) -> list[str]:
     return [
         _BULLET_PREFIX.sub("", line).strip()
         for line in (resume_text or "").splitlines()
@@ -135,7 +135,7 @@ def title_alignment(resume_text: str, jd_title: str | None) -> float | None:
 
 def quantified_impact(resume_text: str) -> float | None:
     """Share of bullets carrying a number."""
-    bullets = _bullets(resume_text)
+    bullets = extract_bullets(resume_text)
     if not bullets:
         return None
     # Already a percentage, not a fraction — multiplying by 100 here
@@ -194,7 +194,7 @@ def readability(resume_text: str) -> float | None:
     scan, and one that opens every line with "Responsible for" buries what the
     candidate actually did.
     """
-    bullets = _bullets(resume_text)
+    bullets = extract_bullets(resume_text)
     if not bullets:
         return None
 
