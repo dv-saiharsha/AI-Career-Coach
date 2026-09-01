@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createClient } from './supabase/client'
+import { signIn, signUp } from './authActions'
 
 export interface AuthUser {
   id: string
@@ -110,22 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // re-rendered on every AuthProvider render (e.g. each onAuthStateChange
   // tick), memoized or not, since a fresh function reference here would
   // have failed the memo's own equality check anyway.
-  const login = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw new Error(error.message)
-  }, [supabase])
-
-  const register = useCallback(async (email: string, password: string, firstName: string, lastName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`.trim() },
-      },
-    })
-    if (error) throw new Error(error.message)
-  }, [supabase])
+  // signIn/signUp come straight from lib/authActions, which /login and
+  // /register call directly — one implementation, whether or not a provider
+  // is mounted. They are module-level and already stable, so they go into
+  // the context value as-is rather than through useCallback.
 
   const logout = useCallback(async () => {
     // Cleared before the network call, not after. signOut() round-trips to
@@ -160,8 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   const value = useMemo(
-    () => ({ user, ready, login, register, logout, updateProfile }),
-    [user, ready, login, register, logout, updateProfile],
+    () => ({ user, ready, login: signIn, register: signUp, logout, updateProfile }),
+    [user, ready, logout, updateProfile],
   )
 
   return (

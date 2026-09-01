@@ -1,28 +1,24 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useState } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MotionConfig } from 'framer-motion'
 import { ThemeProvider } from 'next-themes'
-import { AuthProvider } from '@/lib/AuthContext'
-import { CommandPaletteProvider } from '@/components/CommandPalette'
-import { ToastProvider } from '@/components/ui/toast'
+import { CommandPaletteMount } from '@/components/command-palette'
 
+/**
+ * The root client boundary, and deliberately almost empty.
+ *
+ * It used to mount React Query, the auth context, the command palette and
+ * the toast host here, which put all four — and everything they import — in
+ * the initial graph of every route. A marketing page that queries nothing
+ * and has no signed-in user was paying for a QueryClient and a Supabase
+ * session listener before it painted.
+ *
+ * What is left is what genuinely is global: the theme, because the toggle
+ * sits in the marketing nav as well as the app nav, and the palette's ⌘K
+ * listener, which is a keydown handler and nothing more until it fires.
+ * Everything else lives in app/(protected)/AppProviders.tsx.
+ */
 export default function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 30_000,
-            retry: 1,
-            refetchOnWindowFocus: false,
-          },
-        },
-      })
-  )
-
   return (
     <ThemeProvider
       attribute="data-theme"
@@ -36,20 +32,8 @@ export default function Providers({ children }: { children: ReactNode }) {
       storageKey="aicc_theme"
       disableTransitionOnChange
     >
-      {/* CSS handles declarative animations, but Framer drives its own via JS
-          and ignores the media query unless told to. "user" makes every
-          motion component in the tree honour the OS setting by default. */}
-      <MotionConfig reducedMotion="user">
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            {/* Both mounted at the root so ⌘K and confirmation toasts work on
-                every route, public or not. */}
-            <CommandPaletteProvider>
-              <ToastProvider>{children}</ToastProvider>
-            </CommandPaletteProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </MotionConfig>
+      {children}
+      <CommandPaletteMount />
     </ThemeProvider>
   )
 }

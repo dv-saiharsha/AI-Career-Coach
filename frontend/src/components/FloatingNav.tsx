@@ -17,7 +17,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import ThemeToggle from '@/components/ThemeToggle'
 import { ApplyCenterMark } from '@/components/ApplyCenterMark'
-import { useCommandPalette } from '@/components/CommandPalette'
+import { useCommandPalette } from '@/components/command-palette'
 import { spring, springSnappy, layoutIds } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 

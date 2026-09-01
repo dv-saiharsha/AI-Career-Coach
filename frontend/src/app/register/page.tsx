@@ -4,7 +4,7 @@ import { Suspense, useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, MailCheck } from 'lucide-react'
-import { useAuth } from '@/lib/AuthContext'
+import { signUp } from '@/lib/authActions'
 import { AuthCard, AuthAlert } from '@/components/auth/AuthCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,7 +52,6 @@ export default function Register() {
 }
 
 function RegisterForm() {
-  const { register } = useAuth()
   const searchParams = useSearchParams()
 
   /* The landing hero posts here as a plain GET so its email field works with
@@ -100,7 +99,7 @@ function RegisterForm() {
     setStatus('loading')
     setError('')
     try {
-      await register(email, password, firstName.trim(), lastName.trim())
+      await signUp(email, password, firstName.trim(), lastName.trim())
       /* Supabase requires email confirmation before a session exists, so
          there is no session to send them into the dashboard with yet. */
       setStatus('sent')

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { createClient } from '../../lib/supabase/server'
 import { DashboardNav } from '../../components/DashboardNav'
 import { ProtectedTransition } from './ProtectedTransition'
+import { AppProviders } from './AppProviders'
 
 // middleware.ts already redirects unauthenticated requests before any React
 // rendering happens (the primary gate, with no flicker). This is a second,
@@ -17,8 +18,10 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   }
 
   return (
-    <DashboardNav>
-      <ProtectedTransition>{children}</ProtectedTransition>
-    </DashboardNav>
+    <AppProviders>
+      <DashboardNav>
+        <ProtectedTransition>{children}</ProtectedTransition>
+      </DashboardNav>
+    </AppProviders>
   )
 }

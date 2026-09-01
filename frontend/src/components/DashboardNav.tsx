@@ -31,7 +31,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
-import { useCommandPalette } from '@/components/CommandPalette'
+import { useCommandPalette } from '@/components/command-palette'
 import { springSnappy } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 

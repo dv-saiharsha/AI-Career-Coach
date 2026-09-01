@@ -4,7 +4,7 @@ import { Suspense, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, ArrowRight } from 'lucide-react'
-import { useAuth } from '@/lib/AuthContext'
+import { signIn } from '@/lib/authActions'
 import { AuthCard, AuthAlert } from '@/components/auth/AuthCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +29,6 @@ export default function Login() {
 }
 
 function LoginForm() {
-  const { login } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
@@ -52,7 +51,7 @@ function LoginForm() {
     setStatus('loading')
     setError('')
     try {
-      await login(email, password)
+      await signIn(email, password)
       router.replace(from)
     } catch (err) {
       setError(
