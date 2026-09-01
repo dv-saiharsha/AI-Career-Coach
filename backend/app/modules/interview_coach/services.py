@@ -1,22 +1,4 @@
-import json
-import random
-import re
-from pathlib import Path
-
 from app.core.llm import llm_client
-
-SEED_DIR = Path(__file__).resolve().parents[4] / "data" / "seed_questions"
-
-QUESTION_SYSTEM_PROMPT = (
-    "You are an expert technical interviewer across software, data, and product roles. "
-    "You generate realistic, role-specific interview questions."
-)
-
-EVAL_SYSTEM_PROMPT = (
-    "You are grading a candidate's interview answer against a fixed rubric: technical accuracy, "
-    "communication clarity, and structure (e.g. STAR for behavioral answers). Be specific and "
-    "constructive, not generic."
-)
 
 MODEL_ANSWER_SYSTEM_PROMPT = (
     "You are an expert interview coach. Given an interview question, you produce a model answer "
@@ -25,35 +7,6 @@ MODEL_ANSWER_SYSTEM_PROMPT = (
     "technical term, define it in simple words. The goal is that someone new to the field finishes "
     "reading and both understands the concept and knows how to answer the question well."
 )
-
-QUESTIONS_TOOL_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "questions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "type": {"type": "string", "enum": ["technical", "behavioral"]},
-                    "text": {"type": "string"},
-                },
-                "required": ["type", "text"],
-            },
-        },
-    },
-    "required": ["questions"],
-}
-
-EVALUATION_TOOL_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "score": {"type": "number", "description": "0-10"},
-        "feedback": {"type": "string"},
-        "improvement_tips": {"type": "string"},
-        "sample_answer": {"type": "string"},
-    },
-    "required": ["score", "feedback", "improvement_tips", "sample_answer"],
-}
 
 MODEL_ANSWER_TOOL_SCHEMA = {
     "type": "object",
@@ -223,9 +176,9 @@ def generate_screening_prep(
 ) -> dict:
     """Screening-call questions with answer templates tailored to the JD.
 
-    One LLM call, same per-request cost shape as the existing question and
-    model-answer endpoints. Falls back to a static scaffold rather than
-    failing, matching how generate_questions and model_answer already behave.
+    One LLM call, same per-request cost shape as the model-answer endpoint.
+    Falls back to a static scaffold rather than failing, matching how
+    model_answer already behaves.
     """
     questions: list[dict] = []
     if llm_client.available:
@@ -273,90 +226,6 @@ def generate_screening_prep(
         "screening_questions": questions,
         "general_interview_tips": GENERAL_INTERVIEW_TIPS,
     }
-
-
-def _slugify(role: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", role.strip().lower()).strip("-")
-    return slug or "generic"
-
-
-def load_seed_questions(role: str) -> list[dict]:
-    slug = _slugify(role)
-    path = SEED_DIR / f"{slug}.json"
-    if not path.exists():
-        path = SEED_DIR / "generic.json"
-    if not path.exists():
-        return []
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return data.get("questions", [])
-
-
-def _generate_with_llm(role: str, seniority: str, count: int) -> list[dict]:
-    user_prompt = (
-        f"Generate {count} interview questions for a {seniority} {role} candidate, "
-        "roughly half technical and half behavioral."
-    )
-    data = llm_client.complete_tool_json(
-        QUESTION_SYSTEM_PROMPT, user_prompt, "submit_questions", QUESTIONS_TOOL_SCHEMA
-    )
-    questions = data.get("questions") or []
-    cleaned = [q for q in questions if q.get("text")]
-    return cleaned[:count]
-
-
-def generate_questions(role: str, seniority: str, count: int = 4) -> list[dict]:
-    if llm_client.available:
-        try:
-            questions = _generate_with_llm(role, seniority, count)
-            if questions:
-                return questions
-        except Exception:
-            pass  # fall through to seed dataset
-
-    seed = load_seed_questions(role)
-    random.shuffle(seed)
-    if seed:
-        return seed[:count]
-    return [{"type": "behavioral", "text": f"Tell me about a challenging project relevant to the {role} role."}]
-
-
-def _evaluate_with_llm(question_text: str, question_type: str, answer_text: str) -> dict:
-    user_prompt = (
-        f"Question ({question_type}): {question_text}\n\n"
-        f"Candidate answer: {answer_text}\n\n"
-        "Score the answer from 0-10."
-    )
-    data = llm_client.complete_tool_json(EVAL_SYSTEM_PROMPT, user_prompt, "submit_evaluation", EVALUATION_TOOL_SCHEMA)
-    data["score"] = float(data.get("score", 0))
-    return data
-
-
-def _evaluate_with_rules(answer_text: str) -> dict:
-    word_count = len(answer_text.split())
-    if word_count > 90:
-        score, tips = 7.0, "Good depth — sharpen the ending with a measurable result."
-    elif word_count > 40:
-        score, tips = 6.0, "Good length — add a specific example and quantify the outcome."
-    else:
-        score, tips = 3.0, "Expand your answer with a concrete example, and quantify the result if you can."
-    return {
-        "score": score,
-        "feedback": (
-            "Automatic scoring is limited without an LLM connection — this is a rough estimate "
-            "based on answer length and structure."
-        ),
-        "improvement_tips": tips,
-        "sample_answer": None,
-    }
-
-
-def evaluate_answer(question_text: str, question_type: str, answer_text: str) -> dict:
-    if llm_client.available:
-        try:
-            return _evaluate_with_llm(question_text, question_type, answer_text)
-        except Exception:
-            pass  # fall through to rule-based scoring
-    return _evaluate_with_rules(answer_text)
 
 
 def _model_answer_with_llm(question_text: str, question_type: str, role: str, seniority: str) -> dict:
