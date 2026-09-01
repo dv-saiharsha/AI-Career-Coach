@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import CountUp from 'react-countup';
+import { CountUp } from '@/components/ui/count-up'
 import { TrendingUp, Target, FileSearch, Trophy } from 'lucide-react';
 import { TrendChart } from '@/components/charts/TrendChart';
 import { getAnalyticsSummary, type AnalyticsSummary } from '@/lib/apiClient';
@@ -84,7 +84,7 @@ function StatCard({
           // claims, and the second one is wrong.
           <span className="text-(--color-ink-faint)">—</span>
         ) : (
-          <CountUp end={value} duration={1.4} prefix={prefix} suffix={suffix} decimals={value % 1 === 0 ? 0 : 1} />
+          <CountUp value={value} prefix={prefix} suffix={suffix} decimals={value % 1 === 0 ? 0 : 1} />
         )}
       </div>
       <div className="mt-0.5 text-xs font-medium text-(--color-ink)">{label}</div>

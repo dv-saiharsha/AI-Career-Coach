@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import * as Tabs from '@radix-ui/react-tabs'
-import CountUp from 'react-countup'
+import { CountUp } from '@/components/ui/count-up'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { TrendChart } from '@/components/charts/TrendChart'
@@ -246,7 +246,7 @@ export default function History() {
                       <Icon className="w-4 h-4 text-(--color-accent)" />
                     </div>
                     <div className="text-xl font-display font-bold text-(--color-accent) tabular-nums">
-                      <CountUp end={value} duration={1.4} decimals={decimals} suffix={suffix} />
+                      <CountUp value={value} decimals={decimals} suffix={suffix} />
                     </div>
                     <div className="text-xs font-medium text-(--color-ink) mt-0.5">{label}</div>
                   </div>

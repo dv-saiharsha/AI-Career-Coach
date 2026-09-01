@@ -1,7 +1,7 @@
 'use client';
 
 import { useInView } from 'react-intersection-observer';
-import CountUp from 'react-countup';
+import { CountUp } from '@/components/ui/count-up'
 import { Reveal, RevealGroup } from '@/lib/reveal';
 
 const METRICS = [
@@ -37,7 +37,7 @@ export function MetricsSection() {
             <Reveal key={m.label} className="text-center">
               <div className="text-4xl md:text-5xl font-display font-bold gradient-text-violet mb-2 tabular-nums">
                 {inView ? (
-                  <CountUp end={m.value} duration={2} decimals={m.decimals} separator="," />
+                  <CountUp value={m.value} decimals={m.decimals} />
                 ) : (
                   '0'
                 )}

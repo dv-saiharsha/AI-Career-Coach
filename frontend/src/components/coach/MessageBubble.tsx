@@ -2,7 +2,21 @@
 
 import { Sparkles } from 'lucide-react'
 import type { ChatMessage } from '@/hooks/useCareerCoachChat'
-import { CoachMarkdown } from './CoachMarkdown'
+import dynamic from 'next/dynamic'
+
+/* react-markdown and remark-gfm are ~22KB gzipped and are the only reason
+   /coach exceeded its class budget. Nothing renders markdown until an
+   assistant reply exists, and the user's own messages are plain text, so the
+   parser loads on the first reply rather than with the route. The fallback
+   is the raw text in the same type — visible and readable, just unstyled,
+   for the moment the chunk is in flight. */
+const CoachMarkdown = dynamic(
+  () => import('./CoachMarkdown').then((m) => m.CoachMarkdown),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+)
 import { Reveal } from '@/lib/reveal'
 
 

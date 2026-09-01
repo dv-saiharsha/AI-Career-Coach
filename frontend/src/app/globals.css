@@ -672,6 +672,52 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   COUNT UP
+
+   A number that climbs to its value without JavaScript. @property makes the
+   custom property animatable — an unregistered one is just a string and
+   would jump — and counter() renders the integer it currently holds.
+
+   The element carrying this is aria-hidden; the real value sits beside it in
+   an sr-only span, so nothing here is load-bearing for meaning. Where
+   @property is unsupported the animation never runs and the span is empty,
+   which is why that accessible copy is the fallback rather than an extra.
+   ══════════════════════════════════════════════════════════════════════ */
+@property --count-value {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
+}
+
+@supports (background: paint(x)) or (color: color-mix(in srgb, red, blue)) {
+  .count-up::after {
+    counter-reset: count-up var(--count-value);
+    content: counter(count-up);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .count-up {
+    animation: count-up 900ms var(--ease-enter) forwards;
+  }
+  @keyframes count-up {
+    from {
+      --count-value: 0;
+    }
+    to {
+      --count-value: var(--count-target);
+    }
+  }
+}
+
+/* No animation asked for: show the number, do not count to it. */
+@media (prefers-reduced-motion: reduce) {
+  .count-up {
+    --count-value: var(--count-target);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    PRESENCE
 
    Enter and exit transitions for anything that mounts and unmounts —

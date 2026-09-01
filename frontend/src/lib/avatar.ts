@@ -13,7 +13,12 @@ export interface AvatarUploadResult {
   path: string
 }
 
-export class AvatarError extends Error {}
+export class AvatarError extends Error {
+  /* Set explicitly. A subclass of Error inherits the name "Error", so
+     anything identifying it across a dynamic-import boundary — where
+     `instanceof` cannot reach the class — would silently never match. */
+  name = 'AvatarError'
+}
 
 /**
  * Upload an avatar straight from the browser to Supabase Storage.

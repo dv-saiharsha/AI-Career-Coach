@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Select,
@@ -10,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import CountUp from 'react-countup';
+import { CountUp } from '@/components/ui/count-up'
 import {
   User,
   Mail,
@@ -26,7 +25,10 @@ import {
 import { useAuth } from '../../../lib/AuthContext';
 import { PageHeader } from '@/components/PageHeader';
 import { getUserProfile, updateUserProfile } from '@/lib/apiClient';
-import { AvatarError, deleteAvatar, pathFromPublicUrl, uploadAvatar } from '@/lib/avatar';
+/* lib/avatar pulls Supabase Storage in, and nothing on this page needs it
+   until someone actually picks or removes a picture — which most visits
+   never do. Imported on demand inside the two handlers instead, so the cost
+   lands on the interaction rather than on the route. */
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -131,6 +133,7 @@ export default function ProfilePage() {
       const {
         data: { user: authUser },
       } = await supabase.auth.getUser();
+      const { AvatarError, pathFromPublicUrl, uploadAvatar } = await import('@/lib/avatar');
       if (!authUser) throw new AvatarError('Your session expired. Sign in again.');
 
       // Pass the previous path so the old object is removed — otherwise every
@@ -139,7 +142,7 @@ export default function ProfilePage() {
       const { publicUrl, path } = await uploadAvatar(authUser.id, file, previousPath);
       await avatarMutation.mutateAsync({ avatar_url: publicUrl, avatar_path: path });
     } catch (err) {
-      setAvatarError(err instanceof AvatarError ? err.message : 'Upload failed. Try again.');
+      setAvatarError(err instanceof Error && err.name === 'AvatarError' ? err.message : 'Upload failed. Try again.');
     } finally {
       setAvatarBusy(false);
       // Clear the input so re-picking the same file still fires onChange.
@@ -152,6 +155,7 @@ export default function ProfilePage() {
     setAvatarError(null);
     setAvatarBusy(true);
     try {
+      const { deleteAvatar, pathFromPublicUrl } = await import('@/lib/avatar');
       const path = pathFromPublicUrl(avatarUrl);
       if (path) await deleteAvatar(path);
       // Empty string, not undefined: the API treats omitted as "leave alone"
@@ -159,7 +163,7 @@ export default function ProfilePage() {
       const updated = await updateUserProfile({ avatar_url: '', avatar_path: '' });
       queryClient.setQueryData(['user', 'profile'], updated);
     } catch (err) {
-      setAvatarError(err instanceof AvatarError ? err.message : 'Could not remove the photo.');
+      setAvatarError(err instanceof Error && err.name === 'AvatarError' ? err.message : 'Could not remove the photo.');
     } finally {
       setAvatarBusy(false);
     }
@@ -230,15 +234,20 @@ export default function ProfilePage() {
                   cream, so white here would be invisible. */}
               <div className="relative flex size-20 items-center justify-center overflow-hidden rounded-full bg-accent font-display text-2xl font-medium text-on-accent ring-4 ring-canvas-raise">
                 {avatarUrl ? (
-                  // next/image over <img>: the project lints against raw img,
-                  // and the bucket URL is remote so it needs an explicit size.
-                  <Image
+                  /* A plain img, deliberately. This was next/image with
+                     `unoptimized` set, which turns off resizing, format
+                     negotiation and the placeholder — leaving only the ~9KB
+                     client runtime and nothing it buys. The avatar is one
+                     fixed 80px square from Supabase Storage; the parent is
+                     relative and sized, so inset-0 gives the same fill with
+                     no layout shift. */
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
                     src={avatarUrl}
                     alt=""
-                    fill
-                    sizes="80px"
-                    className="object-cover"
-                    unoptimized
+                    width={80}
+                    height={80}
+                    className="absolute inset-0 size-full object-cover"
                   />
                 ) : (
                   (form.firstName[0]?.toUpperCase() ?? 'U')
@@ -297,7 +306,7 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-(--color-ink-dim) font-medium">Profile completeness</span>
             <span className="text-(--color-accent) font-semibold tabular-nums">
-              <CountUp end={completeness} duration={1} />%
+              <CountUp value={completeness} />%
             </span>
           </div>
           <div className="h-1.5 bg-(--color-canvas-line-soft) rounded-full overflow-hidden">
