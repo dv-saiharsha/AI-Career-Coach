@@ -1307,10 +1307,15 @@
    React state, nothing to clean up on unmount. On a mid-range Android over
    4G that is the difference between a smooth page and a janky one.
 
-   Where `animation-timeline` is unsupported the @supports guard means the
-   effect simply does not happen: the nav keeps its flush resting state and
-   the wash does not drift. Neither is load-bearing, so degrading to nothing
-   is correct.
+   What degrades to nothing is the *animation*, never the surface. The wash
+   simply does not drift, which costs nothing. The nav capsule is different:
+   its ::before carries the background as well as the shadow, so guarding the
+   whole rule left a sticky nav with no background at all — page content
+   scrolling visibly through the wordmark and links. That affected every
+   reduced-motion user, not just an old browser. The surface now lives
+   outside the guard and only the fade-in is inside it, which also matches
+   how reduced motion is handled everywhere else in this file: the final
+   state arrives immediately rather than the effect being cancelled.
    ══════════════════════════════════════════════════════════════════════ */
 @supports (animation-timeline: scroll()) {
   @media (prefers-reduced-motion: no-preference) {
@@ -1337,14 +1342,9 @@
         opacity: 1;
       }
     }
+    /* Only the fade is conditional. The surface itself is unconditional,
+       below. */
     .nav-capsule::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      z-index: -1;
-      border-radius: inherit;
-      background: var(--canvas-raise);
-      box-shadow: var(--neu-raised-sm);
       opacity: 0;
       animation: nav-lift linear both;
       animation-timeline: scroll(root block);
@@ -1359,4 +1359,19 @@
 .nav-capsule {
   position: relative;
   isolation: isolate;
+}
+
+/* The capsule's surface, unconditionally. Where the scroll-driven fade above
+   applies it starts at opacity 0 and arrives across the first 40px, so the
+   nav still reads as flush over the hero. Everywhere else — an unsupporting
+   browser, or a user who asked for reduced motion — it is simply present
+   from the start, which is legible rather than clever. */
+.nav-capsule::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--canvas-raise);
+  box-shadow: var(--neu-raised-sm);
 }
