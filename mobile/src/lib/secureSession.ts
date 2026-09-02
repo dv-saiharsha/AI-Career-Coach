@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
 
@@ -29,6 +30,59 @@ const OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 }
 
+/**
+ * One storage shim, so the six call sites below do not each need a guard.
+ *
+ * expo-secure-store's web build is `export default {}` — every function is
+ * undefined there, and the first call throws a TypeError during startup.
+ * `npx expo start` offers web next to iOS and Android, so that path is one
+ * keypress away and takes the whole app down before sign-in.
+ *
+ * On web this falls through to localStorage, which is the storage a browser
+ * actually has. That is a real reduction in protection and it is why web is a
+ * preview target here and not a shipping surface: a browser has no Keychain
+ * Services and no Android Keystore, so there is nothing stronger to fall back
+ * to. On iOS and Android — the platforms this app ships to — the keychain
+ * branch is what runs, and WHEN_UNLOCKED_THIS_DEVICE_ONLY still means a
+ * restored backup does not carry a signed-in session onto a new phone.
+ */
+const store = {
+  async get(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      try {
+        return globalThis.localStorage?.getItem(key) ?? null
+      } catch {
+        /* Private browsing and blocked site data both throw here. A missing
+           session is the correct answer; a crash is not. */
+        return null
+      }
+    }
+    return SecureStore.getItemAsync(key, OPTIONS)
+  },
+  async set(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        globalThis.localStorage?.setItem(key, value)
+      } catch {
+        /* Nothing to do — the session simply will not survive a reload. */
+      }
+      return
+    }
+    await SecureStore.setItemAsync(key, value, OPTIONS)
+  },
+  async remove(key: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        globalThis.localStorage?.removeItem(key)
+      } catch {
+        /* Already unreachable; there is nothing left to clear. */
+      }
+      return
+    }
+    await SecureStore.deleteItemAsync(key, OPTIONS)
+  },
+}
+
 export interface StoredSession {
   accessToken: string
   refreshToken: string
@@ -37,11 +91,11 @@ export interface StoredSession {
 }
 
 export async function saveSession(session: StoredSession): Promise<void> {
-  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session), OPTIONS)
+  await store.set(SESSION_KEY, JSON.stringify(session))
 }
 
 export async function loadSession(): Promise<StoredSession | null> {
-  const raw = await SecureStore.getItemAsync(SESSION_KEY, OPTIONS)
+  const raw = await store.get(SESSION_KEY)
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as StoredSession
@@ -57,7 +111,7 @@ export async function loadSession(): Promise<StoredSession | null> {
 }
 
 export async function clearSession(): Promise<void> {
-  await SecureStore.deleteItemAsync(SESSION_KEY, OPTIONS)
+  await store.remove(SESSION_KEY)
 }
 
 /** True when the device can actually do biometrics AND has some enrolled. */
@@ -70,12 +124,12 @@ export async function biometricsAvailable(): Promise<boolean> {
 }
 
 export async function isBiometricLockEnabled(): Promise<boolean> {
-  return (await SecureStore.getItemAsync(BIOMETRIC_PREF_KEY, OPTIONS)) === 'on'
+  return (await store.get(BIOMETRIC_PREF_KEY)) === 'on'
 }
 
 export async function setBiometricLock(enabled: boolean): Promise<void> {
-  if (enabled) await SecureStore.setItemAsync(BIOMETRIC_PREF_KEY, 'on', OPTIONS)
-  else await SecureStore.deleteItemAsync(BIOMETRIC_PREF_KEY, OPTIONS)
+  if (enabled) await store.set(BIOMETRIC_PREF_KEY, 'on')
+  else await store.remove(BIOMETRIC_PREF_KEY)
 }
 
 /**

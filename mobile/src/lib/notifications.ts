@@ -30,14 +30,30 @@ import { api } from './api'
  *   notification nobody sees.
  */
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: true,
-  }),
-})
+/**
+ * expo-notifications has no web implementation.
+ *
+ * Not "degraded on web" — absent. Every call goes through to a native module
+ * that does not exist there and throws synchronously, and a throw inside the
+ * routing effect unmounts the tree, so the whole app dies on a blank screen
+ * with a stack trace about a linking problem that isn't one.
+ *
+ * `npx expo start` offers web alongside iOS and Android, so this path gets
+ * taken by anyone pressing `w` to look at the app quickly. Every entry point
+ * below returns instead of calling.
+ */
+const PUSH_SUPPORTED = Platform.OS !== 'web'
+
+if (PUSH_SUPPORTED) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: true,
+    }),
+  })
+}
 
 export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return
@@ -87,6 +103,9 @@ function easProjectId(): string | undefined {
  * running in an emulator.
  */
 export async function registerForPush(): Promise<PermissionOutcome> {
+  // Web first: expo-device reports isDevice true in a browser, so the
+  // hardware check below does not cover it.
+  if (!PUSH_SUPPORTED) return 'unsupported'
   if (!Device.isDevice) return 'unsupported'
 
   await ensureAndroidChannel()
@@ -110,6 +129,7 @@ export async function registerForPush(): Promise<PermissionOutcome> {
 
 /** Called on sign-out, so the next user on this device is not sent their mail. */
 export async function unregisterPush(): Promise<void> {
+  if (!PUSH_SUPPORTED) return
   if (!Device.isDevice) return
   try {
     const token = (await Notifications.getExpoPushTokenAsync({ projectId: easProjectId() })).data
@@ -132,6 +152,8 @@ export function useNotificationRouting() {
   const responded = useRef(false)
 
   useEffect(() => {
+    if (!PUSH_SUPPORTED) return
+
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const href = response.notification.request.content.data?.href
       if (typeof href === 'string' && href.startsWith('/')) {

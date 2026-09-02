@@ -1,5 +1,6 @@
 import 'react-native-url-polyfill/auto'
 import { createClient } from '@supabase/supabase-js'
+import { Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import Constants from 'expo-constants'
 
@@ -54,11 +55,29 @@ const keychainStorage = {
     }),
 }
 
+/**
+ * On web there is no keychain, so supabase-js keeps its own default.
+ *
+ * expo-secure-store's web build is literally `export default {}` — the
+ * functions above are undefined there, and the first auth read throws before
+ * sign-in can happen. Handing `undefined` instead lets supabase-js fall back
+ * to localStorage, which is what it uses in a browser anyway.
+ *
+ * The security argument in this file's header is a native one. A browser tab
+ * has no Keychain Services and no Android Keystore to reach for, and
+ * localStorage scoped to an origin is the storage the web platform offers.
+ * Web is a preview target here, not a shipping surface — the app is built for
+ * iOS and Android, where the branch above is what runs.
+ */
+const storage = Platform.OS === 'web' ? undefined : keychainStorage
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
-    storage: keychainStorage,
+    storage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // Web is the one place an OAuth redirect really does come back in the
+    // URL, so the option follows the platform rather than being pinned off.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 })
