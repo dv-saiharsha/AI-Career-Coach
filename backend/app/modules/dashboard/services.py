@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, defer
 
+from app.core.config import settings
 from app.models.application import APPLICATION_STATUSES, INTERVIEW_STAGES, JobApplication
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
@@ -268,19 +269,69 @@ def _applications_section(pipeline_data: dict, funnel: dict) -> dict:
     }
 
 
+def _latest_openings(db: Session, limit: int = 6) -> list[dict]:
+    """The freshest listings in the cache, matched or not.
+
+    Exists so the dashboard can lead with openings for someone who has never
+    scanned anything. top_matches returns [] without a resume, which is
+    correct — it cannot rank against nothing — but it meant a new account's
+    first screen had no jobs on it at all, which is the one thing this product
+    always has to show.
+
+    No match scores here, deliberately. A number would have to be invented,
+    and the panel says "latest openings" rather than implying a fit nobody
+    computed.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.JOB_MAX_AGE_DAYS)
+    rows = (
+        db.query(JobListing)
+        .filter(JobListing.posted_at >= cutoff)
+        .order_by(JobListing.posted_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "title": row.title,
+            "company": row.company,
+            "location": row.location or "",
+            "workMode": row.work_mode or "On-site",
+            "salaryRange": row.salary_range or "",
+            "skills": [],
+            "postedDaysAgo": max(
+                0, (datetime.now(timezone.utc) - row.posted_at).days
+            ) if row.posted_at else 0,
+            "applyUrl": row.apply_url or "",
+        }
+        for row in rows
+    ]
+
+
 def _jobs_section(db: Session, user_id: str) -> dict:
     """Top Matching Jobs / Missing Skills / Recruiter Perspective — all
     read off job_market.services.top_matches, which itself reuses
     matching.attach_matches verbatim. [] when there's no primary resume to
-    match against, not an error."""
+    match against, not an error.
+
+    `latest` is always populated regardless, so the dashboard can lead with
+    real openings before a resume exists.
+    """
+    latest = _latest_openings(db)
     matches = top_matches(db, user_id, limit=5)
     if not matches:
-        return {"top_matches": [], "missing_skills": [], "recruiter_perspective": None}
+        return {
+            "top_matches": [],
+            "latest": latest,
+            "missing_skills": [],
+            "recruiter_perspective": None,
+        }
 
     top = matches[0]
     skills_match = top["match"].get("skillsMatch") or {}
     return {
         "top_matches": matches,
+        "latest": latest,
         # Already ranked by cross-listing frequency (annotate_priority_skills,
         # called inside attach_matches) — the skill most worth closing given
         # everything else this user is currently matched against.

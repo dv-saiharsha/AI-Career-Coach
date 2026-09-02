@@ -20,6 +20,7 @@ from app.modules.resume_analyzer.services import (
     looks_like_resume,
 )
 from app.schemas.resume import (
+    RescanRequest,
     AnalysisResultSchema,
     GenerateResumeRequestSchema,
     ResumeHistoryItemSchema,
@@ -122,6 +123,116 @@ async def analyze_resume(
     )
 
     return {**result, "id": record.id, "created_at": record.created_at.isoformat()}
+
+
+@router.get("/on-file")
+def resume_on_file(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """What resume this account already has, if any.
+
+    Exists so the analyzer can offer to re-use it instead of asking for the
+    same file again. Re-uploading an unchanged CV to score it against a
+    different posting is work the product was making people do for no reason,
+    and it stored another copy of identical bytes every time.
+
+    `can_rescan` is separate from `has_resume` on purpose: rows created before
+    the bytes were retained carry a filename and a score but nothing to scan
+    again, and offering a button that cannot work is worse than not offering
+    one.
+    """
+    latest = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.user_id == current_user.id)
+        .order_by(ResumeAnalysis.created_at.desc())
+        .first()
+    )
+    if latest is None:
+        return {"has_resume": False, "can_rescan": False}
+
+    return {
+        "has_resume": True,
+        "analysis_id": latest.id,
+        "filename": latest.resume_filename,
+        "ats_score": round(float(latest.ats_score), 1) if latest.ats_score is not None else None,
+        "band": rubric.band(latest.ats_score),
+        "scanned_at": latest.created_at.isoformat() if latest.created_at else None,
+        # Truncated: this is a reminder of what it was scored against, not the
+        # posting itself, and a full JD in a status line is unreadable.
+        "scanned_against": (latest.job_description or "")[:120] or None,
+        "size_bytes": len(latest.resume_file_bytes) if latest.resume_file_bytes else None,
+        "can_rescan": bool(latest.resume_file_bytes),
+    }
+
+
+@router.post("/rescan")
+def rescan_stored_resume(
+    background_tasks: BackgroundTasks,
+    payload: RescanRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Score the resume already on file against a new job description.
+
+    Same rate limit as /analyze — it is the same amount of work and the same
+    LLM call, and exempting it would leave an unmetered path to the expensive
+    operation the limit exists to bound.
+    """
+    if not check_rate_limit(
+        f"resume_analyze:{current_user.id}", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS
+    ):
+        raise HTTPException(status_code=429, detail="Too many resume scans. Try again in a while.")
+
+    latest = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.user_id == current_user.id)
+        .order_by(ResumeAnalysis.created_at.desc())
+        .first()
+    )
+    if latest is None or not latest.resume_file_bytes:
+        raise HTTPException(
+            status_code=404,
+            detail="No stored resume to re-scan. Upload your CV once and this will work from then on.",
+        )
+
+    try:
+        result = analyze_resume_against_job(
+            latest.resume_filename or "resume",
+            latest.resume_file_bytes,
+            payload.job_description,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    record = ResumeAnalysis(
+        user_id=current_user.id,
+        resume_filename=latest.resume_filename,
+        job_description=payload.job_description,
+        ats_score=result["ats_score"],
+        result_json=json.dumps({k: v for k, v in result.items() if k != "resume_text"}),
+        resume_text=result.get("resume_text", ""),
+        # Carried forward rather than re-read: it is the same document, and a
+        # re-scan that dropped the bytes would silently make the next re-scan
+        # impossible.
+        resume_file_bytes=latest.resume_file_bytes,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    notify_resume_scanned(
+        db,
+        current_user.id,
+        analysis_id=record.id,
+        new_score=float(record.ats_score),
+        previous_score=float(latest.ats_score) if latest.ats_score is not None else None,
+        latest_band=rubric.band(record.ats_score),
+        background_tasks=background_tasks,
+    )
+
+    payload_out = {k: v for k, v in result.items() if k != "resume_text"}
+    return {**payload_out, "id": record.id, "created_at": record.created_at.isoformat()}
 
 
 @router.get("/history", response_model=list[ResumeHistoryItemSchema])

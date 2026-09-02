@@ -97,6 +97,40 @@ export const analyzeResume = async (
   return response.data
 }
 
+/** What resume the account already has, if any. */
+export interface ResumeOnFile {
+  has_resume: boolean
+  /** False for rows stored before the file bytes were retained. */
+  can_rescan: boolean
+  analysis_id?: number
+  filename?: string
+  ats_score?: number | null
+  band?: string
+  scanned_at?: string | null
+  scanned_against?: string | null
+  size_bytes?: number | null
+}
+
+export const getResumeOnFile = async (): Promise<ResumeOnFile> => {
+  const response = await apiClient.get<ResumeOnFile>('/resume/on-file')
+  return response.data
+}
+
+/**
+ * Score the stored resume against a new posting, with no upload.
+ *
+ * The whole point is that there is no FormData here — the bytes are already
+ * on the server. Re-uploading an unchanged CV to score it against a second
+ * job was work the product was inventing for people, and it stored another
+ * copy of identical bytes each time.
+ */
+export const rescanResume = async (jobDescription: string): Promise<AnalysisResult> => {
+  const response = await apiClient.post<AnalysisResult>('/resume/rescan', {
+    job_description: jobDescription,
+  })
+  return response.data
+}
+
 export interface ResumeHistoryItem {
   id: number
   resume_filename: string
@@ -1243,6 +1277,8 @@ export interface DashboardInterview {
 
 export interface DashboardJobs {
   top_matches: JobListing[]
+  /** Freshest cached listings, populated even with no resume on file. */
+  latest: JobListing[]
   missing_skills: string[]
   recruiter_perspective: string | null
 }

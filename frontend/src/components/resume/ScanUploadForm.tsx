@@ -1,8 +1,10 @@
 'use client'
 
 import { type DragEvent, type FormEvent, type RefObject } from 'react'
-import { FileText, Upload, X } from 'lucide-react'
+import { FileCheck2, FileText, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { bandLabel, type ScoreBand } from '@/lib/scoreBands'
+import type { ResumeOnFile } from '@/lib/apiClient'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { InlineError } from './InlineError'
@@ -26,6 +28,8 @@ interface ScanUploadFormProps {
   onJobDescriptionPaste: () => void
   onDismissJobContextNotice: () => void
   onSubmit: (e: FormEvent) => void
+  /** What the account already has, so the form can offer to re-use it. */
+  onFile?: ResumeOnFile | null
 }
 
 /**
@@ -53,6 +57,7 @@ export function ScanUploadForm({
   onJobDescriptionPaste,
   onDismissJobContextNotice,
   onSubmit,
+  onFile,
 }: ScanUploadFormProps) {
   return (
     <div className="panel-enter">
@@ -70,9 +75,51 @@ export function ScanUploadForm({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <form onSubmit={onSubmit} className="card p-6 flex flex-col gap-5">
+          {/* What is already on file.
+              Shown above the dropzone rather than inside it, because it is
+              not an alternative way to pick a file — it is the reason most
+              people do not need to. Uploading stays available and unchanged
+              underneath; this only removes the obligation. */}
+          {onFile?.has_resume && !file && (
+            <div className="rounded-lg bg-canvas p-4 field-ring-soft">
+              <div className="flex items-start gap-3">
+                <FileCheck2
+                  strokeWidth={1.5}
+                  className="mt-0.5 size-4 shrink-0 text-(--color-signal)"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13.5px] font-medium text-ink">
+                    {onFile.filename}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-ink-dim">
+                    {onFile.ats_score != null
+                      ? `Scored ${onFile.ats_score}% · ${bandLabel(
+                          (onFile.band ?? 'NOT CHECKED') as ScoreBand,
+                        )}`
+                      : 'On file'}
+                    {onFile.scanned_at
+                      ? ` · ${new Date(onFile.scanned_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}`
+                      : ''}
+                  </p>
+                  <p className="mt-2 text-[12px] text-ink-faint">
+                    {onFile.can_rescan
+                      ? 'Paste a job description below and scan — no need to upload it again.'
+                      : 'Stored before files were kept, so this one has to be uploaded again to re-scan.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <span id="resumeDropzoneLabel" className="eyebrow mb-2 block">
-              Resume (PDF or DOCX)
+              {onFile?.has_resume && onFile.can_rescan
+                ? 'Replace it (optional)'
+                : 'Resume (PDF or DOCX)'}
             </span>
             <div
               onDragOver={(e) => { e.preventDefault(); onDragOver() }}
@@ -203,8 +250,17 @@ export function ScanUploadForm({
               </div>
             )}
 
-          <Button type="submit" disabled={!file} className="w-fit">
-            Run the scan
+          {/* Enabled with no file when there is one on file to score. The
+              button says which it will do, because "Run the scan" next to an
+              empty dropzone reads as an error waiting to happen. */}
+          <Button
+            type="submit"
+            disabled={!file && !(onFile?.has_resume && onFile.can_rescan)}
+            className="w-fit"
+          >
+            {!file && onFile?.has_resume && onFile.can_rescan
+              ? 'Scan the resume on file'
+              : 'Run the scan'}
           </Button>
         </form>
 

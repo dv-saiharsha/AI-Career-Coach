@@ -98,6 +98,9 @@ class DashboardInterviewSchema(BaseModel):
 
 class DashboardJobsSchema(BaseModel):
     top_matches: List[JobListingSchema] = []
+    # Freshest listings regardless of whether anything has been scored, so the
+    # dashboard can lead with openings for an account with no resume yet.
+    latest: List[JobListingSchema] = []
     missing_skills: List[str] = []
     recruiter_perspective: Optional[str] = None
 

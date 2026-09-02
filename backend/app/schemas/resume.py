@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class KeywordFrequency(BaseModel):
@@ -160,3 +160,14 @@ class ScoreBreakdownSchema(BaseModel):
     parse_checks: List[ParseCheckSchema] = []
     missing_keywords: List[str] = []
     matched_keywords: List[str] = []
+
+
+class RescanRequest(BaseModel):
+    """Re-score the resume already on file against a different posting.
+
+    No file field: the whole point is that the bytes are already stored. The
+    length cap matches what /analyze accepts through its Form(...), so the two
+    paths cannot disagree about what counts as a job description.
+    """
+
+    job_description: str = Field(min_length=1, max_length=20000)

@@ -71,7 +71,14 @@ class TestEmptyState:
         assert body["resume"]["latest_ats_score"] is None
         assert body["applications"] == {"total": 0, "active": 0, "offers": 0, "rejections": 0, "success_rate": None}
         assert body["interview"]["completed_sessions"] == 0
-        assert body["jobs"] == {"top_matches": [], "missing_skills": [], "recruiter_perspective": None}
+        #  is the freshest cached listings, which a new account can
+        # still be shown — empty here only because this test DB has no jobs.
+        assert body["jobs"] == {
+            "top_matches": [],
+            "latest": [],
+            "missing_skills": [],
+            "recruiter_perspective": None,
+        }
         assert body["activity"]["recent_applications"] == []
         assert body["activity"]["upcoming_interviews"] == []
 

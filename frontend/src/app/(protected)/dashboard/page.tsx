@@ -130,8 +130,74 @@ function DashboardContent({ home }: { home: DashboardHome }) {
     score: point.score,
   }));
 
+  /* Matched listings when a resume exists, the freshest ones when it does
+     not. Never nothing: openings are what this product always has to show,
+     and an empty first screen is the worst thing a new account can meet. */
+  const leadJobs = home.jobs.top_matches.length > 0 ? home.jobs.top_matches : home.jobs.latest
+  const leadJobsAreMatched = home.jobs.top_matches.length > 0
+
   return (
     <>
+      {/* Openings first.
+          The page used to open on four stat tiles, which are a summary of
+          activity that a new account does not have yet — so the first screen
+          after signing up was four dashes and a prompt for a file. Jobs are
+          the thing that is useful before you have given anything. */}
+      {leadJobs.length > 0 && (
+        <Reveal className="card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-(--color-ink)">
+                {leadJobsAreMatched ? 'Matched to your resume' : 'Latest openings'}
+              </h2>
+              <p className="mt-0.5 text-xs text-(--color-ink-faint)">
+                {leadJobsAreMatched
+                  ? 'Scored against the resume you have on file.'
+                  : 'Scan a resume to see these scored against it.'}
+              </p>
+            </div>
+            <Link
+              href="/jobs"
+              className="flex items-center gap-1 text-xs text-(--color-accent) hover:text-(--color-accent-light)"
+            >
+              Browse all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {leadJobs.slice(0, 6).map((job) => (
+              <a
+                key={job.id}
+                href={job.applyUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="flex items-start justify-between gap-3 rounded-lg p-3 transition-colors hover:bg-canvas-elevated field-ring-soft"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-(--color-ink)">{job.title}</p>
+                  <p className="truncate text-xs text-(--color-ink-faint)">
+                    {[job.company, job.location].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                {/* A score only where one was computed. An unmatched listing
+                    shows nothing rather than a placeholder percentage. */}
+                {job.match?.overallMatch != null && job.match.band && (
+                  <span
+                    className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold tabular-nums"
+                    style={{
+                      color: bandColor(job.match.band),
+                      background: `${bandColor(job.match.band)}15`,
+                    }}
+                  >
+                    {Math.round(job.match.overallMatch)}%
+                  </span>
+                )}
+              </a>
+            ))}
+          </div>
+        </Reveal>
+      )}
+
       {/* Next Actions — answers "what should I do next", right under the fold */}
       {home.next_actions.length > 0 && (
         <Reveal>

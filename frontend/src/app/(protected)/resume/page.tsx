@@ -7,6 +7,9 @@ import { ScanResultsPanel } from '@/components/resume/ScanResultsPanel'
 import { consumeJobContext } from '@/lib/jobContext'
 import {
   analyzeResume,
+  getResumeOnFile,
+  rescanResume,
+  type ResumeOnFile,
   generateImprovedResume,
   type AnalysisResult,
 } from '../../../lib/apiClient'
@@ -31,6 +34,14 @@ export default function ResumeAnalyzer() {
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [pasteNotice, setPasteNotice] = useState<string | null>(null)
+  /* 0-100 while bytes are on the wire, then null. Distinct from `status`:
+     the upload finishing is not the scan finishing — parsing and the model
+     run after it — and a bar that sits at 100% for eight seconds reads as a
+     hang. See the two-phase indicator below. */
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null)
+  /* What the account already has. Null until asked, so the reuse option
+     never flashes in and out during the first paint. */
+  const [onFile, setOnFile] = useState<ResumeOnFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set())
@@ -54,6 +65,23 @@ export default function ResumeAnalyzer() {
   // textarea and the client a filled one — a hydration mismatch. Reading
   // after mount is the correct shape for a client-only external store; the
   // single extra render is the price of not desyncing hydration.
+  /* Ask once, on mount. If the account already has a resume the form offers
+     to re-use it, which turns the common case — same CV, different posting —
+     from an upload into a click. */
+  useEffect(() => {
+    let cancelled = false
+    void getResumeOnFile()
+      .then((data) => {
+        if (!cancelled) setOnFile(data)
+      })
+      /* Silent: not knowing what is on file costs the shortcut, not the
+         feature. The upload path is still right there. */
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     const context = consumeJobContext()
     if (!context?.description) return
@@ -97,20 +125,41 @@ export default function ResumeAnalyzer() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!file) { setError('Add your resume before scanning.'); setStatus('error'); return }
+
+    /* Nothing to upload and something on file? Score what is already there.
+       This is the common path once someone has scanned once, and it is the
+       reason the file input is no longer required. */
+    const reusing = !file && Boolean(onFile?.can_rescan)
+    if (!file && !reusing) {
+      setError('Add your resume before scanning.')
+      setStatus('error')
+      return
+    }
+
     setStatus('loading'); setError('')
+    setUploadPercent(reusing ? null : 0)
     try {
-      const fd = new FormData()
-      fd.append('resume', file)
-      fd.append('job_description', jobDescription)
-      const data = await analyzeResume(fd)
+      const data = reusing
+        ? await rescanResume(jobDescription)
+        : await analyzeResume(
+            (() => {
+              const fd = new FormData()
+              fd.append('resume', file as File)
+              fd.append('job_description', jobDescription)
+              return fd
+            })(),
+            setUploadPercent,
+          )
+      setUploadPercent(null)
       setResult(data)
+      void getResumeOnFile().then(setOnFile).catch(() => {})
       setStatus('success')
       setResultTab('missing')
       // Missing skills start unstaged — the user opts in per skill rather
       // than every gap being pre-selected for them.
       setSelectedSkills(new Set())
     } catch {
+      setUploadPercent(null)
       setError('Could not reach the scan service. Check that the API is running and try again.')
       setStatus('error')
     }
@@ -158,7 +207,7 @@ export default function ResumeAnalyzer() {
           child.key via Children.forEach, deliberately without React's
           auto-assigned positional fallback), which silently turned every
           transition into a hard cut. */}
-        {status === 'loading' && <ScanProgressPanel key="loading" />}
+        {status === 'loading' && <ScanProgressPanel key="loading" uploadPercent={uploadPercent} />}
 
         {status === 'success' && result && (
           <ScanResultsPanel
@@ -191,6 +240,7 @@ export default function ResumeAnalyzer() {
             pasteNotice={pasteNotice}
             jobContextNotice={jobContextNotice}
             fileInputRef={fileInputRef}
+            onFile={onFile}
             onDragOver={() => setDragOver(true)}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}

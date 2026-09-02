@@ -41,8 +41,23 @@ const FLAVOR_INTERVAL_MS = 1400
  * an inverted dependency where the orchestrator reached into a presentational
  * component's copy. Mounting only happens while a scan is in flight, so mount
  * is start and unmount is stop.
+ *
+ * TWO PHASES, AND ONLY ONE OF THEM IS REAL
+ *
+ * `uploadPercent` is genuine: bytes acknowledged over XHR, which on a slow
+ * connection with a 4MB PDF is most of the wait and is the part a
+ * determinate bar should measure. It is shown as a real bar with a real
+ * number.
+ *
+ * Once the bytes have landed, there is nothing to measure — the backend call
+ * is atomic — and the narration above takes over. The two are deliberately
+ * not merged into one bar that runs 0-100 twice, or one that crawls to 90%
+ * and waits, which is the usual dishonest option: a bar that stops moving
+ * reads as a hang, and a bar that lies about the second half teaches people
+ * not to trust the first.
  */
-export function ScanProgressPanel() {
+export function ScanProgressPanel({ uploadPercent }: { uploadPercent?: number | null }) {
+  const uploading = uploadPercent !== null && uploadPercent !== undefined && uploadPercent < 100
   const reduceMotion = usePrefersReducedMotion()
   const [stage, setStage] = useState(0)
   const [flavorIndex, setFlavorIndex] = useState(0)
@@ -75,8 +90,31 @@ export function ScanProgressPanel() {
       <div className="card px-8 py-10 max-w-[440px] w-full" role="status" aria-live="polite">
         <div className="eyebrow mb-6 justify-center flex items-center gap-2">
           <ScanLine strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
-          Scanning your document
+          {uploading ? 'Uploading your document' : 'Scanning your document'}
         </div>
+
+        {/* The real half. A determinate bar, only while there is something
+            determinate to report. */}
+        {uploading && (
+          <div className="mb-7">
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-canvas field-ring-soft"
+              role="progressbar"
+              aria-valuenow={uploadPercent ?? 0}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Upload progress"
+            >
+              <div
+                className="h-full rounded-full bg-(--color-signal) transition-[width] duration-150 ease-out"
+                style={{ width: `${uploadPercent ?? 0}%` }}
+              />
+            </div>
+            <p className="mt-2 text-center text-[12px] tabular-nums text-ink-dim">
+              {uploadPercent}% uploaded
+            </p>
+          </div>
+        )}
 
         {/* The document under the scanner. Four layers: the ruled page, a
             measurement grid, the beam, and the inner bloom that travels with
