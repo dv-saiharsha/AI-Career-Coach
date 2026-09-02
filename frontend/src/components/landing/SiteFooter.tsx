@@ -70,7 +70,13 @@ export function SiteFooter() {
           </div>
 
           <p className="mt-12 text-[13px] text-ink-faint">
-            &copy; {new Date().getFullYear()} ApplyCenter
+            &copy; {new Date().getFullYear()} ApplyCenter &middot; built at{' '}
+            <a
+              href="https://chieac.org"
+              className="text-ink-dim underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink"
+            >
+              CHIEAC
+            </a>
           </p>
         </div>
       </div>

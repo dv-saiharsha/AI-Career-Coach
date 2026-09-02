@@ -11,7 +11,7 @@ import { useAccentPalette } from '../../../lib/useAccentPalette';
 import { getDashboardHome, type DashboardHome } from '@/lib/apiClient';
 import { STAGE_LABELS, STAGE_MARKERS } from '@/lib/applicationStages';
 import { categoryLabel } from '@/lib/interviewCategories';
-import { bandColor, bandLabel } from '@/lib/scoreBands';
+import { bandColor, bandForScore, bandLabel } from '@/lib/scoreBands';
 import { ScoreRing } from '@/components/ScoreRing';
 import { NextActionCard } from '@/components/NextActionCard';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
@@ -55,7 +55,7 @@ function StatCard({
           ink. This is the whole reason a hue was kept after going monochrome —
           a number in the same colour as its caption has to be found rather
           than seen. */}
-      <div className="text-2xl font-display font-bold text-(--color-signal) mb-1 tabular-nums">
+      <div className="text-2xl font-display font-bold mb-1 tabular-nums" style={{ color }}>
         {value}
       </div>
       <div className="text-xs text-(--color-ink-dim) mb-2">{label}</div>
@@ -76,20 +76,30 @@ function show(value: number | null | undefined, suffix = ''): string {
 function DashboardContent({ home }: { home: DashboardHome }) {
   const palette = useAccentPalette();
 
+  /* A figure is coloured by what it means, not by being a figure.
+     bandColor is the single scale: green at STRONG and above, blue at GOOD,
+     amber at NEEDS WORK, red at WEAK — the same one ScoreRing and the rubric
+     use, so a 62 is the same colour everywhere it appears.
+
+     A plain count is deliberately NOT coloured. Fourteen tracked applications
+     is neither good nor bad, and painting it green would assert a verdict the
+     number does not carry. Ink is the honest answer for a tally. */
   const statCards = [
     {
       icon: FileSearch,
       label: 'Resume Health',
       value: show(home.resume.latest_ats_score, '%'),
       change: home.resume.latest_filename ? bandLabel(home.resume.latest_band) : 'No scans yet',
-      color: palette.signal,
+      // The API's own band, not one re-derived here — the same score must
+      // never read two ways in the same product.
+      color: bandColor(home.resume.latest_band ?? bandForScore(home.resume.latest_ats_score)),
     },
     {
       icon: KanbanSquare,
       label: 'Active Applications',
       value: show(home.applications.active),
       change: `${home.applications.total} tracked total`,
-      color: palette.signal,
+      color: palette.inkDim,
     },
     {
       icon: MessageSquareCode,
@@ -98,14 +108,19 @@ function DashboardContent({ home }: { home: DashboardHome }) {
       change: home.interview.completed_sessions
         ? `${home.interview.completed_sessions} session(s) completed`
         : 'No sessions yet',
-      color: palette.signal,
+      // Scored out of 10; the band scale is defined over 100.
+      color: bandColor(
+        bandForScore(
+          home.interview.average_score != null ? home.interview.average_score * 10 : null,
+        ),
+      ),
     },
     {
       icon: Target,
       label: 'Offer Success Rate',
       value: show(home.applications.success_rate, '%'),
       change: `${home.applications.offers} offer(s), ${home.applications.rejections} rejection(s)`,
-      color: palette.signal,
+      color: bandColor(bandForScore(home.applications.success_rate ?? null)),
     },
   ];
 

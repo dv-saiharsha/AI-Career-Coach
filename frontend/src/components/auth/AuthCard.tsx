@@ -77,12 +77,18 @@ export function AuthCard({
             href="/"
             className="relative inline-flex w-fit items-center gap-2.5 rounded-full outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-3"
           >
-            <ApplyCenterMark className="size-8" />
-            <span className="wordmark text-lg text-ink">ApplyCenter</span>
+            <ApplyCenterMark className="size-10" />
+            <span className="wordmark text-[1.4rem] leading-none text-ink">ApplyCenter</span>
           </Link>
 
-          <div className="relative max-w-[24rem]">
-            <h2 className="text-balance text-[2.1rem] font-semibold leading-[1.12] tracking-[-0.03em] text-ink">
+          {/* Scales with the panel instead of stopping at 24rem. The panel is
+              44% of the viewport — about 840px at 1920 — and a 384px column
+              inside it left more than half the space empty, which read as the
+              content having been dropped in rather than laid out. The cap
+              still exists, at 34rem, because a measure past ~70 characters is
+              harder to read however much room is going spare. */}
+          <div className="relative w-full max-w-[34rem]">
+            <h2 className="text-balance text-[clamp(2.1rem,3.1vw,2.9rem)] font-semibold leading-[1.1] tracking-[-0.03em] text-ink">
               {asideHeading}
             </h2>
 
@@ -135,6 +141,8 @@ export function AuthCard({
 
           <p className="relative text-[13px] font-light text-ink-faint">
             Free for every jobseeker we serve. No card, ever.
+            <br />
+            <span className="text-ink-faint/80">Built at CHIEAC.</span>
           </p>
         </aside>
       )}
