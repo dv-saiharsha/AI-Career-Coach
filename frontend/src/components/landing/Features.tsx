@@ -67,14 +67,14 @@ export function Features() {
                 key={feature.title}
                 className={
                   'rounded-2xl p-[22px] lg:p-[30px] ' +
-                  (accent ? 'neu-accent' : 'bg-canvas-raise neu-raised') +
+                  (accent ? 'elev-accent' : 'bg-canvas-raise elev-md') +
                   (feature.wide ? ' lg:row-span-2 lg:flex lg:flex-col lg:justify-between' : '')
                 }
               >
                 <span
                   className={
                     'mb-6 flex size-11 items-center justify-center rounded-md ' +
-                    (accent ? 'bg-[rgb(255_255_255/0.16)]' : 'bg-canvas neu-inset-sm')
+                    (accent ? 'bg-[rgb(255_255_255/0.16)]' : 'bg-canvas field-ring-soft')
                   }
                 >
                   <Icon

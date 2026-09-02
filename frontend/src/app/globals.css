@@ -6,12 +6,18 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /* ════════════════════════════════════════════════════════════════════════
-   PALETTE — deep violet, neumorphic
+   PALETTE — deep violet, flat surfaces
 
-   Surfaces are the same hue as the canvas they sit on. Nothing is separated
-   by a border; separation is carried entirely by the five shadow tokens
-   below. An interactive element at rest is EXTRUDED; pressed, selected,
-   active or receiving input it is INSET. That opposition is the whole
+   Surfaces are separated three ways, in this order: a real step in value, a
+   visible hairline, and a soft drop shadow. That order matters — the first
+   two survive a bright room, a cheap panel and forced-colors mode, and the
+   shadow is refinement on top of them.
+
+   This replaced a neumorphic system where surfaces were the same hue as the
+   page and separation came entirely from paired light-and-dark shadows.
+   Interactive elements were EXTRUDED at rest and INSET when pressed. That
+   opposition is gone: pressed and selected are now carried by fill and by
+   the hairline, which is the whole
    interaction language.
 
    Dark is the primary, designed-first theme. Light is a real second theme,
@@ -29,16 +35,21 @@
 
 /* ── LIGHT ─────────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces */
-  --canvas: #eae6f7;
-  --canvas-deep: #e2ddf3;
-  --canvas-raise: #edeaf9;
-  --canvas-elevated: #f3f0fc;
+  /* Surfaces.
+     These used to sit ~1.5% apart in luminance, because neumorphism separates
+     surfaces by light rather than by value — a card was the same colour as
+     the page and the shadow did all the work. The flat system separates by
+     value and by a hairline, so the steps are real: the page is tinted, a
+     card is white, and you can tell them apart with shadows disabled. */
+  --canvas: #f3f2f8;
+  --canvas-deep: #eae8f2;
+  --canvas-raise: #ffffff;
+  --canvas-elevated: #ffffff;
 
   /* Interaction surfaces. --canvas-hover is the row/nav-item wash;
-     --canvas-sink is the recessed well behind a raised card. */
-  --canvas-hover: #f3f0fc;
-  --canvas-sink: #e2ddf3;
+     --canvas-sink is the recessed well a field sits in. */
+  --canvas-hover: #f7f6fb;
+  --canvas-sink: #eae8f2;
 
   /* Text. --ink-muted is the canonical name; --ink-dim aliases it. */
   --ink: #241b46; /* 12.02:1 */
@@ -47,13 +58,14 @@
   --ink-dim: var(--ink-muted);
   --ink-faint: #635c85; /*  4.67:1  SPEC-DEVIATION: spec #8079a6 measured 3.05:1 */
 
-  /* Hairlines. Used ONLY inside SVG charts and true dividers — never as a
-     card border. Everything that was a border in the old system resolves to
-     this, which is near-invisible on violet, so untouched routes lose their
-     outlines the moment this file lands rather than looking half-migrated. */
-  --line: rgb(84 50 216 / 0.1);
-  --line-soft: rgb(84 50 216 / 0.06);
-  --line-strong: rgb(84 50 216 / 0.14);
+  /* Hairlines. Now load-bearing rather than decorative: a card is a white
+     surface with a visible edge, and the edge is what defines it when the
+     shadow is too soft to read — on a bright screen, at a glance, or with
+     shadows suppressed. The neumorphic system had no borders anywhere and
+     these were deliberately near-invisible; they are not any more. */
+  --line: rgb(36 27 70 / 0.11);
+  --line-soft: rgb(36 27 70 / 0.06);
+  --line-strong: rgb(36 27 70 / 0.17);
   --canvas-line: var(--line);
   --canvas-line-soft: var(--line-soft);
 
@@ -93,27 +105,39 @@
   --warning: var(--semantic-warning);
   --danger: var(--semantic-danger);
 
-  /* ── THE FIVE SHADOWS ────────────────────────────────────────────────
-     Each is two halves: a dark offset down-right and a light offset
-     up-left. Never ship one half — neumorphism only reads with both.
-     Light theme keeps the geometry and swaps the tints: the dark half
-     becomes a cool lavender-grey, the light half near-opaque white. */
-  --neu-raised: 8px 8px 20px rgb(164 154 196 / 0.5), -8px -8px 20px rgb(255 255 255 / 0.92);
-  --neu-raised-sm: 5px 5px 12px rgb(164 154 196 / 0.45), -5px -5px 12px rgb(255 255 255 / 0.88);
-  --neu-raised-lg: 16px 16px 40px rgb(164 154 196 / 0.55), -12px -12px 32px rgb(255 255 255 / 0.95);
-  --neu-inset: inset 6px 6px 14px rgb(164 154 196 / 0.48),
-    inset -6px -6px 14px rgb(255 255 255 / 0.9);
-  --neu-inset-sm: inset 4px 4px 9px rgb(164 154 196 / 0.44),
-    inset -4px -4px 9px rgb(255 255 255 / 0.86);
+  /* ── ELEVATION ───────────────────────────────────────────────────────
+     Three soft drop shadows, each layered: a wide diffuse spread, a tighter
+     directional one, and a 1px contact shadow that keeps the edge crisp at
+     any zoom. This is the flat-surface model — light comes from directly
+     above, so there is no second highlight half and no up-left offset.
 
-  /* Not a sixth level — the hover derivative of raised-standard. Part 7
-     requires hover to lift a pixel with a marginally deeper shadow, never
-     a colour change (a colour change reads as a flat-design tell). */
-  --neu-raised-hover: 10px 10px 24px rgb(164 154 196 / 0.55),
-    -10px -10px 24px rgb(255 255 255 / 0.95);
+     The neumorphic system these replace modelled a light source at the
+     top-left and paired every dark shadow with a light one. That technique
+     needs the surface and the page to be the same colour, which is why the
+     surfaces above were 1.5% apart. Both halves of that bargain are gone
+     together: real surface steps, ordinary shadows. */
+  --shadow-sm: 0 0 5px 0 rgb(36 27 70 / 0.02), 0 2px 10px 0 rgb(36 27 70 / 0.06),
+    0 0 1px 0 rgb(36 27 70 / 0.28);
+  --shadow-md: 0 0 15px 0 rgb(36 27 70 / 0.03), 0 2px 20px 0 rgb(36 27 70 / 0.08),
+    0 0 1px 0 rgb(36 27 70 / 0.28);
+  --shadow-lg: 0 0 30px 0 rgb(36 27 70 / 0.04), 0 20px 40px 0 rgb(36 27 70 / 0.11),
+    0 0 1px 0 rgb(36 27 70 / 0.28);
+
+  /* Hover lifts by deepening the shadow, never by changing colour — a
+     surface that recolours on hover reads as a state change rather than a
+     lift, and this system already spends colour on state elsewhere. */
+  --shadow-hover: 0 0 20px 0 rgb(36 27 70 / 0.04), 0 8px 28px 0 rgb(36 27 70 / 0.12),
+    0 0 1px 0 rgb(36 27 70 / 0.3);
+
+  /* Fields. Flat systems recess by outlining, not by carving: an input is a
+     filled surface with a ring. Expressed as an inset shadow rather than a
+     border so it composes with the existing box-shadow call sites and adds
+     nothing to the element's box. */
+  --ring-field: inset 0 0 0 1px var(--line-strong);
+  --ring-field-soft: inset 0 0 0 1px var(--line);
 
   /* Only on gradient-accent elements. */
-  --neu-glow: 0 14px 34px -10px rgb(109 74 255 / 0.5);
+  --shadow-accent: 0 10px 30px -8px rgb(109 74 255 / 0.45);
 
   /* Once per page, behind the hero. */
   --ambient-wash: radial-gradient(58% 55% at 50% -8%, rgb(109 74 255 / 0.16) 0%, transparent 70%);
@@ -134,13 +158,13 @@
 
 /* ── DARK (primary) ────────────────────────────────────────────────────── */
 :root[data-theme='dark'] {
-  --canvas: #150f2e;
-  --canvas-deep: #100b24;
-  --canvas-raise: #1a1338;
-  --canvas-elevated: #1f1743;
+  --canvas: #100c22;
+  --canvas-deep: #0a0718;
+  --canvas-raise: #191434;
+  --canvas-elevated: #211b41;
 
-  --canvas-hover: #1f1743;
-  --canvas-sink: #100b24;
+  --canvas-hover: #211b41;
+  --canvas-sink: #0a0718;
 
   --ink: #f4f0ff; /* 14.86:1 */
   --ink-subtle: #d6cff0; /* 11.13:1 */
@@ -148,9 +172,9 @@
   --ink-dim: var(--ink-muted);
   --ink-faint: #918ab6; /*  5.16:1  SPEC-DEVIATION: spec #7d76a3 measured 3.96:1 */
 
-  --line: rgb(160 130 255 / 0.1);
-  --line-soft: rgb(160 130 255 / 0.06);
-  --line-strong: rgb(160 130 255 / 0.16);
+  --line: rgb(176 152 255 / 0.16);
+  --line-soft: rgb(176 152 255 / 0.09);
+  --line-strong: rgb(176 152 255 / 0.26);
   --canvas-line: var(--line);
   --canvas-line-soft: var(--line-soft);
 
@@ -176,19 +200,22 @@
   --semantic-danger-bg: rgb(240 139 139 / 0.12);
   --semantic-ok-bg: rgb(139 107 255 / 0.14);
 
-  /* Same geometry, dark-theme tints: near-black violet down-right, a thin
-     violet-white up-left. */
-  --neu-raised: 8px 8px 20px rgb(10 6 24 / 0.72), -8px -8px 20px rgb(190 170 255 / 0.055);
-  --neu-raised-sm: 5px 5px 12px rgb(10 6 24 / 0.6), -5px -5px 12px rgb(190 170 255 / 0.05);
-  --neu-raised-lg: 16px 16px 40px rgb(10 6 24 / 0.8), -12px -12px 32px rgb(190 170 255 / 0.06);
-  --neu-inset: inset 6px 6px 14px rgb(10 6 24 / 0.7),
-    inset -6px -6px 14px rgb(190 170 255 / 0.055);
-  --neu-inset-sm: inset 4px 4px 9px rgb(10 6 24 / 0.65),
-    inset -4px -4px 9px rgb(190 170 255 / 0.05);
-  --neu-raised-hover: 10px 10px 24px rgb(10 6 24 / 0.78),
-    -10px -10px 24px rgb(190 170 255 / 0.07);
+  /* Dark elevation is mostly the border, not the shadow.
+     A drop shadow on a near-black page has almost nothing to darken, which
+     is the standing problem with dark themes and why the neumorphic version
+     leaned on a 5.5%-alpha highlight that may never have been visible. The
+     shadows stay for depth under overlays; the hairline above does the
+     separating, and it is brighter in dark than in light for that reason. */
+  --shadow-sm: 0 1px 2px 0 rgb(4 2 12 / 0.5), 0 0 1px 0 rgb(0 0 0 / 0.6);
+  --shadow-md: 0 4px 14px 0 rgb(4 2 12 / 0.55), 0 0 1px 0 rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 20px 44px 0 rgb(4 2 12 / 0.65), 0 0 1px 0 rgb(0 0 0 / 0.6);
+  --shadow-hover: 0 8px 26px 0 rgb(4 2 12 / 0.6), 0 0 1px 0 rgb(0 0 0 / 0.65);
 
-  --neu-glow: 0 14px 34px -10px rgb(139 107 255 / 0.75);
+  --ring-field: inset 0 0 0 1px var(--line-strong);
+  --ring-field-soft: inset 0 0 0 1px var(--line);
+
+  --shadow-accent: 0 10px 30px -8px rgb(139 107 255 / 0.6);
+
   --ambient-wash: radial-gradient(58% 55% at 50% -8%, rgb(139 107 255 / 0.3) 0%, transparent 70%);
 
   --grain: 0.025;
@@ -211,8 +238,8 @@
    structure and motion, not colour.
 
    The elevation aliases are what make the bridge do real work: an untouched
-   card asking for --elevation-card gets neumorphism, not a legacy drop
-   shadow, so the app is never half-themed.
+   card asking for --elevation-card gets the current shadow scale, so the app
+   is never half-themed.
 
    Delete an alias once no route reads it — check with
    `rg "var\(--elevation-card\)" src`.
@@ -261,18 +288,19 @@
   --border-soft: var(--canvas-line-soft);
   --ring: var(--accent);
 
-  /* Elevation aliases — every legacy shadow resolves to a neumorphic one.
-     There are no hard drop shadows left in the system to resolve to. */
-  --elevation-card: var(--neu-raised);
-  --elevation-raised: var(--neu-raised-hover);
-  --elevation-pop: var(--neu-raised-lg);
-  --elevation-depth: var(--neu-raised);
-  --glow-signal: var(--neu-glow);
-  --ring-inset: var(--neu-inset-sm);
+  /* Elevation aliases — every legacy shadow name resolves to the current
+     three-step scale, so no route can pin an older value by accident. */
+  --elevation-card: var(--shadow-md);
+  --elevation-raised: var(--shadow-hover);
+  --elevation-pop: var(--shadow-lg);
+  --elevation-depth: var(--shadow-md);
+  --glow-signal: var(--shadow-accent);
+  --ring-inset: var(--ring-field-soft);
 
-  /* Glass degrades to an opaque raised surface. The nav capsule, palette and
-     sheets are neumorphic now; a real backdrop-filter would both fight the
-     shadow modelling and cost a compositor layer Part 6 wants reclaimed.
+  /* Glass degrades to an opaque raised surface. Kept opaque after the flat
+     rebuild for the reason it was opaque before: a real backdrop-filter costs
+     a compositor layer the bundle work reclaimed, and on a bordered card it
+     would blur the hairline that now does the separating.
      --glass-blur stays defined (at 0) so the `glass` utility's @apply chain
      remains valid. */
   --glass-bg: var(--canvas-raise);
@@ -291,7 +319,7 @@
   --ink-btn-text: var(--on-accent);
 
   --font-body: var(--font-sans);
-  --radius: 1.375rem;
+  --radius: 0.875rem;
 
   /* Retired with the porcelain system. Kept as aliases so the marketing call
      sites resolve to the accent rather than to nothing. Delete with the
@@ -394,24 +422,28 @@
 
   /* Radii per the geometry spec: pills 999, inputs/buttons 16–18, stat
      tiles 22, content cards 28, hero and metrics band 30. */
-  --radius-sm: 0.75rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.125rem;
-  --radius-xl: 1.375rem;
-  --radius-2xl: 1.75rem;
-  --radius-3xl: 1.875rem;
+  /* Tightened from the neumorphic scale (12-30px) to the flat one (8-20px).
+     Very round corners are part of how a soft-shadow surface reads as a
+     pillow; on a bordered card the same radius reads as a bubble, and the
+     hairline has to travel too far to sit against the content. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
 
-  --shadow-neu-raised: var(--neu-raised);
-  --shadow-neu-raised-sm: var(--neu-raised-sm);
-  --shadow-neu-raised-lg: var(--neu-raised-lg);
-  --shadow-neu-raised-hover: var(--neu-raised-hover);
-  --shadow-neu-inset: var(--neu-inset);
-  --shadow-neu-inset-sm: var(--neu-inset-sm);
-  --shadow-neu-glow: var(--neu-glow);
-  /* Legacy names, still resolving to neumorphic values. */
-  --shadow-card: var(--neu-raised);
-  --shadow-raised: var(--neu-raised-hover);
-  --shadow-pop: var(--neu-raised-lg);
+  --shadow-elev-md: var(--shadow-md);
+  --shadow-elev-sm: var(--shadow-sm);
+  --shadow-elev-lg: var(--shadow-lg);
+  --shadow-elev-md-hover: var(--shadow-hover);
+  --shadow-field-ring: var(--ring-field);
+  --shadow-field-ring-soft: var(--ring-field-soft);
+  --shadow-neu-glow: var(--shadow-accent);
+  /* Legacy names, resolving to the current scale. */
+  --shadow-card: var(--shadow-md);
+  --shadow-raised: var(--shadow-hover);
+  --shadow-pop: var(--shadow-lg);
 
   /* The single decelerating curve. Same numbers as EASE_OUT in lib/motion.ts
      and as the reveal transition below — change them together or not at all. */
@@ -598,8 +630,8 @@
     color: var(--on-accent);
   }
 
-  /* Focus is an accent ring, never removed. Offset so it clears the
-     extruded shadow rather than sitting inside it.
+  /* Focus is an accent ring, never removed. Offset so it clears the card's
+     own border and shadow rather than sitting inside them.
 
      No border-radius here: modern browsers already follow the element's own
      radius, and declaring one actively reshapes the element the moment it
@@ -622,6 +654,8 @@
   }
   ::-webkit-scrollbar-thumb {
     background: var(--line-strong);
+    /* Genuinely a pill, unlike the buttons and chips that moved to rounded
+       rectangles — a 4px-wide track thumb has no corners to speak of. */
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: content-box;
@@ -715,10 +749,10 @@
 }
 .row-interactive:hover {
   background: var(--canvas-hover);
-  box-shadow: var(--neu-raised-sm);
+  box-shadow: var(--shadow-sm);
 }
 .row-interactive:active {
-  box-shadow: var(--neu-inset-sm);
+  box-shadow: var(--ring-field-soft);
   transition: none;
 }
 
@@ -1210,43 +1244,43 @@
 /* ── The five shadows ──────────────────────────────────────────────────── */
 
 /* Cards, stat tiles, feature panels, list rows. */
-@utility neu-raised {
-  box-shadow: var(--neu-raised);
+@utility elev-md {
+  box-shadow: var(--shadow-md);
 }
 /* Nav capsule, chips, icon buttons, avatars, monograms. */
-@utility neu-raised-sm {
-  box-shadow: var(--neu-raised-sm);
+@utility elev-sm {
+  box-shadow: var(--shadow-sm);
 }
 /* Hero mock, floating cards, modals, drawers, the auth card. */
-@utility neu-raised-lg {
-  box-shadow: var(--neu-raised-lg);
+@utility elev-lg {
+  box-shadow: var(--shadow-lg);
 }
 /* Inputs, textareas, chart wells, the metrics band, dropzones. */
-@utility neu-inset {
-  box-shadow: var(--neu-inset);
+@utility field-ring {
+  box-shadow: var(--ring-field);
 }
 /* Pressed buttons, selected tabs and filters, missing-keyword chips,
    progress tracks, window dots. */
-@utility neu-inset-sm {
-  box-shadow: var(--neu-inset-sm);
+@utility field-ring-soft {
+  box-shadow: var(--ring-field-soft);
 }
 
-/* Rest → hover → press as one utility. The whole interaction language:
-   extruded at rest, a pixel higher on hover, inset on press. Transform and
-   box-shadow only; never a colour change on hover. */
-@utility neu-interactive {
-  box-shadow: var(--neu-raised);
+/* Rest → hover → press as one utility. Raised at rest, a pixel higher on
+   hover, flush with a ring on press. Transform and box-shadow only; hover
+   never recolours the surface, because colour is spent on state elsewhere. */
+@utility elev-interactive {
+  box-shadow: var(--shadow-md);
   transition:
     box-shadow 200ms var(--ease-enter),
     transform 200ms var(--ease-enter);
 
   &:hover:not(:disabled, [aria-disabled='true']) {
-    box-shadow: var(--neu-raised-hover);
+    box-shadow: var(--shadow-hover);
     transform: translateY(-1px);
   }
   /* No transition on the press, so depression is instant. */
   &:active:not(:disabled, [aria-disabled='true']) {
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     transform: translateY(0);
     transition: none;
   }
@@ -1260,18 +1294,18 @@
 }
 
 /* Same, sized for chips, icon buttons and the nav capsule. */
-@utility neu-interactive-sm {
-  box-shadow: var(--neu-raised-sm);
+@utility elev-interactive-sm {
+  box-shadow: var(--shadow-sm);
   transition:
     box-shadow 200ms var(--ease-enter),
     transform 200ms var(--ease-enter);
 
   &:hover:not(:disabled, [aria-disabled='true']) {
-    box-shadow: var(--neu-raised);
+    box-shadow: var(--shadow-md);
     transform: translateY(-1px);
   }
   &:active:not(:disabled, [aria-disabled='true']) {
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     transform: translateY(0);
     transition: none;
   }
@@ -1285,21 +1319,21 @@
 }
 
 /* The one accent surface: 145° gradient, white label, accent glow. */
-@utility neu-accent {
+@utility elev-accent {
   background-image: var(--gradient-accent);
   color: var(--on-accent);
-  box-shadow: var(--neu-glow);
+  box-shadow: var(--shadow-accent);
   transition:
     box-shadow 200ms var(--ease-enter),
     transform 200ms var(--ease-enter);
 
   &:hover:not(:disabled, [aria-disabled='true']) {
     transform: translateY(-1px);
-    box-shadow: var(--neu-glow), var(--neu-raised-sm);
+    box-shadow: var(--shadow-accent), var(--shadow-sm);
   }
   &:active:not(:disabled, [aria-disabled='true']) {
     transform: translateY(0);
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     transition: none;
   }
   &:disabled,
@@ -1330,39 +1364,47 @@
 }
 
 /* ── Legacy surface utilities ──────────────────────────────────────────────
-   Kept so the not-yet-rebuilt routes render correctly. All now resolve to
-   the same raised neumorphic surface: no blur, no border, no hard cast. */
+   Kept so the not-yet-rebuilt routes render correctly. All resolve to the
+   same flat card treatment as `.card`: a surface step, a hairline, and a
+   soft shadow. Still no blur — the name is historical, and a real
+   backdrop-filter would blur the hairline that now does the separating. */
 @utility glass {
   background: var(--canvas-raise);
-  box-shadow: var(--neu-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
 @utility glass-card {
   border-radius: var(--radius-xl);
   background: var(--canvas-raise);
-  box-shadow: var(--neu-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
 @utility glass-card-violet {
   border-radius: var(--radius-xl);
   background: var(--canvas-raise);
-  box-shadow: var(--neu-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
 @utility glass-card-hover {
   border-radius: var(--radius-xl);
   background: var(--canvas-raise);
-  box-shadow: var(--neu-raised);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
   transition:
     box-shadow 200ms var(--ease-enter),
+    border-color 200ms var(--ease-enter),
     transform 200ms var(--ease-enter);
   &:hover {
-    box-shadow: var(--neu-raised-hover);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--line-strong);
     transform: translateY(-1px);
   }
 }
 @utility depth {
-  box-shadow: var(--neu-raised);
+  box-shadow: var(--shadow-md);
 }
 @utility ring-inset {
-  box-shadow: var(--neu-inset-sm);
+  box-shadow: var(--ring-field-soft);
 }
 
 /* Retired with the porcelain system: the landing page no longer pins itself
@@ -1503,16 +1545,22 @@
    correctly. New work should prefer src/components/ui.
    ══════════════════════════════════════════════════════════════════════ */
 @layer components {
+  /* A card is a surface, an edge and a shadow — in that order of importance.
+     The edge is what survives a bright room, a cheap panel and
+     forced-colors; the shadow is refinement on top of it. The neumorphic
+     version had no border at all and the shadow carried the whole burden. */
   .card {
     border-radius: var(--radius-2xl);
     background: var(--canvas-raise);
-    box-shadow: var(--neu-raised);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
   }
   .card-stat {
     border-radius: var(--radius-xl);
     background: var(--canvas-raise);
-    box-shadow: var(--neu-raised);
-    padding: 1.375rem;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+    padding: 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -1520,13 +1568,19 @@
   .card-hover {
     border-radius: var(--radius-2xl);
     background: var(--canvas-raise);
-    box-shadow: var(--neu-raised);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
     transition:
       box-shadow 200ms var(--ease-enter),
+      border-color 200ms var(--ease-enter),
       transform 200ms var(--ease-enter);
   }
   .card-hover:hover {
-    box-shadow: var(--neu-raised-hover);
+    box-shadow: var(--shadow-hover);
+    /* The edge sharpens with the lift. On a flat surface a shadow alone is
+       a subtle hover; brightening the border is what makes it legible
+       without moving the card far enough to disturb the row. */
+    border-color: var(--line-strong);
     transform: translateY(-1px);
   }
 
@@ -1539,12 +1593,12 @@
     gap: 0.5rem;
     min-height: 2.75rem;
     padding: 0.75rem 1.5rem;
-    border-radius: 999px;
+    border-radius: var(--radius-lg);
     font-size: 0.875rem;
     font-weight: 500;
     background-image: var(--gradient-accent);
     color: var(--on-accent);
-    box-shadow: var(--neu-glow);
+    box-shadow: var(--shadow-accent);
     transition:
       transform 200ms var(--ease-enter),
       box-shadow 200ms var(--ease-enter);
@@ -1558,7 +1612,7 @@
   .btn-brand:active:not(:disabled),
   .btn-violet:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     transition: none;
   }
   .btn-primary:disabled,
@@ -1578,23 +1632,23 @@
     gap: 0.5rem;
     min-height: 2.75rem;
     padding: 0.75rem 1.5rem;
-    border-radius: 999px;
+    border-radius: var(--radius-lg);
     font-size: 0.875rem;
     font-weight: 500;
     background: var(--canvas-raise);
     color: var(--ink);
-    box-shadow: var(--neu-raised-sm);
+    box-shadow: var(--shadow-sm);
     transition:
       transform 200ms var(--ease-enter),
       box-shadow 200ms var(--ease-enter);
   }
   .btn-secondary:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: var(--neu-raised);
+    box-shadow: var(--shadow-md);
   }
   .btn-secondary:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     transition: none;
   }
 
@@ -1605,7 +1659,7 @@
     gap: 0.5rem;
     min-height: 2.75rem;
     padding-inline: 0.75rem;
-    border-radius: 999px;
+    border-radius: var(--radius-lg);
     background: transparent;
     color: var(--ink-dim);
     font-size: 0.875rem;
@@ -1616,7 +1670,7 @@
     color: var(--ink);
   }
   .btn-ghost:active {
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     transition: none;
   }
 
@@ -1632,15 +1686,15 @@
     color: var(--ink-dim);
   }
 
-  /* Chips are extruded at rest and inset when selected — the same
-     opposition as everything else. */
+  /* Chips are raised at rest and flush with a ring when selected — the
+     same opposition as everything else, drawn flat. */
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    border-radius: 999px;
+    border-radius: var(--radius-lg);
     background: var(--canvas-raise);
-    box-shadow: var(--neu-raised-sm);
+    box-shadow: var(--shadow-sm);
     padding: 0.3125rem 0.75rem;
     font-family: var(--font-mono);
     font-size: 0.75rem;
@@ -1648,7 +1702,7 @@
   }
   .chip[data-selected='true'],
   .chip[aria-pressed='true'] {
-    box-shadow: var(--neu-inset-sm);
+    box-shadow: var(--ring-field-soft);
     color: var(--accent-text);
   }
 
@@ -1660,7 +1714,7 @@
     font-size: 0.875rem;
     background: var(--canvas);
     color: var(--ink);
-    box-shadow: var(--neu-inset);
+    box-shadow: var(--ring-field);
     transition: box-shadow 180ms var(--ease-enter);
   }
   .input-field::placeholder {
@@ -1724,7 +1778,7 @@
   position: absolute;
   background: var(--canvas-raise);
   border-radius: var(--radius-xl);
-  box-shadow: var(--neu-raised-lg);
+  box-shadow: var(--shadow-lg);
 }
 @keyframes chip-drift {
   0%,
@@ -1744,12 +1798,12 @@
   height: 7px;
   border-radius: 50%;
   background: var(--canvas);
-  box-shadow: var(--neu-inset-sm);
+  box-shadow: var(--ring-field-soft);
   flex-shrink: 0;
 }
 .stage-dot--active {
   background-image: var(--gradient-accent);
-  box-shadow: var(--neu-glow);
+  box-shadow: var(--shadow-accent);
 }
 
 .mark-cursor {
@@ -1860,5 +1914,5 @@
   z-index: -1;
   border-radius: inherit;
   background: var(--canvas-raise);
-  box-shadow: var(--neu-raised-sm);
+  box-shadow: var(--shadow-sm);
 }

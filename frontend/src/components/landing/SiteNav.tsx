@@ -59,8 +59,8 @@ export function SiteNav() {
                 href={link.href}
                 aria-current={isCurrent(link.href) ? 'page' : undefined}
                 className={cn(
-                  'inline-flex h-11 items-center rounded-full px-4 text-[13px] font-medium transition-colors duration-200 ease-(--ease-enter) hover:text-ink active:shadow-(--neu-inset-sm) outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
-                  isCurrent(link.href) ? 'text-ink shadow-(--neu-inset-sm)' : 'text-ink-dim',
+                  'inline-flex h-11 items-center rounded-full px-4 text-[13px] font-medium transition-colors duration-200 ease-(--ease-enter) hover:text-ink active:shadow-(--ring-field-soft) outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
+                  isCurrent(link.href) ? 'text-ink shadow-(--ring-field-soft)' : 'text-ink-dim',
                 )}
               >
                 {link.label}
@@ -96,8 +96,8 @@ export function SiteNav() {
                         href={link.href}
                         aria-current={isCurrent(link.href) ? 'page' : undefined}
                         className={cn(
-                          'flex min-h-12 items-center rounded-md px-4 text-[15px] text-ink outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 active:shadow-(--neu-inset-sm)',
-                          isCurrent(link.href) && 'shadow-(--neu-inset-sm)',
+                          'flex min-h-12 items-center rounded-md px-4 text-[15px] text-ink outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 active:shadow-(--ring-field-soft)',
+                          isCurrent(link.href) && 'shadow-(--ring-field-soft)',
                         )}
                       >
                         {link.label}

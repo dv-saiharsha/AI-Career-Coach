@@ -2,8 +2,9 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 /* ────────────────────────────────────────────────────────────────────────
-   A card is a surface extruded from the canvas it sits on. Same hue, no
-   border, no hard cast — only the two-part shadow separates it.
+   A card is a lighter surface than the canvas, with a hairline and a soft
+   shadow. Three separators in order of importance: the value step and the
+   border survive a bright screen and forced-colors, the shadow refines.
 
    This is no longer a client component. Hover was a Framer whileHover, which
    made every card on a route a client boundary carrying a VisualElement, to
@@ -13,9 +14,9 @@ import { cn } from '@/lib/utils'
 export interface CardProps extends React.ComponentPropsWithoutRef<'div'> {
   /** Lifts on hover, insets on press. Use for cards that navigate. */
   interactive?: boolean
-  /** Recessed rather than extruded — chart wells, metric bands, dropzones. */
+  /** Recessed rather than raised — chart wells, metric bands, dropzones. */
   inset?: boolean
-  /** 22px stat-tile radius instead of the 28px content-card radius. */
+  /** 14px stat-tile radius instead of the 16px content-card radius. */
   tile?: boolean
   /** The one accent surface. Reserve it for a single card per view. */
   accent?: boolean
@@ -28,12 +29,12 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
       className={cn(
         tile ? 'rounded-xl' : 'rounded-2xl',
         accent
-          ? 'neu-accent'
+          ? 'elev-accent'
           : inset
-            ? 'neu-inset bg-canvas'
+            ? 'field-ring bg-canvas'
             : interactive
-              ? 'neu-interactive bg-canvas-raise text-ink cursor-pointer'
-              : 'neu-raised bg-canvas-raise text-ink',
+              ? 'elev-interactive bg-canvas-raise text-ink cursor-pointer'
+              : 'elev-md bg-canvas-raise text-ink',
         className
       )}
       {...props}

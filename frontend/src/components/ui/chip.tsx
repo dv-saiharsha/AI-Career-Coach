@@ -4,7 +4,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 export interface ChipProps extends React.ComponentPropsWithoutRef<'button'> {
-  /** Extruded when false, inset when true. */
+  /** Raised when false, flush with a ring when true. */
   selected?: boolean
   /**
    * Renders a static span rather than a button. Use for chips that label
@@ -12,8 +12,8 @@ export interface ChipProps extends React.ComponentPropsWithoutRef<'button'> {
    */
   readOnly?: boolean
   /**
-   * Inset and dimmed rather than extruded — the "missing keyword" treatment.
-   * A missing thing should read as a hole in the surface, not a thing on it.
+   * Outlined and dimmed rather than filled — the "missing keyword"
+   * treatment. A missing thing should read as an empty slot, not an item.
    */
   missing?: boolean
 }
@@ -25,7 +25,7 @@ export interface ChipProps extends React.ComponentPropsWithoutRef<'button'> {
 const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
   ({ className, selected = false, readOnly = false, missing = false, children, ...props }, ref) => {
     const shape =
-      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 font-mono text-[12px] tracking-[0.02em]'
+      'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-mono text-[12px] tracking-[0.02em]'
 
     if (readOnly) {
       return (
@@ -33,8 +33,8 @@ const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
           className={cn(
             shape,
             missing
-              ? 'neu-inset-sm bg-canvas text-ink-faint'
-              : 'neu-raised-sm bg-canvas-raise text-ink-dim',
+              ? 'field-ring-soft bg-canvas text-ink-faint'
+              : 'elev-sm bg-canvas-raise text-ink-dim',
             className
           )}
         >
@@ -55,9 +55,9 @@ const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
           'relative min-h-11 cursor-pointer select-none outline-none',
           'transition-[box-shadow,transform,color] duration-200 ease-(--ease-enter)',
           selected
-            ? 'shadow-(--neu-inset-sm) bg-canvas text-accent-text'
-            : 'shadow-(--neu-raised-sm) bg-canvas-raise text-ink-dim hover:-translate-y-px hover:shadow-(--neu-raised) hover:text-ink',
-          'active:translate-y-0 active:shadow-(--neu-inset-sm) active:transition-none',
+            ? 'shadow-(--ring-field-soft) bg-canvas text-accent-text'
+            : 'shadow-(--shadow-sm) bg-canvas-raise text-ink-dim hover:-translate-y-px hover:shadow-(--shadow-md) hover:text-ink',
+          'active:translate-y-0 active:shadow-(--ring-field-soft) active:transition-none',
           'disabled:cursor-not-allowed disabled:text-ink-faint disabled:shadow-none disabled:translate-y-0',
           className
         )}

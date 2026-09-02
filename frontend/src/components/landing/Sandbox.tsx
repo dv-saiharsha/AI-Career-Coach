@@ -60,7 +60,7 @@ export function Sandbox() {
               onChange={(e) => setText(e.target.value)}
               placeholder={PLACEHOLDER}
               spellCheck={false}
-              className="min-h-[22rem] w-full resize-y rounded-2xl bg-canvas p-6 text-[14px] font-light leading-relaxed text-ink neu-inset placeholder:text-ink-faint outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+              className="min-h-[22rem] w-full resize-y rounded-2xl bg-canvas p-6 text-[14px] font-light leading-relaxed text-ink field-ring placeholder:text-ink-faint outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
             />
             <p className="text-[13px] leading-relaxed text-ink-faint">
               Scored against a sample CV: {SAMPLE_RESUME.title}, {SAMPLE_RESUME.yearsExperience}{' '}
@@ -71,7 +71,7 @@ export function Sandbox() {
           {/* ── Result ─────────────────────────────────────────────── */}
           <div
             aria-live="polite"
-            className="flex flex-col gap-7 rounded-2xl bg-canvas-raise p-[22px] neu-raised lg:p-[30px]"
+            className="flex flex-col gap-7 rounded-2xl bg-canvas-raise p-[22px] elev-md lg:p-[30px]"
           >
             <div className="flex flex-wrap items-center gap-6">
               {/* No `key` here on purpose: remounting per score would replay
@@ -110,7 +110,7 @@ export function Sandbox() {
                         {component.earned} of {component.max}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-canvas neu-inset-sm">
+                    <div className="h-2 rounded-full bg-canvas field-ring-soft">
                       <div
                         className="h-full rounded-full bg-[image:var(--gradient-accent)] transition-[width] duration-500 ease-(--ease-enter)"
                         style={{ width: pct + '%' }}

@@ -43,7 +43,7 @@ export function WhoFor() {
             >
               <span
                 aria-hidden="true"
-                className="flex size-12 shrink-0 items-center justify-center rounded-full bg-canvas font-mono text-[14px] font-semibold text-accent-text neu-inset-sm"
+                className="flex size-12 shrink-0 items-center justify-center rounded-full bg-canvas font-mono text-[14px] font-semibold text-accent-text field-ring-soft"
               >
                 {i + 1}
               </span>

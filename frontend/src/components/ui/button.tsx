@@ -7,9 +7,10 @@ import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 
 /* ────────────────────────────────────────────────────────────────────────
-   The interaction language in one component: extruded at rest, a pixel
-   higher on hover, INSET on press. Hover never changes colour — a colour
-   change on hover is the flat-design tell this system is trying not to be.
+   The interaction language in one component: raised at rest, a pixel higher
+   on hover, flush with a ring on press. Hover deepens the shadow and sharpens
+   the border rather than recolouring the surface — recolouring reads as a
+   state change, and this system spends colour on state elsewhere.
 
    Press feedback is a compositor-only CSS transform with no transition, so
    depression is instant. It used to be a Framer whileTap, which built a
@@ -18,7 +19,7 @@ import { Spinner } from '@/components/ui/spinner'
    ──────────────────────────────────────────────────────────────────────── */
 const buttonVariants = cva(
   [
-    'relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full',
+    'relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg',
     'text-sm font-medium tracking-[-0.005em] cursor-pointer select-none',
     'outline-none',
     'disabled:pointer-events-none',
@@ -30,23 +31,23 @@ const buttonVariants = cva(
         /* The one accent surface on the page: 145deg gradient, white label,
            accent glow. White clears 4.74:1 at the lightest gradient stop —
            see scripts/check-contrast.mjs. */
-        default: 'neu-accent',
-        /* Extruded violet-grey. The default for everything that is not the
+        default: 'elev-accent',
+        /* Raised violet-grey. The default for everything that is not the
            single primary action in view. */
-        secondary: 'neu-interactive bg-canvas-raise text-ink',
-        outline: 'neu-interactive-sm bg-canvas-raise text-ink',
+        secondary: 'elev-interactive bg-canvas-raise text-ink',
+        outline: 'elev-interactive-sm bg-canvas-raise text-ink',
         /* Flush at rest — no shadow to lift from, so it insets on press and
            brightens its label on hover. */
         ghost: [
           'bg-transparent text-ink-dim',
           'transition-colors duration-200 ease-(--ease-enter) hover:text-ink',
-          'active:shadow-(--neu-inset-sm) active:transition-none',
+          'active:shadow-(--ring-field-soft) active:transition-none',
           'disabled:text-ink-faint',
         ],
         /* State is carried by the label colour and the tint, never by the
            shadow alone — shadow cannot be read by anyone relying on
            contrast rather than depth. */
-        destructive: 'neu-interactive bg-danger-bg text-danger',
+        destructive: 'elev-interactive bg-danger-bg text-danger',
         link: 'text-accent-text underline-offset-4 hover:underline p-0 h-auto rounded-none min-h-0',
       },
       size: {
@@ -54,8 +55,8 @@ const buttonVariants = cva(
         default: 'h-11 px-6',
         sm: 'h-11 px-4 text-[13px]',
         lg: 'h-12 px-8 text-[15px]',
-        icon: 'size-11 rounded-full',
-        'icon-sm': 'size-11 rounded-full',
+        icon: 'size-11 rounded-lg',
+        'icon-sm': 'size-11 rounded-lg',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

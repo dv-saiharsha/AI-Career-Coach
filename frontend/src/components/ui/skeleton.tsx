@@ -13,7 +13,7 @@ function Skeleton({ className, ...props }: React.ComponentPropsWithoutRef<'div'>
     <div
       aria-hidden="true"
       className={cn(
-        'relative overflow-hidden rounded-md bg-canvas neu-inset-sm',
+        'relative overflow-hidden rounded-md bg-canvas field-ring-soft',
         'after:absolute after:inset-0 after:animate-shimmer after:bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--ink)_8%,transparent),transparent)] after:bg-[length:200%_100%]',
         'motion-reduce:after:animate-none',
         className

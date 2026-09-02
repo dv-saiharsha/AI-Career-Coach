@@ -12,29 +12,29 @@
  * frontend/scripts/check-contrast.mjs guards the ratios on that side, and
  * every colour below is one it has already cleared.
  *
- * The shadow system does NOT come across. Neumorphism needs two shadows per
- * surface, one light and one dark, and React Native gives you exactly one on
- * iOS and an elevation integer on Android. Attempting it would produce a
- * smudge on one platform and a drop shadow on the other. Depth on mobile is
- * carried by surface colour instead — canvas, raised, elevated are three
- * genuinely different values, which is what the web system leans on shadows
- * to avoid needing.
+ * Depth is surface colour plus a hairline, which is now the same model the
+ * web uses. Under the old neumorphic system this file was the odd one out:
+ * two shadows per surface do not exist in React Native, so mobile separated
+ * by value while the web separated by light. The web moved to flat surfaces
+ * with real steps and visible borders, so the two finally agree — and the
+ * single shadow React Native does offer is now enough, because the target
+ * shadow is an ordinary soft drop.
  */
 
 export const palette = {
   light: {
-    canvas: '#EAE6F7',
-    canvasDeep: '#E2DDF3',
-    canvasRaise: '#EDEAF9',
-    canvasElevated: '#F3F0FC',
+    canvas: '#F3F2F8',
+    canvasDeep: '#EAE8F2',
+    canvasRaise: '#FFFFFF',
+    canvasElevated: '#FFFFFF',
 
     ink: '#241B46',
     inkSubtle: '#3F3566',
     inkMuted: '#5D5486',
     inkFaint: '#635C85',
 
-    line: 'rgba(84, 50, 216, 0.10)',
-    lineStrong: 'rgba(84, 50, 216, 0.14)',
+    line: 'rgba(36, 27, 70, 0.11)',
+    lineStrong: 'rgba(36, 27, 70, 0.17)',
 
     accent: '#6D4AFF',
     accentLight: '#8B6BFF',
@@ -51,18 +51,18 @@ export const palette = {
     dangerTint: 'rgba(184, 81, 79, 0.12)',
   },
   dark: {
-    canvas: '#150F2E',
-    canvasDeep: '#100B24',
-    canvasRaise: '#1A1338',
-    canvasElevated: '#1F1743',
+    canvas: '#100C22',
+    canvasDeep: '#0A0718',
+    canvasRaise: '#191434',
+    canvasElevated: '#211B41',
 
     ink: '#F4F0FF',
     inkSubtle: '#D6CFF0',
     inkMuted: '#A9A1CF',
     inkFaint: '#918AB6',
 
-    line: 'rgba(160, 130, 255, 0.10)',
-    lineStrong: 'rgba(160, 130, 255, 0.16)',
+    line: 'rgba(176, 152, 255, 0.16)',
+    lineStrong: 'rgba(176, 152, 255, 0.26)',
 
     accent: '#8B6BFF',
     accentLight: '#B79CFF',
@@ -97,13 +97,51 @@ export const space = {
   xxxl: 48,
 } as const
 
+/* Matches the web scale after the flat rebuild (8-20px, was 12-30px). Very
+   round corners read as a pillow on a shadow-only surface and as a bubble on
+   a bordered one. */
 export const radius = {
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 26,
+  md: 10,
+  lg: 12,
+  xl: 14,
+  xxl: 16,
   pill: 999,
+} as const
+
+/**
+ * The one shadow React Native gives you, at the three web elevations.
+ *
+ * Spread as `...elevation.sm` into a style. Android reads `elevation` and
+ * ignores the rest; iOS reads the four shadow* keys and ignores elevation,
+ * so both are declared and each platform takes what it understands.
+ *
+ * Deliberately shallow. These sit on top of a real surface step and a
+ * hairline, so the shadow is the third thing separating a card, not the
+ * first — a heavy one would look like a different design system from the web.
+ */
+export const elevation = {
+  sm: {
+    shadowColor: '#241B46',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#241B46',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  lg: {
+    shadowColor: '#241B46',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
 } as const
 
 /**

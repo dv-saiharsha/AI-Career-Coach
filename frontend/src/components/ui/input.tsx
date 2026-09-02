@@ -25,7 +25,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         aria-invalid={invalid || undefined}
         className={cn(
           'h-11 w-full rounded-md bg-canvas px-4 text-sm text-ink',
-          'neu-inset',
+          'field-ring',
           'placeholder:text-ink-faint',
           'outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2',
           'disabled:cursor-not-allowed disabled:text-ink-faint disabled:shadow-none',

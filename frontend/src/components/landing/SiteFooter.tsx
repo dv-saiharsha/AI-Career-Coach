@@ -29,7 +29,7 @@ export function SiteFooter() {
   return (
     <footer className="px-4 pb-12 pt-8">
       <div className="shell">
-        <div className="rounded-3xl bg-canvas-raise px-6 py-12 neu-raised lg:px-12">
+        <div className="rounded-3xl bg-canvas-raise px-6 py-12 elev-md lg:px-12">
           <div className="grid gap-12 lg:grid-cols-[1.5fr_1fr_1fr]">
             <div className="max-w-[40ch]">
               <Link

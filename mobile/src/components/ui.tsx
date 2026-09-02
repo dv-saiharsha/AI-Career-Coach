@@ -11,18 +11,16 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
-import { useTheme, space, radius, type, HIT_SLOP_MIN } from '@/theme'
+import { useTheme, space, radius, type, elevation, HIT_SLOP_MIN } from '@/theme'
 
 /**
  * The primitives every screen is built from.
  *
- * The web system carries depth in five neumorphic shadows. That does not
- * port — React Native gives one shadow on iOS and an elevation integer on
- * Android, so the two-sided light-and-dark modelling neumorphism depends on
- * is not expressible. Depth here is surface colour instead: canvas, raise
- * and elevated are three genuinely different values, and a card is the one
- * above its background. That reads as the same system without pretending to
- * be the same technique.
+ * Depth is a surface step, a hairline and a shallow shadow — the same three
+ * things, in the same order, as the web card. Under the neumorphic system
+ * this file could only do the first of those, because two-sided shadows are
+ * not expressible in React Native; the flat rebuild removed that gap rather
+ * than working around it.
  *
  * Every pressable floors at 44pt. It is enforced here rather than left to
  * each screen, because a touch target is exactly the kind of thing that is
@@ -49,8 +47,14 @@ export function Card({
       style={[
         {
           backgroundColor: elevated ? colors.canvasElevated : colors.canvasRaise,
-          borderRadius: radius.xl,
+          borderRadius: radius.xxl,
+          borderWidth: 1,
+          borderColor: colors.line,
           padding: space.lg,
+          /* Surface step, then hairline, then shadow — the same order of
+             importance as the web card. The shadow is the refinement, not
+             the thing that makes the card readable. */
+          ...elevation.sm,
         },
         style,
       ]}
@@ -122,7 +126,7 @@ export function Button({
       style={({ pressed }) => [
         {
           minHeight: HIT_SLOP_MIN,
-          borderRadius: radius.pill,
+          borderRadius: radius.lg,
           paddingHorizontal: space.xl,
           alignItems: 'center',
           justifyContent: 'center',
@@ -233,8 +237,10 @@ export function Chip({
       style={({ pressed }) => ({
         paddingHorizontal: space.lg,
         paddingVertical: space.sm,
-        borderRadius: radius.pill,
+        borderRadius: radius.md,
         backgroundColor: selected ? colors.accent : colors.canvasRaise,
+        borderWidth: 1,
+        borderColor: selected ? 'transparent' : colors.line,
         opacity: pressed ? 0.8 : 1,
       })}
     >

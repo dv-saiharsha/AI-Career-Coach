@@ -66,7 +66,7 @@ export default function RootLayout({
       <body className="min-h-full font-sans antialiased">
         <a
           href="#main"
-          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-100 focus-visible:rounded-full focus-visible:neu-accent focus-visible:px-5 focus-visible:py-2.5 focus-visible:text-sm focus-visible:font-medium"
+          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-100 focus-visible:rounded-full focus-visible:elev-accent focus-visible:px-5 focus-visible:py-2.5 focus-visible:text-sm focus-visible:font-medium"
         >
           Skip to content
         </a>

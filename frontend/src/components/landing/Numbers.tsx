@@ -29,7 +29,7 @@ export function Numbers() {
           What the system measures
         </h2>
 
-        <RevealGroup className="grid grid-cols-2 gap-8 rounded-3xl bg-canvas px-6 py-10 neu-inset sm:gap-10 lg:grid-cols-4 lg:px-12 lg:py-12">
+        <RevealGroup className="grid grid-cols-2 gap-8 rounded-3xl bg-canvas px-6 py-10 field-ring sm:gap-10 lg:grid-cols-4 lg:px-12 lg:py-12">
           {NUMBERS.map((item) => (
             <Reveal key={item.label} className="flex flex-col">
               <p className="flex items-baseline gap-2">

@@ -28,7 +28,7 @@ export function Hero() {
         <RevealGroup className="mx-auto max-w-3xl text-center">
           <Reveal
             as="span"
-            className="inline-flex items-center rounded-full bg-canvas-raise px-4 py-2 text-eyebrow text-ink-dim neu-raised-sm"
+            className="inline-flex items-center rounded-full bg-canvas-raise px-4 py-2 text-eyebrow text-ink-dim elev-sm"
           >
             A free service for jobseekers
           </Reveal>
@@ -61,7 +61,7 @@ export function Hero() {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
-                className="h-12 w-full flex-1 rounded-md bg-canvas px-5 text-sm text-ink neu-inset placeholder:text-ink-faint outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+                className="h-12 w-full flex-1 rounded-md bg-canvas px-5 text-sm text-ink field-ring placeholder:text-ink-faint outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
               />
               <Button type="submit" size="lg" className="shrink-0">
                 Start free

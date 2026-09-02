@@ -52,7 +52,7 @@ export function Pricing() {
 
         <RevealGroup className="grid gap-5 lg:grid-cols-2">
           {/* ── Free ─────────────────────────────────────────────── */}
-          <Reveal className="flex flex-col rounded-2xl bg-canvas-raise p-[22px] neu-raised lg:p-[30px]">
+          <Reveal className="flex flex-col rounded-2xl bg-canvas-raise p-[22px] elev-md lg:p-[30px]">
             <p className="text-eyebrow text-ink-faint">If you are looking for work</p>
             <p className="mt-5 flex items-baseline gap-2">
               <span className="text-metric-lg text-ink">Free</span>
@@ -61,7 +61,7 @@ export function Pricing() {
             <ul className="mt-8 flex flex-1 flex-col gap-4">
               {JOBSEEKER.map((line) => (
                 <li key={line} className="flex gap-3">
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-canvas neu-inset-sm">
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-canvas field-ring-soft">
                     <Check className="size-3 text-accent-text" strokeWidth={2.5} aria-hidden="true" />
                   </span>
                   <span className="text-[14.5px] font-light leading-relaxed text-ink-dim">{line}</span>
@@ -74,7 +74,7 @@ export function Pricing() {
           </Reveal>
 
           {/* ── Partner ──────────────────────────────────────────── */}
-          <Reveal className="flex flex-col rounded-2xl p-[22px] neu-accent lg:p-[30px]">
+          <Reveal className="flex flex-col rounded-2xl p-[22px] elev-accent lg:p-[30px]">
             <p className="text-eyebrow text-on-accent/80">If you support jobseekers</p>
             <p className="mt-5 flex items-baseline gap-2">
               <span className="text-metric-lg text-on-accent">Per cohort</span>
@@ -98,7 +98,7 @@ export function Pricing() {
             <Button
               asChild
               size="lg"
-              className="mt-9 w-full bg-canvas-raise bg-none text-ink shadow-(--neu-raised-sm) hover:bg-canvas-raise"
+              className="mt-9 w-full bg-canvas-raise bg-none text-ink shadow-(--shadow-sm) hover:bg-canvas-raise"
             >
               <Link href="/pricing">Talk to us</Link>
             </Button>

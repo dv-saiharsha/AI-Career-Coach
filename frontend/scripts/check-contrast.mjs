@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Contrast gate for the deep-violet neumorphic palette.
+ * Contrast gate for the deep-violet palette.
  *
  * Part 7 requires every body-text token to clear WCAG AA (4.5:1) against its
  * own surface, in both themes, verified by measurement rather than by eye.

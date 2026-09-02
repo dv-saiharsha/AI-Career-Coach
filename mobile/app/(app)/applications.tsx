@@ -245,7 +245,11 @@ export default function Applications() {
                     style={{
                       paddingHorizontal: space.md,
                       paddingVertical: 4,
-                      borderRadius: radius.pill,
+                      /* A badge, not a meter — matches the web badge, which
+                         moved off the pill with the rest of the system. The
+                         progress tracks elsewhere in this app stay pills
+                         because a 4px bar genuinely has no corners. */
+                      borderRadius: radius.md,
                       backgroundColor: colors.accentTint,
                     }}
                   >

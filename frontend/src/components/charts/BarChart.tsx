@@ -31,7 +31,7 @@ export function BarChart({ bars, summary, className }: BarChartProps) {
           <li key={bar.label} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5">
             <span className="text-micro text-ink-dim">{bar.label}</span>
             <span className="text-micro font-medium text-ink">{bar.value}</span>
-            <div className="col-span-2 h-2 rounded-full bg-canvas neu-inset-sm">
+            <div className="col-span-2 h-2 rounded-full bg-canvas field-ring-soft">
               <div
                 className="h-full rounded-full"
                 style={{

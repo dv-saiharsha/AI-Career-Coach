@@ -160,7 +160,7 @@ export function AuthCard({
 
         <div
           className={cn(
-            'w-full max-w-md rounded-3xl bg-canvas-raise p-7 neu-raised-lg sm:p-9',
+            'w-full max-w-md rounded-3xl bg-canvas-raise p-7 elev-lg sm:p-9',
             className
           )}
         >
@@ -193,7 +193,7 @@ export function AuthAlert({ children }: { children?: React.ReactNode }) {
   return (
     <p
       role="alert"
-      className="flex items-start gap-2.5 rounded-md bg-danger-bg p-3.5 text-[13.5px] leading-relaxed text-danger neu-inset-sm"
+      className="flex items-start gap-2.5 rounded-md bg-danger-bg p-3.5 text-[13.5px] leading-relaxed text-danger field-ring-soft"
     >
       <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       {children}

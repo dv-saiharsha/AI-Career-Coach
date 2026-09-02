@@ -48,7 +48,7 @@ const Progress = React.forwardRef<React.ComponentRef<typeof ProgressPrimitive.Ro
       <ProgressPrimitive.Root
         ref={ref}
         value={pct}
-        className={cn('relative h-2.5 w-full overflow-hidden rounded-full bg-canvas neu-inset-sm', className)}
+        className={cn('relative h-2.5 w-full overflow-hidden rounded-full bg-canvas field-ring-soft', className)}
         {...props}
       >
         <ProgressPrimitive.Indicator

@@ -115,7 +115,7 @@ function RegisterForm() {
     return (
       <AuthCard title="Check your email" subtitle={'We sent a confirmation link to ' + email + '.'}>
         <div className="flex flex-col items-center gap-6 py-4 text-center">
-          <span className="flex size-16 items-center justify-center rounded-full bg-canvas neu-inset">
+          <span className="flex size-16 items-center justify-center rounded-full bg-canvas field-ring">
             <MailCheck className="size-7 text-accent-text" strokeWidth={1.5} aria-hidden="true" />
           </span>
           <p className="max-w-[38ch] text-[14.5px] font-light leading-relaxed text-ink-dim">
@@ -220,7 +220,7 @@ function RegisterForm() {
           <div className="-mt-2 flex items-center gap-3">
             <div className="flex flex-1 gap-1.5" aria-hidden="true">
               {[1, 2, 3].map((step) => (
-                <span key={step} className="h-1.5 flex-1 rounded-full bg-canvas neu-inset-sm">
+                <span key={step} className="h-1.5 flex-1 rounded-full bg-canvas field-ring-soft">
                   <span
                     /* Fills across rather than switching on. A bar that
                        appears at full width reads as a result; one that grows

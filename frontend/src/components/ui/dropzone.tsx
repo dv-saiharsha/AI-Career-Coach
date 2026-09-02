@@ -109,7 +109,7 @@ export function Dropzone({
         className={cn(
           'flex min-h-56 w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl px-6 py-10 text-center',
           'bg-canvas transition-[box-shadow] duration-200 ease-(--ease-enter)',
-          over ? 'shadow-(--neu-inset)' : 'shadow-(--neu-inset-sm)',
+          over ? 'shadow-(--ring-field)' : 'shadow-(--ring-field-soft)',
           disabled && 'cursor-not-allowed opacity-60',
           /* The ring goes on the label, since the real input is hidden. */
           'has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-accent has-[input:focus-visible]:outline-offset-3'

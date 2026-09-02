@@ -14,7 +14,7 @@ export function Close() {
   return (
     <section aria-labelledby="close-heading" className="px-4 section-y">
       <div className="shell">
-        <RevealGroup className="mx-auto flex max-w-3xl flex-col items-center rounded-3xl bg-canvas-raise px-6 py-14 text-center neu-raised-lg lg:px-16 lg:py-20">
+        <RevealGroup className="mx-auto flex max-w-3xl flex-col items-center rounded-3xl bg-canvas-raise px-6 py-14 text-center elev-lg lg:px-16 lg:py-20">
           <Reveal as="h2" id="close-heading" className="text-section text-balance text-ink">
             Start with one job advert
           </Reveal>

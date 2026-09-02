@@ -83,7 +83,7 @@ export function ScoreRing({
         {/* The well the arc sits in. */}
         <span
           aria-hidden="true"
-          className="absolute inset-0 rounded-full bg-canvas neu-inset"
+          className="absolute inset-0 rounded-full bg-canvas field-ring"
         />
 
         <svg

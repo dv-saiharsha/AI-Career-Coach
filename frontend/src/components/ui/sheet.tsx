@@ -38,7 +38,7 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
   [
-    'fixed z-50 flex flex-col gap-4 bg-canvas-raise neu-raised-lg',
+    'fixed z-50 flex flex-col gap-4 bg-canvas-raise elev-lg',
     'data-[state=open]:animate-in data-[state=closed]:animate-out',
     'data-[state=open]:duration-[320ms] data-[state=closed]:duration-200',
     'data-[state=open]:ease-(--ease-enter) data-[state=closed]:ease-(--ease-exit)',
@@ -79,7 +79,7 @@ const SheetContent = React.forwardRef<
       <DialogPrimitive.Close
         className={cn(
           'absolute right-5 top-5 inline-flex size-11 cursor-pointer items-center justify-center rounded-full',
-          'bg-canvas-raise text-ink-dim neu-interactive-sm',
+          'bg-canvas-raise text-ink-dim elev-interactive-sm',
           'outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2'
         )}
       >

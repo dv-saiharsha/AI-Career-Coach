@@ -339,7 +339,7 @@ function IntegrityWarning({ integrity }: { integrity: ScoreIntegrity }) {
       className="mt-4 rounded-xl p-4"
       style={{
         background: 'color-mix(in srgb, var(--color-warning) 8%, transparent)',
-        boxShadow: 'var(--neu-inset-sm)',
+        boxShadow: 'var(--ring-field-soft)',
       }}
     >
       <div className="flex items-start gap-2.5">
