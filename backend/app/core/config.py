@@ -1,3 +1,5 @@
+import logging
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -98,7 +100,11 @@ class Settings(BaseSettings):
     # TTL above, which decides when to re-scrape: a listing can be served from
     # a stale cache and still be recent enough to apply to, but past this it is
     # suppressed outright — an expired posting wastes an application.
-    JOB_MAX_AGE_DAYS: int = 4
+    # Seven days. Widened from four: four kept the grid very fresh but thin,
+    # and a five-day-old posting is still open far more often than not. The
+    # cost of the trade is asymmetric in the other direction too — a candidate
+    # who never sees a role loses more than one who applies to a filled one.
+    JOB_MAX_AGE_DAYS: int = 7
     # The actor enforces a 150-result floor regardless of this value; it
     # only bounds how many we keep. Apify bills per result, where it matters.
     JOB_RESULTS_PER_QUERY: int = 40
@@ -146,6 +152,35 @@ def validate_startup() -> None:
     """
     if not settings.is_production:
         return
+
+    # ── Connection pooler ────────────────────────────────────────────────
+    #
+    # Supabase publishes two pooler ports and they are not interchangeable:
+    #
+    #   6543  transaction pooler — a connection per statement. Does NOT
+    #         support prepared statements, which SQLAlchemy uses by default
+    #         and psycopg emits for nearly every query. It also cannot hold
+    #         the session state that Alembic's DDL and advisory locks need,
+    #         so `alembic upgrade head` against it fails intermittently and
+    #         confusingly rather than cleanly.
+    #
+    #   5432  session pooler — a connection for the life of the session.
+    #         What SQLAlchemy and Alembic actually want.
+    #
+    # Pointing DB_URL at 6543 mostly works, which is the dangerous part: it
+    # fails under concurrency and during migrations, not on the first request.
+    # So it is a warning rather than a hard stop — a deployment that has
+    # genuinely disabled prepared statements is valid, and this should not
+    # refuse to boot for it.
+    if ":6543/" in settings.DB_URL and "prepare_threshold" not in settings.DB_URL:
+        logging.getLogger(__name__).warning(
+            "DB_URL points at the Supabase transaction pooler (:6543). That port "
+            "does not support prepared statements, which SQLAlchemy emits by "
+            "default, and Alembic migrations against it fail intermittently. "
+            "Use the session pooler (:5432) for the app and for migrations, or "
+            "append ?prepare_threshold=0 if you know this pool is configured "
+            "for it."
+        )
 
     missing: list[str] = []
     if settings.DB_URL.startswith("sqlite"):
