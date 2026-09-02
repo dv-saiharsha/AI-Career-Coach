@@ -75,7 +75,7 @@ export async function registerForPush(): Promise<PermissionOutcome> {
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
 
   await api.post('/notifications/devices', {
-    token,
+    expo_push_token: token,
     platform: Platform.OS,
   })
 

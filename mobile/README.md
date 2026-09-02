@@ -82,12 +82,7 @@ proves the colours clear AA.
 
 ## Not done yet
 
-- CV upload from the device (document picker, multipart with progress, and
-  the scan narration). Shipping half of that is worse than shipping none.
-- Moving an application between stages. Reading the pipeline works; writing
-  to it needs the optimistic-update and rollback handling the web board has.
 - Interview practice.
 - Offline caching beyond React Query's in-memory cache.
-- The backend endpoint for device registration
-  (`POST /notifications/devices`) does not exist yet — `registerForPush`
-  calls it and will fail until it does.
+- Nothing here has been run on a device or a simulator. Types check and the
+  backend it talks to is tested, but no screen has been seen.

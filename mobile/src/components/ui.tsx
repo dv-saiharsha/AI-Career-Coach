@@ -8,6 +8,7 @@ import {
   View,
   type PressableProps,
   type TextInputProps,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native'
 import { useTheme, space, radius, type, HIT_SLOP_MIN } from '@/theme'
@@ -28,7 +29,7 @@ import { useTheme, space, radius, type, HIT_SLOP_MIN } from '@/theme'
  * correct on the day it is written and wrong three screens later.
  */
 
-export function Screen({ children, style }: { children: ReactNode; style?: ViewStyle }) {
+export function Screen({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const { colors } = useTheme()
   return <View style={[{ flex: 1, backgroundColor: colors.canvas }, style]}>{children}</View>
 }
@@ -39,7 +40,7 @@ export function Card({
   elevated,
 }: {
   children: ReactNode
-  style?: ViewStyle
+  style?: StyleProp<ViewStyle>
   elevated?: boolean
 }) {
   const { colors } = useTheme()
@@ -60,7 +61,16 @@ export function Card({
 }
 
 type TextVariant = keyof typeof type
-type ColorKey = 'ink' | 'inkSubtle' | 'inkMuted' | 'inkFaint' | 'accentText' | 'onAccent' | 'danger' | 'success'
+type ColorKey =
+  | 'ink'
+  | 'inkSubtle'
+  | 'inkMuted'
+  | 'inkFaint'
+  | 'accentText'
+  | 'onAccent'
+  | 'danger'
+  | 'success'
+  | 'warning'
 
 export function Txt({
   children,
@@ -90,7 +100,7 @@ interface ButtonProps extends Omit<PressableProps, 'children' | 'style'> {
   children: ReactNode
   variant?: 'primary' | 'quiet' | 'ghost'
   loading?: boolean
-  style?: ViewStyle
+  style?: StyleProp<ViewStyle>
 }
 
 export function Button({
