@@ -14,6 +14,7 @@ import type { AnalysisResult } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InlineError } from './InlineError'
+import { OptimizePlanPanel } from './OptimizePlanPanel'
 import { type GenStatus, type ResultTab } from './scanShared'
 
 type BuildMode = 'quick' | 'studio'
@@ -37,8 +38,6 @@ interface ScanResultsPanelProps {
   genStatus: GenStatus
   genError: string
   resultTab: ResultTab
-  projectedScore: number | null
-  scoreDelta: number
   onToggleSkill: (skill: string) => void
   onFullNameChange: (name: string) => void
   onGenerate: () => void
@@ -78,8 +77,6 @@ export function ScanResultsPanel({
   genStatus,
   genError,
   resultTab,
-  projectedScore,
-  scoreDelta,
   onToggleSkill,
   onFullNameChange,
   onGenerate,
@@ -126,25 +123,11 @@ export function ScanResultsPanel({
         />
       </div>
 
-        {selectedSkills.size > 0 && projectedScore !== null && (
-          <div
-            key="projected"
-           
-           
-           
-           
-            className="flex items-center gap-2.5 card px-4 py-3 panel-enter"
-          >
-            <span className="text-xs text-(--color-ink-dim)">Projected after fixes:</span>
-            <span className="text-sm font-display font-medium text-(--color-ink) tabular-nums">{projectedScore}%</span>
-            {scoreDelta !== 0 && (
-              <span className="text-xs font-mono text-(--color-accent) tabular-nums">
-                ({scoreDelta > 0 ? '+' : ''}{scoreDelta} pts)
-              </span>
-            )}
-            <span className="text-[10px] font-mono text-(--color-ink-faint) ml-auto">
-              {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''} staged
-            </span>
+        {/* What this resume can honestly reach, per the same model that
+            produced ats_score above — not a client-side keyword ratio. */}
+        {jobDescription.trim() && (
+          <div key="optimize-plan" className="panel-enter">
+            <OptimizePlanPanel analysisId={result.id} jobDescription={jobDescription} />
           </div>
         )}
 
@@ -336,10 +319,9 @@ export function ScanResultsPanel({
               {selectedSkills.size > 0 ? (
                 <>
                   You&apos;ve staged {selectedSkills.size} missing skill
-                  {selectedSkills.size !== 1 ? 's' : ''} above
-                  {projectedScore !== null ? ` (→ ${projectedScore}% projected)` : ''}. Click below and
-                  we&apos;ll add them to your resume&apos;s existing skills section — same layout, same
-                  formatting, no rebuild from scratch.
+                  {selectedSkills.size !== 1 ? 's' : ''} above. Click below and we&apos;ll add them to
+                  your resume&apos;s existing skills section — same layout, same formatting, no rebuild
+                  from scratch. The panel above shows what the real model does with it.
                 </>
               ) : (
                 <>Select the missing skills you actually have from the list above, then tailor your resume to include them.</>

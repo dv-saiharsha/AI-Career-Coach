@@ -4,12 +4,15 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import autofill, faang, services, tailor
+from app.modules.resume_builder import autofill, faang, optimizer, services, tailor
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
     AutofillSchema,
     CompileResumeRequestSchema,
     CompileResumeResponseSchema,
+    OptimizePlanByAnalysisRequestSchema,
+    OptimizePlanRequestSchema,
+    OptimizePlanSchema,
     QualityReportRequestSchema,
     QualityReportSchema,
     StageFixesRequestSchema,
@@ -89,6 +92,46 @@ def quality_report_for_analysis(
     return services.quality_report(
         record.resume_text, record.job_description, None, record.resume_file_bytes
     )
+
+
+@router.post("/optimize-plan", response_model=OptimizePlanSchema)
+def optimize_plan(
+    payload: OptimizePlanRequestSchema,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """A scored, honest plan toward the target band for pasted-in text.
+
+    See resume_builder/optimizer.py for what this can and cannot honestly
+    promise. In short: it will not push a score past ~85, because past that
+    point the trained model can no longer distinguish a real match from a
+    keyword-stuffed one — measured, not assumed, in that module's docstring.
+    Nothing here invents a metric, a tool, or an employer; every edit is
+    licensed by the resume text it is scoring.
+    """
+    return optimizer.plan(payload.resume_text, payload.job_description)
+
+
+@router.post("/optimize-plan/{analysis_id}", response_model=OptimizePlanSchema)
+def optimize_plan_for_analysis(
+    analysis_id: int,
+    payload: OptimizePlanByAnalysisRequestSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Same plan, against the resume already on file — no re-upload."""
+    record = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id, ResumeAnalysis.user_id == current_user.id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    if not record.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="The original resume text isn't available for this scan. Please re-scan your resume.",
+        )
+    return optimizer.plan(record.resume_text, payload.job_description)
 
 
 @router.post("/compile-and-score", response_model=CompileResumeResponseSchema)

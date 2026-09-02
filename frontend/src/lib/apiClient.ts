@@ -131,6 +131,60 @@ export const rescanResume = async (jobDescription: string): Promise<AnalysisResu
   return response.data
 }
 
+/** Mirrors backend OptimizeEditSchema exactly. */
+export interface OptimizeEdit {
+  edit: string
+  label: string
+  rationale: string
+  adds: string[]
+  applied: boolean
+  requires_review: boolean
+  score_after: number | null
+  delta: number | null
+  potential_score: number | null
+  reason: string | null
+}
+
+/** Mirrors backend OptimizePlanSchema — see resume_builder/optimizer.py for
+ *  why this stops at ~85 rather than promising 95+. */
+export interface OptimizePlan {
+  available: boolean
+  reason: string | null
+  baseline_score: number | null
+  projected_score: number | null
+  target_band: number[]
+  in_band: boolean
+  beyond_meaningful: boolean
+  integrity: {
+    checked: boolean
+    stuffed: boolean
+    reason?: string
+    signals: { signal: string; detail: string }[]
+  }
+  edits: OptimizeEdit[]
+  note: string | null
+}
+
+/**
+ * A scored, honest plan against the resume already on file for this scan.
+ *
+ * Replaces a client-side formula this UI used to show — matched keywords
+ * over total, times 100 — which was never connected to the trained model
+ * that actually produces ats_score. It could show "92% projected" for an
+ * edit the real model would score at 60, because it measured keyword count,
+ * not what the model responds to. This calls the model directly instead.
+ */
+export const getOptimizePlan = async (
+  analysisId: number,
+  jobDescription: string,
+): Promise<OptimizePlan> => {
+  const response = await apiClient.post<OptimizePlan>(
+    `/resume-builder/optimize-plan/${analysisId}`,
+    { job_description: jobDescription },
+  )
+  return response.data
+}
+
 export interface ResumeHistoryItem {
   id: number
   resume_filename: string

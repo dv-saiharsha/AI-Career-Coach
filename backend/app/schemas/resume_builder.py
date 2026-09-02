@@ -238,3 +238,57 @@ class AutofillSchema(BaseModel):
     # empty form that looks like nothing was attempted.
     parsed_experience_count: int = 0
     parsed_education_count: int = 0
+
+
+class OptimizePlanRequestSchema(BaseModel):
+    """Score-aware plan against a job description you paste in directly,
+    for a resume that has no stored analysis yet."""
+
+    resume_text: str = Field(min_length=1)
+    job_description: str = Field(min_length=1, max_length=20000)
+
+
+class OptimizePlanByAnalysisRequestSchema(BaseModel):
+    """Same plan against the resume already on file — no resume_text field,
+    because there is nothing for the caller to supply: the stored scan is
+    the resume, and accepting-then-ignoring a field is worse than the field
+    not existing."""
+
+    job_description: str = Field(min_length=1, max_length=20000)
+
+
+class OptimizeEditSchema(BaseModel):
+    """One proposed change and what the model does with it.
+
+    `score_after`/`delta` are present only when `applied` is True — an edit
+    that was skipped or held for review was never scored as installed, and a
+    None here is the honest way to say that rather than a 0 that reads as a
+    measured non-effect.
+    """
+
+    edit: str
+    label: str
+    rationale: str
+    adds: List[str] = []
+    applied: bool
+    requires_review: bool = False
+    score_after: Optional[float] = None
+    delta: Optional[float] = None
+    potential_score: Optional[float] = None
+    reason: Optional[str] = None
+
+
+class OptimizePlanSchema(BaseModel):
+    """Mirrors resume_builder.optimizer.plan() exactly — see that module for
+    why a model score can be pushed only this far, and only this honestly."""
+
+    available: bool
+    reason: Optional[str] = None
+    baseline_score: Optional[float] = None
+    projected_score: Optional[float] = None
+    target_band: List[int] = []
+    in_band: bool = False
+    beyond_meaningful: bool = False
+    integrity: dict = {}
+    edits: List[OptimizeEditSchema] = []
+    note: Optional[str] = None

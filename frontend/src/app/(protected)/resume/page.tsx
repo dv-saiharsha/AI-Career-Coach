@@ -192,11 +192,6 @@ export default function ResumeAnalyzer() {
     setFullName(''); setGenStatus('idle'); setGenError(''); setResultTab('missing')
   }
 
-  const totalKeywords = result ? result.matched_skills.length + result.missing_skills.length : 0
-  const projectedScore = result && totalKeywords > 0
-    ? Math.min(100, Math.round((100 * (result.matched_skills.length + selectedSkills.size)) / totalKeywords))
-    : null
-  const scoreDelta = result && projectedScore !== null ? Math.round(projectedScore - result.ats_score) : 0
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -219,8 +214,6 @@ export default function ResumeAnalyzer() {
             genStatus={genStatus}
             genError={genError}
             resultTab={resultTab}
-            projectedScore={projectedScore}
-            scoreDelta={scoreDelta}
             onToggleSkill={toggleSkill}
             onFullNameChange={setFullName}
             onGenerate={handleGenerate}
