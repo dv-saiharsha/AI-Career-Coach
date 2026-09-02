@@ -11,7 +11,7 @@ from app.core.ratelimit import check_rate_limit
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
 from app.modules.notifications.service import notify_resume_scanned
-from app.modules.resume_analyzer import parse_checks, review, rubric
+from app.modules.resume_analyzer import integrity, parse_checks, review, rubric
 from app.modules.resume_analyzer.report import build_report_pdf, build_updated_resume_pdf
 from app.modules.resume_analyzer.services import (
     NOT_A_RESUME_MESSAGE,
@@ -306,6 +306,7 @@ def score_breakdown(
         "analysis_id": record.id,
         "resume_filename": record.resume_filename,
         "model_score": round(float(record.ats_score or 0), 1),
+        "score_integrity": integrity.assess(record.resume_text, record.job_description or ""),
         **breakdown,
         "parse_checks": parse_checks.build_checks(record.resume_text, record.resume_file_bytes),
         "missing_keywords": stored.get("missing_skills", []),

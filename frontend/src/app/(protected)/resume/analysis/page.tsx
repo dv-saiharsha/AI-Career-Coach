@@ -23,6 +23,7 @@ import {
   type ParseCheck,
   type RubricMetric,
   type ScoreBreakdown,
+  type ScoreIntegrity,
 } from '@/lib/apiClient'
 import { useAuth } from '@/lib/AuthContext'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -199,6 +200,9 @@ function AnalysisDashboard() {
               {data.skipped.length > 0 && ` — ${data.skipped.join(', ').toLowerCase()} couldn't be checked`}.
             </p>
           )}
+          {data.score_integrity?.stuffed && (
+            <IntegrityWarning integrity={data.score_integrity} />
+          )}
         </div>
       </Reveal>
 
@@ -317,6 +321,56 @@ function ScoreGauge({ score }: { score: number }) {
       <span className="absolute font-display text-2xl font-semibold" style={{ color }}>
         {Math.round(score)}
       </span>
+    </div>
+  )
+}
+
+/**
+ * Shown only when the score has been measured as untrustworthy.
+ *
+ * Deliberately not a permanent "verified" badge on every clean scan: a green
+ * tick on the other 99% of scans would train people to stop reading this
+ * space, and then it fails to land on the one that matters.
+ */
+function IntegrityWarning({ integrity }: { integrity: ScoreIntegrity }) {
+  return (
+    <div
+      role="status"
+      className="mt-4 rounded-xl p-4"
+      style={{
+        background: 'color-mix(in srgb, var(--color-warning) 8%, transparent)',
+        boxShadow: 'var(--neu-inset-sm)',
+      }}
+    >
+      <div className="flex items-start gap-2.5">
+        <AlertCircle
+          aria-hidden
+          className="mt-0.5 size-4 shrink-0"
+          style={{ color: 'var(--color-warning)' }}
+        />
+        <div className="min-w-0">
+          <h2 className="text-xs font-semibold text-[var(--color-ink)]">
+            This score reflects repetition, not evidence
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--color-ink-dim)]">
+            The scoring model rewards matching the posting&apos;s words, and this document does
+            that by repeating them. A real employer&apos;s screen — and the person reading after
+            it — will not score it the same way.
+          </p>
+          <ul className="mt-2.5 space-y-1.5">
+            {integrity.signals.map((signal) => (
+              <li key={signal.signal} className="flex items-baseline gap-2 text-xs">
+                <span
+                  aria-hidden
+                  className="size-1 shrink-0 rounded-full"
+                  style={{ background: 'var(--color-warning)' }}
+                />
+                <span className="text-[var(--color-ink-dim)]">{signal.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }

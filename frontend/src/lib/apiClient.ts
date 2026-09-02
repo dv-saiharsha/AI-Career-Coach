@@ -1475,10 +1475,36 @@ export interface ParseCheck {
  * metric bars explain the rubric — not the model, which is not a weighted sum
  * of these seven things.
  */
+/**
+ * One measured reason the model score may not mean what it looks like.
+ *
+ * The trained model scores a verbatim copy of the job posting 88 and a real
+ * resume with quantified achievements 49, so a high number is evidence of
+ * keyword overlap until something checks for repetition. These are those
+ * checks, counted server-side in resume_analyzer/integrity.py.
+ */
+export interface IntegritySignal {
+  signal: 'keyword_density' | 'max_repetition' | 'verbatim_overlap' | 'lexical_diversity'
+  value: number
+  limit: number
+  detail: string
+}
+
+export interface ScoreIntegrity {
+  /** False when the document was too short to judge — which is not "clean". */
+  checked: boolean
+  stuffed: boolean
+  signals: IntegritySignal[]
+  reason?: string
+  measurements?: Record<string, number>
+}
+
 export interface ScoreBreakdown {
   analysis_id: number
   resume_filename: string
   model_score: number
+  /** Whether model_score can be believed for this document. */
+  score_integrity: ScoreIntegrity | null
   rubric_total: number | null
   /** What the rubric total is out of. Below 100 when a check could not run. */
   weight_applied: number

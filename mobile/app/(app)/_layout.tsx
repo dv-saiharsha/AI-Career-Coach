@@ -3,15 +3,15 @@ import { Text } from 'react-native'
 import { useTheme, HIT_SLOP_MIN } from '@/theme'
 
 /**
- * Four tabs, matching the four things someone opens a phone for. The web has
- * sixteen signed-in routes; most of them — the tailor workspace, the reports
- * view, the analytics charts — are desktop-shaped work that would be worse
- * on a phone, not better for being present.
+ * Five tabs, matching what someone opens a phone for. The web has sixteen
+ * signed-in routes; most of them — the tailor workspace, the reports view,
+ * the analytics charts — are desktop-shaped work that would be worse on a
+ * phone, not better for being present.
  *
  * Labels are glyphs rather than an icon font: one dependency fewer, and the
  * tab bar is the last place worth loading a library for.
  */
-const GLYPH = { jobs: '⌗', applications: '▤', resume: '◈', settings: '⚙' } as const
+const GLYPH = { dashboard: '◉', jobs: '⌗', applications: '▤', resume: '◈', settings: '⚙' } as const
 
 export default function AppLayout() {
   const { colors } = useTheme()
@@ -31,6 +31,13 @@ export default function AppLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
       }}
     >
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>{GLYPH.dashboard}</Text>,
+        }}
+      />
       <Tabs.Screen
         name="jobs"
         options={{

@@ -18,6 +18,8 @@ class FreshJobSchema(BaseModel):
     # Derived from posted_at (when the employer listed it), not fetched_at
     # (when we scraped it) — the latter would call every row hours old.
     posted_label: str
+    # As the employer wrote it, or absent. Most postings do not state one.
+    salary_range: Optional[str] = None
     h1b_sponsorship: Optional[str] = None
     h1b_evidence: Optional[str] = None
     experience_level: Optional[str] = None

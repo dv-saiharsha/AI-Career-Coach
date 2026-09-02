@@ -189,6 +189,11 @@ def overview(db: Session, user_id: str) -> dict:
             "location": row.location,
             "work_mode": row.work_mode,
             "posted_label": _posted_label(row.posted_at, now),
+            # Verbatim from the posting when it stated one, null when it did
+            # not. Never a range derived from the title or the location —
+            # a guessed salary is the number a candidate would most regret
+            # trusting.
+            "salary_range": row.salary_range,
             "h1b_sponsorship": row.h1b_sponsorship,
             # Verbatim from the posting, so a candidate can judge the claim
             # rather than trust a badge.

@@ -145,6 +145,12 @@ class ScoreBreakdownSchema(BaseModel):
     analysis_id: int
     resume_filename: str
     model_score: float
+    # Whether model_score can be believed for this document. The trained model
+    # gives a verbatim copy of the posting 88 and a real resume with quantified
+    # achievements 49, so a high score is evidence of keyword overlap and
+    # nothing more until something checks for repetition. Shipped beside the
+    # number rather than folded into it — see resume_analyzer/integrity.py.
+    score_integrity: Optional[dict] = None
     rubric_total: Optional[float] = None
     # What the rubric total is out of. Below 100 when some check could not
     # run; a UI printing "/100" regardless would overstate its coverage.
