@@ -55,7 +55,7 @@ export interface SocialAuthGridProps {
  * flow: an unknown verified email creates an account, a known one links to it.
  */
 export function SocialAuthGrid({
-  next = '/dashboard',
+  next = '/jobs',
   dividerLabel = 'or continue with',
   className,
 }: SocialAuthGridProps) {

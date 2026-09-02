@@ -65,6 +65,13 @@ const MODE_STYLES: Record<WorkMode, string> = {
 // is debounced well past typing speed. This is a cost control, not just a
 // perf nicety — firing per keystroke would bill for every prefix of a word.
 const SEARCH_DEBOUNCE_MS = 600
+// The listings are what this route exists to show, so they refresh in the
+// background without anyone asking — hourly, not "whenever someone happens
+// to reload the tab." Reuses retryTick rather than a second trigger: loading
+// is derived from comparing loadedTerm to the current filter key, which an
+// interval-driven retryTick bump never changes, so this refetches silently
+// and only surfaces anything if it fails (the toast in the fetch effect
+// below already covers that — one failure path, not two).
 
 export default function JobsPage() {
   const router = useRouter()
@@ -90,6 +97,12 @@ export default function JobsPage() {
   // requiring the user to change a filter first — a "try again" that only
   // works if you also happen to alter your search is not really a retry.
   const [retryTick, setRetryTick] = useState(0)
+
+  useEffect(() => {
+    const AUTO_REFRESH_MS = 60 * 60 * 1000
+    const id = setInterval(() => setRetryTick((n) => n + 1), AUTO_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [])
   // The term `feed` actually corresponds to. Loading is derived from the gap
   // between this and searchTerm rather than held as its own state — setting a
   // loading flag synchronously in an effect triggers a cascading render.
@@ -247,7 +260,14 @@ export default function JobsPage() {
         {feed?.lastUpdated && (
           <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-(--color-ink-faint)">
             <Clock className="w-3 h-3" aria-hidden="true" />
-            Refreshed daily · last updated {refreshLabel(feed.lastUpdated)}
+            {/* "Checked hourly" describes what this tab does — the fetch
+                effect above polls on a 1-hour interval. It deliberately does
+                not say the listings themselves are hourly: the sweep that
+                actually populates them has no enforced schedule in this repo,
+                only a "daily" design assumption in its own comments, so
+                "last updated" (a real fetched_at timestamp) is the only
+                freshness claim here that is unconditionally true. */}
+            Checked hourly · last updated {refreshLabel(feed.lastUpdated)}
           </span>
         )}
       </PageHeader>

@@ -225,7 +225,12 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex flex-1 flex-col md:ml-60">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-canvas-line bg-canvas/80 px-4 py-3 backdrop-blur-xl sm:px-5">
+        {/* py-4, matching the sidebar logo row's own py-4 exactly — they sit
+            at the same vertical position on desktop (the sidebar is a fixed
+            column beside this header, not stacked above it), so a shorter
+            py-3 here read as two rows of different heights rather than one
+            continuous top bar. */}
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-canvas-line bg-canvas/80 px-4 py-4 backdrop-blur-xl sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>

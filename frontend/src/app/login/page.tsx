@@ -43,7 +43,7 @@ function LoginForm() {
     oauthError ? (OAUTH_ERRORS[oauthError] ?? OAUTH_ERRORS.oauth_failed) : ''
   )
 
-  const from = searchParams.get('from') || '/dashboard'
+  const from = searchParams.get('from') || '/jobs'
   const loading = status === 'loading'
 
   async function handleSubmit(e: FormEvent) {

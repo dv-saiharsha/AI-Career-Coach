@@ -47,8 +47,8 @@ export async function signInWithOAuth(
 
   // Relative, single-leading-slash only. The callback validates this again
   // server-side; this check just avoids sending an obviously bad value.
-  const requested = options?.next ?? '/dashboard'
-  const next = /^\/(?!\/)/.test(requested) ? requested : '/dashboard'
+  const requested = options?.next ?? '/jobs'
+  const next = /^\/(?!\/)/.test(requested) ? requested : '/jobs'
 
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
 

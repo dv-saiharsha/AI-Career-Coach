@@ -14,12 +14,10 @@ import { categoryLabel } from '@/lib/interviewCategories';
 import { bandColor, bandForScore, bandLabel } from '@/lib/scoreBands';
 import { ScoreRing } from '@/components/ScoreRing';
 import { NextActionCard } from '@/components/NextActionCard';
-import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
-import { ResumeReminderDrawer } from '@/components/onboarding/ResumeReminderDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InlineError } from '@/components/resume/InlineError';
 import ResumeTrendChart from '@/components/dashboard/ResumeTrendChart';
-import { useDashboardData } from '../../../lib/useDashboardData';
+import { useOnboarding } from '@/lib/useOnboarding';
 import { Reveal, RevealGroup } from '@/lib/reveal'
 
 
@@ -420,16 +418,10 @@ function DashboardContent({ home }: { home: DashboardHome }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const {
-    profile,
-    showOnboarding,
-    submitError,
-    finishOnboarding,
-    skipOnboarding,
-    showResumeReminder,
-    dismissResumeReminder,
-    uploadReminderResume,
-  } = useDashboardData();
+  // Onboarding itself now gates at the layout level (OnboardingGate),
+  // firing regardless of which route is landed on first. `profile` is still
+  // read here for the target-role chips below.
+  const { profile } = useOnboarding();
 
   const { data: home, isLoading, isError } = useQuery({
     queryKey: ['dashboard', 'home'],
@@ -443,20 +435,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-7 max-w-7xl">
-      {/* Onboarding interceptor. Rendered inside the dashboard rather than in
-          the layout so it only blocks this page — a user mid-flow elsewhere
-          isn't yanked into a modal. */}
-      <OnboardingModal isOpen={showOnboarding} onComplete={finishOnboarding} onSkip={skipOnboarding} error={submitError} />
-
-      {/* Follow-up for users who skipped the resume at onboarding. Non-blocking
-          by design — the dashboard stays usable behind it. */}
-      <ResumeReminderDrawer
-        isOpen={showResumeReminder}
-        onDismiss={dismissResumeReminder}
-        onUpload={uploadReminderResume}
-        error={submitError}
-      />
-
       {/* Header */}
       <Reveal
        

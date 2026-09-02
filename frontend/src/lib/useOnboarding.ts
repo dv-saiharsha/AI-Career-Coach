@@ -2,37 +2,27 @@
 
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  analyzeResume,
-  completeOnboarding,
-  skipOnboarding as skipOnboardingRequest,
-  getJobs,
-  getUserProfile,
-  updateUserProfile,
-} from './apiClient'
+import { analyzeResume, completeOnboarding, skipOnboarding as skipOnboardingRequest, getJobs, getUserProfile } from './apiClient'
 import type { OnboardingResult } from '@/components/onboarding/OnboardingModal'
 
 /**
- * Owns onboarding and the profile itself — nothing else. Stats and recent
- * activity used to live here too (their own `/user/stats` / `/user/activity`
- * queries, fetched independently of the dashboard's other data via a
- * separate raw useEffect); Milestone 9's `/dashboard/home` now supersedes
- * both with richer, already-composed figures, and the dashboard page reads
- * that instead. This was the "known duplicate-fetch" issue flagged since
- * Milestone 3 — two different fetching paradigms on one page for
- * overlapping data — resolved by removing the redundant path here rather
- * than reconciling two copies of the same numbers.
+ * The first-login gate: target roles, and an optional baseline resume scan.
  *
- * Built on react-query (already provided in components/Providers.tsx) rather
- * than useEffect + useState. Fetching in an effect means manually handling
- * cancellation, refetch-after-mutation, and the render cascade React 19's
- * set-state-in-effect rule warns about; the query cache handles all three,
- * and invalidation after onboarding is what refreshes the profile.
+ * Split out of what used to be useDashboardData, which bundled this together
+ * with the resume-reminder drawer under one hook mounted only on the
+ * dashboard page. That meant onboarding itself only ever fired for someone
+ * whose first stop after signing in was /dashboard — true when this was the
+ * post-login landing page, false the moment it stopped being one. A new user
+ * routed anywhere else would never see it. This hook now backs a gate
+ * mounted once at the protected layout, so it fires regardless of which
+ * route someone lands on first.
+ *
+ * The resume-reminder drawer this hook used to also drive is gone, not
+ * moved — removed on request, not folded in here.
  */
-export function useDashboardData() {
+export function useOnboarding() {
   const queryClient = useQueryClient()
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [reminderDismissed, setReminderDismissed] = useState(false)
 
   const profileQuery = useQuery({
     queryKey: ['user', 'profile'],
@@ -40,7 +30,7 @@ export function useDashboardData() {
   })
 
   /**
-   * Find a real job description to score the onboarding resume against.
+   * A real job description to score the onboarding resume against.
    *
    * Reads the cached feed for the user's first target role — cached reads
    * cost no API quota. Scoring against a genuine posting makes the first ATS
@@ -55,43 +45,6 @@ export function useDashboardData() {
       return null
     }
   }, [])
-
-  /**
-   * Score a resume against a real posting for one of the user's target roles.
-   *
-   * Shared by onboarding and the follow-up reminder drawer, which do the same
-   * work at different times — the only difference is when the file arrives.
-   */
-  const scoreAgainstBaseline = useCallback(
-    async (resumeFile: File, role: string): Promise<number | null> => {
-      const baselineJd = await findBaselineJd(role)
-      if (!baselineJd) return null
-      const formData = new FormData()
-      formData.append('resume', resumeFile)
-      formData.append('job_description', baselineJd)
-      return (await analyzeResume(formData)).id
-    },
-    [findBaselineJd],
-  )
-
-  const resumeReminderMutation = useMutation({
-    mutationFn: async (resumeFile: File) => {
-      const roles = profileQuery.data?.target_roles ?? []
-      const analysisId = await scoreAgainstBaseline(resumeFile, roles[0] ?? 'Software Engineer')
-      return updateUserProfile({
-        primary_resume_analysis_id: analysisId,
-        primary_resume_filename: resumeFile.name,
-      })
-    },
-    onSuccess: (profile) => {
-      queryClient.setQueryData(['user', 'profile'], profile)
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'home'] })
-      setReminderDismissed(true)
-    },
-    onError: () => {
-      setSubmitError("Couldn't score that resume. Check the file and try again.")
-    },
-  })
 
   const skipMutation = useMutation({
     mutationFn: () => skipOnboardingRequest(),
@@ -110,10 +63,10 @@ export function useDashboardData() {
 
       if (baselineJd && resumeFile) {
         try {
-          const formData = new FormData()
           // 'resume', not 'file' — the field name the analyze endpoint
           // declares. Sending 'file' 422s, and the catch below made that
           // look like a transient failure rather than a permanent one.
+          const formData = new FormData()
           formData.append('resume', resumeFile)
           formData.append('job_description', baselineJd)
           analysisId = (await analyzeResume(formData)).id
@@ -136,9 +89,10 @@ export function useDashboardData() {
     },
     onSuccess: (profile) => {
       // Seed the profile immediately so the modal closes on this render, then
-      // refetch the metrics the new analysis just changed.
+      // refetch anything downstream a new analysis or role list would change.
       queryClient.setQueryData(['user', 'profile'], profile)
       void queryClient.invalidateQueries({ queryKey: ['dashboard', 'home'] })
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
     onError: () => {
       setSubmitError('Could not save your preferences. Please try again.')
@@ -158,20 +112,8 @@ export function useDashboardData() {
 
   const skipOnboarding = useCallback(async () => {
     setSubmitError(null)
-    // Marks onboarding complete with no roles and no scan, so the modal stops
-    // reappearing. Deliberately does not touch the resume path — the reminder
-    // drawer already exists to pick that up later, and the empty target_roles
-    // list simply means the job feed falls back to the warm roles.
     await skipMutation.mutateAsync().catch(() => {})
   }, [skipMutation])
-
-  const uploadReminderResume = useCallback(
-    async (file: File) => {
-      setSubmitError(null)
-      await resumeReminderMutation.mutateAsync(file).catch(() => {})
-    },
-    [resumeReminderMutation],
-  )
 
   const profile = profileQuery.data ?? null
 
@@ -182,17 +124,6 @@ export function useDashboardData() {
     // `!profile?.onboarding_completed` alone would flash the modal during the
     // initial load for users who have already completed onboarding.
     showOnboarding: !profileQuery.isPending && profile !== null && !profile.onboarding_completed,
-    // The follow-up for users who skipped upload. Gated on onboarding being
-    // done so the drawer never stacks on top of the modal, and dismissed for
-    // the session rather than persisted — a nag that survives every reload is
-    // worse than one that waits for the next visit.
-    showResumeReminder:
-      !reminderDismissed &&
-      profile !== null &&
-      profile.onboarding_completed &&
-      !profile.primary_resume_filename,
-    dismissResumeReminder: () => setReminderDismissed(true),
-    uploadReminderResume,
     submitError,
     finishOnboarding,
     skipOnboarding,

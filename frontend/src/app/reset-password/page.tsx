@@ -42,7 +42,7 @@ export default function ResetPassword() {
       return
     }
     setStatus('done')
-    setTimeout(() => router.replace('/dashboard'), 1500)
+    setTimeout(() => router.replace('/jobs'), 1500)
   }
 
   return (
@@ -66,7 +66,7 @@ export default function ResetPassword() {
                 <CheckCircle2 className="w-7 h-7 text-[var(--color-accent)]" />
               </div>
               <h1 className="text-xl font-display font-semibold text-[var(--color-ink)] mb-2">Password updated</h1>
-              <p className="text-sm text-[var(--color-ink-dim)]">Taking you to your dashboard...</p>
+              <p className="text-sm text-[var(--color-ink-dim)]">Taking you to your jobs feed...</p>
             </div>
           ) : (
             <>

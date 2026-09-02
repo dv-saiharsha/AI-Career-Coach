@@ -5,6 +5,7 @@ import { createClient } from '../../lib/supabase/server'
 import { DashboardNav } from '../../components/DashboardNav'
 import { ProtectedTransition } from './ProtectedTransition'
 import { AppProviders } from './AppProviders'
+import { OnboardingGate } from './OnboardingGate'
 
 /**
  * proxy.ts already verified this request's JWT signature against Supabase's
@@ -34,6 +35,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
 
   return (
     <AppProviders>
+      <OnboardingGate />
       <DashboardNav>
         <ProtectedTransition>{children}</ProtectedTransition>
       </DashboardNav>

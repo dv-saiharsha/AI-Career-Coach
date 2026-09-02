@@ -270,7 +270,7 @@ function RegisterForm() {
         </Button>
       </form>
 
-      <SocialAuthGrid next="/dashboard" className="mt-7" />
+      <SocialAuthGrid next="/jobs" className="mt-7" />
     </AuthCard>
   )
 }

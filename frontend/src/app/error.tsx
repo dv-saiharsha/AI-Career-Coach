@@ -36,8 +36,8 @@ export default function ErrorBoundary({ error, reset }: { error: Error & { diges
         <button type="button" onClick={reset} className="btn-primary">
           Try again
         </button>
-        <Link href="/dashboard" className="btn-ghost">
-          Go to dashboard
+        <Link href="/jobs" className="btn-ghost">
+          Go to jobs
         </Link>
       </div>
     </div>
