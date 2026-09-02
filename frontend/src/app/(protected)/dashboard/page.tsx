@@ -133,8 +133,13 @@ function DashboardContent({ home }: { home: DashboardHome }) {
   /* Matched listings when a resume exists, the freshest ones when it does
      not. Never nothing: openings are what this product always has to show,
      and an empty first screen is the worst thing a new account can meet. */
-  const leadJobs = home.jobs.top_matches.length > 0 ? home.jobs.top_matches : home.jobs.latest
-  const leadJobsAreMatched = home.jobs.top_matches.length > 0
+  /* Both optional-chained. A client is not always deployed in lockstep with
+     the API it talks to — `latest` is newer than some running backends, and
+     reading .length off an absent field takes the whole dashboard down with a
+     TypeError rather than degrading to one missing panel. */
+  const matched = home.jobs?.top_matches ?? []
+  const leadJobs = matched.length > 0 ? matched : (home.jobs?.latest ?? [])
+  const leadJobsAreMatched = matched.length > 0
 
   return (
     <>
@@ -269,56 +274,47 @@ function DashboardContent({ home }: { home: DashboardHome }) {
           )}
         </Reveal>
 
+        {/* What to close, not what to apply to.
+            The job list this panel used to carry is now the first block on
+            the page, and showing the same three listings twice on one screen
+            made the second one read as different results. What is left is the
+            part the lead panel does not say: the skills worth closing and how
+            a recruiter reads the match. */}
         <Reveal className="glass-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-(--color-ink)">Top Matching Jobs</h2>
-            <Link href="/jobs" className="text-xs text-(--color-accent) hover:text-(--color-accent-light) flex items-center gap-1">
-              Browse all <ArrowRight className="w-3 h-3" />
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-(--color-ink)">Where you fall short</h2>
+            <Link
+              href="/resume"
+              className="flex items-center gap-1 text-xs text-(--color-accent) hover:text-(--color-accent-light)"
+            >
+              Improve <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          {home.jobs.top_matches.length === 0 ? (
-            <p className="text-sm text-(--color-ink-faint) text-center py-4">
-              Scan a resume to see jobs matched against it.
+
+          {(home.jobs?.missing_skills ?? []).length === 0 &&
+          !home.jobs?.recruiter_perspective ? (
+            <p className="py-4 text-center text-sm text-(--color-ink-faint)">
+              Scan a resume against a job to see which skills are missing.
             </p>
           ) : (
-            <div className="space-y-1">
-              {home.jobs.top_matches.slice(0, 3).map((job) => (
-                <a
-                  key={job.id}
-                  href={job.applyUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-canvas-elevated transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-(--color-ink) truncate">{job.title}</p>
-                    <p className="text-xs text-(--color-ink-faint) truncate">{job.company}</p>
-                  </div>
-                  {job.match?.overallMatch != null && job.match.band && (
-                    <span
-                      className="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg tabular-nums"
-                      style={{ color: bandColor(job.match.band), background: `${bandColor(job.match.band)}15` }}
-                    >
-                      {Math.round(job.match.overallMatch)}%
-                    </span>
-                  )}
-                </a>
-              ))}
-              {home.jobs.missing_skills.length > 0 && (
-                <div className="pt-2 mt-2 border-t border-(--color-canvas-line)">
-                  <p className="text-[10px] uppercase tracking-widest text-(--color-ink-faint) mb-1.5">
-                    Missing skills
+            <div className="space-y-3">
+              {(home.jobs?.missing_skills ?? []).length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-widest text-(--color-ink-faint)">
+                    Most worth closing
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {home.jobs.missing_skills.map((skill) => (
-                      <span key={skill} className="chip text-[11px]">{skill}</span>
+                    {(home.jobs?.missing_skills ?? []).map((skill) => (
+                      <span key={skill} className="chip text-[11px]">
+                        {skill}
+                      </span>
                     ))}
                   </div>
                 </div>
               )}
-              {home.jobs.recruiter_perspective && (
-                <p className="text-xs text-(--color-ink-dim) leading-relaxed mt-3 italic">
-                  “{home.jobs.recruiter_perspective}”
+              {home.jobs?.recruiter_perspective && (
+                <p className="text-xs italic leading-relaxed text-(--color-ink-dim)">
+                  “{home.jobs?.recruiter_perspective}”
                 </p>
               )}
             </div>

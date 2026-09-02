@@ -1897,6 +1897,51 @@
    how reduced motion is handled everywhere else in this file: the final
    state arrives immediately rather than the effect being cancelled.
    ══════════════════════════════════════════════════════════════════════ */
+/* ── SCROLL-SCRUBBED RAIL ────────────────────────────────────────────────
+   The progress line beside a phase's steps, filling as that phase scrolls
+   through the viewport.
+
+   This replaced gsap + ScrollTrigger + @gsap/react, which existed on one
+   marketing page to animate one property. Three libraries for a height that
+   tracks scroll position is the same trade framer-motion lost here, and this
+   route was 22.8 KB over its budget carrying them.
+
+   `animation-timeline: view()` ties the fill to the element's own passage
+   through the viewport, so there is no trigger to register, no scope to
+   manage, and no JavaScript on the scroll path at all.
+
+   Outside the @supports block the fill simply stays at full height: a static
+   line beside the steps, which is what the design reads as anyway. Nothing
+   is hidden by an unsupported animation.
+   ══════════════════════════════════════════════════════════════════════ */
+.rail-fill {
+  height: 100%;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .rail-fill {
+      height: 100%;
+      transform-origin: top;
+      animation: rail-scrub linear both;
+      animation-timeline: view();
+      /* Starts when the rail's top reaches 65% down the viewport and
+         completes as its bottom passes the same line — the same window the
+         ScrollTrigger start/end pair described. */
+      animation-range: cover 20% cover 80%;
+    }
+  }
+}
+
+@keyframes rail-scrub {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
 @supports (animation-timeline: scroll()) {
   @media (prefers-reduced-motion: no-preference) {
     /* The hero wash drifts upward at ~0.3x scroll speed. Applied to a

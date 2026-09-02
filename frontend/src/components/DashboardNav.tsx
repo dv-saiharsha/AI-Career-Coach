@@ -14,7 +14,6 @@ import {
   TrendingUp,
   Briefcase,
   KanbanSquare,
-  Search,
   BarChart3,
   FileText,
   Scale,
@@ -28,7 +27,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
-import { useCommandPalette } from '@/components/command-palette'
+import { HeaderSearch } from '@/components/HeaderSearch'
 import { cn } from '@/lib/utils'
 
 /* Split into two labelled groups rather than one long list. Analytics,
@@ -211,7 +210,6 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { user } = useAuth()
   const [mobileOpen, setMobileOpen] = React.useState(false)
-  const { toggle } = useCommandPalette()
 
   const currentLabel =
     [...NAV_ITEMS, ...INSIGHT_ITEMS, ...BOTTOM_ITEMS].find((item) => item.href === pathname)
@@ -255,14 +253,7 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={toggle}
-              aria-label="Open command palette"
-            >
-              <Search />
-            </Button>
+            <HeaderSearch />
 
             <ThemeToggle />
 

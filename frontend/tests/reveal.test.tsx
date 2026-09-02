@@ -118,19 +118,6 @@ describe('RevealGroup', () => {
    element is already on screen and, failing everything, on a timer.
    ──────────────────────────────────────────────────────────────────────── */
 
-/** Records observed targets and never calls the callback. */
-function mockObserverThatNeverFires() {
-  vi.stubGlobal(
-    'IntersectionObserver',
-    class {
-      constructor(_cb: IntersectionObserverCallback) {}
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  )
-}
-
 describe('RevealGroup when the observer never fires', () => {
   /* reveal.tsx keeps its IntersectionObserver in a module-level singleton, so
      an observer built by an earlier test survives into this one and fires when
@@ -142,7 +129,7 @@ describe('RevealGroup when the observer never fires', () => {
     vi.stubGlobal(
       'IntersectionObserver',
       class {
-        constructor(_cb: IntersectionObserverCallback) {}
+        constructor() {}
         observe() {}
         unobserve() {}
         disconnect() {}

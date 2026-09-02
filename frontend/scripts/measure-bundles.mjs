@@ -85,7 +85,13 @@ const CLASSES = {
    fix is the Phase 2 layout rebuild rather than a bundle change, so the gate
    holds today's line instead of failing every build until that lands. Lower
    this when a route is fixed; never raise it to make a build pass. */
-const ALLOWED_OVER_BUDGET = 1
+const ALLOWED_OVER_BUDGET = 0
+// Ratcheted 1 -> 0 once /how-it-works, the last route over budget, dropped
+// under it by removing gsap + ScrollTrigger + @gsap/react for one
+// scroll-scrubbed line — replaced with animation-timeline: view(). Every
+// graded route is now inside its class budget. Raise this again only if a
+// route goes over for a reason nobody can act on immediately (the pattern
+// the comment on rootMainFiles documents) — never to make a red build green.
 
 const MARKETING = new Set(['/', '/features', '/pricing', '/how-it-works'])
 const AUTH = new Set(['/login', '/register', '/forgot-password', '/reset-password'])

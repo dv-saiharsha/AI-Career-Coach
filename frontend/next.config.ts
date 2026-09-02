@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   // makes the Docker image reasonably sized rather than carrying every dev
   // dependency into the runtime layer.
   output: "standalone",
+
+  /* /features and /how-it-works answered halves of the same question, so
+     people had to read both and join them up. They are one page now.
+     Permanent rather than temporary: the old URL is not coming back, and a
+     307 would leave search engines indexing a route that no longer exists. */
+  async redirects() {
+    return [{ source: "/features", destination: "/how-it-works", permanent: true }];
+  },
+
   compiler: {
     styledComponents: true,
   },

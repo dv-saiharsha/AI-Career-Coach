@@ -11,7 +11,7 @@ const COLUMNS = [
     heading: 'What it does',
     links: [
       { label: 'How it works', href: '/how-it-works' },
-      { label: 'What you get', href: '/features' },
+      { label: 'What you get', href: '/how-it-works' },
       { label: 'Check your CV', href: '/resume' },
       { label: 'Practise interviews', href: '/interview' },
     ],
