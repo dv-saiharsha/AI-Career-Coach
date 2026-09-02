@@ -95,7 +95,7 @@ export function PricingSection() {
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-semibold tracking-tight mt-4 mb-5">
             Simple, transparent
             <br />
-            <span className="gradient-text-violet">pricing</span>
+            <span className="gradient-text-accent">pricing</span>
           </h2>
           <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto mb-8">
             Start free. Upgrade when you&apos;re ready. Cancel anytime.

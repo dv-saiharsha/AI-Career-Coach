@@ -71,6 +71,7 @@ type ColorKey =
   | 'inkMuted'
   | 'inkFaint'
   | 'accentText'
+  | 'signal'
   | 'onAccent'
   | 'danger'
   | 'success'

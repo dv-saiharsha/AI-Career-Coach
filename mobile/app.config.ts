@@ -32,7 +32,7 @@ const config: ExpoConfig = {
 
   android: {
     package: 'org.chieac.applycenter',
-    adaptiveIcon: { backgroundColor: '#150F2E' },
+    adaptiveIcon: { backgroundColor: '#0A0A0A' },
     edgeToEdgeEnabled: true,
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT', 'POST_NOTIFICATIONS'],
   },
@@ -41,7 +41,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-secure-store',
     ['expo-local-authentication', { faceIDPermission: 'Unlock ApplyCenter with Face ID.' }],
-    ['expo-notifications', { color: '#6D4AFF' }],
+    ['expo-notifications', { color: '#0A0A0A' }],
     /* Required by the Google sign-in flow: it opens the consent screen in an
        in-app browser tab rather than kicking out to Safari or Chrome, so the
        user comes back to this app and the session lands where it should. */

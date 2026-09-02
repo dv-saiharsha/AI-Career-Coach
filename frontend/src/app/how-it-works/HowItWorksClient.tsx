@@ -264,7 +264,7 @@ export function HowItWorksClient() {
           </span>
           <h1 className="text-5xl md:text-7xl font-display font-semibold tracking-tight mt-4 mb-5">
             From upload to<br />
-            <span className="gradient-text-violet">interview-ready</span>
+            <span className="gradient-text-accent">interview-ready</span>
           </h1>
           <p className="text-[var(--color-ink-dim)] text-lg max-w-2xl mx-auto leading-relaxed">
             ApplyCenter runs a complete, automated 12-step pipeline that transforms your resume into a fully optimized application and your preparation into a competitive advantage.

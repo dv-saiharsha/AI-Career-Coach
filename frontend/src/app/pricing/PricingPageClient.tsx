@@ -87,7 +87,7 @@ export function PricingPageClient() {
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-display font-semibold tracking-tight mt-4 mb-5">
             Invest in your career.
             <br />
-            <span className="gradient-text-violet">Cancel anytime.</span>
+            <span className="gradient-text-accent">Cancel anytime.</span>
           </h1>
           <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto">
             Start free. Upgrade when you&apos;re landing interviews. No long-term contracts.

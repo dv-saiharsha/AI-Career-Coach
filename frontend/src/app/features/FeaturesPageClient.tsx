@@ -89,7 +89,7 @@ export function FeaturesPageClient() {
             </span>
             <h1 className="text-5xl md:text-7xl font-display font-semibold tracking-tight mt-4 mb-5">
               Everything you need.<br />
-              <span className="gradient-text-violet">Nothing you don&apos;t.</span>
+              <span className="gradient-text-accent">Nothing you don&apos;t.</span>
             </h1>
             <p className="text-[var(--color-ink-dim)] text-lg max-w-2xl mx-auto leading-relaxed">
               ApplyCenter is built around two tightly integrated tools. Here&apos;s a complete breakdown of every feature in both.

@@ -38,7 +38,7 @@ export function CTASection() {
             <h2 className="text-4xl md:text-6xl font-display font-semibold tracking-tight mb-5">
               Ready to land
               <br />
-              <span className="gradient-text-violet">your next role?</span>
+              <span className="gradient-text-accent">your next role?</span>
             </h2>
 
             <p className="text-[var(--color-ink-dim)] text-lg max-w-xl mx-auto mb-10 leading-relaxed">

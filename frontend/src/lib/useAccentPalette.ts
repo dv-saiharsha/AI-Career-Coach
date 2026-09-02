@@ -4,6 +4,8 @@ import { useSyncExternalStore } from 'react'
 
 export interface AccentPalette {
   accent: string
+  /** The system's one hue. Metrics, score figures, emphasised phrases. */
+  signal: string
   accentDim: string
   accentLight: string
   accentLighter: string
@@ -14,19 +16,22 @@ export interface AccentPalette {
   inkFaint: string
 }
 
-/* Light-theme values from the Porcelain & Obsidian palette. These are what
-   SSR and the first paint use, so they must match :root — the old blue
-   defaults flashed a foreign palette before hydration. */
+/* Light-theme values, and they must stay identical to :root in globals.css.
+   These are what SSR and the first paint use, so a stale entry here is a
+   visible flash of a foreign palette before hydration — which is exactly what
+   these were: they were still the retired Porcelain & Obsidian values long
+   after that system was replaced. */
 const FALLBACK: AccentPalette = {
-  accent: '#0f172a',
-  accentDim: '#1e293b',
-  accentLight: '#3b4453',
-  accentLighter: '#64748b',
-  signalHigh: '#3f5a42',
-  signalMid: '#8a5a17',
-  signalLow: '#8e332b',
-  inkDim: '#5e6472',
-  inkFaint: '#6a6f7f',
+  accent: '#0a0a0a',
+  signal: '#1d4ed8',
+  accentDim: '#333333',
+  accentLight: '#404040',
+  accentLighter: '#6b6b6b',
+  signalHigh: '#22704d',
+  signalMid: '#7d5516',
+  signalLow: '#8f3e3c',
+  inkDim: '#525252',
+  inkFaint: '#6b6b6b',
 }
 
 let cachedPalette: AccentPalette = FALLBACK
@@ -41,6 +46,7 @@ function read(): AccentPalette {
   cachedThemeAttr = themeAttr
   cachedPalette = {
     accent: get('--color-accent', FALLBACK.accent),
+    signal: get('--color-signal', FALLBACK.signal),
     accentDim: get('--color-accent-dim', FALLBACK.accentDim),
     accentLight: get('--color-accent-light', FALLBACK.accentLight),
     accentLighter: get('--color-accent-lighter', FALLBACK.accentLighter),
@@ -80,12 +86,12 @@ export interface ChartTheme {
 }
 
 const CHART_FALLBACK: ChartTheme = {
-  data: ['#2f3a4c', '#7a6a55', '#a67c52', '#55684f', '#8c5648', '#6b6478'],
-  grid: '#e4e0d8',
-  axis: '#6a6f7f',
+  data: ['#1d4ed8', '#525252', '#22704d', '#7d5516', '#8f3e3c', '#737373'],
+  grid: '#e5e5e5',
+  axis: '#6b6b6b',
   surface: '#ffffff',
-  border: '#e4e0d8',
-  ink: '#0f172a',
+  border: '#e5e5e5',
+  ink: '#0a0a0a',
 }
 
 let cachedChart: ChartTheme = CHART_FALLBACK

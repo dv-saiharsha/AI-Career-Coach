@@ -211,7 +211,9 @@ function JobCard({ job }: { job: Job }) {
                   width: `${Math.min(100, Math.max(0, score))}%`,
                   height: '100%',
                   borderRadius: radius.pill,
-                  backgroundColor: colors.accent,
+                  /* Signal, not accent. The accent is ink now, and an ink bar
+                     on a white card reads as a rule rather than a measurement. */
+                  backgroundColor: colors.signal,
                 }}
               />
             </View>

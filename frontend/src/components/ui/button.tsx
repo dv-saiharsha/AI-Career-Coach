@@ -32,7 +32,7 @@ const buttonVariants = cva(
            accent glow. White clears 4.74:1 at the lightest gradient stop —
            see scripts/check-contrast.mjs. */
         default: 'elev-accent',
-        /* Raised violet-grey. The default for everything that is not the
+        /* Raised neutral surface. The default for everything that is not the
            single primary action in view. */
         secondary: 'elev-interactive bg-canvas-raise text-ink',
         outline: 'elev-interactive-sm bg-canvas-raise text-ink',

@@ -7,7 +7,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 /* The right-hand drawer: the largest raised surface in the system, sliding
-   in over a violet scrim at 320ms on the decelerating curve.
+   in over a black scrim at 320ms on the decelerating curve.
 
    Radix handles focus trapping and restore-on-close for us, which is the
    reason this is built on it rather than hand-rolled. */
@@ -24,9 +24,10 @@ const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      /* A violet scrim, not black: the page beneath should read as dimmed,
-         not as a different material. */
-      'fixed inset-0 z-50 bg-[rgb(16_11_36/0.72)]',
+      /* Plain black at 68%. The scrim used to be violet so the page beneath
+         read as dimmed rather than as a different material; in a monochrome
+         system black IS the material, so the tint has nothing left to do. */
+      'fixed inset-0 z-50 bg-[rgb(0_0_0/0.68)]',
       'data-[state=open]:animate-in data-[state=open]:fade-in-0',
       'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
       className

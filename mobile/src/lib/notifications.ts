@@ -61,7 +61,7 @@ export async function ensureAndroidChannel(): Promise<void> {
     name: 'Updates',
     importance: Notifications.AndroidImportance.DEFAULT,
     vibrationPattern: [0, 200],
-    lightColor: '#6D4AFF',
+    lightColor: '#FFFFFF',
   })
 }
 

@@ -23,25 +23,34 @@
 
 export const palette = {
   light: {
-    canvas: '#F3F2F8',
-    canvasDeep: '#EAE8F2',
+    canvas: '#FAFAFA',
+    canvasDeep: '#F0F0F0',
     canvasRaise: '#FFFFFF',
     canvasElevated: '#FFFFFF',
 
-    ink: '#241B46',
-    inkSubtle: '#3F3566',
-    inkMuted: '#5D5486',
-    inkFaint: '#635C85',
+    ink: '#0A0A0A',
+    inkSubtle: '#333333',
+    inkMuted: '#525252',
+    inkFaint: '#6B6B6B',
 
-    line: 'rgba(36, 27, 70, 0.11)',
-    lineStrong: 'rgba(36, 27, 70, 0.17)',
+    line: 'rgba(0, 0, 0, 0.11)',
+    lineStrong: 'rgba(0, 0, 0, 0.18)',
 
-    accent: '#6D4AFF',
-    accentLight: '#8B6BFF',
-    accentDeep: '#5432D8',
-    accentText: '#5432D8',
+    accent: '#0A0A0A',
+    accentLight: '#404040',
+    accentDeep: '#000000',
+    accentText: '#0A0A0A',
     onAccent: '#FFFFFF',
-    accentTint: 'rgba(109, 74, 255, 0.10)',
+    accentTint: 'rgba(0, 0, 0, 0.06)',
+
+    /* The system's one hue — score figures, metric numbers, chart series 1.
+       Everything structural is black, white or grey; this is reserved for
+       values that are meant to be read as values. Royal blue, chosen on the
+       web by measurement: it clears AA on every surface in both themes and
+       sits 66° from the nearest semantic hue, where teal sat 23° from the
+       dark-theme success mint and would have read as a second green. */
+    signal: '#1D4ED8',
+    signalTint: 'rgba(29, 78, 216, 0.09)',
 
     success: '#22704D',
     warning: '#7D5516',
@@ -51,25 +60,28 @@ export const palette = {
     dangerTint: 'rgba(184, 81, 79, 0.12)',
   },
   dark: {
-    canvas: '#100C22',
-    canvasDeep: '#0A0718',
-    canvasRaise: '#191434',
-    canvasElevated: '#211B41',
+    canvas: '#0A0A0A',
+    canvasDeep: '#000000',
+    canvasRaise: '#171717',
+    canvasElevated: '#212121',
 
-    ink: '#F4F0FF',
-    inkSubtle: '#D6CFF0',
-    inkMuted: '#A9A1CF',
-    inkFaint: '#918AB6',
+    ink: '#FAFAFA',
+    inkSubtle: '#D4D4D4',
+    inkMuted: '#A8A8A8',
+    inkFaint: '#949494',
 
-    line: 'rgba(176, 152, 255, 0.16)',
-    lineStrong: 'rgba(176, 152, 255, 0.26)',
+    line: 'rgba(255, 255, 255, 0.14)',
+    lineStrong: 'rgba(255, 255, 255, 0.24)',
 
-    accent: '#8B6BFF',
-    accentLight: '#B79CFF',
-    accentDeep: '#5F3FE0',
-    accentText: '#B79CFF',
-    onAccent: '#FFFFFF',
-    accentTint: 'rgba(139, 107, 255, 0.14)',
+    accent: '#FAFAFA',
+    accentLight: '#FFFFFF',
+    accentDeep: '#D4D4D4',
+    accentText: '#FAFAFA',
+    onAccent: '#0A0A0A',
+    accentTint: 'rgba(255, 255, 255, 0.10)',
+
+    signal: '#7CB2FF',
+    signalTint: 'rgba(124, 178, 255, 0.14)',
 
     success: '#6FDBA4',
     warning: '#F0B76B',
@@ -122,21 +134,21 @@ export const radius = {
  */
 export const elevation = {
   sm: {
-    shadowColor: '#241B46',
+    shadowColor: '#000000',
     shadowOpacity: 0.06,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   md: {
-    shadowColor: '#241B46',
+    shadowColor: '#000000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
   lg: {
-    shadowColor: '#241B46',
+    shadowColor: '#000000',
     shadowOpacity: 0.12,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },

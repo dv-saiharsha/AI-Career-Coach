@@ -51,7 +51,13 @@ function StatCard({
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
       </div>
-      <div className="text-2xl font-display font-bold text-(--color-ink) mb-1 tabular-nums">{value}</div>
+      {/* The figure carries the system's one hue; the label around it stays
+          ink. This is the whole reason a hue was kept after going monochrome —
+          a number in the same colour as its caption has to be found rather
+          than seen. */}
+      <div className="text-2xl font-display font-bold text-(--color-signal) mb-1 tabular-nums">
+        {value}
+      </div>
       <div className="text-xs text-(--color-ink-dim) mb-2">{label}</div>
       <div className="flex items-center gap-1 text-xs font-medium" style={{ color }}>
         <TrendingUp className="w-3 h-3" />
@@ -76,14 +82,14 @@ function DashboardContent({ home }: { home: DashboardHome }) {
       label: 'Resume Health',
       value: show(home.resume.latest_ats_score, '%'),
       change: home.resume.latest_filename ? bandLabel(home.resume.latest_band) : 'No scans yet',
-      color: palette.accent,
+      color: palette.signal,
     },
     {
       icon: KanbanSquare,
       label: 'Active Applications',
       value: show(home.applications.active),
       change: `${home.applications.total} tracked total`,
-      color: palette.accentLight,
+      color: palette.signal,
     },
     {
       icon: MessageSquareCode,
@@ -92,14 +98,14 @@ function DashboardContent({ home }: { home: DashboardHome }) {
       change: home.interview.completed_sessions
         ? `${home.interview.completed_sessions} session(s) completed`
         : 'No sessions yet',
-      color: palette.accentLighter,
+      color: palette.signal,
     },
     {
       icon: Target,
       label: 'Offer Success Rate',
       value: show(home.applications.success_rate, '%'),
       change: `${home.applications.offers} offer(s), ${home.applications.rejections} rejection(s)`,
-      color: palette.accent,
+      color: palette.signal,
     },
   ];
 
@@ -387,7 +393,7 @@ export default function DashboardPage() {
             Dashboard
           </span>
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-(--color-ink) leading-tight">
-            {greeting}, <span className="gradient-text-violet">{user?.firstName || 'there'}</span>
+            {greeting}, <span className="gradient-text-accent">{user?.firstName || 'there'}</span>
           </h1>
           <p className="text-sm text-(--color-ink-dim) mt-1.5">
             Here&apos;s what to focus on next.

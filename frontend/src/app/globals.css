@@ -6,7 +6,7 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /* ════════════════════════════════════════════════════════════════════════
-   PALETTE — deep violet, flat surfaces
+   PALETTE — monochrome, flat surfaces
 
    Surfaces are separated three ways, in this order: a real step in value, a
    visible hairline, and a soft drop shadow. That order matters — the first
@@ -41,52 +41,75 @@
      the page and the shadow did all the work. The flat system separates by
      value and by a hairline, so the steps are real: the page is tinted, a
      card is white, and you can tell them apart with shadows disabled. */
-  --canvas: #f3f2f8;
-  --canvas-deep: #eae8f2;
+  --canvas: #fafafa;
+  --canvas-deep: #f0f0f0;
   --canvas-raise: #ffffff;
   --canvas-elevated: #ffffff;
 
   /* Interaction surfaces. --canvas-hover is the row/nav-item wash;
      --canvas-sink is the recessed well a field sits in. */
-  --canvas-hover: #f7f6fb;
-  --canvas-sink: #eae8f2;
+  --canvas-hover: #f5f5f5;
+  --canvas-sink: #f0f0f0;
 
   /* Text. --ink-muted is the canonical name; --ink-dim aliases it. */
-  --ink: #241b46; /* 12.02:1 */
-  --ink-subtle: #3f3566; /*  8.30:1 */
-  --ink-muted: #5d5486; /*  5.16:1 */
+  --ink: #0a0a0a;
+  --ink-subtle: #333333;
+  --ink-muted: #525252;
   --ink-dim: var(--ink-muted);
-  --ink-faint: #635c85; /*  4.67:1  SPEC-DEVIATION: spec #8079a6 measured 3.05:1 */
+  --ink-faint: #6b6b6b;
 
   /* Hairlines. Now load-bearing rather than decorative: a card is a white
      surface with a visible edge, and the edge is what defines it when the
      shadow is too soft to read — on a bright screen, at a glance, or with
      shadows suppressed. The neumorphic system had no borders anywhere and
      these were deliberately near-invisible; they are not any more. */
-  --line: rgb(36 27 70 / 0.11);
-  --line-soft: rgb(36 27 70 / 0.06);
-  --line-strong: rgb(36 27 70 / 0.17);
+  --line: rgb(0 0 0 / 0.11);
+  --line-soft: rgb(0 0 0 / 0.06);
+  --line-strong: rgb(0 0 0 / 0.18);
   --canvas-line: var(--line);
   --canvas-line-soft: var(--line-soft);
 
   /* Accent — one accent, carrying primary action, active state and data
      emphasis. These three are FILL values (gradients, series, rings). */
-  --accent: #6d4aff;
-  --accent-light: #8b6bff;
-  --accent-deep: #5432d8;
+  /* In a monochrome system the accent is the ink itself. A primary button is
+     black with white on it; there is no hue left to carry emphasis, so weight
+     and value do it instead. */
+  --accent: #0a0a0a;
+  --accent-light: #404040;
+  --accent-deep: #000000;
   --on-accent: #ffffff;
 
   /* Accent as TEXT. Separate token because the fill accent measures 3.90:1
      on the deep surface and cannot carry a label. */
-  --accent-text: #5432d8; /*  5.62:1 */
+  --accent-text: #0a0a0a;
 
-  --accent-tint: rgb(109 74 255 / 0.1);
-  --accent-rgb: 109, 74, 255;
+  --accent-tint: rgb(0 0 0 / 0.06);
+  --accent-rgb: 10, 10, 10;
+
+  /* ── SIGNAL ──────────────────────────────────────────────────────────
+     The one hue in the system. Everything structural — buttons, focus,
+     surfaces, borders — is black, white or grey; this is reserved for the
+     things that are meant to be read as a value: score numbers, metric
+     figures, chart series 1, and the one emphasised phrase in a headline.
+
+     Colour that appears rarely is colour that lands. Spend it on a fourth
+     thing and it stops meaning "look here".
+
+     Royal blue, chosen by measurement rather than taste. It clears AA on
+     every surface in both themes (5.88:1 light, 7.41:1 dark) and sits 66°
+     from the nearest semantic hue — the widest separation of the candidates
+     tested. Teal scored better on contrast and was rejected at 23° from the
+     dark-theme success mint: a teal score next to a green success badge is
+     two greens, and the number is the thing that must not be mistaken. */
+  --signal: #1d4ed8; /* 5.88:1 */
+  --signal-strong: #1a3fa8;
+  --signal-bg: rgb(29 78 216 / 0.09);
+  --gradient-signal: linear-gradient(145deg, #2f63e0 0%, #1a3fa8 100%);
 
   /* The 145° primary gradient. Stops chosen so white clears 4.5:1 at BOTH
      ends (4.74:1 at the light stop).
      SPEC-DEVIATION: the spec's --accent-light stop puts white at 3.72:1. */
-  --gradient-accent: linear-gradient(145deg, #7a55f4 0%, #5432d8 100%);
+  --gradient-accent: linear-gradient(145deg, #333333 0%, #0a0a0a 100%);
 
   /* State. --semantic-* are canonical; --success/--warning/--danger alias.
      SPEC-DEVIATION: the spec's light trio measured 3.03–3.96:1 as text.
@@ -95,11 +118,11 @@
   --semantic-success: #22704d; /*  4.54:1 */
   --semantic-warning: #7d5516; /*  4.99:1 */
   --semantic-danger: #8f3e3c; /*  5.43:1 */
-  --semantic-ok: #5432d8;
+  --semantic-ok: #0a0a0a;
   --semantic-success-bg: rgb(47 143 99 / 0.12);
   --semantic-warning-bg: rgb(163 112 31 / 0.12);
   --semantic-danger-bg: rgb(184 81 79 / 0.12);
-  --semantic-ok-bg: rgb(109 74 255 / 0.1);
+  --semantic-ok-bg: rgb(0 0 0 / 0.06);
 
   --success: var(--semantic-success);
   --warning: var(--semantic-warning);
@@ -116,18 +139,18 @@
      needs the surface and the page to be the same colour, which is why the
      surfaces above were 1.5% apart. Both halves of that bargain are gone
      together: real surface steps, ordinary shadows. */
-  --shadow-sm: 0 0 5px 0 rgb(36 27 70 / 0.02), 0 2px 10px 0 rgb(36 27 70 / 0.06),
-    0 0 1px 0 rgb(36 27 70 / 0.28);
-  --shadow-md: 0 0 15px 0 rgb(36 27 70 / 0.03), 0 2px 20px 0 rgb(36 27 70 / 0.08),
-    0 0 1px 0 rgb(36 27 70 / 0.28);
-  --shadow-lg: 0 0 30px 0 rgb(36 27 70 / 0.04), 0 20px 40px 0 rgb(36 27 70 / 0.11),
-    0 0 1px 0 rgb(36 27 70 / 0.28);
+  --shadow-sm: 0 0 5px 0 rgb(0 0 0 / 0.02), 0 2px 10px 0 rgb(0 0 0 / 0.06),
+    0 0 1px 0 rgb(0 0 0 / 0.28);
+  --shadow-md: 0 0 15px 0 rgb(0 0 0 / 0.03), 0 2px 20px 0 rgb(0 0 0 / 0.08),
+    0 0 1px 0 rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 0 30px 0 rgb(0 0 0 / 0.04), 0 20px 40px 0 rgb(0 0 0 / 0.11),
+    0 0 1px 0 rgb(0 0 0 / 0.28);
 
   /* Hover lifts by deepening the shadow, never by changing colour — a
      surface that recolours on hover reads as a state change rather than a
      lift, and this system already spends colour on state elsewhere. */
-  --shadow-hover: 0 0 20px 0 rgb(36 27 70 / 0.04), 0 8px 28px 0 rgb(36 27 70 / 0.12),
-    0 0 1px 0 rgb(36 27 70 / 0.3);
+  --shadow-hover: 0 0 20px 0 rgb(0 0 0 / 0.04), 0 8px 28px 0 rgb(0 0 0 / 0.12),
+    0 0 1px 0 rgb(0 0 0 / 0.3);
 
   /* Fields. Flat systems recess by outlining, not by carving: an input is a
      filled surface with a ring. Expressed as an inset shadow rather than a
@@ -137,68 +160,77 @@
   --ring-field-soft: inset 0 0 0 1px var(--line);
 
   /* Only on gradient-accent elements. */
-  --shadow-accent: 0 10px 30px -8px rgb(109 74 255 / 0.45);
+  --shadow-accent: 0 10px 30px -8px rgb(0 0 0 / 0.35);
 
   /* Once per page, behind the hero. */
-  --ambient-wash: radial-gradient(58% 55% at 50% -8%, rgb(109 74 255 / 0.16) 0%, transparent 70%);
+  --ambient-wash: radial-gradient(58% 55% at 50% -8%, rgb(0 0 0 / 0.05) 0%, transparent 70%);
 
-  /* Paper tooth, kept very low — a large flat violet field reads better
+  /* Paper tooth, kept very low — a large flat neutral field reads better
      with a little noise, but grain is a compositor cost (see .grain). */
   --grain: 0.018;
   --ambient: 0.16;
 
-  /* Data ramp — violet family first, state hues after, all AA as text. */
-  --data-1: #6d4aff;
-  --data-2: #8b6bff;
+  /* Data ramp — greys first, state hues after, all AA as text.
+     Series colour is the one place monochrome genuinely costs something: four
+     greys separate worse than four hues, so any chart past two series must
+     also vary stroke or marker rather than lean on value alone. */
+  --data-1: #1d4ed8;
+  --data-2: #525252;
   --data-3: #22704d;
   --data-4: #7d5516;
   --data-5: #8f3e3c;
-  --data-6: #635c85;
+  --data-6: #737373;
 }
 
 /* ── DARK (primary) ────────────────────────────────────────────────────── */
 :root[data-theme='dark'] {
-  --canvas: #100c22;
-  --canvas-deep: #0a0718;
-  --canvas-raise: #191434;
-  --canvas-elevated: #211b41;
+  --canvas: #0a0a0a;
+  --canvas-deep: #000000;
+  --canvas-raise: #171717;
+  --canvas-elevated: #212121;
 
-  --canvas-hover: #211b41;
-  --canvas-sink: #0a0718;
+  --canvas-hover: #212121;
+  --canvas-sink: #000000;
 
-  --ink: #f4f0ff; /* 14.86:1 */
-  --ink-subtle: #d6cff0; /* 11.13:1 */
-  --ink-muted: #a9a1cf; /*  6.88:1 */
+  --ink: #fafafa;
+  --ink-subtle: #d4d4d4;
+  --ink-muted: #a8a8a8;
   --ink-dim: var(--ink-muted);
-  --ink-faint: #918ab6; /*  5.16:1  SPEC-DEVIATION: spec #7d76a3 measured 3.96:1 */
+  --ink-faint: #949494;
 
-  --line: rgb(176 152 255 / 0.16);
-  --line-soft: rgb(176 152 255 / 0.09);
-  --line-strong: rgb(176 152 255 / 0.26);
+  --line: rgb(255 255 255 / 0.14);
+  --line-soft: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.24);
   --canvas-line: var(--line);
   --canvas-line-soft: var(--line-soft);
 
-  --accent: #8b6bff;
-  --accent-light: #b79cff;
-  --accent-deep: #5f3fe0;
-  --on-accent: #ffffff;
+  /* The inverse of light: a primary button is white with black on it. */
+  --accent: #fafafa;
+  --accent-light: #ffffff;
+  --accent-deep: #d4d4d4;
+  --on-accent: #0a0a0a;
 
-  --accent-text: #b79cff; /*  7.30:1 */
-  --accent-tint: rgb(139 107 255 / 0.14);
-  --accent-rgb: 139, 107, 255;
+  --accent-text: #fafafa;
+  --accent-tint: rgb(255 255 255 / 0.10);
+  --accent-rgb: 250, 250, 250;
 
-  /* White clears 4.55:1 at the light stop.
-     SPEC-DEVIATION: the spec's --accent-light stop puts white at 2.28:1. */
-  --gradient-accent: linear-gradient(145deg, #7d59f5 0%, #5f3fe0 100%);
+  /* Lightened for the dark ground; same hue, same job. */
+  --signal: #7cb2ff; /* 7.41:1 */
+  --signal-strong: #a8ccff;
+  --signal-bg: rgb(124 178 255 / 0.14);
+  --gradient-signal: linear-gradient(145deg, #a8ccff 0%, #7cb2ff 100%);
+
+  /* Inverted, so --on-accent is near-black across both stops. */
+  --gradient-accent: linear-gradient(145deg, #ffffff 0%, #d4d4d4 100%);
 
   --semantic-success: #6fdba4; /*  9.78:1 */
   --semantic-warning: #f0b76b; /*  9.26:1 */
   --semantic-danger: #f08b8b; /*  6.95:1 */
-  --semantic-ok: #b79cff;
+  --semantic-ok: #fafafa;
   --semantic-success-bg: rgb(111 219 164 / 0.12);
   --semantic-warning-bg: rgb(240 183 107 / 0.12);
   --semantic-danger-bg: rgb(240 139 139 / 0.12);
-  --semantic-ok-bg: rgb(139 107 255 / 0.14);
+  --semantic-ok-bg: rgb(255 255 255 / 0.10);
 
   /* Dark elevation is mostly the border, not the shadow.
      A drop shadow on a near-black page has almost nothing to darken, which
@@ -206,34 +238,34 @@
      leaned on a 5.5%-alpha highlight that may never have been visible. The
      shadows stay for depth under overlays; the hairline above does the
      separating, and it is brighter in dark than in light for that reason. */
-  --shadow-sm: 0 1px 2px 0 rgb(4 2 12 / 0.5), 0 0 1px 0 rgb(0 0 0 / 0.6);
-  --shadow-md: 0 4px 14px 0 rgb(4 2 12 / 0.55), 0 0 1px 0 rgb(0 0 0 / 0.6);
-  --shadow-lg: 0 20px 44px 0 rgb(4 2 12 / 0.65), 0 0 1px 0 rgb(0 0 0 / 0.6);
-  --shadow-hover: 0 8px 26px 0 rgb(4 2 12 / 0.6), 0 0 1px 0 rgb(0 0 0 / 0.65);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 0 1px 0 rgb(0 0 0 / 0.6);
+  --shadow-md: 0 4px 14px 0 rgb(0 0 0 / 0.55), 0 0 1px 0 rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 20px 44px 0 rgb(0 0 0 / 0.65), 0 0 1px 0 rgb(0 0 0 / 0.6);
+  --shadow-hover: 0 8px 26px 0 rgb(0 0 0 / 0.6), 0 0 1px 0 rgb(0 0 0 / 0.65);
 
   --ring-field: inset 0 0 0 1px var(--line-strong);
   --ring-field-soft: inset 0 0 0 1px var(--line);
 
-  --shadow-accent: 0 10px 30px -8px rgb(139 107 255 / 0.6);
+  --shadow-accent: 0 10px 30px -8px rgb(0 0 0 / 0.7);
 
-  --ambient-wash: radial-gradient(58% 55% at 50% -8%, rgb(139 107 255 / 0.3) 0%, transparent 70%);
+  --ambient-wash: radial-gradient(58% 55% at 50% -8%, rgb(255 255 255 / 0.06) 0%, transparent 70%);
 
   --grain: 0.025;
   --ambient: 0.3;
 
-  --data-1: #8b6bff;
-  --data-2: #b79cff;
+  --data-1: #7cb2ff;
+  --data-2: #a8a8a8;
   --data-3: #6fdba4;
   --data-4: #f0b76b;
   --data-5: #f08b8b;
-  --data-6: #918ab6;
+  --data-6: #767676;
 }
 
 /* ════════════════════════════════════════════════════════════════════════
    COMPATIBILITY BRIDGE
 
    ~1,200 var(--…) call sites across the not-yet-rebuilt routes. Every alias
-   below points at a token above, so those screens land on the violet system
+   below points at a token above, so those screens land on the current system
    without being touched — the route rebuilds that follow are then about
    structure and motion, not colour.
 
@@ -363,6 +395,10 @@
   --color-accent-lighter: var(--accent-lighter);
   --color-accent-tint: var(--accent-tint);
   --color-on-accent: var(--on-accent);
+
+  --color-signal: var(--signal);
+  --color-signal-strong: var(--signal-strong);
+  --color-signal-bg: var(--signal-bg);
 
   --color-ink-btn: var(--ink-btn);
   --color-ink-btn-text: var(--ink-btn-text);
@@ -1379,7 +1415,7 @@
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
 }
-@utility glass-card-violet {
+@utility glass-card-accent {
   border-radius: var(--radius-xl);
   background: var(--canvas-raise);
   border: 1px solid var(--line);
@@ -1425,7 +1461,7 @@
   letter-spacing: -0.045em;
 }
 
-/* Paper tooth. Keeps large flat violet fields from banding. Behind
+/* Paper tooth. Keeps large flat neutral fields from banding. Behind
    everything, pointer-events-none — never on a scrolling container, which
    would repaint the noise every frame. */
 @utility grain {
@@ -1586,7 +1622,7 @@
 
   .btn-primary,
   .btn-brand,
-  .btn-violet {
+  .btn-accent {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1605,19 +1641,19 @@
   }
   .btn-primary:hover:not(:disabled),
   .btn-brand:hover:not(:disabled),
-  .btn-violet:hover:not(:disabled) {
+  .btn-accent:hover:not(:disabled) {
     transform: translateY(-1px);
   }
   .btn-primary:active:not(:disabled),
   .btn-brand:active:not(:disabled),
-  .btn-violet:active:not(:disabled) {
+  .btn-accent:active:not(:disabled) {
     transform: translateY(0);
     box-shadow: var(--ring-field-soft);
     transition: none;
   }
   .btn-primary:disabled,
   .btn-brand:disabled,
-  .btn-violet:disabled {
+  .btn-accent:disabled {
     background-image: none;
     background: var(--canvas-elevated);
     color: var(--ink-faint);
@@ -1736,9 +1772,12 @@
     animation: shimmer 1.6s linear infinite;
   }
 
-  .gradient-text-violet,
+  /* The emphasised phrase in a headline. Signal rather than ink — if it were
+     ink it would be the same colour as the rest of the sentence and the
+     gradient would be doing nothing visible. */
+  .gradient-text-accent,
   .gradient-text-brand {
-    background-image: var(--gradient-accent);
+    background-image: var(--gradient-signal);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;

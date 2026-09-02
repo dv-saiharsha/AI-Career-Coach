@@ -58,7 +58,10 @@ export function bandColor(band: ScoreBand): string {
     case 'STRONG':
       return 'var(--success)'
     case 'GOOD':
-      return 'var(--accent-text)'
+      /* Signal, not ink. GOOD is the band with no semantic verdict attached —
+         not a success, not a warning — so it takes the system's one neutral
+         hue rather than the text colour, which would render it as unstyled. */
+      return 'var(--signal)'
     case 'NEEDS WORK':
       return 'var(--warning)'
     case 'WEAK':

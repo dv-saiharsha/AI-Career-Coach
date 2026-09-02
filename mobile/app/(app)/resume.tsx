@@ -188,7 +188,7 @@ export default function Resume() {
                          pretending to a number the platform did not give us. */
                       width: `${progress?.percent ?? 33}%`,
                       height: '100%',
-                      backgroundColor: colors.accent,
+                      backgroundColor: colors.signal,
                       borderRadius: radius.pill,
                     }}
                   />

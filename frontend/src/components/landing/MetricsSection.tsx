@@ -35,7 +35,7 @@ export function MetricsSection() {
         <RevealGroup className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           {METRICS.map((m) => (
             <Reveal key={m.label} className="text-center">
-              <div className="text-4xl md:text-5xl font-display font-bold gradient-text-violet mb-2 tabular-nums">
+              <div className="text-4xl md:text-5xl font-display font-bold gradient-text-accent mb-2 tabular-nums">
                 {inView ? (
                   <CountUp value={m.value} decimals={m.decimals} />
                 ) : (

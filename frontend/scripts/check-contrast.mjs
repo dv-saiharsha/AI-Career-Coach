@@ -63,6 +63,7 @@ const TEXT = [
   '--ink-muted',
   '--ink-faint',
   '--accent-text',
+  '--signal',
   '--semantic-success',
   '--semantic-warning',
   '--semantic-danger',
