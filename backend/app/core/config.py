@@ -25,11 +25,19 @@ class Settings(BaseSettings):
     # Concurrency ceiling for the whole process: pool_size + max_overflow is
     # the maximum number of simultaneous database operations.
     #
-    # Sized for Supabase's TRANSACTION pooler (port 6543), where a connection
-    # is returned to the pool at the end of each transaction rather than held
-    # for the life of the session. That is what lifts the ceiling: session mode
-    # (port 5432) caps at 15 clients and fails with EMAXCONNSESSION rather than
-    # queuing, so these numbers are only safe while the DSN points at 6543.
+    # Sized for Supabase's SESSION pooler (port 5432), which holds a connection
+    # for the life of the session and caps at 15 clients per project, failing
+    # with EMAXCONNSESSION rather than queuing. 5 + 5 leaves headroom under
+    # that cap for Alembic, a psql session, and a second worker.
+    #
+    # These two numbers and the port in DB_URL are one decision, not two. The
+    # transaction pooler (6543) lifts the client cap and would carry 20 + 10
+    # comfortably — but it supports neither prepared statements nor the session
+    # state DDL and advisory locks need, so migrations against it fail
+    # intermittently. This codebase chooses correctness at 5432 and pays for it
+    # with a lower ceiling. If you raise these, move the port first and read
+    # warn_if_transaction_pooler below; raising them alone converts a working
+    # deployment into EMAXCONNSESSION under load.
     #
     # pool_recycle is short (300s) because pgbouncer drops idle server-side
     # connections; recycling before it does avoids handing out a dead socket.
@@ -39,8 +47,8 @@ class Settings(BaseSettings):
     # Left optional so local dev and CI need no Redis to boot.
     REDIS_URL: str = ""
 
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
     DB_POOL_RECYCLE_SECONDS: int = 300
 
     # Seconds the default job feed is served from process memory before

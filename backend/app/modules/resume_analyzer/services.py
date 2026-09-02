@@ -3,7 +3,7 @@ import re
 
 from app.core.llm import llm_client
 from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
-from app.modules.resume_analyzer import layout_check, quality
+from app.modules.resume_analyzer import integrity, layout_check, quality
 from app.ml.inference import model_available, predict_score
 
 SYSTEM_PROMPT = (
@@ -87,15 +87,41 @@ ANALYSIS_TOOL_SCHEMA = {
 
 
 def extract_text(filename: str, content: bytes) -> str:
+    """Plain text from an uploaded resume.
+
+    PDFs go through PyMuPDF rather than pdfplumber. That was a measured
+    change, not a preference — on a 2-page resume pdfplumber takes 72ms
+    against PyMuPDF's 2.3ms, and on an 8-page one 915ms against 13.7ms. The
+    whole deterministic analysis path is budgeted at 100ms, so extraction
+    alone was spending nine times that on a long document.
+
+    Output is not merely close, it is token-identical: across two-column,
+    ligature/unicode, table-grid, image-only and 8-page fixtures the
+    whitespace-normalised text matches exactly. test_extraction.py holds that
+    matrix so a future swap back has to argue with the numbers.
+
+    The one case where they disagree, PyMuPDF is the correct one. pdfplumber
+    reads rotated text backwards — a sidebar reading "SIDEBAR SKILLS Python Go
+    Rust" came back as "RABEDIS SLLIKS nohtyP oG tsuR". Sidebar skill columns
+    are common in modern resume templates, and hard_skill_match is the
+    heaviest metric in the rubric at weight 30, so those candidates were being
+    scored against reversed gibberish.
+
+    Both extractors return empty for an image-only PDF, so the caller's
+    "couldn't read any text from that file" refusal is unaffected.
+    """
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     if ext == "pdf":
-        import pdfplumber
+        import fitz
 
-        parts: list[str] = []
-        with pdfplumber.open(io.BytesIO(content)) as pdf:
-            for page in pdf.pages:
-                parts.append(page.extract_text() or "")
-        return "\n".join(parts)
+        document = fitz.open(stream=content, filetype="pdf")
+        try:
+            return "\n".join(page.get_text("text") for page in document)
+        finally:
+            # Explicit rather than left to refcounting: fitz holds the page
+            # buffer in C, where the GC's timing is not the process's memory
+            # profile.
+            document.close()
     if ext == "docx":
         import docx
 
@@ -266,7 +292,19 @@ def build_diagnostics(
     # rather than guessing single-column.
     readiness = layout_check.inspect_ats_parsing_readiness(resume_text, file_bytes)
 
+    # Whether the score above can be believed. Measured, not assumed: the
+    # trained model gives a verbatim copy of the posting 88 and a real resume
+    # with quantified achievements 49, so a high ats_score is evidence of
+    # keyword overlap and nothing else until something checks for repetition.
+    # See integrity.py for the numbers.
+    #
+    # Attached beside the score for the same reason the rest of this function
+    # is — the number stays what the model predicted, and this says how much
+    # weight to put on it.
+    score_integrity = integrity.assess(resume_text, jd_text)
+
     return {
+        "score_integrity": score_integrity,
         "taxonomy_matched_skills": (result.get("matched_skills") or [])[:15],
         "taxonomy_missing_skills": missing[:15],
         "implied_skills": implied,

@@ -15,6 +15,7 @@ similarity — not a stand-in constant for something never actually calculated.
 
 import base64
 import json
+import logging
 
 from app.core.keywords import keyword_candidates
 from app.core.llm import llm_client
@@ -22,8 +23,10 @@ from app.core.taxonomy import group_by_domain, skill_candidates
 from app.modules.resume_analyzer import layout_check, quality
 from app.ml.features import extract_features
 from app.ml.inference import predict_score
-from app.modules.resume_builder import latex
+from app.modules.resume_builder import guards, latex
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing  # noqa: F401 (re-exported)
+
+logger = logging.getLogger(__name__)
 
 MAX_BULLET_SUGGESTIONS = 6
 
@@ -62,7 +65,7 @@ BULLET_SUGGESTIONS_SCHEMA = {
 def _resume_text_from_payload(data: dict) -> str:
     """Flatten the structured compile payload into plain text for scoring.
 
-    Mirrors what pdfplumber/python-docx extraction would produce from an
+    Mirrors what PyMuPDF/python-docx extraction would produce from an
     uploaded file — line-separated prose — so the same trained model that
     scores an upload scores a compiled resume the same way.
     """
@@ -105,7 +108,27 @@ def stage_fixes(resume_text: str, jd_text: str, experiences: list[dict] | None) 
                     "submit_bullet_suggestions",
                     BULLET_SUGGESTIONS_SCHEMA,
                 )
-                suggestions = (result.get("suggestions") or [])[:MAX_BULLET_SUGGESTIONS]
+                proposed = (result.get("suggestions") or [])[:MAX_BULLET_SUGGESTIONS]
+
+                # The prompt above forbids inventing a metric or a technology.
+                # This is where that is checked rather than trusted. Anything
+                # asserting a figure the original bullet does not carry, or a
+                # tool the resume never mentions, is dropped — not flagged,
+                # because a rewrite shown with a caution still gets copied,
+                # and the person copying it is the one who has to defend it.
+                suggestions, rejected = guards.review_suggestions(proposed, resume_text)
+                if rejected:
+                    # Logged, never returned. The rate is worth watching: a
+                    # model that starts failing this consistently is a prompt
+                    # regression, and without a number nobody would notice.
+                    logger.warning(
+                        "Dropped %d of %d bullet rewrites that failed the fabrication check: %s",
+                        len(rejected),
+                        len(proposed),
+                        "; ".join(
+                            reason for item in rejected for reason in item.get("rejection", [])
+                        )[:500],
+                    )
             except Exception:
                 # Same fall-through posture as resume_analyzer: a suggestion
                 # feature failing shouldn't break the request, just return

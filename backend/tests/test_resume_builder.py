@@ -62,8 +62,8 @@ class TestStageFixesBulletSuggestions:
                     {
                         "experience_index": 0,
                         "original": "Worked on backend stuff",
-                        "suggested": "Rebuilt the backend API layer, cutting p95 latency 35%",
-                        "reason": "Adds a quantified outcome and matches JD language.",
+                        "suggested": "Rebuilt the backend API layer",
+                        "reason": "Leads with the action instead of the assignment.",
                     }
                 ]
             }
@@ -82,6 +82,59 @@ class TestStageFixesBulletSuggestions:
         assert captured.get("called") is True
         assert len(result["bullet_suggestions"]) == 1
         assert result["bullet_suggestions"][0]["reason"]
+
+    def test_fabricated_suggestion_is_dropped_before_the_user_sees_it(self, monkeypatch):
+        """A rewrite that invents a metric never reaches the response.
+
+        This fixture used to be the one above: "Worked on backend stuff" came
+        back as "Rebuilt the backend API layer, cutting p95 latency 35%", and
+        the test asserted it was returned. The 35% is invented — nothing in the
+        original bullet or the resume carries it — so it is exactly the claim a
+        candidate would then have to defend in an interview.
+
+        The prompt has always forbidden that. Nothing checked until guards.py.
+        """
+
+        def fake_complete_tool_json(system, user, tool_name, schema):
+            return {
+                "suggestions": [
+                    {
+                        "experience_index": 0,
+                        "original": "Worked on backend stuff",
+                        "suggested": "Rebuilt the backend API layer, cutting p95 latency 35%",
+                        "reason": "Adds a quantified outcome and matches JD language.",
+                    },
+                    {
+                        "experience_index": 0,
+                        "original": "Helped with deployments",
+                        "suggested": "Automated deployments using Kubernetes and Argo CD",
+                        "reason": "Names the tooling.",
+                    },
+                ]
+            }
+
+        monkeypatch.setattr(services.llm_client, "_client", object())
+        monkeypatch.setattr(services.llm_client, "complete_tool_json", fake_complete_tool_json)
+
+        result = services.stage_fixes(
+            resume_text="Worked on backend stuff. Helped with deployments.",
+            jd_text="Seeking a backend engineer to improve API latency.",
+            experiences=[
+                {
+                    "title": "Engineer",
+                    "company": "Acme",
+                    "dates": "2022",
+                    "bullets": ["Worked on backend stuff", "Helped with deployments"],
+                }
+            ],
+        )
+
+        # Both fabricate: one a figure, one a stack the resume never mentions.
+        assert result["bullet_suggestions"] == []
+        assert all(
+            "35%" not in (item.get("suggested") or "")
+            for item in result["bullet_suggestions"]
+        )
 
     def test_llm_unavailable_returns_no_suggestions_not_an_error(self, monkeypatch):
         monkeypatch.setattr(services.llm_client, "_client", None)

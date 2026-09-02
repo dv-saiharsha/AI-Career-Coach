@@ -38,7 +38,7 @@ _MODEL_METADATA_PATH = Path(__file__).resolve().parents[3] / "app" / "ml" / "mod
 MAX_ANALYSES_PER_WINDOW = 20
 ANALYSIS_WINDOW_SECONDS = 3600
 
-# Read fully into memory before parsing (pdfplumber/python-docx have no
+# Read fully into memory before parsing (PyMuPDF/python-docx have no
 # streaming API this project uses) — bounded so a very large or repeated
 # upload can't exhaust worker memory or get handed wholesale to a PDF parser
 # with no size floor.
