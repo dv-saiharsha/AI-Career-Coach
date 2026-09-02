@@ -114,6 +114,15 @@ export function useRevealGroup<T extends HTMLElement>() {
     if (!el || !motionAllowed()) return
 
     return observe(el, (group) => {
+      /* Mark the group itself, not only the children present right now.
+         The observer fires once and unobserves, so a group whose children
+         arrive later — a list waiting on a fetch, which is most of them —
+         would otherwise mark nothing and leave every row that mounts
+         afterwards at opacity 0 forever. The CSS reveals any [data-reveal]
+         inside a marked group, so late children arrive visible. */
+
+      ;(group as HTMLElement).dataset.revealedGroup = ''
+
       const children = group.querySelectorAll<HTMLElement>('[data-reveal]')
       const staggered = children.length <= STAGGER_MAX
 

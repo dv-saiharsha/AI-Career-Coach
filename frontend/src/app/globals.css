@@ -661,6 +661,12 @@
     will-change: opacity, transform;
   }
 
+  /* A child of a group that has already revealed, including one that
+     mounted after the observer fired and unobserved. Without this, any list
+     rendered from a fetch stays invisible: the group is on screen and
+     reveals while it is still empty, and every row that arrives afterwards
+     inherits the hidden state with nothing left to clear it. */
+  [data-revealed-group] [data-reveal],
   [data-reveal][data-revealed] {
     opacity: 1;
     transform: none;
@@ -692,6 +698,7 @@
       transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
     transition-delay: var(--reveal-delay, 0ms);
   }
+  [data-revealed-group] [data-reveal].reveal-scale,
   [data-reveal].reveal-scale[data-revealed] {
     opacity: 1;
     transform: none;
