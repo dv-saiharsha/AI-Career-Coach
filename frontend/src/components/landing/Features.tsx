@@ -1,6 +1,7 @@
 import { FileSearch, ListChecks, MessagesSquare, ShieldCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Reveal, RevealGroup } from '@/lib/reveal'
+import { ParseMap } from '@/components/landing/ParseMap'
 
 interface Feature {
   icon: LucideIcon
@@ -95,6 +96,15 @@ export function Features() {
                   >
                     {feature.body}
                   </p>
+
+                  {/* Only on the wide card, and only because that card makes
+                      the one claim on the page that is hard to picture. The
+                      other three describe things people already have a mental
+                      image of, and an illustration on each would be decoration
+                      competing with the copy. */}
+                  {feature.wide && (
+                    <ParseMap className="mt-8 hidden w-full lg:block" />
+                  )}
                 </div>
               </Reveal>
             )
