@@ -6,12 +6,11 @@ const LINKS = {
   Product: [
     { label: 'Resume Analyzer', href: '/resume' },
     { label: 'Interview Coach', href: '/interview' },
-    { label: 'What you get', href: '/how-it-works' },
+    { label: 'How it works', href: '/how-it-works' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Dashboard', href: '/dashboard' },
   ],
   Company: [
-    { label: 'How It Works', href: '/how-it-works' },
     { label: 'About', href: '#' },
     { label: 'Blog', href: '#' },
     { label: 'Careers', href: '#' },

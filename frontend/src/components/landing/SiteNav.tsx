@@ -11,8 +11,11 @@ import ThemeToggle from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
+  // One entry, not two. /features merged into /how-it-works, and repointing
+  // the old link left this array with the same href twice — which React keys
+  // on, so it warned, and which rendered the same destination under two
+  // labels. The merged page covers both halves; the nav says so once.
   { label: 'How it works', href: '/how-it-works' },
-  { label: 'What you get', href: '/how-it-works' },
   { label: 'For partners', href: '/pricing' },
 ]
 
