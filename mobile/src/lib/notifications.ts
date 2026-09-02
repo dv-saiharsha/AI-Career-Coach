@@ -52,6 +52,34 @@ export async function ensureAndroidChannel(): Promise<void> {
 export type PermissionOutcome = 'granted' | 'denied' | 'unsupported'
 
 /**
+ * The EAS project id, which getExpoPushTokenAsync requires in any standalone
+ * build. Expo Go can infer it; a compiled binary cannot, and without it the
+ * call throws at runtime on the first registration — in production, on a real
+ * user's phone, having passed every check on the way there.
+ *
+ * app.config.ts puts it on `extra` from the environment. `Constants.easConfig`
+ * is where EAS itself writes it during a cloud build. Note that a bare
+ * `process.env.EAS_PROJECT_ID` is NOT a usable fallback: only EXPO_PUBLIC_
+ * variables are inlined into the bundle, so an unprefixed one is undefined at
+ * runtime no matter what the build environment held.
+ */
+function easProjectId(): string | undefined {
+  const fromConfig = Constants.expoConfig?.extra?.eas?.projectId
+  const fromEas = Constants.easConfig?.projectId
+  const id = (fromConfig ?? fromEas ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID) as
+    | string
+    | undefined
+
+  if (!id && !__DEV__) {
+    console.warn(
+      'No EAS project id. Push registration will fail in this build — set ' +
+        'EAS_PROJECT_ID before building, see mobile/.env.example.',
+    )
+  }
+  return id
+}
+
+/**
  * Asks for permission and registers the resulting token.
  *
  * Returns 'unsupported' on a simulator rather than throwing: push tokens
@@ -70,9 +98,7 @@ export async function registerForPush(): Promise<PermissionOutcome> {
   }
   if (status !== 'granted') return 'denied'
 
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId: easProjectId() })).data
 
   await api.post('/notifications/devices', {
     expo_push_token: token,
@@ -86,9 +112,7 @@ export async function registerForPush(): Promise<PermissionOutcome> {
 export async function unregisterPush(): Promise<void> {
   if (!Device.isDevice) return
   try {
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId: easProjectId() })).data
     await api.delete(`/notifications/devices/${encodeURIComponent(token)}`)
   } catch {
     /* Best effort. A device that cannot reach the server on sign-out is not

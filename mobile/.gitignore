@@ -4,3 +4,7 @@ dist/
 web-build/
 *.log
 .env.local
+
+# Real environment values. .env.example is the tracked template.
+.env
+.env.local

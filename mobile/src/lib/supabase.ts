@@ -21,14 +21,20 @@ const extra = Constants.expoConfig?.extra as Record<string, string> | undefined
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra?.supabaseUrl ?? ''
 const SUPABASE_KEY =
-  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? extra?.supabasePublishableKey ?? ''
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  /* Supabase renamed anon -> publishable. Both spellings are read so a
+     project created either side of that change works without anyone having
+     to know which era it came from. */
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  extra?.supabasePublishableKey ??
+  ''
 
 if (__DEV__ && (!SUPABASE_URL || !SUPABASE_KEY)) {
   /* Loud in development, because the failure without it is every request
      returning 401 with nothing explaining why. */
   console.warn(
     'Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and ' +
-      'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in mobile/.env.local',
+      'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in mobile/.env — see .env.example.',
   )
 }
 

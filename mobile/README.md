@@ -9,7 +9,7 @@ project — but it is a separate app, not a port.
 ```bash
 cd mobile
 npm install
-cp .env.local.example .env.local     # fill in the two Supabase values
+cp .env.example .env                 # fill in the Supabase values
 npm start
 ```
 
@@ -28,8 +28,14 @@ npx eas build --profile development --platform ios
 npx eas build --profile development --platform android
 ```
 
-Set a real `projectId` in `app.json` first; the placeholder there is not a
-working one.
+`EAS_PROJECT_ID` must be set before either — `app.config.ts` reads it into
+`extra.eas.projectId`, which is what `getExpoPushTokenAsync` needs in a
+standalone build. Expo Go can infer it; a compiled binary cannot, and without
+it push registration throws at runtime rather than failing the build.
+
+Get it from `npx eas project:info`. Each profile in `eas.json` injects its own
+`EXPO_PUBLIC_API_URL`, so a preview build points at staging and a production
+build at production without anyone editing a file.
 
 ## What is here
 

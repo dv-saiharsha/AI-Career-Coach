@@ -25,7 +25,14 @@ import { supabase } from './supabase'
 const extra = Constants.expoConfig?.extra as Record<string, string> | undefined
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? extra?.apiBaseUrl ?? 'http://localhost:8000/api'
+  process.env.EXPO_PUBLIC_API_URL ??
+  /* The name this used to have. Kept as a fallback so an existing .env keeps
+     working rather than silently resolving to localhost in a device build,
+     which fails as "cannot reach ApplyCenter" and looks like a network
+     problem. */
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  extra?.apiBaseUrl ??
+  'http://localhost:8000/api'
 
 const TIMEOUT_MS = 20_000
 
