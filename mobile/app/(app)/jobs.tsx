@@ -19,13 +19,39 @@ import { useTheme, space, radius } from '@/theme'
  * ScrollView mounts every row whether or not it is on screen.
  */
 
+/**
+ * Mirrors JobListingSchema in backend/app/schemas/job.py.
+ *
+ * camelCase, which is unusual for this API and deliberate there: the job feed
+ * is the one payload the web frontend consumes with no mapping layer, so the
+ * schema matches its TypeScript interface rather than the Python convention.
+ * This file previously declared `work_mode` and every card rendered blank,
+ * because the field arriving was `workMode`.
+ */
 interface Job {
   id: string
   title: string
   company: string
-  location: string | null
-  work_mode: string | null
+  location: string
+  workMode: 'Remote' | 'Hybrid' | 'On-site'
+  salaryRange: string
+  postedDaysAgo: number
+  applyUrl: string
+  skills: string[]
   match?: { overallMatch: number | null; band: string | null } | null
+}
+
+/**
+ * The endpoint returns a feed object, not a bare array.
+ *
+ * Reading it as an array is what emptied this screen: `data.filter` is
+ * undefined on an object, so the list rendered nothing and the error state
+ * never fired either, because the request itself had succeeded.
+ */
+interface JobFeed {
+  lastUpdated: string | null
+  jobs: Job[]
+  refreshing: boolean
 }
 
 const MODES = ['All', 'Remote', 'Hybrid', 'On-site'] as const
@@ -38,19 +64,23 @@ export default function Jobs() {
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['jobs'],
-    queryFn: async () => (await api.get<Job[]>('/jobs')).data,
+    queryFn: async () => (await api.get<JobFeed>('/jobs')).data,
   })
 
   const jobs = useMemo(() => {
-    const all = data ?? []
+    // `?? []` on the array, not on the feed: a feed that arrives without a
+    // jobs key is a shape change, and defaulting the whole object would hide
+    // it behind an empty list again.
+    const all = data?.jobs ?? []
     const term = search.trim().toLowerCase()
     return all.filter((job) => {
-      if (mode !== 'All' && (job.work_mode ?? '').toLowerCase() !== mode.toLowerCase()) return false
+      if (mode !== 'All' && job.workMode.toLowerCase() !== mode.toLowerCase()) return false
       if (!term) return true
       return (
         job.title.toLowerCase().includes(term) ||
         job.company.toLowerCase().includes(term) ||
-        (job.location ?? '').toLowerCase().includes(term)
+        job.location.toLowerCase().includes(term) ||
+        job.skills.some((skill) => skill.toLowerCase().includes(term))
       )
     })
   }, [data, search, mode])
@@ -163,7 +193,7 @@ function JobCard({ job }: { job: Job }) {
           {job.company}
         </Txt>
         <Txt variant="micro" color="inkFaint" numberOfLines={1}>
-          {job.location ?? job.work_mode ?? '—'}
+          {[job.location, job.workMode].filter(Boolean).join(' · ') || '—'}
         </Txt>
 
         {score != null && (

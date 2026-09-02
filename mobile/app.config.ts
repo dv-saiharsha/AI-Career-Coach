@@ -42,6 +42,10 @@ const config: ExpoConfig = {
     'expo-secure-store',
     ['expo-local-authentication', { faceIDPermission: 'Unlock ApplyCenter with Face ID.' }],
     ['expo-notifications', { color: '#6D4AFF' }],
+    /* Required by the Google sign-in flow: it opens the consent screen in an
+       in-app browser tab rather than kicking out to Safari or Chrome, so the
+       user comes back to this app and the session lands where it should. */
+    'expo-web-browser',
   ],
 
   experiments: { typedRoutes: true },

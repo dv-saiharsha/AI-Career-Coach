@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { authenticate, isBiometricLockEnabled } from './secureSession'
 import { unregisterPush } from './notifications'
+import { redirectUri } from './googleAuth'
 
 /**
  * Who is signed in, and whether the app is currently unlocked.
@@ -90,7 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName } },
+          options: {
+            data: { full_name: fullName },
+            /* Where the confirmation link comes back to. Without it Supabase
+               falls back to the project's Site URL, which is the web app —
+               so someone who signed up on their phone gets an email that
+               opens a browser and leaves the app still signed out. Same
+               scheme the Google flow redirects to. */
+            emailRedirectTo: redirectUri(),
+          },
         })
         if (error) throw new Error(error.message)
       },

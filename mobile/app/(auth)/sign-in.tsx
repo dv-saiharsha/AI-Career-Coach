@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
 import { Link } from 'expo-router'
 import { Screen, Card, Txt, Button, Field } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
+import { GoogleButton } from '@/components/GoogleButton'
 import { space } from '@/theme'
 
 /**
@@ -75,6 +76,10 @@ export default function SignIn() {
               Sign in
             </Button>
           </Card>
+
+          <View style={{ marginTop: space.lg }}>
+            <GoogleButton />
+          </View>
 
           <View style={{ marginTop: space.xl, alignItems: 'center' }}>
             <Link href="/(auth)/sign-up">

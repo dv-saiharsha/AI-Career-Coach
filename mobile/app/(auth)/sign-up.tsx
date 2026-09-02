@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
 import { Link } from 'expo-router'
 import { Screen, Card, Txt, Button, Field } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
+import { GoogleButton } from '@/components/GoogleButton'
 import { useTheme, space, radius } from '@/theme'
 
 /* Four checks, four bars — the same criteria the web register page uses, so
@@ -148,6 +149,10 @@ export default function SignUp() {
               Create account
             </Button>
           </Card>
+
+          <View style={{ marginTop: space.lg }}>
+            <GoogleButton />
+          </View>
 
           <View style={{ marginTop: space.xl, alignItems: 'center' }}>
             <Link href="/(auth)/sign-in">

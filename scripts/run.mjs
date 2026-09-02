@@ -18,6 +18,7 @@
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -67,8 +68,44 @@ if (prod && !existsSync(join(root, 'frontend', '.next'))) {
 }
 
 // ── Launch ───────────────────────────────────────────────────────────────────
-const uvicornArgs = ['-m', 'uvicorn', 'app.main:app', '--port', BACKEND_PORT]
+
+/**
+ * The dev backend listens on every interface, not just loopback.
+ *
+ * uvicorn defaults to 127.0.0.1 and this script did not override it — correct
+ * for the web app, and it makes the mobile app impossible to develop against.
+ * A phone on the same Wi-Fi reaches the machine by its LAN address, where
+ * nothing was listening, so every request failed as "couldn't reach
+ * ApplyCenter" and read like a network fault rather than a bind address.
+ *
+ * The trade is real: this exposes the dev API to the local network, so on a
+ * shared or public one anybody on it can reach the port. Every route still
+ * requires a Supabase JWT, and this is the development path only — the
+ * production container publishes its port explicitly. Set
+ * BACKEND_HOST=127.0.0.1 to opt back out.
+ */
+const BACKEND_HOST = process.env.BACKEND_HOST ?? (prod ? '127.0.0.1' : '0.0.0.0')
+
+const uvicornArgs = ['-m', 'uvicorn', 'app.main:app', '--port', BACKEND_PORT, '--host', BACKEND_HOST]
 if (!prod) uvicornArgs.push('--reload')
+
+/** First non-internal IPv4 address, for the "reach this from a phone" line. */
+function lanAddress() {
+  const candidates = []
+  for (const [name, addrs] of Object.entries(networkInterfaces())) {
+    for (const addr of addrs ?? []) {
+      if (addr.family !== 'IPv4' || addr.internal) continue
+      /* WSL and Docker install virtual adapters whose addresses look local
+         and route nowhere a phone can follow. Next advertises one of these as
+         its Network URL, which is where the confusion starts. Ranked last
+         rather than hidden: on a machine with no other adapter, a
+         wrong-looking address still beats no address at all. */
+      candidates.push({ address: addr.address, virtual: /vEthernet|WSL|Docker|Hyper-V/i.test(name) })
+    }
+  }
+  candidates.sort((a, b) => Number(a.virtual) - Number(b.virtual))
+  return candidates[0]?.address ?? null
+}
 
 const services = [
   { name: 'backend', color: colors.backend, cmd: venvPython, args: uvicornArgs, cwd: join(root, 'backend') },
@@ -104,6 +141,9 @@ console.log(
   `\n${paint(colors.dim, prod ? 'Starting ApplyCenter (production)…' : 'Starting ApplyCenter (development)…')}\n` +
     `  backend   http://localhost:${BACKEND_PORT}  ${paint(colors.dim, `(docs at /docs)`)}\n` +
     `  frontend  http://localhost:${FRONTEND_PORT}\n` +
+    (BACKEND_HOST === '0.0.0.0' && lanAddress()
+      ? `  mobile    http://${lanAddress()}:${BACKEND_PORT}/api  ${paint(colors.dim, '(put this in mobile/.env as EXPO_PUBLIC_API_URL)')}\n`
+      : '') +
     `${paint(colors.dim, '  Ctrl+C stops both.')}\n`
 )
 
