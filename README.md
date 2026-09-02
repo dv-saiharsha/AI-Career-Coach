@@ -125,6 +125,45 @@ Run these from the repo root; they work the same on Windows, macOS and Linux.
 | `npm run migrate` | `alembic upgrade head` (review first — the database is shared) |
 | `npm run backend -- <args>` | Any command against the venv Python |
 
+### Serving the production build
+
+`npm run dev` and `npm start` both just work. The one that does not is the
+standalone server, and it is worth knowing why because `next start` prints a
+warning steering you straight at it:
+
+```
+⚠ "next start" does not work with "output: standalone" configuration.
+  Use "node .next/standalone/server.js" instead.
+```
+
+`next.config.ts` sets `output: "standalone"` so the Docker image ships a
+traced, minimal `node_modules` instead of the whole tree. That output
+deliberately excludes `.next/static` and `public/` — Next assumes a real
+deployment serves them from a CDN. The Dockerfile copies both in as separate
+layers, so the image is fine; running the same server locally was not, and
+every CSS and JS chunk 404'd.
+
+`npm run build` now runs `postbuild`, which copies both into
+`.next/standalone/` exactly as the Dockerfile does. After a build:
+
+```bash
+cd frontend && npm run start:standalone
+```
+
+### Reaching either app from a phone
+
+Next prints a `Network:` URL, and on a machine with WSL or Docker installed
+that URL is often the Hyper-V virtual adapter (`172.28.x.x`), which no phone
+can route to. Use the Wi-Fi address from `ipconfig` instead.
+
+The mobile app needs the same address in `mobile/.env` as
+`EXPO_PUBLIC_API_URL`, and the backend has to be bound to all interfaces
+rather than loopback:
+
+```bash
+npm run backend -- -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
 ## ATS scoring model (optional, in progress)
 `backend/app/ml/` holds a trained regression model that scores resumes numerically instead of via an LLM call — faster, free to run, and deterministic. It's trained on data produced by scripts in `backend/scripts/`:
 
