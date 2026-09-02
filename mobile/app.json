@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "ApplyCenter",
+    "slug": "applycenter",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "applycenter",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "org.chieac.applycenter",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Unlock ApplyCenter with Face ID instead of retyping your password.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "org.chieac.applycenter",
+      "adaptiveIcon": { "backgroundColor": "#150F2E" },
+      "edgeToEdgeEnabled": true,
+      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT", "POST_NOTIFICATIONS"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-local-authentication", { "faceIDPermission": "Unlock ApplyCenter with Face ID." }],
+      ["expo-notifications", { "color": "#6D4AFF" }]
+    ],
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "eas": { "projectId": "00000000-0000-0000-0000-000000000000" }
+    }
+  }
+}
