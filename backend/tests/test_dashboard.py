@@ -80,10 +80,19 @@ class TestFreshness:
 
 
 class TestOverview:
+    # NOW passed explicitly everywhere below, matching TestFreshness above —
+    # overview() used to compute datetime.now() unconditionally with no way
+    # to override it, so a fixture built against a fixed historical NOW and
+    # production code reading the real clock silently drifted apart as real
+    # time passed. test_cards_carry_evidence_not_just_a_badge is the one that
+    # actually failed from it: a job posted at NOW-2h fell outside a rolling
+    # 7-day real-clock window the instant more than 7 days minus 2 hours had
+    # elapsed since the fixture was written.
+
     def test_score_is_absent_without_a_scan(self, db):
         """No resume means no score — not a zero, which reads as a bad score
         rather than a missing one."""
-        result = services.overview(db, USER)
+        result = services.overview(db, USER, now=NOW)
         assert result["latest_ats_score"] is None
         assert result["scored_against"] is None
 
@@ -92,8 +101,8 @@ class TestOverview:
         row.h1b_sponsorship = "no_sponsorship"
         row.h1b_evidence = "No visa sponsorship available."
         db.commit()
-        card = services.overview(db, USER)["fresh_jobs"][0]
+        card = services.overview(db, USER, now=NOW)["fresh_jobs"][0]
         assert card["h1b_evidence"] == "No visa sponsorship available."
 
     def test_window_label_is_reported(self, db):
-        assert "last" in services.overview(db, USER)["fresh_window"]
+        assert "last" in services.overview(db, USER, now=NOW)["fresh_window"]

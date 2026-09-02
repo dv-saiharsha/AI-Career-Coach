@@ -168,8 +168,16 @@ def _pipeline_metrics(db: Session, user_id: str, resume_text: str | None) -> dic
     }
 
 
-def overview(db: Session, user_id: str) -> dict:
-    now = datetime.now(timezone.utc)
+def overview(db: Session, user_id: str, now: datetime | None = None) -> dict:
+    # Injectable for the same reason fresh_jobs() already takes one: a test
+    # that fixes posted_at against a hardcoded fixture date has to fix "now"
+    # too, or the two silently drift apart as real wall-clock time passes —
+    # which is exactly what happened here. The fixture NOW in test_dashboard.py
+    # predates this parameter, computed real datetime.now() unconditionally,
+    # and the test that exercised it went from passing to failing purely
+    # because enough real days passed for the two clocks to disagree about
+    # whether a fixed posted_at was inside a rolling 7-day window.
+    now = now or datetime.now(timezone.utc)
     rows, window_label = fresh_jobs(db, now)
 
     # The headline score is the user's latest scan against whatever JD it

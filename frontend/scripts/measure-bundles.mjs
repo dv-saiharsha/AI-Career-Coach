@@ -87,18 +87,30 @@ const CLASSES = {
    this when a route is fixed; never raise it to make a build pass. */
 const ALLOWED_OVER_BUDGET = 2
 // Ratcheted 1 -> 0 once every route cleared (see git blame for that story),
-// then 0 -> 2 for /resume (+0.3KB) and /applications (+0.2KB) after adding
-// ErrorBoundary to the panels named "ATS Score Generator" and "Applications
-// Table" in the request that asked for it. Trimmed first — the fallback
-// dropped its retry icon and its decorative icon-circle before this was
-// raised — and what is left is React class-component overhead:
+// then 0 -> 2 for /resume and /applications after adding ErrorBoundary to
+// the panels named "ATS Score Generator" and "Applications Table" — +0.3KB
+// and +0.2KB at the time, trimmed first (dropped the fallback's retry icon
+// and its decorative icon-circle) before being accepted, since
 // getDerivedStateFromError/componentDidCatch are called by React through
-// these exact property names, so a minifier cannot shorten them, and there
-// is no hook that provides the same render-exception guarantee. /jobs and
-// /interview absorbed the same shared module inside their existing headroom
-// (6.5-10.1KB); these two had none left. Lower this again if either route
-// gains headroom some other way — never raise it further to cover new,
-// unrelated weight.
+// fixed property names a minifier cannot shorten and no hook provides the
+// same guarantee.
+//
+// The count never changed again, but the two routes' margin did: moving
+// OnboardingModal from a single route (dashboard) into the protected
+// layout — so a new account is actually onboarded regardless of which page
+// it lands on first, the bug this fixed — cost every protected route
+// ~3KB of shared-chunk weight uniformly. Made dynamic (next/dynamic,
+// ssr: false, mounted only once showOnboarding is actually true) before
+// that was accepted, the same way HeaderSearchPanel was split out earlier;
+// OnboardingModal has no exit animation depending on staying mounted, so
+// there was nothing to lose by not rendering it for the common case of an
+// already-onboarded user. That cut ~3KB to ~1KB. The remaining ~1KB is the
+// gate hook itself — it has to run on every route to know whether to show
+// the modal at all, which is the one part of this that is not deferrable.
+// /resume and /applications now measure +1.0KB each; every other route
+// absorbed the identical residual inside its own headroom. Lower this again
+// if either route gains headroom some other way — never raise it further to
+// cover new, unrelated weight.
 
 const MARKETING = new Set(['/', '/features', '/pricing', '/how-it-works'])
 const AUTH = new Set(['/login', '/register', '/forgot-password', '/reset-password'])
