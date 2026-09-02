@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ScanUploadForm } from '@/components/resume/ScanUploadForm'
 import { ScanProgressPanel } from '@/components/resume/ScanProgressPanel'
 import { ScanResultsPanel } from '@/components/resume/ScanResultsPanel'
@@ -205,6 +206,10 @@ export default function ResumeAnalyzer() {
         {status === 'loading' && <ScanProgressPanel key="loading" uploadPercent={uploadPercent} />}
 
         {status === 'success' && result && (
+          // The ATS score generator: score, tabs, diagnostics, the optimize
+          // plan, the builder. resetKeys on the analysis id, so a crash
+          // scanning one resume does not survive into scanning the next.
+          <ErrorBoundary label="The ATS score results" resetKeys={[result.id]}>
           <ScanResultsPanel
             key="results"
             result={result}
@@ -220,6 +225,7 @@ export default function ResumeAnalyzer() {
             onResultTabChange={setResultTab}
             onReset={reset}
           />
+          </ErrorBoundary>
         )}
 
         {(status === 'idle' || status === 'error') && (

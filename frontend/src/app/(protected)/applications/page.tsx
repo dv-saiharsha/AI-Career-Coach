@@ -13,6 +13,7 @@ import {
   type JobApplication,
   type Pipeline,
 } from '@/lib/apiClient'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { KanbanBoard } from '@/components/applications/KanbanBoard'
 import { ListView } from '@/components/applications/ListView'
 import { TimelineView } from '@/components/applications/TimelineView'
@@ -250,22 +251,32 @@ export default function ApplicationsPage() {
         </div>
       )}
 
-      {!isError && view === 'kanban' && (
-        <KanbanBoard
-          pipeline={pipeline}
-          isLoading={isLoading}
-          onMove={(id, status) => moveMutation.mutate({ id, status })}
-          onDelete={(id) => deleteMutation.mutate(id)}
-          onOpen={(application) => setOpenApplicationId(application.id)}
-          busy={busy}
-        />
-      )}
+      {/* isError above already covers a failed fetch — react-query's own
+          state, with its own message. This covers the other failure mode:
+          a render-time exception inside whichever view is active, on a
+          pipeline shape the fetch itself succeeded in loading. resetKeys on
+          the view, so switching from Kanban to List after a crash gets a
+          clean boundary instead of one still tripped from the last tab. */}
+      {!isError && (
+        <ErrorBoundary label="The applications board" resetKeys={[view]}>
+          {view === 'kanban' && (
+            <KanbanBoard
+              pipeline={pipeline}
+              isLoading={isLoading}
+              onMove={(id, status) => moveMutation.mutate({ id, status })}
+              onDelete={(id) => deleteMutation.mutate(id)}
+              onOpen={(application) => setOpenApplicationId(application.id)}
+              busy={busy}
+            />
+          )}
 
-      {!isError && view === 'list' && (
-        <ListView pipeline={pipeline} isLoading={isLoading} onOpen={(application) => setOpenApplicationId(application.id)} />
-      )}
+          {view === 'list' && (
+            <ListView pipeline={pipeline} isLoading={isLoading} onOpen={(application) => setOpenApplicationId(application.id)} />
+          )}
 
-      {!isError && view === 'timeline' && <TimelineView onOpen={(id) => setOpenApplicationId(id)} />}
+          {view === 'timeline' && <TimelineView onOpen={(id) => setOpenApplicationId(id)} />}
+        </ErrorBoundary>
+      )}
 
       <ApplicationDetailDrawer applicationId={openApplicationId} onClose={() => setOpenApplicationId(null)} />
     </div>

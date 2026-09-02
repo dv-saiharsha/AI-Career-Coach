@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Briefcase, Clock, MapPin, Search, Sparkles } from 'lucide-react'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { useToast } from '@/components/ui/toast'
 import { getJobs, type JobFeed, type JobListing, type WorkMode } from '../../../lib/jobsData'
 import { CompanyLogo } from '@/components/jobs/CompanyLogo'
 import { ApplyTrackerButton } from '@/components/jobs/ApplyTrackerButton'
@@ -66,7 +68,12 @@ const SEARCH_DEBOUNCE_MS = 600
 
 export default function JobsPage() {
   const router = useRouter()
+  const toast = useToast()
   const [feed, setFeed] = useState<JobFeed | null>(null)
+  // Mirrors `feed` for the fetch effect below to read without depending on
+  // it. The effect is what writes `feed`, so putting the state itself in
+  // its own dependency array would refire on every successful response —
+  // a ref reads the latest value without being a reactive dependency.
   const [selectedJob, setSelectedJob] = useState<JobListing | null>(null)
   const [targetRoles, setTargetRoles] = useState<string[]>([])
   const [roleFilter, setRoleFilter] = useState<string | null>(null)
@@ -79,6 +86,10 @@ export default function JobsPage() {
   const [h1b, setH1b] = useState<string | null>(null)
   const [experience, setExperience] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  // Bumped by the retry button so the fetch effect below re-runs without
+  // requiring the user to change a filter first — a "try again" that only
+  // works if you also happen to alter your search is not really a retry.
+  const [retryTick, setRetryTick] = useState(0)
   // The term `feed` actually corresponds to. Loading is derived from the gap
   // between this and searchTerm rather than held as its own state — setting a
   // loading flag synchronously in an effect triggers a cascading render.
@@ -86,6 +97,7 @@ export default function JobsPage() {
   // Keyed by job id so reopening a different listing shows its own state
   // rather than inheriting the last one's "Saved".
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved'>>({})
+  const feedRef = useRef<JobFeed | null>(null)
   const loading = loadedTerm !== `${searchTerm}|${h1b ?? ''}|${experience ?? ''}`
 
   // Best Match becomes the default the first time a feed with any scored
@@ -111,10 +123,25 @@ export default function JobsPage() {
         // overwriting fresher results with stale ones.
         if (cancelled) return
         setFeed(data)
+        feedRef.current = data
         setFailed(false)
       })
       .catch(() => {
-        if (!cancelled) setFailed(true)
+        if (cancelled) return
+        setFailed(true)
+        // A fetch that fails while there is already a feed on screen is a
+        // refresh failing, not a first load — the existing rows are simply
+        // never overwritten below, so what is on screen keeps working. The
+        // one thing missing without this is that nobody is told it happened:
+        // silently serving stale data and silently failing to load both look
+        // identical to a user who cannot tell whether it's about to update.
+        if (feedRef.current) {
+          toast({
+            title: "Couldn't refresh listings",
+            description: 'Showing your last results. This will retry automatically.',
+            variant: 'error',
+          })
+        }
       })
       .finally(() => {
         // Always advance, including on failure — otherwise a failed request
@@ -124,7 +151,7 @@ export default function JobsPage() {
     return () => {
       cancelled = true
     }
-  }, [searchTerm, h1b, experience])
+  }, [searchTerm, h1b, experience, retryTick, toast])
 
   useEffect(() => {
     if (defaultSortApplied.current || !feed) return
@@ -410,7 +437,14 @@ export default function JobsPage() {
         </Reveal>
       )}
 
-      {/* Listings */}
+      {/* Listings.
+          Wrapped in ErrorBoundary because this is where a shape mismatch in
+          the feed payload would actually throw — job.title, job.company and
+          friends read straight off each row with no guard, which is
+          appropriate given the schema is typed, but a live API and a live
+          client are not always deployed in lockstep. resetKeys means a crash
+          on one search does not survive into a different one. */}
+      <ErrorBoundary label="The job feed" resetKeys={[searchTerm, h1b, experience]}>
       {!feed || loading ? (
         <div className="grid sm:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => (
@@ -428,6 +462,15 @@ export default function JobsPage() {
                 ? 'Nothing came back for that search. Try a broader role title.'
                 : 'No listings are cached yet. Search a role to pull live results.'}
           </p>
+          {failed && (
+            <button
+              type="button"
+              onClick={() => setRetryTick((n) => n + 1)}
+              className="btn-secondary mt-4 text-xs"
+            >
+              Try again
+            </button>
+          )}
         </div>
       ) : (
         <RevealGroup className="grid sm:grid-cols-2 gap-4">
@@ -511,6 +554,7 @@ export default function JobsPage() {
           ))}
         </RevealGroup>
       )}
+      </ErrorBoundary>
 
       <JobDetailDrawer
         job={selectedJob}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, RotateCcw, LogOut } from 'lucide-react'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ScreeningPrep } from '@/components/interview/ScreeningPrep'
 import { InterviewPrep } from '@/components/interview/InterviewPrep'
 import { VoiceAnswerComposer } from '@/components/interview/VoiceAnswerComposer'
@@ -595,6 +596,11 @@ export default function InterviewCoach() {
 
   /* ── Session Screen ───────────────────────────────────────── */
   return (
+    // The active session: live question generation, answer submission, and
+    // AI feedback all render inside this one tree. resetKeys on sessionId so
+    // restarting the interview always gets a clean boundary rather than one
+    // still tripped from a previous session's crash.
+    <ErrorBoundary label="The interview session" resetKeys={[sessionId]}>
     <div className="max-w-[760px] mx-auto pb-40">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <div>
@@ -710,6 +716,7 @@ export default function InterviewCoach() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   )
 }
 
