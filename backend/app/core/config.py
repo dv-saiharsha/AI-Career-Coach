@@ -140,19 +140,15 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-def validate_startup() -> None:
-    """Fail loudly at import time rather than deep inside a request.
+def warn_if_transaction_pooler() -> None:
+    """Warn when DB_URL points at Supabase's transaction pooler.
 
-    Only enforced when ENVIRONMENT=production — every other required-looking
-    setting below has a permissive default specifically so local dev and CI
-    need no .env to boot (DEEPGRAM_API_KEY/APIFY_API_TOKEN degrade features
-    gracefully when unset, by design; the ones checked here don't have a
-    degraded mode, so silently booting without them just moves the failure
-    from "won't start" to "500s on the first real request").
+    Deliberately NOT gated on ENVIRONMENT, and called from alembic/env.py as
+    well as from validate_startup. The failure it catches surfaces during
+    `alembic upgrade head` — which never calls validate_startup — so a check
+    that only ran on a production boot would stay silent in exactly the
+    situation it exists for.
     """
-    if not settings.is_production:
-        return
-
     # ── Connection pooler ────────────────────────────────────────────────
     #
     # Supabase publishes two pooler ports and they are not interchangeable:
@@ -181,6 +177,22 @@ def validate_startup() -> None:
             "append ?prepare_threshold=0 if you know this pool is configured "
             "for it."
         )
+
+
+def validate_startup() -> None:
+    """Fail loudly at import time rather than deep inside a request.
+
+    Only enforced when ENVIRONMENT=production — every other required-looking
+    setting below has a permissive default specifically so local dev and CI
+    need no .env to boot (DEEPGRAM_API_KEY/APIFY_API_TOKEN degrade features
+    gracefully when unset, by design; the ones checked here don't have a
+    degraded mode, so silently booting without them just moves the failure
+    from "won't start" to "500s on the first real request").
+    """
+    if not settings.is_production:
+        return
+
+    warn_if_transaction_pooler()
 
     missing: list[str] = []
     if settings.DB_URL.startswith("sqlite"):

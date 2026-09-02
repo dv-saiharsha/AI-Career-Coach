@@ -81,6 +81,12 @@ const CLASSES = {
   floor: { label: 'floor', budget: ROOT_LAYOUT_FLOOR },
 }
 
+/* A ratchet, not a target. /how-it-works is the one route still over and its
+   fix is the Phase 2 layout rebuild rather than a bundle change, so the gate
+   holds today's line instead of failing every build until that lands. Lower
+   this when a route is fixed; never raise it to make a build pass. */
+const ALLOWED_OVER_BUDGET = 1
+
 const MARKETING = new Set(['/', '/features', '/pricing', '/how-it-works'])
 const AUTH = new Set(['/login', '/register', '/forgot-password', '/reset-password'])
 
@@ -307,6 +313,25 @@ function main() {
     `\n${gradeable} graded routes, ${over} over budget. ` +
       `APP is JS minus the ${ROOT_LAYOUT_FLOOR} KB root-layout floor.\n`,
   )
+
+  /* --ci turns the table into a gate. Deliberately per route and per class
+     rather than against build-manifest's rootMainFiles: that number is
+     70.8 KB of react-dom plus Next's own runtime and contains no application
+     code — it moved 0.3 KB across the entire bundle effort, so a budget on it
+     would fail forever for a reason nobody here can act on. These budgets
+     measure what this repo actually ships. */
+  if (args.includes('--ci')) {
+    const offenders = rows.filter((r) => r.class !== 'floor' && r.kb > r.budget)
+    if (offenders.length > ALLOWED_OVER_BUDGET) {
+      console.error(
+        `\nBundle budget: ${offenders.length} routes over, ${ALLOWED_OVER_BUDGET} allowed.\n` +
+          offenders.map((r) => `  ${r.route} — ${r.kb} KB against ${r.budget}`).join('\n') +
+          '\n',
+      )
+      process.exit(1)
+    }
+    console.log(`Budget gate passed — ${offenders.length} over, ${ALLOWED_OVER_BUDGET} allowed.\n`)
+  }
 }
 
 

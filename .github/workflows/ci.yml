@@ -113,3 +113,11 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder' }}
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+
+      # Per-route, per-class budgets — not build-manifest's rootMainFiles,
+      # which is 70.8KB of react-dom plus Next's runtime and contains no code
+      # from this repo. It moved 0.3KB across the whole optimisation effort,
+      # so a budget on it would fail forever for a reason nobody can act on.
+      # ALLOWED_OVER_BUDGET is a ratchet: lower it as routes are fixed.
+      - name: Bundle budgets
+        run: node scripts/measure-bundles.mjs --ci
