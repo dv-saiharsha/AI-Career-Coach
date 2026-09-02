@@ -103,3 +103,95 @@ describe('RevealGroup', () => {
     }
   })
 })
+
+/* ────────────────────────────────────────────────────────────────────────
+   The second way this bug happens.
+
+   The suite above covers an observer that fires while the group is empty.
+   It does not cover an observer that never fires at all — which is what a
+   /jobs page showed in production: filter counts populated from the same
+   payload the grid renders, and a grid of 74 listings sitting at opacity 0.
+   The group had mounted after the fetch and nothing ever marked it.
+
+   Whatever the browser's reason, invisible content is a worse outcome than a
+   missing animation, so the reveal now marks on the next frame when the
+   element is already on screen and, failing everything, on a timer.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** Records observed targets and never calls the callback. */
+function mockObserverThatNeverFires() {
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(_cb: IntersectionObserverCallback) {}
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+}
+
+describe('RevealGroup when the observer never fires', () => {
+  /* reveal.tsx keeps its IntersectionObserver in a module-level singleton, so
+     an observer built by an earlier test survives into this one and fires when
+     this one needs it not to. Resetting the module registry and re-importing
+     is what actually installs the stub below — without it these tests pass
+     against the wrong observer, which is worse than failing. */
+  async function renderWithoutObserver(rect: { top: number; bottom: number }) {
+    vi.resetModules()
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(_cb: IntersectionObserverCallback) {}
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      ...rect,
+      left: 0,
+      right: 800,
+      width: 800,
+      height: rect.bottom - rect.top,
+      x: 0,
+      y: rect.top,
+      toJSON: () => ({}),
+    })
+
+    const mod = await import('@/lib/reveal')
+    return { mod }
+  }
+
+  it('reveals an on-screen group on the next frame rather than waiting', async () => {
+    const { mod } = await renderWithoutObserver({ top: 10, bottom: 400 })
+
+    const { container } = render(
+      <mod.RevealGroup data-testid="grid">
+        <mod.Reveal>listing</mod.Reveal>
+      </mod.RevealGroup>,
+    )
+
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+
+    const group = container.querySelector('[data-testid="grid"]')
+    expect(group?.hasAttribute('data-revealed-group')).toBe(true)
+  })
+
+  it('still reveals a group that is off screen, on the failsafe timer', async () => {
+    const { mod } = await renderWithoutObserver({ top: 5000, bottom: 5400 })
+
+    const { container } = render(
+      <mod.RevealGroup data-testid="grid">
+        <mod.Reveal>listing</mod.Reveal>
+      </mod.RevealGroup>,
+    )
+
+    const group = container.querySelector('[data-testid="grid"]')
+    // Off screen and no observer: nothing has revealed it yet.
+    expect(group?.hasAttribute('data-revealed-group')).toBe(false)
+
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    expect(group?.hasAttribute('data-revealed-group')).toBe(true)
+  })
+})

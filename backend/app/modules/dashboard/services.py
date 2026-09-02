@@ -1,4 +1,4 @@
-"""Dashboard overview: fresh job matches plus real policy news.
+"""Dashboard overview: fresh job matches and the pipeline metrics.
 
 home() (Milestone 9) is a second, larger entry point living in this same
 file: the Career Dashboard's one request, composing the Resume, Job
@@ -19,7 +19,6 @@ from app.models.resume import ResumeAnalysis
 from app.ml.inference import model_available, predict_score
 from app.modules.analytics.services import progress_buckets, summary as analytics_summary
 from app.modules.applications.services import get_pipeline
-from app.modules.dashboard import news
 from app.modules.interview_coach import prep as interview_prep
 from app.modules.interview_coach.dashboard import dashboard_summary as interview_summary
 from app.modules.job_market.services import top_matches
@@ -204,7 +203,6 @@ def overview(db: Session, user_id: str) -> dict:
         for row in rows
     ]
 
-    feed = news.fetch_immigration_news()
     return {
         "metrics": metrics,
         "fresh_jobs": cards,
@@ -212,9 +210,6 @@ def overview(db: Session, user_id: str) -> dict:
         # One figure for the whole dashboard, not a per-card fabrication.
         "latest_ats_score": score,
         "scored_against": scored_against,
-        "news": feed["articles"],
-        "news_reachable": feed["reachable"],
-        "news_cached": feed["cached"],
     }
 
 

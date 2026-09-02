@@ -1173,18 +1173,6 @@ export interface FreshJob {
 }
 
 /** A real Federal Register document. Nothing is authored by ApplyCenter. */
-export interface NewsArticle {
-  id: string
-  title: string
-  /** The issuing agency's own abstract, verbatim. */
-  summary?: string | null
-  type: string
-  agency: string
-  /** The document's real publication date — never the current time. */
-  published_at?: string | null
-  url?: string | null
-}
-
 export interface PipelineMetrics {
   /** Counts only stages meaning an application was sent — "saved" is a bookmark. */
   total_applied: number
@@ -1205,10 +1193,7 @@ export interface DashboardOverview {
   fresh_window: string
   latest_ats_score?: number | null
   scored_against?: string | null
-  news: NewsArticle[]
   /** False when the Federal Register could not be reached. */
-  news_reachable: boolean
-  news_cached: boolean
 }
 
 export const getDashboardOverview = async (): Promise<DashboardOverview> => {

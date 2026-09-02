@@ -13,7 +13,6 @@ from app.core.deps import AuthenticatedUser, get_current_user
 from app.main import app
 from app.models.application import JobApplication
 from app.models.resume import ResumeAnalysis
-from app.modules.dashboard import news
 
 ALICE = "00000000-0000-0000-0000-00000000000a"
 
@@ -29,13 +28,10 @@ def db():
 
 @pytest.fixture
 def client(db, monkeypatch):
-    news.clear_cache()
-    monkeypatch.setattr(news, "_fetch_term", lambda c, t, s: [])
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(id=ALICE, email="a@x.com")
     yield TestClient(app)
     app.dependency_overrides.clear()
-    news.clear_cache()
 
 
 def add_app(db, status, jd="Need Python and Kubernetes.", score=None):

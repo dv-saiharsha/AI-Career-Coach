@@ -15,7 +15,6 @@ import {
   Briefcase,
   KanbanSquare,
   Search,
-  Newspaper,
   BarChart3,
   FileText,
   Scale,
@@ -45,7 +44,6 @@ const NAV_ITEMS = [
   { icon: Briefcase, label: 'Job Market', href: '/jobs' },
   { icon: KanbanSquare, label: 'Applications', href: '/applications' },
   { icon: Scale, label: 'Offers', href: '/offers' },
-  { icon: Newspaper, label: 'Policy News', href: '/news' },
 ]
 
 const INSIGHT_ITEMS = [

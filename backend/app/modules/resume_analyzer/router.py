@@ -93,6 +93,22 @@ async def analyze_resume(
         resume_file_bytes=content,
     )
     db.add(record)
+
+    # Record this as the account's resume on file.
+    #
+    # It was only ever set by the onboarding upload, so anyone who skipped
+    # that step and scanned through the analyzer instead had a scored resume
+    # and a profile that still said they had none. The dashboard reads this
+    # field to decide whether to ask for one, so they were asked again on
+    # every visit, underneath their own score.
+    #
+    # Always the latest scan rather than only the first: the newest upload is
+    # the one the candidate is working on, and "your resume on file" showing
+    # something from three weeks ago is worse than showing nothing.
+    profile = db.query(Profile).filter(Profile.user_id == current_user.id).first()
+    if profile is not None:
+        profile.primary_resume_filename = record.resume_filename
+
     db.commit()
     db.refresh(record)
 

@@ -19,7 +19,6 @@ import {
   Sun,
   LogIn,
   KanbanSquare,
-  Newspaper,
   Scale,
 } from 'lucide-react'
 import {
@@ -48,7 +47,6 @@ const WORKSPACE = [
   { label: 'Offers', href: '/offers', icon: Scale },
   { label: 'Analytics', href: '/analytics', icon: BarChart3 },
   { label: 'Reports', href: '/reports', icon: TrendingUp },
-  { label: 'Policy News', href: '/news', icon: Newspaper },
 ]
 
 const ACCOUNT = [

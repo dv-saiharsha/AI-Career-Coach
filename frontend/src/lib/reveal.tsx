@@ -67,10 +67,53 @@ function getObserver() {
   return observer
 }
 
+/**
+ * How long to wait for the observer before revealing anyway.
+ *
+ * Content must never be gated behind an animation. The CSS already fails
+ * open when scripting is disabled, but that is only one of the ways an
+ * observer can fail to fire — a group that mounts after a fetch, inside a
+ * container the observer disagrees with, or during a frame the browser
+ * chooses not to service, stays at opacity 0 with nothing left to clear it.
+ *
+ * Long enough that a normal reveal always wins the race, short enough that a
+ * failure is not a visible outage.
+ */
+const FAILSAFE_MS = 900
+
 function observe(el: Element, handler: Handler) {
   handlers.set(el, handler)
   getObserver().observe(el)
+
+  /* Already on screen at mount? Reveal on the next frame and skip the
+     observer entirely. This is the common case for anything above the fold
+     and for any list that arrives from a fetch while the user is looking at
+     it, and it removes a whole class of timing bug rather than tuning it. */
+  const rect = el.getBoundingClientRect()
+  const onScreen =
+    rect.top < (window.innerHeight || 0) && rect.bottom > 0 && rect.width > 0 && rect.height > 0
+
+  const frame = onScreen
+    ? requestAnimationFrame(() => {
+        observer?.unobserve(el)
+        handlers.delete(el)
+        handler(el)
+      })
+    : 0
+
+  /* And a backstop for everything else. If the observer has not fired by
+     now, something is wrong with it, and invisible content is a worse
+     outcome than a missing animation. */
+  const timer = window.setTimeout(() => {
+    if (!handlers.has(el)) return
+    observer?.unobserve(el)
+    handlers.delete(el)
+    handler(el)
+  }, FAILSAFE_MS)
+
   return () => {
+    if (frame) cancelAnimationFrame(frame)
+    window.clearTimeout(timer)
     handlers.delete(el)
     observer?.unobserve(el)
   }

@@ -26,20 +26,6 @@ class FreshJobSchema(BaseModel):
     apply_url: str
 
 
-class NewsArticleSchema(BaseModel):
-    """A real Federal Register document. Nothing here is authored by ApplyCenter."""
-
-    id: str
-    title: str
-    # The issuing agency's own abstract, verbatim. None when it published none.
-    summary: Optional[str] = None
-    type: str
-    agency: str
-    # The document's real publication date — never the current time.
-    published_at: Optional[str] = None
-    url: Optional[str] = None
-
-
 class PipelineMetricsSchema(BaseModel):
     """Headline numbers for the pipeline."""
 
@@ -67,11 +53,6 @@ class DashboardOverviewSchema(BaseModel):
     # per-card match invented for listings never scored against.
     latest_ats_score: Optional[float] = None
     scored_against: Optional[str] = None
-    news: List[NewsArticleSchema] = []
-    # False when the Federal Register could not be reached, so the UI says the
-    # feed is unavailable rather than presenting stale items as current.
-    news_reachable: bool = True
-    news_cached: bool = False
 
 
 # ── Career Dashboard (Milestone 9) ──────────────────────────────────────────
