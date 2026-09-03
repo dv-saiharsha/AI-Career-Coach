@@ -117,12 +117,25 @@ def test_nothing_in_the_plan_removes_content() -> None:
 
 
 def test_quantifying_impact_lowers_this_model_s_score() -> None:
-    """The measurement the module's guardrails exist for.
+    """Quantifying previously-unquantified bullets must raise the score.
 
-    If this ever starts passing in the other direction the model has been
-    retrained, and optimizer.py's central caution — that the score penalises
-    the most repeated resume advice there is — should be revisited rather than
-    left as a stale warning.
+    This test used to assert the opposite, and was right to: the model
+    penalised quantified achievements, and optimizer.py's guidance was written
+    around that defect. It also said that if it ever started failing, the model
+    had been retrained and the guidance should be revisited rather than left
+    stale. That is exactly what happened.
+
+    The retrained model — five anti-gaming features plus 360 constructed
+    counter-examples, see scripts/train_ats_model.py — reverses it.
+    quantified_bullet_ratio is now the single heaviest feature at 0.275, where
+    the raw count it replaced carried 0.046. Measured across 60 postings by
+    scripts/evaluate_ats_model.py: stripping the figures out of a resume and
+    putting them back rewards the quantified version 100% of the time, by a
+    mean of 13.7 points.
+
+    Kept pointing the other way rather than deleted, because the direction is
+    the thing worth guarding. A future retrain that reintroduces the penalty
+    should fail here.
     """
     without = (
         "Senior Backend Engineer\n"
@@ -141,9 +154,10 @@ def test_quantifying_impact_lowers_this_model_s_score() -> None:
         "- Migrated 12 services to Kubernetes and Docker, cutting deploy time from 40 to 8 minutes"
     )
 
-    assert predict_score(with_metrics, JD) < predict_score(without, JD), (
-        "The model no longer penalises quantified achievements — revisit optimizer.py's "
-        "guidance, which is written around the fact that it does."
+    assert predict_score(with_metrics, JD) > predict_score(without, JD), (
+        "The model has started penalising quantified achievements again. That was a "
+        "real defect once — see this test's docstring and optimizer.py — and a retrain "
+        "has reintroduced it. Check scripts/evaluate_ats_model.py before shipping."
     )
 
 

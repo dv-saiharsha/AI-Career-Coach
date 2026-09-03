@@ -42,26 +42,126 @@ METADATA_PATH = MODEL_DIR / "ats_model_metadata.json"
 MAE_WARN_THRESHOLD = 10.0  # points on the 0-100 scale; flag rather than ship silently
 
 
-def load_dataset() -> tuple[np.ndarray, np.ndarray, list[dict]]:
+# ── Adversarial augmentation ────────────────────────────────────────────────
+#
+# Every label in training_data.csv came from a real resume scored against a
+# real posting. Nothing in it is a document trying to game the score, so the
+# model never learned where the boundary is and extrapolated wildly past it.
+# Measured on the unaugmented model (scripts/evaluate_ats_model.py):
+#
+#   a job description pasted back beat a genuinely strong resume on 99.8% of
+#   postings, by a mean of 41.5 points
+#   a keyword dump with no experience beat it on 98.3%
+#   a strong resume padded with keywords beat its own unpadded self on 100%
+#   adding real quantified achievements COST points on 86.7%
+#
+# MAE was 6.5 and R2 0.79 the whole time, because none of those documents was
+# in the distribution the metrics are computed over.
+#
+# These are constructed rather than labelled, which is only defensible because
+# the right answer is knowable without a judgement call:
+#
+#   A pasted posting and a keyword dump contain no evidence about the
+#   candidate at all. They are not weak resumes, they are not resumes. Labelled
+#   at ADVERSARIAL_FLOOR, which sits between the observed minimum (2) and the
+#   5th percentile (8) of real labels — worse than almost every genuine
+#   resume, without being an outlier the model has to contort to fit.
+#
+#   A padded resume keeps its own original label. This is the strongest of the
+#   three: padding adds no information, so the score must not move, and the
+#   model learns that directly from a pair that differs only by the padding.
+#
+# Kept to roughly 15% of the augmented set. Too few and they are noise the
+# model ignores; too many and they drag the central tendency down and every
+# real resume scores low. Sampling is deterministic (sorted, evenly spaced) so
+# a retrain is reproducible.
+ADVERSARIAL_FLOOR = 5.0
+ADVERSARIAL_PER_KIND = 120
+
+
+def _keyword_dump(jd_text: str, repeats: int = 30) -> str:
+    from app.core.keywords import keyword_candidates
+
+    return (" ".join(keyword_candidates(jd_text)) + " ") * repeats
+
+
+def build_adversarial_rows(rows: list[dict]) -> list[dict]:
+    """Constructed counter-examples, evenly sampled across postings."""
+    by_jd: dict[str, dict] = {}
+    for row in rows:
+        # Prefer a strong resume as the base — padding a weak one teaches less,
+        # since the honest version is already scored low.
+        tier = row.get("resume_tier", "").split("-")[0]
+        if row["jd_id"] not in by_jd or tier == "strong":
+            by_jd[row["jd_id"]] = row
+
+    ordered = [by_jd[key] for key in sorted(by_jd)]
+    if not ordered:
+        return []
+
+    def sample(n: int) -> list[dict]:
+        step = max(1, len(ordered) // n)
+        return ordered[::step][:n]
+
+    built: list[dict] = []
+
+    for row in sample(ADVERSARIAL_PER_KIND):
+        built.append(
+            {
+                "resume_text": row["job_description"] * 8,
+                "job_description": row["job_description"],
+                "ats_score": ADVERSARIAL_FLOOR,
+            }
+        )
+
+    for row in sample(ADVERSARIAL_PER_KIND):
+        built.append(
+            {
+                "resume_text": _keyword_dump(row["job_description"]),
+                "job_description": row["job_description"],
+                "ats_score": ADVERSARIAL_FLOOR,
+            }
+        )
+
+    for row in sample(ADVERSARIAL_PER_KIND):
+        built.append(
+            {
+                "resume_text": row["resume_text"] + "\n" + _keyword_dump(row["job_description"], 12),
+                "job_description": row["job_description"],
+                # Its own label, unchanged. Padding is not evidence.
+                "ats_score": float(row["ats_score"]),
+            }
+        )
+
+    return built
+
+
+def load_dataset() -> tuple[np.ndarray, np.ndarray, list[dict], int]:
     with DATA_CSV.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     if not rows:
         raise SystemExit(f"No rows in {DATA_CSV} — run generate_training_data.py first.")
 
+    adversarial = build_adversarial_rows(rows)
+    all_rows = rows + adversarial
+
     X, y, feat_rows = [], [], []
-    for row in rows:
+    for row in all_rows:
         feats = extract_features(row["resume_text"], row["job_description"])
         X.append(features_to_vector(feats))
         y.append(float(row["ats_score"]))
         feat_rows.append(feats)
-    return np.array(X), np.array(y), feat_rows
+    return np.array(X), np.array(y), feat_rows, len(adversarial)
 
 
 def main():
     print(f"Loading {DATA_CSV} ...")
-    X, y, _ = load_dataset()
+    X, y, _, n_adversarial = load_dataset()
     n = len(y)
-    print(f"Loaded {n} labeled pairs, {X.shape[1]} features each.")
+    print(
+        f"Loaded {n - n_adversarial} labeled pairs + {n_adversarial} constructed "
+        f"counter-examples = {n} rows, {X.shape[1]} features each."
+    )
 
     if n < 30:
         print(f"WARNING: only {n} examples — results will be noisy regardless of CV. Consider more data.")

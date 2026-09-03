@@ -16,27 +16,41 @@ model:
 
 Two of those deltas are the reason this module exists.
 
-THE STRUCTURE ADVICE MOVES NOTHING
+SUPERSEDED BY A RETRAIN — READ THIS BEFORE THE NUMBERS ABOVE
 
-Rewriting every bullet into [Action Verb] + [Quantified Metric] + [Technical
-Tool] — the shape the product grades against and recommends everywhere —
-scored exactly zero. The model has an `action_verb_count` feature and it is
-swamped. That does not make the advice wrong; a human reading the resume cares
-enormously. It does mean the product must stop implying the ATS number will
-move, because it will not.
+The measurements above were taken against the original nine-feature model.
+That model has since been retrained (five anti-gaming features, plus 360
+constructed counter-examples — see scripts/train_ats_model.py), and two of the
+findings that shaped this module no longer hold:
 
-QUANTIFYING YOUR IMPACT LOWERS YOUR SCORE
+  Quantifying your impact used to LOWER your score: adding three real
+  achievements moved a resume 88 -> 77, because the added words were not JD
+  vocabulary and diluted tfidf_cosine. That is fixed and reversed.
+  quantified_bullet_ratio is now the heaviest single feature (0.275, against
+  0.046 for the raw count it replaced), and stripping the figures out of a
+  resume and putting them back rewards the quantified version on 100% of
+  postings tested, by a mean of 13.7 points.
 
-Isolated, adding three real quantified achievements to an otherwise identical
-resume moved it 88 -> 77. `quantified_bullet_count` rose from 1 to 3 while the
-score fell 11 points, because the added words ("handling 500k transactions
-daily", "cutting deploy time from 40 to 8 minutes") are not JD vocabulary and
-dilute `tfidf_cosine` from 0.406 to 0.338.
+  Gaming used to beat earning outright. A job description pasted back beat a
+  genuinely strong resume on 99.8% of postings by a mean of 41.5 points; it
+  now loses by 37.3. A keyword dump went from beating it on 98.3% to 0.0%.
 
-So the single most repeated piece of resume advice in the world is penalised
-by this model. That is the constraint this module is built around, because the
-naive reading — an optimiser that maximises the score — would tell people to
-delete their achievements. It would work, and it would be catastrophic advice.
+What has NOT changed, and is still why this module refuses to maximise:
+
+  Structural rewriting still moves the number very little. action_verb_count
+  carries 0.024. The advice remains right for the human who reads the resume
+  after the filter, and the product still must not imply the score will jump.
+
+  Padding a real resume with keywords still wins more often than it should —
+  57.6% of postings, though the margin collapsed from +42.2 to +1.6. Small
+  enough not to be worth chasing, large enough that an optimiser told to
+  maximise would still find it.
+
+  The score saturates near 85 and stops discriminating above it, so the target
+  band below remains the honest ceiling rather than an arbitrary one.
+
+Re-run scripts/evaluate_ats_model.py after any retrain; it prints every figure
+quoted here.
 
 WHAT THIS DOES INSTEAD
 
