@@ -79,7 +79,7 @@ async def analyze_resume(
     previous = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == current_user.id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .first()
     )
 
@@ -142,10 +142,15 @@ def resume_on_file(
     again, and offering a button that cannot work is worse than not offering
     one.
     """
+    # created_at alone is not a total order. Two scans saved in the same
+    # second — which a test does trivially, and a user can do by re-scanning
+    # immediately — tie, and the tie breaks arbitrarily, so "your latest
+    # resume" silently becomes "one of your recent resumes". id is monotonic
+    # and breaks it deterministically.
     latest = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == current_user.id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .first()
     )
     if latest is None:
@@ -187,7 +192,7 @@ def rescan_stored_resume(
     latest = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == current_user.id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .first()
     )
     if latest is None or not latest.resume_file_bytes:
@@ -240,7 +245,7 @@ def list_analyses(db: Session = Depends(get_db), current_user: AuthenticatedUser
     rows = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == current_user.id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .all()
     )
     return [

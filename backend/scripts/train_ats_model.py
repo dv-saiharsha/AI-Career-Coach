@@ -88,6 +88,84 @@ def _keyword_dump(jd_text: str, repeats: int = 30) -> str:
     return (" ".join(keyword_candidates(jd_text)) + " ") * repeats
 
 
+# ── Calibration ─────────────────────────────────────────────────────────────
+#
+# The model ranks well and reports badly. Measured on the 406 postings, the
+# band the product SHOWS for a resume of each real quality tier:
+#
+#   genuinely STRONG resumes:  53.0% shown "NEEDS WORK"
+#                              22.7% shown "WEAK"
+#                               0.7% shown "STRONG"
+#
+# Three resumes out of 406 got the verdict they deserved. That is not a
+# ranking failure — ordering is 94.6% — it is a scale failure. The labels the
+# model learned from put a strong resume at ~41/100, so the model faithfully
+# reproduces a distribution squeezed into roughly 15-60, and rubric.band()'s
+# thresholds then read most of it as failure.
+#
+# The map below is piecewise-linear through anchors fitted to the observed
+# tier medians. Being monotonic, it cannot reorder anything — every pairwise
+# comparison, and therefore the 94.6%, survives it exactly. Only the number
+# shown changes.
+#
+# Targets are a product decision rather than a measurement: a resume in the
+# top authored tier for its role should read STRONG, not "needs work". The
+# top decile should be able to reach EXCELLENT, and nothing honest should
+# approach 100 — a score that high would mean near-identity with the posting,
+# which is what the adversarial documents do and what they are kept below.
+CALIBRATION_TARGETS = {
+    "weak_median": 25.0,      # comfortably inside WEAK (<35)
+    "partial_median": 50.0,   # NEEDS WORK, near the GOOD boundary
+    "strong_median": 75.0,    # STRONG (70-84), which is the point
+    "strong_p90": 87.0,       # the exceptional decile reaches EXCELLENT
+}
+
+
+def fit_calibration(preds, rows: list[dict]) -> list[list[float]]:
+    """Anchor points mapping raw model output to a reported 0-100 score.
+
+    Fitted from out-of-fold predictions so the anchors describe how the model
+    behaves on postings it has not seen, rather than how well it memorised
+    the ones it has.
+    """
+    import statistics as stats
+
+    by_tier: dict[str, list[float]] = {"weak": [], "partial": [], "strong": []}
+    for pred, row in zip(preds, rows):
+        tier = row.get("resume_tier", "").split("-")[0]
+        if tier in by_tier:
+            by_tier[tier].append(float(pred))
+
+    if not all(by_tier.values()):
+        return []
+
+    strong = sorted(by_tier["strong"])
+    raw = [
+        0.0,
+        stats.median(by_tier["weak"]),
+        stats.median(by_tier["partial"]),
+        stats.median(strong),
+        strong[int(len(strong) * 0.9)],
+        100.0,
+    ]
+    target = [
+        0.0,
+        CALIBRATION_TARGETS["weak_median"],
+        CALIBRATION_TARGETS["partial_median"],
+        CALIBRATION_TARGETS["strong_median"],
+        CALIBRATION_TARGETS["strong_p90"],
+        100.0,
+    ]
+
+    # Strictly increasing, or the interpolation is undefined. Nudging rather
+    # than failing keeps a degenerate dataset from breaking training outright.
+    for i in range(1, len(raw)):
+        if raw[i] <= raw[i - 1]:
+            raw[i] = raw[i - 1] + 0.1
+
+    return [[round(r, 3), round(t, 3)] for r, t in zip(raw, target)]
+
+
 def ordering_accuracy(preds, rows: list[dict]) -> float:
     """Share of within-posting pairs where the better tier scored higher.
 
@@ -304,6 +382,7 @@ def main():
         groups=[row["jd_id"] for row in real_rows],
     )
     ordering = ordering_accuracy(grouped_preds, real_rows)
+    calibration = fit_calibration(grouped_preds, real_rows)
 
     print()
     print("=== Cross-validated performance (5-fold, out-of-fold predictions) ===")
@@ -347,6 +426,9 @@ def main():
         # both looked fine while the model ranked a copy of the posting above
         # a real career, so neither is sufficient on its own.
         "ordering_accuracy": round(ordering, 4),
+        # Applied by app/ml/inference.py. Monotonic, so it changes the number
+        # shown without changing any ranking.
+        "calibration": calibration,
         "mae_warn_threshold": MAE_WARN_THRESHOLD,
         "feature_importances": {name: round(float(imp), 4) for name, imp in importances},
     }

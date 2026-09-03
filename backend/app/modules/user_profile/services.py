@@ -156,7 +156,7 @@ def dashboard_stats(db: Session, user_id: str) -> dict:
     latest_ats = (
         db.query(ResumeAnalysis.ats_score)
         .filter(ResumeAnalysis.user_id == user_id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .limit(1)
         .scalar()
     )
@@ -182,7 +182,7 @@ def recent_activity(db: Session, user_id: str) -> list[dict]:
     resumes = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == user_id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .limit(ACTIVITY_LIMIT)
         .all()
     )

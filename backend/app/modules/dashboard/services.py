@@ -110,7 +110,7 @@ def _latest_scan(db: Session, user_id: str) -> ResumeAnalysis | None:
     return (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == user_id)
-        .order_by(ResumeAnalysis.created_at.desc())
+        .order_by(ResumeAnalysis.created_at.desc(), ResumeAnalysis.id.desc())
         .first()
     )
 
