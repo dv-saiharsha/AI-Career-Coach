@@ -180,22 +180,33 @@ def measure_adversarial(model, rows: list[dict]) -> dict:
 
     results: dict[str, dict] = {}
     for name, build in cases.items():
-        beat_real = 0
+        # A tie is not a win. The previous version counted `gamed >= honest`,
+        # so a model that had perfectly learned "padding changes nothing"
+        # would have scored 100% beaten — the metric punished the correct
+        # answer. Wins, ties and losses are counted separately now.
+        won = tied = 0
         margins: list[float] = []
         for row in strong_by_jd.values():
             jd, resume = row["job_description"], row["resume_text"]
             honest = predict(model, resume, jd)
             gamed = predict(model, build(jd, resume), jd)
             margins.append(gamed - honest)
-            if gamed >= honest:
-                beat_real += 1
+            if gamed > honest:
+                won += 1
+            elif gamed == honest:
+                tied += 1
         total = len(strong_by_jd)
+        # The tail, not the mean. A mean of +1.3 hides a posting where padding
+        # bought 32 points, and it is the worst case an attacker looks for.
+        over_five = sum(1 for m in margins if m > 5)
         results[name] = {
             "postings": total,
-            "gamed_beat_real": beat_real,
-            "beat_rate": round(beat_real / total, 4) if total else 0.0,
+            "gamed_beat_real": won,
+            "beat_rate": round(won / total, 4) if total else 0.0,
+            "tied_rate": round(tied / total, 4) if total else 0.0,
             "mean_margin": round(statistics.mean(margins), 2) if margins else 0.0,
             "worst_margin": round(max(margins), 2) if margins else 0.0,
+            "gained_over_5_points": round(over_five / total, 4) if total else 0.0,
         }
 
     # The other half of the same problem: does describing real work honestly
@@ -271,9 +282,9 @@ def main() -> None:
     for name in ("jd_pasted_back", "keyword_dump", "real_resume_padded"):
         r = adversarial[name]
         print(
-            f"  {name:20} beats a real strong resume on "
-            f"{r['beat_rate'] * 100:5.1f}% of postings"
-            f"   (mean {r['mean_margin']:+.1f}, worst {r['worst_margin']:+.1f})"
+            f"  {name:20} wins {r['beat_rate'] * 100:5.1f}%  ties {r['tied_rate'] * 100:4.1f}%"
+            f"   mean {r['mean_margin']:+5.1f}  worst {r['worst_margin']:+5.1f}"
+            f"   gained >5pts on {r['gained_over_5_points'] * 100:4.1f}%"
         )
     a = adversarial["appending_more_metrics"]
     print(

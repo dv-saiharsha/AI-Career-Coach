@@ -306,15 +306,39 @@ def build_adversarial_rows(rows: list[dict]) -> list[dict]:
             }
         )
 
+    # Padding, at several intensities rather than one.
+    #
+    # This case was the last one still working for an attacker: a real resume
+    # with keywords stapled to the bottom beat its own clean version on 56.6%
+    # of postings, and by as much as 32 points on the worst one. The features
+    # built to catch it were going unused — verbatim_overlap had an importance
+    # of exactly 0.0000, keyword_density 0.016 — because a single fixed
+    # padding level gives the model one point and no direction. It could not
+    # learn that more padding means not-more score, because it never saw more.
+    #
+    # Each base resume now appears at four intensities, and the label slides
+    # from its own value toward ADVERSARIAL_FLOOR in proportion to how much of
+    # the finished document is padding. That is not a penalty invented to make
+    # a metric move: a document that is 90% keyword dump IS a keyword dump,
+    # and should score like one. At the light end the label barely moves,
+    # because a handful of extra terms genuinely is close to neutral.
     for row in sample(ADVERSARIAL_PER_KIND):
-        built.append(
-            {
-                "resume_text": row["resume_text"] + "\n" + _keyword_dump(row["job_description"], 12),
-                "job_description": row["job_description"],
-                # Its own label, unchanged. Padding is not evidence.
-                "ats_score": float(row["ats_score"]),
-            }
-        )
+        base_text = row["resume_text"]
+        base_score = float(row["ats_score"])
+        base_words = max(1, len(base_text.split()))
+
+        for repeats in (3, 8, 18, 40):
+            padding = _keyword_dump(row["job_description"], repeats)
+            pad_words = len(padding.split())
+            # Share of the finished document that is padding.
+            share = pad_words / (base_words + pad_words)
+            built.append(
+                {
+                    "resume_text": base_text + "\n" + padding,
+                    "job_description": row["job_description"],
+                    "ats_score": base_score + (ADVERSARIAL_FLOOR - base_score) * share,
+                }
+            )
 
     return built
 
