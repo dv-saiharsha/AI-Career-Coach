@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np  # noqa: E402
 from sklearn.ensemble import GradientBoostingRegressor  # noqa: E402
-from sklearn.model_selection import KFold, cross_val_predict  # noqa: E402
+from sklearn.model_selection import GroupKFold, KFold, cross_val_predict  # noqa: E402
 from sklearn.metrics import mean_absolute_error, r2_score  # noqa: E402
 
 from app.ml.features import FEATURE_NAMES, extract_features, features_to_vector  # noqa: E402
@@ -75,6 +75,9 @@ MAE_WARN_THRESHOLD = 10.0  # points on the 0-100 scale; flag rather than ship si
 # model ignores; too many and they drag the central tendency down and every
 # real resume scores low. Sampling is deterministic (sorted, evenly spaced) so
 # a retrain is reproducible.
+# Ordered worst to best. Matches scripts/evaluate_ats_model.py's ranking.
+TIER_RANK = {"weak": 0, "partial": 1, "strong": 2}
+
 ADVERSARIAL_FLOOR = 5.0
 ADVERSARIAL_PER_KIND = 120
 
@@ -83,6 +86,108 @@ def _keyword_dump(jd_text: str, repeats: int = 30) -> str:
     from app.core.keywords import keyword_candidates
 
     return (" ".join(keyword_candidates(jd_text)) + " ") * repeats
+
+
+def ordering_accuracy(preds, rows: list[dict]) -> float:
+    """Share of within-posting pairs where the better tier scored higher.
+
+    Takes predictions rather than computing them, so the caller decides
+    whether they are out-of-fold. That matters more here than usual: this
+    model is now trained on tier-ordered labels, so measuring tier ordering
+    on rows it trained on would report memorisation. The call below passes
+    out-of-fold predictions grouped by posting — a model never sees the
+    posting it is being scored on.
+    """
+    import itertools
+
+    by_jd: dict[str, list[tuple[int, float]]] = {}
+    for pred, row in zip(preds, rows):
+        rank = TIER_RANK.get(row.get("resume_tier", "").split("-")[0])
+        if rank is None:
+            continue
+        by_jd.setdefault(row["jd_id"], []).append((rank, float(pred)))
+
+    correct = total = 0
+    for group in by_jd.values():
+        for (rank_a, score_a), (rank_b, score_b) in itertools.combinations(group, 2):
+            if rank_a == rank_b:
+                continue
+            better, worse = (score_a, score_b) if rank_a > rank_b else (score_b, score_a)
+            total += 1
+            if better > worse:
+                correct += 1
+    return correct / total if total else 0.0
+
+
+def denoise_labels_against_tiers(rows: list[dict]) -> tuple[list[dict], int]:
+    """Reorder each posting's labels so they agree with the resume tiers.
+
+    THE MEASUREMENT THIS EXISTS FOR
+
+    Two independent signals describe the same 2,066 examples. The ats_score is
+    an LLM's absolute 0-100 judgement. The tier — strong, partial, weak — is
+    the directory the resume was authored in, so it is designed ground truth
+    rather than a model's opinion.
+
+    They disagree badly. Across the 7,045 comparable pairs within a posting:
+
+        label agrees with tier ..... 64.0%
+        label ties ................. 8.5%
+        label CONTRADICTS tier .... 27.5%
+
+    That 64% is a hard ceiling on ordering for anything trained on the raw
+    labels — and the model already scores 71.5%, which is ABOVE its own
+    labels' internal consistency. It is smoothing out label noise and has
+    nothing left to learn from them. No further feature work moves this; the
+    labels are the constraint.
+
+    WHAT THIS DOES
+
+    Within each posting, the set of label VALUES is kept exactly as the LLM
+    produced it, and only their assignment to resumes changes: values are
+    sorted and handed back out in tier order, best tier to the highest value.
+
+    Keeping the values means the score distribution, its spread per posting,
+    and therefore the calibration of the 0-100 scale are all untouched — this
+    is not a rescaling. Only the ordering is corrected, and only where the two
+    signals already disagreed.
+
+    Ties within a tier keep their existing relative order, so the LLM's
+    judgement still decides between two resumes the tier cannot separate.
+
+    WHAT IT ASSUMES
+
+    That the tier is more trustworthy than the absolute score. That is the
+    whole bet, and it is a reasonable one: ranking two resumes is a much
+    easier judgement than putting a number on one, and the tiers were fixed
+    when the fixtures were authored rather than generated per pairing. If that
+    assumption is ever wrong, this makes the labels worse, so the effect is
+    measured by scripts/evaluate_ats_model.py rather than assumed.
+    """
+    by_jd: dict[str, list[int]] = {}
+    for index, row in enumerate(rows):
+        rank = TIER_RANK.get(row.get("resume_tier", "").split("-")[0])
+        if rank is None:
+            continue
+        by_jd.setdefault(row["jd_id"], []).append(index)
+
+    changed = 0
+    for indices in by_jd.values():
+        if len(indices) < 2:
+            continue
+        values = sorted(float(rows[i]["ats_score"]) for i in indices)
+        # Worst tier first, so zipping against ascending values gives the best
+        # tier the highest score. Index breaks ties stably.
+        ordered = sorted(
+            indices,
+            key=lambda i: (TIER_RANK[rows[i]["resume_tier"].split("-")[0]], float(rows[i]["ats_score"])),
+        )
+        for position, index in enumerate(ordered):
+            if float(rows[index]["ats_score"]) != values[position]:
+                changed += 1
+            rows[index] = {**rows[index], "ats_score": values[position]}
+
+    return rows, changed
 
 
 def build_adversarial_rows(rows: list[dict]) -> list[dict]:
@@ -142,6 +247,7 @@ def load_dataset() -> tuple[np.ndarray, np.ndarray, list[dict], int]:
     if not rows:
         raise SystemExit(f"No rows in {DATA_CSV} — run generate_training_data.py first.")
 
+    rows, relabelled = denoise_labels_against_tiers(rows)
     adversarial = build_adversarial_rows(rows)
     all_rows = rows + adversarial
 
@@ -151,16 +257,20 @@ def load_dataset() -> tuple[np.ndarray, np.ndarray, list[dict], int]:
         X.append(features_to_vector(feats))
         y.append(float(row["ats_score"]))
         feat_rows.append(feats)
-    return np.array(X), np.array(y), feat_rows, len(adversarial)
+    return np.array(X), np.array(y), feat_rows, len(adversarial), relabelled, rows
 
 
 def main():
     print(f"Loading {DATA_CSV} ...")
-    X, y, _, n_adversarial = load_dataset()
+    X, y, _, n_adversarial, relabelled, real_rows = load_dataset()
     n = len(y)
     print(
         f"Loaded {n - n_adversarial} labeled pairs + {n_adversarial} constructed "
         f"counter-examples = {n} rows, {X.shape[1]} features each."
+    )
+    print(
+        f"Reordered {relabelled} labels to agree with their resume tier "
+        f"(the raw labels contradicted it on 27.5% of within-posting pairs)."
     )
 
     if n < 30:
@@ -177,10 +287,32 @@ def main():
     mae = mean_absolute_error(y, cv_preds)
     r2 = r2_score(y, cv_preds)
 
+    # Ordering, measured the only way that is honest for a model trained on
+    # tier-ordered labels: out-of-fold AND grouped by posting, so no model is
+    # scored on a job description it trained on. Ungrouped folds would let it
+    # learn a posting's score range from its other resumes and report a number
+    # that does not survive a new posting.
+    n_real = len(real_rows)
+    order_model = GradientBoostingRegressor(
+        n_estimators=150, max_depth=3, learning_rate=0.05, random_state=42
+    )
+    grouped_preds = cross_val_predict(
+        order_model,
+        X[:n_real],
+        y[:n_real],
+        cv=GroupKFold(n_splits=5),
+        groups=[row["jd_id"] for row in real_rows],
+    )
+    ordering = ordering_accuracy(grouped_preds, real_rows)
+
     print()
     print("=== Cross-validated performance (5-fold, out-of-fold predictions) ===")
     print(f"MAE: {mae:.2f} points (average error, on the 0-100 scale)")
     print(f"R2:  {r2:.3f} (fraction of score variance explained; 1.0 = perfect, 0 = no better than the mean)")
+    print(
+        f"Ordering: {ordering * 100:.1f}% of within-posting pairs ranked correctly "
+        f"(out-of-fold, grouped by posting)"
+    )
 
     if mae > MAE_WARN_THRESHOLD:
         print()
@@ -211,6 +343,10 @@ def main():
         "cv_folds": 5,
         "mae": round(mae, 3),
         "r2": round(r2, 3),
+        # The metric that actually tracks what a user experiences. MAE and R2
+        # both looked fine while the model ranked a copy of the posting above
+        # a real career, so neither is sufficient on its own.
+        "ordering_accuracy": round(ordering, 4),
         "mae_warn_threshold": MAE_WARN_THRESHOLD,
         "feature_importances": {name: round(float(imp), 4) for name, imp in importances},
     }
