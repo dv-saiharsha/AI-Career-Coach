@@ -27,7 +27,12 @@ figure neither of them vouches for.
 """
 
 from app.modules.resume_analyzer import quality
-from app.modules.resume_analyzer.layout_check import inspect_ats_parsing_readiness
+from app.modules.resume_analyzer import ats_vendors
+from app.modules.resume_analyzer.layout_check import (
+    check_contact_placement,
+    check_glyph_integrity,
+    inspect_ats_parsing_readiness,
+)
 from app.modules.resume_analyzer.rubric import (
     LABELS,
     WEIGHTS,
@@ -305,6 +310,21 @@ def _next_actions(mode: str, categories: list[dict], missing_skills: list[str]) 
     return actions
 
 
+def _contact_needles(resume_text: str) -> list[str]:
+    """The contact strings whose placement check_contact_placement locates.
+
+    Email and phone only. A name is not reliably findable as a literal — it
+    may be styled, split across spans, or simply absent — and a needle that
+    never matches would report "couldn't locate contact details" on a resume
+    whose contact block is perfectly placed.
+    """
+    import re as _re
+
+    email = _re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", resume_text or "")
+    phone = _re.search(r"\+?\d[\d\-\s().]{7,}\d", resume_text or "")
+    return [m.group(0).strip() for m in (email, phone) if m]
+
+
 def build_review(
     resume_text: str,
     jd_text: str = "",
@@ -377,10 +397,20 @@ def build_review(
         if not item.get("present")
     ]
 
+    # Per-vendor compatibility. Built from the checks already computed above
+    # rather than anything new — see ats_vendors.py for why this reports what
+    # each system will do to the document instead of inventing a score for it.
+    vendor_report = ats_vendors.evaluate(
+        readiness,
+        check_glyph_integrity(resume_text),
+        check_contact_placement(pdf_bytes, _contact_needles(resume_text)),
+    )
+
     return {
         "analysis_id": analysis_id,
         "resume_filename": resume_filename,
         "mode": mode,
+        "ats_vendors": vendor_report,
         "resume_health": {
             "score": health,
             "band": band(health),
