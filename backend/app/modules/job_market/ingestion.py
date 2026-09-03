@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.llm import llm_client
 from app.models.job import JobListing
-from app.modules.job_market import apify_jobs, enrichment, services
+from app.modules.job_market import apify_jobs, ats_boards, boards_registry, enrichment, services
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,11 @@ class SweepReport:
     runs_completed: int = 0
     stopped_on_budget: bool = False
     postings_seen: int = 0
+    # Rows from employers' own ATS boards. Free, so tracked separately from
+    # the Apify count — a sweep that got most of its roles here spent nothing
+    # to do it, and collapsing the two would hide that.
+    board_postings: int = 0
+    boards_swept: int = 0
     already_known: int = 0
     newly_enriched: int = 0
     enrichment_failures: int = 0
@@ -117,6 +122,38 @@ def _unenriched(db: Session, candidates: dict[str, dict]) -> dict[str, dict]:
         .all()
     }
     return {h: item for h, item in candidates.items() if h not in known}
+
+
+def _collect_boards(report: SweepReport) -> dict[str, dict]:
+    """Employers' own Greenhouse and Lever boards. Free, so it runs first.
+
+    Ordering is the point: these cost nothing, so anything they supply is a
+    role the paid Apify pass below never has to search for. Running them
+    afterwards would spend the budget first and then discover it was not
+    needed.
+
+    Errors are already swallowed per board inside ats_boards.fetch_board — a
+    404 there means "this company is not on this ATS", which is ordinary
+    rather than a failure worth surfacing. What is recorded here is the count,
+    so a sweep that quietly returned nothing is visible in the report.
+    """
+    candidates: dict[str, dict] = {}
+    boards = boards_registry.all_boards()
+
+    for provider, token in boards:
+        rows = ats_boards.fetch_board(provider, token, query_key=f"{provider}:{token}")
+        for row in rows:
+            key = content_hash(row["company"], row["title"], row["location"])
+            # Same de-dup key the Apify path uses, so a role posted to both a
+            # company board and LinkedIn is stored once — and because boards
+            # run first, the copy that survives is the employer's own, whose
+            # apply URL goes to the real form rather than an interstitial.
+            candidates.setdefault(key, row)
+
+    report.boards_swept = len(boards)
+    report.board_postings = len(candidates)
+    logger.info("sweep: %d boards -> %d distinct postings (free)", len(boards), len(candidates))
+    return candidates
 
 
 def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, dict]:
@@ -284,8 +321,11 @@ def refresh_global_jobs(
         report.roles_searched = targets
         # ~$0.13 a role: $0.02 actor start + 150 results at $0.0007.
         projected = round(len(targets) * 0.1270, 2)
+        report.boards_swept = boards_registry.board_count()
         report.errors.append(
-            f"DRY RUN — no requests issued. A live sweep would run {len(targets)} actor(s) at "
+            f"DRY RUN — no requests issued. A live sweep would first read "
+            f"{boards_registry.board_count()} employer ATS boards at no cost, then run "
+            f"{len(targets)} actor(s) at "
             f"roughly ${projected:.2f} on Apify, plus Claude enrichment for postings not "
             f"already stored, stopping at the ${MAX_SWEEP_COST_USD:.2f} ceiling."
         )
@@ -295,7 +335,11 @@ def refresh_global_jobs(
         report.errors.append("APIFY_API_TOKEN not configured — nothing fetched")
         return report
 
-    candidates = _collect(db, targets, report)
+    # Free first, paid second. Board rows are merged under the same content
+    # hash the Apify pass uses, so the two sources cannot produce duplicate
+    # listings for the same role.
+    candidates = _collect_boards(report)
+    candidates.update(_collect(db, targets, report))
     pending = _unenriched(db, candidates)
     report.already_known = len(candidates) - len(pending)
 
@@ -313,8 +357,8 @@ def refresh_global_jobs(
     _archive(db, report)
 
     logger.info(
-        "sweep: %d roles, %d postings (%d known), %d enriched — apify $%.4f + claude $%.4f",
-        len(report.roles_searched), report.postings_seen, report.already_known,
+        "sweep: %d boards + %d roles, %d postings (%d known), %d enriched — apify $%.4f + claude $%.4f",
+        report.boards_swept, len(report.roles_searched), report.postings_seen, report.already_known,
         report.newly_enriched, report.apify_cost_usd, report.claude_cost_usd(),
     )
     return report
