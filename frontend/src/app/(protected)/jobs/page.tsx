@@ -13,7 +13,7 @@ import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer'
 import { stashJobContext } from '@/lib/jobContext'
 import { PageHeader } from '@/components/PageHeader'
 import { createApplication, getUserProfile } from '@/lib/apiClient'
-import { bandColor } from '@/lib/scoreBands'
+import { bandColor, bandLabel } from '@/lib/scoreBands'
 import { hasAnyMatchScores, JOB_SORT_OPTIONS, sortJobs, type JobSortOption } from '@/lib/jobSort'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -536,21 +536,87 @@ export default function JobsPage() {
                     {job.workMode}
                   </span>
                   {job.match?.overallMatch != null && job.match.band && (
-                    <span
-                      className="inline-flex items-center gap-1 text-[10px] font-mono font-medium tabular-nums"
-                      style={{ color: bandColor(job.match.band) }}
-                    >
-                      {Math.round(job.match.overallMatch)}% match
-                    </span>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span
+                        className="text-base font-display font-semibold tabular-nums leading-none"
+                        style={{ color: bandColor(job.match.band) }}
+                      >
+                        {Math.round(job.match.overallMatch)}
+                      </span>
+                      {/* The word, not just the number. A bare 64 means
+                          nothing without the scale it sits on, and the band
+                          is the same vocabulary every other score in the
+                          product uses. */}
+                      <span
+                        className="text-[9px] uppercase tracking-wider"
+                        style={{ color: bandColor(job.match.band) }}
+                      >
+                        {bandLabel(job.match.band)}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {job.skills.map((skill) => (
                   <span key={skill} className="chip">{skill}</span>
                 ))}
+                {/* How many of this posting's skills the resume does not
+                    evidence. Counted, not estimated — it is the length of the
+                    list the matcher already produced, so the number and the
+                    drawer that lists them cannot disagree. */}
+                {(job.match?.skillsMatch?.missingSkills?.length ?? 0) > 0 && (
+                  <span className="text-[10px] text-(--color-ink-faint)">
+                    · {job.match!.skillsMatch!.missingSkills.length} gap
+                    {job.match!.skillsMatch!.missingSkills.length === 1 ? '' : 's'}
+                  </span>
+                )}
               </div>
+
+              {/* Sponsorship and seniority, both read off the posting rather
+                  than inferred. Only rendered when a posting has actually
+                  been classified — an unclassified role shows nothing, which
+                  is different from showing "no sponsorship". */}
+              {(job.h1bSponsorship === 'explicitly_sponsored' || job.experienceLevel) && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {job.h1bSponsorship === 'explicitly_sponsored' && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium bg-(--color-signal-bg) text-(--color-signal)"
+                      title={job.h1bEvidence ?? undefined}
+                    >
+                      Sponsors H-1B
+                    </span>
+                  )}
+                  {job.experienceLevel && (
+                    <span className="text-[10px] uppercase tracking-wide text-(--color-ink-faint)">
+                      {job.experienceLevel}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Why this score.
+                  The matcher already writes an explanation and nothing showed
+                  it. A score a candidate cannot interrogate is one they either
+                  over-trust or dismiss, and this is the difference between a
+                  number and a reason. <details> rather than React state: it
+                  costs no render, works without JS, and is keyboard- and
+                  screen-reader-navigable for free. */}
+              {job.match?.explanation && (
+                <details
+                  className="group/why -mt-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <summary className="cursor-pointer list-none text-[11px] text-(--color-ink-dim) hover:text-(--color-ink) marker:hidden">
+                    Why this score
+                    <span className="ml-1 inline-block transition-transform group-open/why:rotate-90">›</span>
+                  </summary>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-(--color-ink-dim)">
+                    {job.match.explanation}
+                  </p>
+                </details>
+              )}
 
               <div className="flex items-center justify-between mt-auto pt-1">
                 <div className="text-xs text-(--color-ink-dim)">
