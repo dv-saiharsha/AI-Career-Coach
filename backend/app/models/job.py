@@ -46,6 +46,20 @@ class JobListing(Base):
     apply_url = Column(String, nullable=False)
     posted_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Which ATS this posting came from: "greenhouse", "lever", or null for the
+    # Apify/LinkedIn feed where it is genuinely unknown.
+    #
+    # Known by construction rather than inferred — a row fetched from
+    # boards-api.greenhouse.io is a Greenhouse posting because that is where
+    # the bytes came from. It cannot be recovered for the scraped feed: 2,536
+    # of ~2,570 of those apply URLs are linkedin.com, so the ATS behind them
+    # is unknowable and null is the honest value.
+    #
+    # Worth storing because resume_analyzer/ats_vendors.py already knows which
+    # parsers a given resume loses content in, and pairing the two turns a
+    # general warning into a specific one about the job in front of you.
+    source = Column(String(24), nullable=True, index=True)
+
     # TTL basis. Distinct from posted_at: when *we* fetched it, not when the
     # employer published it.
     # Stable identity across sweeps: md5(company|title|location), normalised.
