@@ -120,6 +120,12 @@ function SidebarContent({
   onNavigate?: () => void
 }) {
   const { user, logout } = useAuth()
+  /* Sign-out is a network round trip to Supabase and gave no feedback while
+     it ran, so on a slow connection the obvious thing to do is click again.
+     The second click lands on an already-cleared session — harmless, but a
+     control that looks inert for a second is the problem, not the second
+     call. */
+  const [signingOut, setSigningOut] = React.useState(false)
 
   return (
     <div className="flex h-full flex-col">
@@ -177,11 +183,21 @@ function SidebarContent({
         ))}
         <Button
           variant="ghost"
-          onClick={logout}
+          onClick={() => {
+            if (signingOut) return
+            setSigningOut(true)
+            void logout().finally(() => setSigningOut(false))
+          }}
+          loading={signingOut}
+          loadingLabel="Signing out"
+          disabled={signingOut}
           className="mx-2 h-auto w-[calc(100%-1rem)] justify-start gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:text-danger"
         >
-          <LogOut className="size-4 shrink-0" aria-hidden="true" />
-          Sign out
+          {/* The Button prepends its own spinner, so the icon steps aside
+              rather than sitting next to it — two glyphs in a row that both
+              mean "busy" is noise, and the row is only 16px wide. */}
+          {!signingOut && <LogOut className="size-4 shrink-0" aria-hidden="true" />}
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </Button>
       </div>
 

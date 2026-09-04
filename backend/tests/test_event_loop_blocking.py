@@ -191,3 +191,80 @@ def test_no_async_handler_calls_blocking_work_directly():
         + "\n\nWrap the call in `await run_in_threadpool(fn, ...)`, which is where "
         "FastAPI would have run it had the handler been a plain `def`."
     )
+
+
+# ── Behaviour under more than two requests ─────────────────────────────────
+#
+# The pair of requests above proves the loop is not held. It does not prove
+# the threadpool behaves sensibly when several scans arrive together, which
+# is the shape real load takes. Two properties matter there and neither is
+# implied by the first test.
+
+
+@pytest.mark.asyncio
+async def test_concurrent_scans_overlap_instead_of_queueing(app_with_slow_analysis):
+    """Several scans at once should run together, not one after another.
+
+    run_in_threadpool hands work to anyio's shared limiter (40 threads by
+    default). If that were exhausted — or if the work had been left on the
+    loop — four scans would serialise and take four times as long. The
+    assertion is deliberately loose: the point is "overlapping, not queued",
+    not a precise speedup.
+    """
+    scans = 4
+    transport = ASGITransport(app=app_with_slow_analysis)
+    started = time.perf_counter()
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        await asyncio.gather(
+            *[
+                client.post(
+                    "/api/resume/analyze",
+                    files={"resume": (f"r{i}.txt", b"hello", "text/plain")},
+                    data={"job_description": "Backend role."},
+                )
+                for i in range(scans)
+            ]
+        )
+
+    elapsed = time.perf_counter() - started
+    serial = BLOCK_SECONDS * scans
+    assert elapsed < serial / 2, (
+        f"{scans} concurrent scans took {elapsed:.2f}s against {serial:.2f}s if run "
+        "one at a time — they are not overlapping."
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_worker_still_answers_while_several_scans_run(app_with_slow_analysis):
+    """The property that actually matters to a user who is not scanning.
+
+    One slow scan is easy to stay responsive under. The realistic bad case is
+    several at once, which is when a threadpool that had been sized to one —
+    or work still on the loop — would starve everything else.
+    """
+    transport = ASGITransport(app=app_with_slow_analysis)
+    started_at = time.perf_counter()
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+
+        async def scan(index: int):
+            await client.post(
+                "/api/resume/analyze",
+                files={"resume": (f"r{index}.txt", b"hello", "text/plain")},
+                data={"job_description": "Backend role."},
+            )
+
+        async def bystander():
+            await asyncio.sleep(BLOCK_SECONDS / 6)
+            response = await client.get("/api/resume/model-info")
+            return response.status_code, time.perf_counter() - started_at
+
+        results = await asyncio.gather(*[scan(i) for i in range(4)], bystander())
+
+    status, finished_at = results[-1]
+    assert status == 200
+    assert finished_at < BLOCK_SECONDS / 2, (
+        f"an unrelated request did not complete until {finished_at:.2f}s with four "
+        f"scans running, each blocking {BLOCK_SECONDS}s."
+    )
