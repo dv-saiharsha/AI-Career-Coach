@@ -1708,3 +1708,56 @@ export const saveTexSource = (tex: string, filename: string) => {
   link.remove()
   window.URL.revokeObjectURL(url)
 }
+
+/* ── Export and erasure ───────────────────────────────────────────────────
+ *
+ * The landing page promises "Nothing was shared" and that a CV is read to
+ * score it "and that is all". These two calls are what let someone verify
+ * the first and act on it.
+ */
+
+export interface AccountDeletion {
+  /** Per table, so the result can be checked against the export rather than
+   *  taken on trust. */
+  deleted: Record<string, number>
+  /** Whether the Supabase identity went too. False means the data is gone
+   *  but signing in still works — which the user has to be told, because it
+   *  is not what "delete my account" implies. */
+  sign_in_disabled: boolean
+}
+
+/**
+ * Downloads everything the product holds about the caller as a JSON file.
+ *
+ * Fetched as a blob and saved client-side rather than pointed at with a
+ * plain link: the endpoint needs an Authorization header, and a bare <a
+ * href> cannot carry one — it would open an unauthenticated request and
+ * return 401.
+ */
+export const downloadMyData = async (): Promise<void> => {
+  const response = await apiClient.get<unknown>('/user/export')
+  const stamp = new Date().toISOString().slice(0, 10)
+  const blob = new Blob([JSON.stringify(response.data, null, 2)], {
+    type: 'application/json',
+  })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `applycenter-my-data-${stamp}.json`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+/**
+ * Irreversible. The confirm parameter is required by the API and is
+ * deliberately not defaulted here — a caller has to type it, so this cannot
+ * be invoked by accident from a stray click handler.
+ */
+export const deleteMyAccount = async (confirm: string): Promise<AccountDeletion> => {
+  const response = await apiClient.delete<AccountDeletion>('/user/account', {
+    params: { confirm },
+  })
+  return response.data
+}

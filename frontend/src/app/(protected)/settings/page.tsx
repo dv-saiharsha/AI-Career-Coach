@@ -31,6 +31,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { DangerZoneSection } from '@/components/settings/DangerZoneSection';
+import { PrivacySection } from '@/components/settings/PrivacySection';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -327,59 +329,24 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeSection === 'danger' && (
-              <div className="space-y-5">
-                <h2 className="text-base font-semibold text-(--color-error)">Danger Zone</h2>
-                <div className="p-4 bg-(--color-error)/5 border border-(--color-error)/20 rounded-xl">
-                  <div className="text-sm font-medium text-(--color-ink) mb-1">Delete Account</div>
-                  <div className="text-xs text-(--color-ink-dim) mb-4">
-                    Permanently delete your account and all associated data. This action cannot be undone.
-                  </div>
+            {activeSection === 'danger' && <DangerZoneSection />}
 
-                  {/* Deliberately disabled, not wired to a fake confirm dialog.
-                      Deleting an account for real means removing the Supabase
-                      auth user (an admin-only, service-role operation) and
-                      cascading through every table this user owns — neither
-                      exists yet. A dialog that runs a spinner and closes as
-                      if it worked, with no request behind it, is worse than
-                      a disabled button that says so. */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled
-                    className="border-danger/25 bg-danger/10 text-danger"
-                  >
-                    <Trash2 />
-                    Delete my account
-                  </Button>
-                  <p className="mt-2 text-xs text-(--color-ink-faint)">
-                    Account deletion isn&apos;t available yet. To close your account now, contact support and we&apos;ll
-                    handle it manually.
-                  </p>
-                </div>
-              </div>
-            )}
+            {activeSection === 'privacy' && <PrivacySection />}
 
-            {(activeSection === 'appearance' || activeSection === 'privacy') && (
+            {activeSection === 'appearance' && (
               <div className="flex flex-col items-center justify-center py-14 text-center">
                 <div className="relative w-14 h-14 mb-4">
                   <div className="absolute inset-0 rounded-full heartbeat-glow" style={{ boxShadow: '0 0 22px 6px rgba(var(--glow-rgb),0.12)' }} />
                   <div className="relative w-14 h-14 rounded-full bg-(--color-accent)/10 border border-(--color-accent)/20 flex items-center justify-center">
-                    {activeSection === 'appearance' ? (
-                      <Palette className="w-5 h-5 text-(--color-accent)" />
-                    ) : (
-                      <Shield className="w-5 h-5 text-(--color-accent)" />
-                    )}
+                    <Palette className="w-5 h-5 text-(--color-accent)" />
                   </div>
                 </div>
                 <span className="eyebrow mb-3">Coming soon</span>
                 <div className="text-sm font-medium text-(--color-ink)">
-                  {activeSection === 'appearance' ? 'Custom appearance controls' : 'Advanced privacy controls'}
+                  Custom appearance controls
                 </div>
                 <div className="text-xs text-(--color-ink-faint) mt-1 max-w-xs">
-                  {activeSection === 'appearance'
-                    ? "We're building theme and density options. This section is under development."
-                    : 'Data export and granular sharing controls are on the way.'}
+                  We&apos;re building theme and density options. This section is under development.
                 </div>
               </div>
             )}

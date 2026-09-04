@@ -25,7 +25,9 @@ from app.models.application import ApplicationStatusHistory, JobApplication
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.user_profile import privacy
+import httpx
+
+from app.modules.user_profile import auth_admin, privacy, router
 
 ALICE = "00000000-0000-0000-0000-00000000000a"
 BOB = "00000000-0000-0000-0000-00000000000b"
@@ -255,3 +257,114 @@ def test_deleting_a_user_with_no_data_is_not_an_error(db_session):
     """A fresh account that never scanned anything must still be erasable."""
     counts = privacy.delete_user_data(db_session, "00000000-0000-0000-0000-0000000000ff")
     assert all(value == 0 for value in counts.values())
+
+
+class TestIdentityRemoval:
+    """Erasing the rows while leaving the login intact is a half-deletion,
+    and the person has already been told their account is gone."""
+
+    def test_the_identity_is_removed_too(self, client, monkeypatch):
+        called: list[str] = []
+        monkeypatch.setattr(
+            router, "delete_auth_user", lambda user_id: called.append(user_id) or True
+        )
+
+        body = client.delete("/api/user/account?confirm=DELETE").json()
+
+        assert called == [ALICE], "the Supabase identity was never touched"
+        assert body["sign_in_disabled"] is True
+
+    def test_data_is_erased_before_the_identity(self, client, db_session, monkeypatch):
+        """The ordering guarantee, and the reason this test exists.
+
+        Identity first then a failed row deletion is unrecoverable: the person
+        can no longer authenticate, so they can never retry, and their data is
+        still held. Rows first is recoverable — they can sign in and ask
+        again. So the order is not incidental and is asserted rather than
+        left to the reading of the function.
+        """
+        rows_at_identity_deletion: list[int] = []
+
+        def spy(_user_id: str) -> bool:
+            rows_at_identity_deletion.append(
+                db_session.query(func.count(Profile.user_id))
+                .filter(Profile.user_id == ALICE)
+                .scalar()
+            )
+            return True
+
+        monkeypatch.setattr(router, "delete_auth_user", spy)
+        client.delete("/api/user/account?confirm=DELETE")
+
+        assert rows_at_identity_deletion == [0], (
+            "the identity was deleted while the user's rows were still present"
+        )
+
+    def test_a_failed_identity_removal_is_reported_not_raised(self, client, monkeypatch):
+        """The rows are already gone by this point. A 500 would tell the
+        caller nothing happened, which is the opposite of the truth."""
+        monkeypatch.setattr(router, "delete_auth_user", lambda _user_id: False)
+
+        response = client.delete("/api/user/account?confirm=DELETE")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["sign_in_disabled"] is False
+        assert body["deleted"]["profile"] == 1, "the data deletion still happened"
+
+    def test_a_rejected_confirmation_never_reaches_the_identity(self, client, monkeypatch):
+        called: list[str] = []
+        monkeypatch.setattr(router, "delete_auth_user", lambda uid: called.append(uid) or True)
+
+        client.delete("/api/user/account?confirm=yes")
+
+        assert called == [], "a rejected request deleted the login anyway"
+
+
+class TestAuthAdmin:
+    def test_missing_credentials_reports_failure_rather_than_claiming_success(
+        self, monkeypatch
+    ):
+        """CI and local development run without the service-role key. The
+        honest answer there is 'no', not a silent yes."""
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "")
+        assert auth_admin.delete_auth_user(ALICE) is False
+
+    def test_a_missing_user_counts_as_deleted(self, monkeypatch):
+        """404 means the identity is not there, which is the state this
+        function exists to reach. Calling it a failure would make a retry
+        after a partial deletion report failure forever."""
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_URL", "https://x.supabase.co")
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "secret")
+        monkeypatch.setattr(
+            auth_admin.httpx, "delete", lambda *a, **k: httpx.Response(404, text="not found")
+        )
+        assert auth_admin.delete_auth_user(ALICE) is True
+
+    def test_a_network_failure_does_not_raise(self, monkeypatch):
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_URL", "https://x.supabase.co")
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "secret")
+
+        def boom(*_a, **_k):
+            raise httpx.ConnectError("no route to host")
+
+        monkeypatch.setattr(auth_admin.httpx, "delete", boom)
+        assert auth_admin.delete_auth_user(ALICE) is False
+
+    def test_the_service_role_key_is_sent_and_the_user_id_is_in_the_path(self, monkeypatch):
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_URL", "https://x.supabase.co/")
+        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "secret-key")
+        seen: dict = {}
+
+        def capture(url, headers=None, timeout=None):
+            seen["url"] = url
+            seen["headers"] = headers
+            return httpx.Response(200)
+
+        monkeypatch.setattr(auth_admin.httpx, "delete", capture)
+        assert auth_admin.delete_auth_user(ALICE) is True
+
+        # The trailing slash on SUPABASE_URL must not produce a double slash.
+        assert seen["url"] == f"https://x.supabase.co/auth/v1/admin/users/{ALICE}"
+        assert seen["headers"]["apikey"] == "secret-key"
+        assert seen["headers"]["Authorization"] == "Bearer secret-key"

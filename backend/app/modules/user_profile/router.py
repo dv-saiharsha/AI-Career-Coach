@@ -1,9 +1,11 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.modules.user_profile import services, privacy
+from app.modules.user_profile.auth_admin import delete_auth_user
 from app.schemas.profile import (
     ActivityResponseSchema,
     OnboardingRequestSchema,
@@ -11,6 +13,8 @@ from app.schemas.profile import (
     ProfileUpdateSchema,
     UserStatsSchema,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -155,14 +159,35 @@ def delete_my_account(
     Returns per-table counts rather than a bare success. "Deleted" is a claim
     a person should be able to check against their export.
 
-    The Supabase auth record is not touched — this owns the application's own
-    data. Removing the identity is a separate action against a different
-    system, and doing it here would leave a signed-in session whose data has
-    vanished underneath it.
+    THE IDENTITY GOES TOO, AND IT GOES SECOND
+
+    Erasing the rows while leaving the login intact is a half-deletion, and
+    the person has been told their account is gone. So the Supabase identity
+    is removed as well — but after the data, never before. See auth_admin for
+    why that order is not arbitrary: the reverse leaves someone unable to
+    authenticate and therefore unable to retry, with data still held.
+
+    A failure in that second half is reported, not raised. The rows really
+    are gone by then, and a 500 would tell the caller nothing had happened.
     """
     if confirm != "DELETE":
         raise HTTPException(
             status_code=400,
             detail="Pass confirm=DELETE to erase your data. This cannot be undone.",
         )
-    return {"deleted": privacy.delete_user_data(db, current_user.id)}
+
+    deleted = privacy.delete_user_data(db, current_user.id)
+    identity_removed = delete_auth_user(current_user.id)
+
+    if not identity_removed:
+        logger.error(
+            "data erased for user %s but the auth identity remains; needs manual removal",
+            current_user.id,
+        )
+
+    return {
+        "deleted": deleted,
+        # Named for what the user experiences rather than for the system it
+        # touches: what they need to know is whether signing in still works.
+        "sign_in_disabled": identity_removed,
+    }
