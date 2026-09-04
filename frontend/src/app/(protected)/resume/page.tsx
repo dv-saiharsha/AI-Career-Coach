@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
+import { type DragEvent, type FormEvent, useEffect, useRef, useState } from 'react'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ScanUploadForm } from '@/components/resume/ScanUploadForm'
 import { ScanProgressPanel } from '@/components/resume/ScanProgressPanel'
@@ -15,6 +15,7 @@ import {
   type AnalysisResult,
 } from '../../../lib/apiClient'
 import type { ScanStatus, GenStatus, ResultTab } from '@/components/resume/scanShared'
+import { useRealtimeStream } from '@/hooks/useRealtimeStream'
 
 const ACCEPTED_FILE_TYPES = [
   'application/pdf',
@@ -40,6 +41,20 @@ export default function ResumeAnalyzer() {
      run after it — and a bar that sits at 100% for eight seconds reads as a
      hang. See the two-phase indicator below. */
   const [uploadPercent, setUploadPercent] = useState<number | null>(null)
+  /* One id per scan, generated here and sent with the upload. The server
+     addresses stage events to the *user*, not to a request, so without it a
+     second tab's scan would drive this one's checklist. */
+  const scanIdRef = useRef<string | null>(null)
+  const [serverStage, setServerStage] = useState<string | null>(null)
+
+  useRealtimeStream({
+    onEvent: (event) => {
+      if (event.type !== 'scan_stage') return
+      const payload = event.data as { scan_id?: string; stage?: string }
+      if (!payload?.stage || payload.scan_id !== scanIdRef.current) return
+      setServerStage(payload.stage)
+    },
+  })
   /* What the account already has. Null until asked, so the reuse option
      never flashes in and out during the first paint. */
   const [onFile, setOnFile] = useState<ResumeOnFile | null>(null)
@@ -139,6 +154,13 @@ export default function ResumeAnalyzer() {
 
     setStatus('loading'); setError('')
     setUploadPercent(reusing ? null : 0)
+    // A stale stage from the previous scan would show this one starting
+    // three rows down.
+    setServerStage(null)
+    scanIdRef.current =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : String(Date.now())
     try {
       const data = reusing
         ? await rescanResume(jobDescription)
@@ -147,6 +169,7 @@ export default function ResumeAnalyzer() {
               const fd = new FormData()
               fd.append('resume', file as File)
               fd.append('job_description', jobDescription)
+              if (scanIdRef.current) fd.append('scan_id', scanIdRef.current)
               return fd
             })(),
             setUploadPercent,
@@ -203,7 +226,7 @@ export default function ResumeAnalyzer() {
           child.key via Children.forEach, deliberately without React's
           auto-assigned positional fallback), which silently turned every
           transition into a hard cut. */}
-        {status === 'loading' && <ScanProgressPanel key="loading" uploadPercent={uploadPercent} />}
+        {status === 'loading' && <ScanProgressPanel key="loading" uploadPercent={uploadPercent} serverStage={serverStage} />}
 
         {status === 'success' && result && (
           // The ATS score generator: score, tabs, diagnostics, the optimize

@@ -1,5 +1,6 @@
 import io
 import re
+from typing import Callable
 
 from app.core.llm import llm_client
 from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
@@ -327,7 +328,41 @@ def build_diagnostics(
     }
 
 
-def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> dict:
+# The stages this function passes through, in order, as reported to on_stage.
+# Named here rather than as string literals at each call so the client's
+# checklist and the server's reality cannot drift apart silently.
+SCAN_STAGES: tuple[str, ...] = (
+    "extracting",
+    "checking",
+    "analyzing",
+    "reconciling",
+    "diagnostics",
+)
+
+
+def analyze_resume_against_job(
+    filename: str,
+    content: bytes,
+    jd_text: str,
+    on_stage: Callable[[str], None] | None = None,
+) -> dict:
+    """Score one resume against one job description.
+
+    `on_stage` is called as each real step begins, and is how the UI reports
+    genuine progress instead of narrating on a timer. It is optional and its
+    failures are swallowed by the caller's bridge: a scan must not fail
+    because nobody was listening to its progress.
+
+    Honest about proportions, not just order — "analyzing" is the Claude call
+    and is most of the wall time. Five stages do not mean five equal fifths,
+    and the client is told which stage is the long one rather than being
+    given a bar that implies otherwise.
+    """
+    def stage(name: str) -> None:
+        if on_stage is not None:
+            on_stage(name)
+
+    stage("extracting")
     resume_text = extract_text(filename, content)
     if not resume_text.strip():
         raise ValueError("Couldn't read any text from that file. Try exporting it again as a text-based PDF.")
@@ -335,17 +370,21 @@ def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> d
         raise ValueError("Paste the job description you're targeting.")
     # Cheap, free pre-filter — catches obviously-not-a-resume uploads (random
     # documents, images, empty files) before spending an LLM call on them.
+    stage("checking")
     if not looks_like_resume(resume_text):
         raise NotAResumeError(NOT_A_RESUME_MESSAGE)
 
     if llm_client.available:
         try:
+            stage("analyzing")
             result = _llm_analysis(resume_text, jd_text)
             result["_source"] = "llm"
             result["resume_text"] = resume_text
             # Applied here too, not just on the fallback: this is the path
             # that actually runs in production.
+            stage("reconciling")
             result = _reconcile_implied(resume_text, result)
+            stage("diagnostics")
             result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
             return result
         except NotAResumeError:
@@ -353,8 +392,13 @@ def analyze_resume_against_job(filename: str, content: bytes, jd_text: str) -> d
         except Exception:
             pass  # fall through to rule-based scoring
 
+    # The fallback path runs the same named stages, so a client that lost the
+    # LLM mid-scan sees the checklist continue rather than stall on
+    # "analyzing" while rule-based scoring quietly finishes the job.
+    stage("analyzing")
     result = _rule_based_analysis(resume_text, jd_text)
     result["_source"] = "rules"
     result["resume_text"] = resume_text
+    stage("diagnostics")
     result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
     return result

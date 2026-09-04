@@ -4,12 +4,19 @@ import { useEffect, useState } from 'react'
 import { Check, ScanLine } from 'lucide-react'
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion'
 
+/* Keyed to app/modules/resume_analyzer/services.py SCAN_STAGES, which is
+   the server's own list and is asserted against the pipeline source there.
+   A key here with no counterpart on the server is a checklist row that never
+   ticks. */
 const STAGES = [
-  'Receiving your resume',
-  'Extracting skills & keywords',
-  'Cross-referencing the job description',
-  'Calculating your match score',
-]
+  { key: 'extracting', label: 'Reading your resume' },
+  { key: 'checking', label: 'Checking it parses as a CV' },
+  { key: 'analyzing', label: 'Matching it to the job description' },
+  { key: 'reconciling', label: 'Reconciling implied skills' },
+  { key: 'diagnostics', label: 'Building your report' },
+] as const
+
+export const SCAN_STAGE_KEYS = STAGES.map((s) => s.key)
 
 // Short, specific status lines that cycle under the stage checklist so the
 // screen never looks stalled during the several-second analysis call.
@@ -29,11 +36,20 @@ const FLAVOR_INTERVAL_MS = 1400
 /**
  * Narrated progress for the scan request.
  *
- * Deliberately timer-driven rather than checkpoint-driven, unlike the tailor
- * workspace's stepper: /analyze is one atomic backend call with nothing
- * incremental to report, so there is no real progress to tie this to — a
- * narrated stage list is the honest option available, not a shortcut taken
- * in place of one.
+ * Checkpoint-driven now. /analyze publishes a stage event as each real step
+ * begins — extract, pre-filter, the Claude call, reconcile, diagnostics —
+ * and those arrive over the existing per-user SSE stream while the request
+ * is still open.
+ *
+ * The timer that used to drive this is kept as a fallback rather than
+ * deleted. The stream can be closed for reasons that have nothing to do with
+ * the scan (a proxy dropped it, Redis is unavailable, the browser throttled a
+ * background tab), and a checklist frozen on row one for twelve seconds is
+ * worse than one that narrates. Whichever of the two is further along wins.
+ *
+ * Five stages are not five equal fifths: "analyzing" is the Claude call and
+ * is most of the wall time. The checklist says which step is running, which
+ * is true; it does not draw a bar implying even progress, which would not be.
  *
  * The timers live here rather than in the page because they are this
  * component's own narration. The page previously owned them and imported
@@ -56,15 +72,50 @@ const FLAVOR_INTERVAL_MS = 1400
  * reads as a hang, and a bar that lies about the second half teaches people
  * not to trust the first.
  */
-export function ScanProgressPanel({ uploadPercent }: { uploadPercent?: number | null }) {
+export function ScanProgressPanel({
+  uploadPercent,
+  /** The stage key most recently reported by the server, if the event stream
+   *  is delivering them. Undefined falls back to the timer below. */
+  serverStage,
+}: {
+  uploadPercent?: number | null
+  serverStage?: string | null
+}) {
   const uploading = uploadPercent !== null && uploadPercent !== undefined && uploadPercent < 100
   const reduceMotion = usePrefersReducedMotion()
-  const [stage, setStage] = useState(0)
+  const [timedStage, setTimedStage] = useState(0)
   const [flavorIndex, setFlavorIndex] = useState(0)
+
+  /* The server's stage wins when it arrives. The timer is not removed with
+     it: the SSE stream can be closed (a proxy dropped it, Redis is down, the
+     browser throttled a background tab) and a checklist frozen on row one for
+     twelve seconds is worse than one that narrates. So the timer keeps
+     running underneath and whichever is further along is what shows —
+     progress never goes backwards, and a live server stage always overtakes
+     the timer because it means that step genuinely started. */
+  /* The furthest stage the server has reported, not the most recent one.
+     SSE frames can arrive late or out of order, and taking the latest made
+     the checklist rewind — caught by a test, not by reading it: max(timer,
+     latest) reads as monotonic and is not, because the timer is only a floor
+     and a stale event still beats it once it has passed. A stage that has
+     started cannot un-start, so the peak is the honest reading.
+
+     A ref, and mounted per scan: the panel is keyed on the loading state, so
+     it unmounts between scans and this resets with it. */
+  const [peakReported, setPeakReported] = useState(-1)
+  const reportedIndex = serverStage ? STAGES.findIndex((s) => s.key === serverStage) : -1
+  // Adjusted during render, not in an effect: React re-runs the component
+  // immediately with the new value, so the checklist never paints one frame
+  // at the wrong stage. Same pattern the profile page uses to hydrate a form
+  // from a query without a flash of the defaults.
+  if (reportedIndex > peakReported) setPeakReported(reportedIndex)
+
+  const stage = Math.max(timedStage, peakReported)
+  const live = peakReported >= 0
 
   useEffect(() => {
     const id = setInterval(
-      () => setStage((prev) => Math.min(STAGES.length - 1, prev + 1)),
+      () => setTimedStage((prev) => Math.min(STAGES.length - 1, prev + 1)),
       STAGE_INTERVAL_MS,
     )
     return () => clearInterval(id)
@@ -161,9 +212,16 @@ export function ScanProgressPanel({ uploadPercent }: { uploadPercent?: number | 
           aria-hidden="true"
           className="mb-6 flex items-center justify-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-(--color-ink-faint)"
         >
+          {/* "Live" only when it is. The word was there while the stages
+              were on a timer, which is the kind of small dishonesty that
+              costs trust when someone notices the checklist ticks at the
+              same rate on a 200ms scan and a 20s one. */}
           <span className="scan-pulse inline-flex items-center gap-1.5">
-            <span className="size-1.5 rounded-full bg-(--color-accent)" />
-            Live
+            <span
+              className="size-1.5 rounded-full"
+              style={{ background: live ? 'var(--color-accent)' : 'var(--color-ink-faint)' }}
+            />
+            {live ? 'Live' : 'Working'}
           </span>
           <span className="tabular-nums">
             Pass {String(Math.min(stage + 1, STAGES.length)).padStart(2, '0')} / {String(STAGES.length).padStart(2, '0')}
@@ -171,11 +229,11 @@ export function ScanProgressPanel({ uploadPercent }: { uploadPercent?: number | 
         </div>
 
         <div className="flex flex-col gap-2.5">
-          {STAGES.map((label, i) => {
+          {STAGES.map(({ key, label }, i) => {
             const done = i < stage
             const current = i === stage
             return (
-              <div key={label} className="flex items-center gap-3">
+              <div key={key} className="flex items-center gap-3">
                 <span className="relative flex items-center justify-center w-4 h-4 shrink-0" aria-hidden="true">
                   {done ? (
                     <Check strokeWidth={2} className="w-3.5 h-3.5 text-(--color-accent)" />

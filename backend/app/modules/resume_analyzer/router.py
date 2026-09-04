@@ -28,6 +28,7 @@ from app.schemas.resume import (
     ScoreBreakdownSchema,
 )
 from app.schemas.resume_review import ResumeReviewSchema
+from app.modules.resume_analyzer.progress import stage_publisher
 
 HOUR = 3600
 
@@ -70,6 +71,10 @@ async def analyze_resume(
     background_tasks: BackgroundTasks,
     resume: UploadFile = File(...),
     job_description: str = Form(...),
+    # Client-generated so the browser can filter the stage events it caused
+    # from those of another tab. Optional: a client that does not send one
+    # simply gets no progress, and the scan is otherwise identical.
+    scan_id: str | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
     _limit: None = Depends(RateLimit("resume_analyze", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS, "Too many resume scans. Try again in a while.")),
@@ -78,8 +83,15 @@ async def analyze_resume(
     if len(content) > MAX_RESUME_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That file is too large. Resumes should be under 10MB.")
     try:
+        # Built here, on the event loop, because it captures the loop it will
+        # later be called back into from the worker thread.
+        on_stage = stage_publisher(current_user.id, scan_id)
         result = await run_in_threadpool(
-            analyze_resume_against_job, resume.filename or "resume", content, job_description
+            analyze_resume_against_job,
+            resume.filename or "resume",
+            content,
+            job_description,
+            on_stage,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
