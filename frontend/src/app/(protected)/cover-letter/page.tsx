@@ -102,14 +102,23 @@ function CoverLetterStudio() {
       setPdfUrl(result.pdf_base64 ? pdfBlobUrl(result.pdf_base64) : null)
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status
+      /* Prefer the server's own message. This branch used to hardcode
+         "isn't configured on this server" for every 503, which was true for
+         the one cause it was written against — a missing API key — and wrong
+         for the rest. When the account ran out of credits the server said so
+         accurately and this line replaced it with a deployment error the
+         user could do nothing with. The API owns the reason; the copy below
+         is only for the cases the client genuinely knows better. */
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      const fromServer = typeof detail === 'string' && detail ? detail : null
+
       setError(
         (err as Error).message === 'no-scans'
           ? 'You have no resume scans yet. Scan a resume first.'
-          : status === 503
-            ? "Cover letter generation isn't configured on this server."
-            : status === 400
-              ? "This listing was cached without its description, so there's nothing to tailor to."
-              : 'Could not generate the letter. Nothing was charged if it failed before the model ran.',
+          : fromServer ??
+            (status === 503 || status === 429
+              ? 'Cover letter generation is unavailable right now. Please try again shortly.'
+              : 'Could not generate the letter. Nothing was charged if it failed before the model ran.'),
       )
     } finally {
       if (timer.current) clearInterval(timer.current)

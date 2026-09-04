@@ -1,3 +1,4 @@
+import anthropic
 import logging
 
 from fastapi import FastAPI, Request
@@ -82,6 +83,55 @@ app.include_router(events_router, prefix="/api/events", tags=["Real-Time Stream"
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(user_router, prefix="/api/user", tags=["User Profile"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
+
+
+@app.exception_handler(anthropic.APIError)
+async def llm_unavailable_handler(request: Request, exc: anthropic.APIError):
+    """Claude failed, and the user asked for something only Claude can do.
+
+    WHY THIS IS GLOBAL RATHER THAN PER-ROUTE
+
+    Eight modules reach the LLM. Each one that wants to *degrade* — resume
+    scoring falling back to its rule-based path — already catches the failure
+    locally and never gets here. This exists for the ones with nothing to
+    fall back to: a cover letter, an interview evaluation. Their honest
+    answer is "not right now", and writing that eight times is eight chances
+    to write it differently, plus a ninth module later that forgets entirely.
+
+    THE FAILURE THIS FIXES
+
+    llm_client.available is a config check — `self._client is not None` — so
+    a configured key reads as usable no matter what the API then says. When
+    the account ran out of credits, every one of these routes raised
+    anthropic.BadRequestError, which is not the RuntimeError the cover-letter
+    route catches, and the user got a bare 500. A 500 says "we are broken";
+    these failures are mostly "not right now", and the difference decides
+    whether someone retries or leaves.
+
+    The status codes distinguish what the caller can do about it: 429 means
+    wait and it will work, 503 means it is us and retrying now will not help.
+    """
+    if isinstance(exc, anthropic.RateLimitError):
+        status, detail = 429, "We're at capacity right now. Try that again in a minute."
+    elif isinstance(exc, anthropic.APIConnectionError):
+        status, detail = 503, "Couldn't reach the AI service. Check your connection and try again."
+    else:
+        # Everything else — auth, billing, a malformed request we built.
+        # None of it is the user's doing and none of it is fixable by
+        # retrying immediately, so they get the same honest answer.
+        status, detail = 503, (
+            "AI features are temporarily unavailable. Nothing you did caused this — "
+            "please try again shortly."
+        )
+
+    # The operator needs the real reason; the user must not get it. An API
+    # error body can carry account and billing detail that has no business
+    # in a client response.
+    logger.error(
+        "LLM call failed on %s %s: %s",
+        request.method, request.url.path, type(exc).__name__, exc_info=True,
+    )
+    return JSONResponse(status_code=status, content={"detail": detail})
 
 
 @app.exception_handler(Exception)
