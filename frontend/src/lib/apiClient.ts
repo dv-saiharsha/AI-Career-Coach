@@ -638,6 +638,10 @@ export interface JobFeed {
    * never waits on the scraper — that used to block for minutes.
    */
   refreshing?: boolean
+  /** When the hourly board sweep next runs. Null when no scheduler is
+   *  running in that process — the UI then says nothing rather than
+   *  implying a cadence nobody is keeping. */
+  next_sync_at?: string | null
 }
 
 /**

@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     # Left optional so local dev and CI need no Redis to boot.
     REDIS_URL: str = ""
 
+    # Whether this process runs the hourly ATS board sweep.
+    #
+    # Free — Greenhouse and Lever board reads only, never Apify or Claude — so
+    # leaving it on costs nothing but requests. Turn it off for a process that
+    # should not sweep: a one-off script, or a second replica where one worker
+    # already covers it. Upserts are idempotent on content_hash, so two
+    # workers sweeping is wasteful rather than wrong.
+    JOB_SWEEP_ENABLED: bool = True
+
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 5
     DB_POOL_RECYCLE_SECONDS: int = 300

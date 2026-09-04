@@ -260,14 +260,19 @@ export default function JobsPage() {
         {feed?.lastUpdated && (
           <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-(--color-ink-faint)">
             <Clock className="w-3 h-3" aria-hidden="true" />
-            {/* "Checked hourly" describes what this tab does — the fetch
-                effect above polls on a 1-hour interval. It deliberately does
-                not say the listings themselves are hourly: the sweep that
-                actually populates them has no enforced schedule in this repo,
-                only a "daily" design assumption in its own comments, so
-                "last updated" (a real fetched_at timestamp) is the only
-                freshness claim here that is unconditionally true. */}
-            Checked hourly · last updated {refreshLabel(feed.lastUpdated)}
+            {/* Both halves are measured now, where the previous copy could
+                only claim one. "Checked hourly" used to describe this tab's
+                own polling and deliberately said nothing about the listings,
+                because the sweep that populates them had no enforced schedule
+                — its comment was careful about exactly that.
+
+                There is now a real hourly sweep server-side, so the next-sync
+                time is read from the scheduler rather than implied. It is
+                omitted entirely when that process is not running a sweeper,
+                which keeps the honest-by-construction property: the UI never
+                asserts a cadence nobody is keeping. */}
+            Updated {refreshLabel(feed.lastUpdated)}
+            {feed.next_sync_at ? ` · next sync ${refreshLabel(feed.next_sync_at)}` : ''}
           </span>
         )}
       </PageHeader>

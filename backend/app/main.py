@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from contextlib import asynccontextmanager
+
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.modules.analytics.router import router as analytics_router
@@ -13,6 +15,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.events.router import router as events_router
 from app.modules.auth.router import router as auth_router
 from app.modules.interview_coach.router import router as interview_router
+from app.modules.job_market import scheduler
 from app.modules.job_market.router import router as jobs_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.offers.router import router as offers_router
@@ -27,7 +30,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="ApplyCenter API")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Start and stop the hourly board sweep alongside the app.
+
+    Only the free half of the sweep runs on this timer — Greenhouse and Lever
+    board reads. Apify and Claude are never called here: both bill per use,
+    and putting either on a schedule means money leaving the account on a
+    clock with nobody watching. The paid pass stays a deliberate human action.
+
+    Gated on a setting so a worker that should not sweep — a one-off script, a
+    test process, a second replica — can opt out without a code change.
+    """
+    scheduler.start(enabled=settings.JOB_SWEEP_ENABLED)
+    try:
+        yield
+    finally:
+        await scheduler.stop()
+
+
+app = FastAPI(title="ApplyCenter API", lifespan=lifespan)
 
 # Origins come from settings, never a literal "*" — see config.py's
 # validate_startup(), which refuses to boot in production with a wildcard or

@@ -108,6 +108,10 @@ class JobFeedSchema(BaseModel):
     # A background scrape for this query is in flight. The listings shown are
     # cached; fresher ones will exist on the next load.
     refreshing: bool = False
+    # When the hourly board sweep next runs, ISO-8601. None when no scheduler
+    # is running in this process or it has not completed a first pass — the UI
+    # must then say nothing rather than imply a cadence that does not exist.
+    next_sync_at: Optional[str] = None
 
 
 class WarmRefreshSchema(BaseModel):

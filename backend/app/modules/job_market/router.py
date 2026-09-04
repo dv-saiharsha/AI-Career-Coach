@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
 from app.modules.job_market import matching, services
+from app.modules.job_market import scheduler
 from app.schemas.job import JobFeedSchema
 
 router = APIRouter()
@@ -95,4 +96,10 @@ def list_jobs(
         # the UI can say results are on the way instead of implying the cache
         # is all there will ever be.
         "refreshing": queued,
+        # Real, or absent. next_run_at() is None until the scheduler has
+        # completed a pass, so a process with no sweeper says nothing rather
+        # than advertising a schedule it is not keeping.
+        "next_sync_at": (
+            scheduler.next_run_at().isoformat() if scheduler.next_run_at() else None
+        ),
     }

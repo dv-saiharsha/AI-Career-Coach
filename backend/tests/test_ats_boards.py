@@ -87,6 +87,32 @@ class TestGreenhouse:
         # Paragraph breaks survive, so two paragraphs do not become one sentence.
         assert "Python and Go." in description
 
+    def test_blank_line_runs_are_collapsed(self):
+        """The gap that reached the UI.
+
+        Tag stripping leaves a newline per </p>, </li> and <br>, and the
+        "blank" lines between them usually hold a single leftover space — so
+        a newline-run regex never matches them. Measured on the stored feed
+        before this was fixed: 33 such runs per description on average, up to
+        50, each rendering as a visible paragraph break in the drawer.
+        """
+        payload = {
+            "jobs": [
+                {
+                    "id": 1,
+                    "title": "Engineer",
+                    "absolute_url": "https://x.com/1",
+                    "location": {"name": "Remote"},
+                    "content": "&lt;p&gt;One&lt;/p&gt;&lt;p&gt; &lt;/p&gt;&lt;p&gt; &lt;/p&gt;&lt;p&gt; &lt;/p&gt;&lt;p&gt;Two&lt;/p&gt;",
+                }
+            ]
+        }
+        rows = ats_boards.fetch_board("greenhouse", "x", fetch=_fetcher(body=json.dumps(payload)))
+        description = rows[0]["description"]
+        assert "One" in description and "Two" in description
+        assert "\n\n\n" not in description, "more than one blank line survived"
+        assert description == description.strip()
+
     def test_a_job_with_no_url_or_title_is_dropped(self):
         payload = {"jobs": [{"id": 1, "title": "", "absolute_url": ""}]}
         rows = ats_boards.fetch_board("greenhouse", "x", fetch=_fetcher(body=json.dumps(payload)))
