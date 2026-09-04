@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Field } from '@/components/ui/field'
 import { ConnectedAccounts } from '@/components/profile/ConnectedAccounts';
 import { Spinner } from '@/components/ui/spinner';
+import { ProfileSkeleton } from '@/components/profile/ProfileSkeleton';
 
 const SENIORITY_LEVELS = ['Entry', 'Mid-Level', 'Senior', 'Staff', 'Principal', 'Executive'];
 
@@ -219,6 +220,13 @@ export default function ProfilePage() {
         title="Profile"
         description="Manage your career profile and preferences."
       />
+
+      {/* The header is static and correct before the request lands, so it
+          stays put and only the data-backed panels below are stood in for —
+          swapping the whole page would move the one thing already right. */}
+      {profileQuery.isPending && <ProfileSkeleton />}
+      {!profileQuery.isPending && (
+      <>
 
       {/* Identity hero */}
       <div
@@ -512,6 +520,8 @@ export default function ProfilePage() {
             )}
         </Button>
       </div>
+      </>
+      )}
     </div>
   );
 }

@@ -54,6 +54,48 @@ export class HttpError extends Error {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   In-flight tracking.
+
+   Every network call in the app goes through `request` below, which makes
+   this the one place that knows whether anything is pending. Components can
+   subscribe without threading a loading prop through a tree or duplicating
+   react-query state for the eight pages that do not use react-query.
+
+   Deliberately a count, not a boolean: two overlapping requests must not
+   have the first one to finish declare the app idle.
+
+   No delay or animation policy lives here — this reports facts, and
+   NetworkActivityBar decides what is worth showing a user. Keeping the
+   threshold out of the transport means a second consumer (a test, a debug
+   overlay) sees the real number rather than one already filtered for one
+   presentation.
+   ──────────────────────────────────────────────────────────────────────── */
+
+type InflightListener = (count: number) => void
+
+let inflight = 0
+const listeners = new Set<InflightListener>()
+
+/** Subscribe to the number of requests currently in flight. Returns an
+ *  unsubscribe function, so it drops straight into a useEffect. */
+export function onInflightChange(listener: InflightListener): () => void {
+  listeners.add(listener)
+  listener(inflight)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+export function getInflightCount(): number {
+  return inflight
+}
+
+function setInflight(next: number): void {
+  inflight = next
+  for (const listener of listeners) listener(inflight)
+}
+
 export interface UploadProgress {
   loaded: number
   total?: number
@@ -94,6 +136,24 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function request<T>(
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+  config: RequestConfig = {},
+): Promise<HttpResponse<T>> {
+  // try/finally rather than decrementing at each return: this function has
+  // four success returns and throws from three places, and a counter that
+  // leaks on the error path would pin the activity bar on permanently after
+  // the first failed request.
+  setInflight(inflight + 1)
+  try {
+    return await performRequest<T>(method, path, body, config)
+  } finally {
+    setInflight(Math.max(0, inflight - 1))
+  }
+}
+
+async function performRequest<T>(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/AuthContext'
 import { ToastProvider } from '@/components/ui/toast'
+import { NetworkActivityBar } from '@/components/NetworkActivityBar'
 
 /**
  * Everything the signed-in application needs and the marketing site does not.
@@ -35,7 +36,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          {/* Mounted here rather than in the layout so it sits inside the
+              client boundary that owns the transport it listens to. */}
+          <NetworkActivityBar />
+          {children}
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

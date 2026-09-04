@@ -134,6 +134,25 @@ export default function History() {
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [actionError, setActionError] = useState<number | null>(null)
+  /* Keyed "id:action" rather than a bare id, so viewing one scan does not
+     also spin the download button beside it. Both calls fetch a blob and the
+     report one makes the server render a PDF, so an unguarded double-click
+     costs two renders and shows the user nothing in between. */
+  const [busyAction, setBusyAction] = useState<string | null>(null)
+
+  const runItemAction = async (id: number, action: string, run: () => Promise<unknown>) => {
+    const key = `${id}:${action}`
+    if (busyAction) return
+    setActionError(null)
+    setBusyAction(key)
+    try {
+      await run()
+    } catch {
+      setActionError(id)
+    } finally {
+      setBusyAction(null)
+    }
+  }
   const [interviewHistory, setInterviewHistory] = useState<InterviewHistoryItem[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [filter, setFilter] = useState<Filter>('All')
@@ -380,7 +399,10 @@ export default function History() {
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() => { setActionError(null); viewOriginalResume(item.id).catch(() => setActionError(item.id)) }}
+                              onClick={() => void runItemAction(item.id, 'view', () => viewOriginalResume(item.id))}
+                              loading={busyAction === `${item.id}:view`}
+                              loadingLabel="Opening your resume"
+                              disabled={busyAction !== null}
                               aria-label="View original resume"
                             >
                               <Eye />
@@ -389,7 +411,14 @@ export default function History() {
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() => downloadResumeReport(item.id, `resume-report-${item.id}.pdf`)}
+                              onClick={() =>
+                                void runItemAction(item.id, 'report', () =>
+                                  downloadResumeReport(item.id, `resume-report-${item.id}.pdf`),
+                                )
+                              }
+                              loading={busyAction === `${item.id}:report`}
+                              loadingLabel="Building your report"
+                              disabled={busyAction !== null}
                               aria-label="Download feedback report"
                             >
                               <Download />
