@@ -90,6 +90,22 @@ _ORG_WORDS = re.compile(
 # separate a role's body from its header.
 PROSE_MIN_CHARS = 55
 
+# How long a title/company line carried across an entry boundary is allowed
+# to be (see _split_entries) — looser than PROSE_MIN_CHARS on purpose. A
+# project title ("SmartGroc – Intelligent Grocery & Expense Management
+# Platform", 63 characters) can run well past a typical header line without
+# becoming a sentence; a wrapped bullet's first physical line, the thing this
+# still has to exclude, tends to run considerably longer than that because it
+# took most of a full page width before wrapping.
+MAX_CARRIED_HEADER_CHARS = 80
+
+# A bare list of tools ("Python, Flask, SQL, REST APIs, JavaScript, HTML/CSS")
+# — the line _split_header_and_bullets uses to recognise a sub-project
+# header appearing mid-role (see its docstring). Short, no sentence-ending
+# punctuation anywhere in it, and at least one comma — a real sentence that
+# happens to contain a comma still runs on well past 80 characters.
+_TECH_STACK_LINE = re.compile(r"^(?=.{1,80}$)[^.!?;:]*,[^.!?;:]*$")
+
 # Guards against a parse that has clearly gone wrong. A "role title" of 200
 # characters is a paragraph that happened to contain a date.
 MAX_FIELD_CHARS = 120
@@ -224,7 +240,18 @@ def _split_entries(section_text: str) -> list[list[str]]:
             while (
                 len(carried) < 2
                 and current
-                and len(current[-1].strip()) < PROSE_MIN_CHARS
+                and len(current[-1].strip()) < MAX_CARRIED_HEADER_CHARS
+                # A wrapped bullet's continuation starts lower-case — it is
+                # the back half of a sentence, never a title or company.
+                # Found by running a real resume through this parser: a
+                # 63-character project title ("SmartGroc – Intelligent
+                # Grocery & Expense Management Platform") failed the old,
+                # tighter PROSE_MIN_CHARS cutoff and was left stranded as the
+                # previous role's bogus trailing bullet, leaving the next
+                # entry with no title at all. The case check is what actually
+                # tells a title from a sentence fragment; length alone was
+                # never able to draw that line correctly for both.
+                and not current[-1].strip()[:1].islower()
                 # A short line ending in a full stop is the tail of a wrapped
                 # bullet, not an employer. Without this the last fragment of
                 # the previous role's final bullet becomes the next role's
@@ -261,8 +288,17 @@ def _split_header_and_bullets(entry: list[str]) -> tuple[list[str], list[str]]:
 
     What survives extraction is shape. A header line is short and has no
     sentence punctuation; a bullet is a sentence. Once the first sentence
-    appears, everything after it in the entry is body — resumes do not return
-    to header material half way down a role.
+    appears, everything after it in the entry is body — with one exception,
+    found running a real resume through this parser: a role that bundles
+    several sub-projects under one date range repeats its own mini-header
+    (a title-shaped line, then a tools line — "Workflow Automation &
+    Operations Dashboard" / "Python, Flask, SQL, REST APIs, JavaScript,
+    HTML/CSS") between each one. The old version had nowhere for that to go
+    but the bullet list, so it printed as if it were an achievement
+    ("• Workflow Automation & Operations Dashboard Python, Flask, SQL...").
+    Recognised by the same title-shape as above plus the tools-line lookahead
+    and dropped outright — there is no field in this schema for a
+    sub-project heading, and a wrong field is worse than a missing one.
 
     Wrapped lines are rejoined on that same basis, but a marker only ever
     closes the bullet BEFORE it, never the one it starts: two marked lines in
@@ -286,9 +322,12 @@ def _split_header_and_bullets(entry: list[str]) -> tuple[list[str], list[str]]:
     body: list[tuple[str, bool]] = []
     in_body = False
 
-    for raw in entry:
-        line = raw.strip()
+    lines = [raw.strip() for raw in entry]
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         if not line:
+            i += 1
             continue
 
         if _BULLET_PREFIX.match(line):
@@ -296,16 +335,46 @@ def _split_header_and_bullets(entry: list[str]) -> tuple[list[str], list[str]]:
             # has started.
             in_body = True
             body.append((_BULLET_PREFIX.sub("", line), True))
+            i += 1
             continue
 
         if not in_body:
-            is_prose = len(line) >= PROSE_MIN_CHARS and not _DATE_RANGE.search(line)
+            # A title immediately followed by its own dates is header
+            # material whatever its length — found by running a real resume
+            # through this parser: a 63-character project title carried
+            # across an entry boundary (see _split_entries) still needs to
+            # survive THIS check too, and length alone cannot tell it apart
+            # from a real bullet's long first line (both are capitalised,
+            # unpunctuated prose by this measure). A bullet is never
+            # immediately followed by a second date line — dates appear once,
+            # at the top of an entry — so that adjacency is the one signal
+            # that resolves the ambiguity without weakening the original
+            # length check for every other line.
+            next_is_date = i + 1 < len(lines) and bool(_DATE_RANGE.search(lines[i + 1]))
+            is_prose = (
+                not next_is_date
+                and len(line) >= PROSE_MIN_CHARS
+                and not _DATE_RANGE.search(line)
+            )
             if not is_prose:
                 header.append(line)
+                i += 1
                 continue
             in_body = True
+        elif (
+            not line[:1].islower()
+            and len(line) < MAX_CARRIED_HEADER_CHARS
+            and not line.endswith((".", "!", "?", ";", ":"))
+            and _TECH_STACK_LINE.match(lines[i + 1] if i + 1 < len(lines) else "")
+        ):
+            # A sub-project header appearing after the body has already
+            # started — see docstring. Drop it and the tools line right
+            # after it rather than filing either as a bullet.
+            i += 2
+            continue
 
         body.append((line, False))
+        i += 1
 
     # A marked line closes any pending buffer and starts a new one — two
     # marked lines are always two bullets, whatever punctuation either ends
@@ -415,9 +484,19 @@ def extract_experiences(resume_text: str) -> list[dict]:
         # a real two-line layout already has the better answer.
         if title and not company:
             # The plain hyphen belongs here: "Software Engineer - Microsoft"
-            # is the commonest form of this and the class used to list only
-            # the typographic dashes, so it never split.
-            if parts := re.split(r"\s*(?:[|•·–—-]|,|\bat\b)\s*", title, maxsplit=1):
+            # is the commonest form of this. But it must require whitespace on
+            # both sides to count — found by running a real resume through
+            # this parser: "AI-Based Phishing & Cyber-Threat Detection System"
+            # is a single project title with a compound word in it, and the
+            # old pattern matched that internal hyphen too (no whitespace
+            # required around it), splitting the title into "AI" / "Based
+            # Phishing & Cyber-Threat Detection System". The typographic
+            # dashes and the other separators are unambiguous even without
+            # spaces — nobody writes them mid-word — so only the plain
+            # hyphen needs the extra constraint.
+            if parts := re.split(
+                r"\s*(?:[|•·–—]|,|\bat\b)\s*|\s+-\s+", title, maxsplit=1
+            ):
                 if len(parts) == 2 and all(p.strip() for p in parts):
                     title, company = _clean(parts[0]), _clean(parts[1])
 
@@ -473,16 +552,25 @@ def _split_education_entries(section_text: str) -> list[list[str]]:
     return entries[:MAX_ENTRIES]
 
 
-def _institution_and_degree(line: str) -> tuple[str | None, str | None]:
-    """A pipe-joined header line, split by what each segment names.
+def _institution_and_degree(lines: list[str]) -> tuple[str | None, str | None]:
+    """One or several header lines, split by what each segment names.
 
     "Arizona State University, Tempe, AZ | Master of Science | GPA: 4.0"
     has no positional label saying which half is the school — so, as with
     _title_and_company, the segment naming an institution (a word like
     "University" or "College") is taken as the institution and the rest is
     kept together as the degree, GPA included, rather than discarded.
+
+    Takes every remaining line, not just a single pipe-joined one — found by
+    running a real resume through this parser: its EDUCATION entry was three
+    separate lines ("Arizona State University" / "Tempe, AZ" / "Master of
+    Science in Information Technology | GPA: 4.0/4.0"), and the old version
+    only ever looked at remainder[0] and remainder[1] positionally whenever
+    there was more than one line — reporting the institution AS the degree,
+    the location AS the institution, and silently dropping the real degree
+    line altogether.
     """
-    segments = [s.strip() for s in line.split("|") if s.strip()]
+    segments = [s.strip() for line in lines for s in line.split("|") if s.strip()]
     if len(segments) < 2:
         return None, None
 
@@ -532,12 +620,10 @@ def extract_education(resume_text: str) -> list[dict]:
         if not remainder:
             continue
 
-        # One line holding "School | Degree | GPA" is common enough on its
-        # own — split it by content rather than reporting the whole thing
-        # as the degree with no institution at all.
-        institution, degree = (None, None)
-        if len(remainder) == 1:
-            institution, degree = _institution_and_degree(remainder[0])
+        # "School | Degree | GPA" split across one line or several — split by
+        # content whenever a segment names an institution, rather than
+        # reporting the whole thing as the degree with no institution at all.
+        institution, degree = _institution_and_degree(remainder)
 
         results.append(
             {

@@ -266,6 +266,118 @@ class TestMarkedBulletWrappedOntoAnUnmarkedLine:
         assert not any(b.lower().startswith("and reduce") for b in bullets)
 
 
+SUB_PROJECT_HEADER_RESUME = """Venkata Sai Harshith Danda
+Tempe, AZ | dandaharshith64@gmail.com
+
+EXPERIENCE
+HGS (Hinduja Global Solutions)
+Jan 2022 - Dec 2023
+Software Engineer
+• Implemented standard API error handling, input validation, structured logging, and JWT authentication to improve platform stability.
+Workflow Automation & Operations Dashboard
+Python, Flask, SQL, REST APIs, JavaScript, HTML/CSS
+• Architected lightweight Python and Flask backend utilities to automate high-volume manual operational workflows.
+
+EDUCATION
+Arizona State University
+2026
+"""
+
+
+class TestSubProjectHeaderMidRole:
+    """The actual bug, found by running a real resume through the full
+    pipeline (predict_score, optimizer.plan, and a real fit.py/tectonic
+    compile) and reading the compiled PDF: a role that bundles several
+    sub-projects under one date range repeats its own mini-header (a
+    title-shaped line, then a tools line) between each one. The old parser
+    had nowhere for that to go but the bullet list, so it printed as if it
+    were an achievement: "Workflow Automation & Operations Dashboard Python,
+    Flask, SQL, REST APIs, JavaScript, HTML/CSS" as one bullet.
+    """
+
+    def test_the_subheader_and_its_tools_line_are_dropped_not_bulleted(self):
+        roles = extract_experiences(SUB_PROJECT_HEADER_RESUME)
+        bullets = roles[0]["bullets"]
+
+        assert len(bullets) == 2
+        assert not any("Workflow Automation" in b for b in bullets)
+        assert not any(b.startswith("Python, Flask, SQL") for b in bullets)
+
+
+TITLE_LONGER_THAN_HEADER_RESUME = """Venkata Sai Harshith Danda
+Tempe, AZ | dandaharshith64@gmail.com
+
+EXPERIENCE
+HGS (Hinduja Global Solutions)
+Jan 2022 - Dec 2023
+Software Engineer
+• Implemented standard API error handling, input validation, structured logging, and JWT authentication to improve platform stability.
+SmartGroc - Intelligent Grocery & Expense Management Platform
+Jun 2025 - Nov 2025
+React.js, Node.js, Express.js, PostgreSQL, Python, REST APIs, JWT, Docker, AWS
+• Engineered a full-stack e-commerce and expense-tracking application supporting customer shopping and inventory adjustments.
+
+EDUCATION
+Arizona State University
+2026
+"""
+
+
+class TestTitleLongerThanTheProseThreshold:
+    """A second, real bug the same live run surfaced: a project title long
+    enough to cross PROSE_MIN_CHARS (55 characters — "SmartGroc - Intelligent
+    Grocery & Expense Management Platform" is 63) used to be read as a bullet
+    instead of a header, both at the entry boundary (_split_entries) and
+    inside _split_header_and_bullets's own length-based prose check — so the
+    role ended up with an empty title, an empty company, and its real title
+    fused into the first bullet instead.
+    """
+
+    def test_title_survives_as_the_next_roles_title_not_a_bullet(self):
+        roles = extract_experiences(TITLE_LONGER_THAN_HEADER_RESUME)
+        assert len(roles) == 2
+
+        second = roles[1]
+        assert second["dates"] == "Jun 2025 - Nov 2025"
+        assert second["title"] or second["company"], (
+            "the long title vanished instead of becoming this role's title/company"
+        )
+        assert not any("SmartGroc" in b for b in second["bullets"]), (
+            "the title got fused into a bullet instead of staying a header"
+        )
+
+
+THREE_LINE_EDUCATION_RESUME = """Venkata Sai Harshith Danda
+Tempe, AZ | dandaharshith64@gmail.com
+
+EDUCATION
+Arizona State University
+Tempe, AZ
+Master of Science in Information Technology | GPA: 4.0/4.0
+Aug 2024 - May 2026
+"""
+
+
+class TestEducationSplitAcrossSeveralLines:
+    """The fourth real bug the same live run surfaced: an EDUCATION entry
+    spread across three lines (school / location / "degree | GPA") instead
+    of one. _institution_and_degree only ever ran when there was exactly one
+    remaining line, so this fell through to a purely positional fallback that
+    assumed remainder[0] is always the degree and remainder[1] is always the
+    institution — reporting "Arizona State University" AS the degree,
+    "Tempe, AZ" AS the institution, and silently dropping the real degree
+    line ("Master of Science...") altogether.
+    """
+
+    def test_institution_and_degree_are_not_swapped(self):
+        edu = extract_education(THREE_LINE_EDUCATION_RESUME)
+        assert len(edu) == 1
+        assert edu[0]["institution"] == "Arizona State University"
+        assert "Master of Science in Information Technology" in edu[0]["degree"]
+        assert edu[0]["degree"] != "Arizona State University"
+        assert edu[0]["institution"] != "Tempe, AZ"
+
+
 class TestEducationWithTheDateOnItsOwnLine:
     """A school block ending in a standalone date line, repeated per degree —
     common, and the layout _split_entries (built for experience) could not
