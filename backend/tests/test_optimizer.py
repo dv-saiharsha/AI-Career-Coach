@@ -258,6 +258,38 @@ def test_quantify_bullets_is_excluded_from_the_projection_without_moving_it() ->
     assert edit["potential_score"] == result["baseline_score"]
 
 
+def test_target_title_declines_a_boilerplate_opener() -> None:
+    """Found by running this module against a live Cloudflare posting.
+
+    Its first line is "About Us" — align_title offered that back as the
+    resume's target headline. rubric.title_alignment's own docstring already
+    states the rule this violated: guessing a title out of the JD body is
+    worse than declining to score.
+    """
+    jd = (
+        "About Us\n\n"
+        "At Cloudflare, we are on a mission to help build a better Internet. "
+        "Today the company runs one of the world's largest networks."
+    )
+    assert optimizer._target_title(jd) is None
+
+    edits = optimizer.find_honest_edits(WEAK_PRESENTATION, jd)
+    assert not any(e["edit"] == "align_title" for e in edits), (
+        "no edit should propose a boilerplate section header as a job title"
+    )
+
+
+def test_target_title_still_recognises_a_real_title() -> None:
+    assert optimizer._target_title("Senior Backend Engineer\n\nWe need Python.") == (
+        "Senior Backend Engineer"
+    )
+
+
+def test_target_title_declines_a_long_sentence() -> None:
+    jd = "We are looking for a talented engineer to join our growing platform team this year."
+    assert optimizer._target_title(jd) is None
+
+
 def test_quantify_bullets_reason_is_not_the_jd_vocabulary_reason() -> None:
     """plan()'s requires_review reason must describe THIS edit's situation.
 

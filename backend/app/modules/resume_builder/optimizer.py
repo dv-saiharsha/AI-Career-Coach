@@ -103,6 +103,17 @@ _LEADING_DATE = re.compile(
     re.IGNORECASE,
 )
 
+# Section openers a real posting routinely leads with instead of its title —
+# found by running this module against a live Cloudflare posting, whose first
+# line is "About Us". _target_title used to return that unchecked, and
+# align_title then proposed it as the resume's new headline.
+_NON_TITLE_HEADERS = re.compile(
+    r"^(about|who we are|our (mission|story|company|values)|company overview|"
+    r"overview|the role|the team|what (you'll|you will|we)|responsibilities|"
+    r"requirements|qualifications|why (join|work)|benefits|perks|location)\b",
+    re.IGNORECASE,
+)
+
 # The band the brief asks for. Named rather than inlined because both ends are
 # load-bearing: below it the resume is not competitive, and above ~85 the
 # score stops being evidence of anything, since a keyword dump reaches 86 and a
@@ -280,11 +291,26 @@ def find_honest_edits(resume_text: str, jd_text: str) -> list[dict]:
 
 
 def _target_title(jd_text: str) -> str | None:
-    """First line of the posting, which is the title often enough to offer."""
+    """The posting's stated title, when the first line actually is one.
+
+    Real postings routinely open with "About Us" or similar boilerplate
+    instead of the title — confirmed by running this against a live
+    Cloudflare posting, where the naive "just take line 1" version this
+    replaced offered "About Us" back as the resume's target headline.
+    rubric.title_alignment's own docstring already states the fix for this
+    exact situation: guessing a title out of the JD body scores against text
+    that was never the title, which is worse than declining to score. So this
+    only trusts the first line, and only when it doesn't read as an opening
+    section header or a sentence of prose.
+    """
     for line in (jd_text or "").splitlines():
         cleaned = line.strip()
-        if cleaned:
-            return cleaned.split(".")[0][:80]
+        if not cleaned:
+            continue
+        candidate = cleaned.split(".")[0][:80]
+        if _NON_TITLE_HEADERS.match(candidate) or len(candidate.split()) > 10:
+            return None
+        return candidate
     return None
 
 
