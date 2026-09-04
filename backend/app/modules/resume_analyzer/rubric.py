@@ -35,7 +35,7 @@ nothing to do with the resume.
 
 import re
 
-from app.core.taxonomy import canonical, expand_skills, skill_candidates
+from app.core.taxonomy import canonical, expand_skills, skill_candidates, skill_candidates_from_posting
 from app.modules.resume_analyzer.layout_check import inspect_ats_parsing_readiness
 from app.modules.resume_analyzer.quality import (
     evaluate_bullets,
@@ -107,7 +107,7 @@ def hard_skill_match(resume_text: str, jd_text: str) -> float | None:
     their other skills already demonstrate — the same expansion the analyzer
     uses, rather than a second opinion that would disagree with it.
     """
-    required = skill_candidates(jd_text)
+    required = skill_candidates_from_posting(jd_text)
     if not required:
         return None
     have = expand_skills(skill_candidates(resume_text))

@@ -72,7 +72,7 @@ stops when the band is reached. Three rules make it safe:
 import logging
 import re
 
-from app.core.taxonomy import canonical, expand_skills, skill_candidates
+from app.core.taxonomy import canonical, expand_skills, skill_candidates, skill_candidates_from_posting
 from app.ml.features import _QUANTIFIED_PATTERN
 from app.ml.inference import model_available, predict_score
 from app.modules.resume_analyzer import integrity, rubric
@@ -182,7 +182,7 @@ def find_honest_edits(resume_text: str, jd_text: str) -> list[dict]:
     #    delta (+40 combined with the title), and the most defensible: it
     #    states things the candidate already demonstrated in their bullets.
     implied = expand_skills(skill_candidates(resume_text))
-    jd_terms = [term for term in skill_candidates(jd_text)]
+    jd_terms = [term for term in skill_candidates_from_posting(jd_text)]
 
     stated = resume_text.lower()
 

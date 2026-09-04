@@ -3,7 +3,13 @@ import re
 from typing import Callable
 
 from app.core.llm import llm_client
-from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
+from app.core.taxonomy import (
+    canonical,
+    expand_skills,
+    group_by_domain,
+    skill_candidates,
+    skill_candidates_from_posting,
+)
 from app.modules.resume_analyzer import integrity, layout_check, quality
 from app.ml.inference import model_available, predict_score
 
@@ -156,7 +162,7 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
     # Single tokens from the shared extractor, plus multi-word skills it can't
     # see ("deep learning", "rest apis") — without these the taxonomy never
     # fires on the phrases that most need it.
-    candidates = skill_candidates(jd_text)
+    candidates = skill_candidates_from_posting(jd_text)
     resume_implied = expand_skills(skill_candidates(resume_text))
 
     matched, missing, keyword_analysis = [], [], []

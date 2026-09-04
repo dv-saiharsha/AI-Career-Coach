@@ -17,9 +17,8 @@ import base64
 import json
 import logging
 
-from app.core.keywords import keyword_candidates
 from app.core.llm import llm_client
-from app.core.taxonomy import expand_skills, group_by_domain, skill_candidates
+from app.core.taxonomy import expand_skills, group_by_domain, skill_candidates_from_posting
 from app.modules.resume_analyzer import layout_check, quality
 from app.ml.features import extract_features
 from app.ml.inference import predict_score
@@ -86,7 +85,7 @@ def stage_fixes(resume_text: str, jd_text: str, experiences: list[dict] | None) 
     call, same cost shape as the existing resume analyzer's per-request
     calls, not a batch operation)."""
     missing_keywords = [
-        kw for kw in keyword_candidates(jd_text) if kw.lower() not in resume_text.lower()
+        kw for kw in skill_candidates_from_posting(jd_text) if kw.lower() not in resume_text.lower()
     ]
 
     suggestions: list[dict] = []
@@ -196,7 +195,7 @@ def quality_report(
     # skill_candidates, not keyword_candidates: the phrase-aware version, so
     # domain gaps report "deep learning" rather than the fragments "Deep" and
     # "Learning" landing in the Other bucket.
-    jd_keywords = skill_candidates(jd_text)
+    jd_keywords = skill_candidates_from_posting(jd_text)
     contexts = [quality.skill_context(resume_text, kw) for kw in jd_keywords[:15]]
     missing = [c["skill"] for c in contexts if not c["found"]]
 
@@ -242,7 +241,7 @@ def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dic
     technical = [s for s in (stored.get("matched_skills") or []) if s][:18]
     tools = [s for s in (stored.get("extracted_skills") or []) if s and s not in technical][:12]
 
-    keywords = {k.lower() for k in expand_skills(skill_candidates(jd_text))} if jd_text else set()
+    keywords = {k.lower() for k in expand_skills(skill_candidates_from_posting(jd_text))} if jd_text else set()
 
     payload = {
         "candidate_name": (full_name or "").strip() or parsed.get("name") or "Candidate",

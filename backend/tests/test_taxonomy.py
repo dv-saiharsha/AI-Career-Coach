@@ -8,6 +8,7 @@ from app.core.taxonomy import (
     expand_skills,
     group_by_domain,
     implied_skills,
+    skill_candidates_from_posting,
 )
 
 
@@ -175,3 +176,50 @@ class TestDomains:
     def test_unmapped_skills_land_in_other_not_dropped(self):
         grouped = group_by_domain(["PyTorch", "Underwater Basket Weaving"])
         assert grouped["Other"] == ["Underwater Basket Weaving"]
+
+
+MARKETING_PREAMBLE_POSTING = """About Us
+
+At Cloudflare, we are on a mission to help build a better Internet. Cloudflare
+was named to Entrepreneur Magazine's Top Company Cultures list and ranked
+among the World's Most Innovative Companies by Fast Company.
+
+We are looking for a thoughtful Trust and Safety Investigator.
+
+Requirements:
+
+Demonstrate working knowledge of DNS and how the Internet works.
+
+You have worked with lawyers and Legal teams on document production requests.
+"""
+
+
+class TestSkillCandidatesFromPosting:
+    """Found running a real Cloudflare posting through skill_candidates: its
+    "About Us" preamble is full of capitalized mid-sentence words a real
+    skill name looks exactly like ("Fortune", "Magazine", "World's Most
+    Innovative Companies"), and the proper-noun heuristic in keyword_
+    candidates can't tell them apart by shape. skill_candidates_from_posting
+    drops everything before the posting's own "Requirements"/
+    "Responsibilities" heading first, since that is unambiguously the
+    substantive part.
+    """
+
+    def test_marketing_boilerplate_is_excluded(self):
+        candidates = skill_candidates_from_posting(MARKETING_PREAMBLE_POSTING)
+        lowered = {c.lower() for c in candidates}
+        for junk in ("fortune", "magazine", "cultures", "world", "most", "innovative", "companies"):
+            assert junk not in lowered, f"{junk!r} is marketing noise, not a requirement"
+
+    def test_real_requirements_still_come_through(self):
+        candidates = skill_candidates_from_posting(MARKETING_PREAMBLE_POSTING)
+        assert "DNS" in candidates
+        assert "Legal" in candidates
+
+    def test_a_posting_with_no_requirements_heading_is_unaffected(self):
+        """No heading to anchor on — falls back to reading everything, same
+        as plain skill_candidates, rather than guessing where to cut."""
+        from app.core.taxonomy import skill_candidates
+
+        jd = "Senior Backend Engineer. We need Python, Kubernetes, and AWS experience."
+        assert skill_candidates_from_posting(jd) == skill_candidates(jd)

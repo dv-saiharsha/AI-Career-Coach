@@ -40,3 +40,35 @@ def keyword_candidates(jd_text: str) -> list[str]:
             if is_acronym or has_symbol_or_digit or is_proper_noun:
                 counts[clean] += 1
     return [w for w, _ in counts.most_common(25)]
+
+
+# A posting's substantive part starts here, when it says so explicitly.
+_REQUIREMENTS_SECTION = re.compile(
+    r"^\s*(requirements|responsibilities|qualifications|"
+    r"minimum qualifications|preferred qualifications|"
+    r"what you.ll (?:do|bring|need)|who you are|about you)\s*:?\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _requirements_text(jd_text: str) -> str:
+    """Drop a leading "About Us"-shaped preamble before extracting keywords.
+
+    Found running a real Cloudflare posting through keyword_candidates: it
+    opens with paragraphs of company history and press mentions ("Fortune
+    500", "Entrepreneur Magazine's Top Company Cultures list", "World's Most
+    Innovative Companies"), and the proper-noun heuristic above has no way to
+    tell those apart from a real skill name — both are capitalized words
+    mid-sentence. Position is the one signal that does: once the text reaches
+    an explicit "Responsibilities"/"Requirements"-shaped heading, everything
+    before it is safely skippable. A posting with no such heading is returned
+    unchanged.
+
+    Used only by app.core.taxonomy.skill_candidates_from_posting — never by
+    keyword_candidates itself, which app/ml/features.py also calls, and which
+    the trained model (scripts/train_ats_model.py) was fit against. Changing
+    what text THAT reads would shift its features out from under the model's
+    learned weights — train/serve skew — without a retrain.
+    """
+    match = _REQUIREMENTS_SECTION.search(jd_text or "")
+    return jd_text[match.start():] if match else jd_text

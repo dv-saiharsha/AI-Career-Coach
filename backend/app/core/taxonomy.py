@@ -323,6 +323,23 @@ def skill_candidates(text: str) -> list[str]:
     return candidates
 
 
+def skill_candidates_from_posting(jd_text: str) -> list[str]:
+    """skill_candidates, but for a job posting specifically — never a resume.
+
+    Strips a leading "About Us"-shaped preamble first (see
+    keywords._requirements_text): a real Cloudflare posting opened with
+    company-history and press-mention paragraphs, and keyword_candidates has
+    no way to tell "Fortune", "Magazine", "World's Most Innovative Companies"
+    apart from a real skill name — both are capitalised words mid-sentence.
+    That preamble only exists in postings, so this must only ever be called
+    with jd_text, never resume_text — skill_candidates itself is still what
+    every resume-text call site uses.
+    """
+    from app.core.keywords import _requirements_text
+
+    return skill_candidates(_requirements_text(jd_text))
+
+
 def domain_of(skill: str) -> str | None:
     return DOMAINS.get(canonical(skill))
 
