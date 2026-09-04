@@ -85,20 +85,6 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str = ""
     DEEPGRAM_TIMEOUT_SECONDS: float = 30.0
 
-    # Apify — the live job source (cheap_scraper/linkedin-job-scraper).
-    # Billed per event, not per month: $0.005 per GB of memory at actor start
-    # (4 GB default = $0.02 a run) plus $0.0007 per result. The actor also
-    # enforces a 150-result floor, so the minimum realistic cost of touching
-    # one role is about $0.13 — there is no cheap probe.
-    #
-    # That makes every knob here a spend lever rather than a tuning one, and
-    # makes the TTL cache in job_market/services.py load-bearing: a cache hit
-    # is the difference between $0 and $0.13.
-    #
-    # With no token set the job feed degrades to cache-only rather than
-    # erroring, so local dev and CI work without an Apify account.
-    APIFY_API_TOKEN: str = ""
-
     # Keyword search returns nothing without a location — the actor exits
     # SUCCEEDED with an empty dataset and still bills the start fee. Comma
     # separated.
@@ -112,7 +98,16 @@ class Settings(BaseSettings):
     # Which backend the job feed reads from. One branch today, kept as a seam
     # so adding a provider is an elif in job_market/services._fetch rather
     # than re-plumbing every caller.
-    JOB_SOURCE: str = "apify"
+    #
+    # Was "apify" — stale ever since Apify was dropped in favour of free
+    # employer-board reads plus this budgeted aggregator. Left at that value,
+    # every on-demand search (any role not in the pre-warmed set) raised
+    # SourceUnavailable("unknown JOB_SOURCE 'apify'") on this exact default,
+    # in any environment that never explicitly overrode it — which is
+    # whichever one this is, since nothing in .env sets JOB_SOURCE. A stale
+    # default from a removed provider, silently breaking the provider that
+    # replaced it.
+    JOB_SOURCE: str = "jsearch"
 
     # How long a cached query stays fresh, and therefore the hard floor on
     # spend: a query costs at most one actor run per window.
@@ -212,7 +207,7 @@ def validate_startup() -> None:
 
     Only enforced when ENVIRONMENT=production — every other required-looking
     setting below has a permissive default specifically so local dev and CI
-    need no .env to boot (DEEPGRAM_API_KEY/APIFY_API_TOKEN degrade features
+    need no .env to boot (DEEPGRAM_API_KEY/RAPIDAPI_KEY degrade features
     gracefully when unset, by design; the ones checked here don't have a
     degraded mode, so silently booting without them just moves the failure
     from "won't start" to "500s on the first real request").

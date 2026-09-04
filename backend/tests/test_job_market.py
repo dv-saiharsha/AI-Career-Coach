@@ -1,69 +1,7 @@
-"""Job feed tests — no network, no spend.
-
-The fixture below mirrors khadinakbar/google-jobs-scraper's documented output
-schema. Only five fields are guaranteed non-null (job_title, is_remote,
-search_query, source_url, scraped_at), so the sparse item is not an edge case
-being padded out — it is the shape the actor says to expect, and the one most
-likely to slip through as a silent data bug.
-"""
+"""Job feed tests — no network, no spend."""
 
 
 import pytest
-
-
-# A full item and a minimal one carrying only the guaranteed fields.
-
-
-class TestClientContract:
-    """Pin the kwargs run_actor passes against the installed apify-client.
-
-    Written after shipping `timeout_secs`, which does not exist on this
-    version: every warm-role run raised TypeError at call time. That failed
-    safe (nothing billed), but the same mistake on a kwarg the client silently
-    accepts and ignores — a cap, say — would fail *open* and bill. An SDK
-    upgrade renaming any of these should break here, not in production.
-    """
-
-    REQUIRED_KWARGS = (
-        "run_input",
-        "max_items",             # billable-result ceiling
-        "max_total_charge_usd",  # hard spend ceiling
-        "run_timeout",
-        "wait_duration",
-        "logger",
-    )
-
-    # Attributes read off the Run object returned by call(). Run is a pydantic
-    # model, not a dict — `run.get("defaultDatasetId")` raised AttributeError
-    # *after* the actor had already run and billed, so the charge bought
-    # nothing. Reading the result is post-payment code: it has to be right.
-    REQUIRED_RUN_FIELDS = ("default_dataset_id", "status", "usage_total_usd")
-
-    def test_call_accepts_every_kwarg_we_pass(self):
-        import inspect
-
-        from apify_client import ApifyClient
-
-        params = inspect.signature(ApifyClient("dummy-token").actor("u/n").call).parameters
-        missing = [kw for kw in self.REQUIRED_KWARGS if kw not in params]
-        assert not missing, f"apify-client no longer accepts: {missing}"
-
-    def test_run_model_exposes_fields_we_read(self):
-        from apify_client._models import Run
-
-        missing = [f for f in self.REQUIRED_RUN_FIELDS if f not in Run.model_fields]
-        assert not missing, f"Run model no longer exposes: {missing}"
-
-    def test_dataset_page_exposes_items(self):
-        """`.items` is how we get the rows we paid for."""
-        import dataclasses
-        import inspect
-
-        from apify_client import ApifyClient
-
-        client = ApifyClient("dummy-token").dataset("id")
-        page_cls = vars(inspect.getmodule(type(client)))["DatasetItemsPage"]
-        assert "items" in {f.name for f in dataclasses.fields(page_cls)}
 
 
 @pytest.fixture
@@ -84,6 +22,57 @@ def db_session():
     yield session
     session.close()
     Base.metadata.drop_all(bind=engine)
+
+
+class TestJobSourceDefault:
+    """The default value of JOB_SOURCE, not an overridden one.
+
+    Regression: it was "apify" — stale from before Apify was removed in
+    favour of employer boards plus this budgeted aggregator — and
+    _source()/_fetch() in services.py only ever recognised "jsearch". Nothing
+    in the live .env sets JOB_SOURCE explicitly, so every on-demand search
+    (any role outside the pre-warmed set) raised SourceUnavailable on the
+    Settings object's own default, in whichever environment never happened to
+    override it. Testing the Settings default directly, not a value passed
+    into the function under test, is the point: overriding JOB_SOURCE in the
+    test setup would make this pass while the real bug — what ships when
+    nobody sets it — stayed broken.
+    """
+
+    def test_the_default_is_a_source_the_code_actually_recognises(self):
+        from app.core.config import Settings
+
+        default_source = Settings.model_fields["JOB_SOURCE"].default
+        assert default_source == "jsearch", (
+            f"JOB_SOURCE defaults to {default_source!r}, which "
+            "_fetch()/_source_configured() do not recognise — every caller "
+            "that never overrides it hits SourceUnavailable on this exact "
+            "default"
+        )
+
+    def test_the_unconfigured_default_does_not_raise_unknown_source(self, monkeypatch):
+        """End-to-end version of the same assertion: drive it through the
+        real function with settings exactly as a fresh checkout would load
+        them, not a mocked-in value chosen to make the test pass."""
+        from app.core.config import Settings, settings
+        from app.modules.job_market import jsearch, services
+
+        # Read off the model rather than hardcoded "jsearch" here too, so
+        # this stays pinned to whatever config.py actually declares as the
+        # default rather than to what this test expects it to be.
+        live_default = Settings.model_fields["JOB_SOURCE"].default
+        monkeypatch.setattr(settings, "JOB_SOURCE", live_default)
+        monkeypatch.setattr(jsearch, "is_configured", lambda: False)
+
+        with pytest.raises(services.SourceUnavailable) as exc_info:
+            services._fetch("backend engineer", limit=10)
+
+        # It must fail because the API key genuinely isn't set in this test —
+        # not because JOB_SOURCE itself was unrecognised, which is the
+        # failure mode the original bug produced regardless of whether a key
+        # was configured.
+        assert "unknown JOB_SOURCE" not in str(exc_info.value)
+        assert "RAPIDAPI_KEY" in str(exc_info.value)
 
 
 class TestWarmFeedNeverEmpty:

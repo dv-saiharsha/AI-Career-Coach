@@ -1,11 +1,14 @@
 """Jobs straight from employers' own ATS boards. Free, keyed to no account.
 
-WHY THIS SOURCE EXISTS ALONGSIDE APIFY
+WHY THIS SOURCE EXISTS
 
-The Apify LinkedIn scraper is billed per run and bounded by two cost ceilings
-in ingestion.py, which is why the feed is as small as it is. Greenhouse and
-Lever both publish the job board of every company that uses them as public
-JSON, with no key, no account and no per-call charge. One request to
+This was written to run alongside a paid Apify LinkedIn scraper, billed per
+run and bounded by two cost ceilings in ingestion.py — that scraper has
+since been removed entirely in favour of this and the budgeted JSearch
+aggregator, but the economics that motivated building this first are still
+the reason it stayed the primary source rather than a supplement. Greenhouse
+and Lever both publish the job board of every company that uses them as
+public JSON, with no key, no account and no per-call charge. One request to
 Greenhouse returned 611 Stripe roles with full descriptions; one to Lever
 returned 310 from Palantir.
 
