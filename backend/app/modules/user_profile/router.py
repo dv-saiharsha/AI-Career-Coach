@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
-from app.modules.user_profile import services
+from app.modules.user_profile import services, privacy
 from app.schemas.profile import (
     ActivityResponseSchema,
     OnboardingRequestSchema,
@@ -123,3 +123,46 @@ def read_activity(
             for item in items
         ]
     }
+
+
+@router.get("/export")
+def export_my_data(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Everything held about the caller, as JSON.
+
+    Scoped to current_user.id like every other route here — a user id is never
+    accepted as a parameter, so there is no shape of request that exports
+    somebody else's data.
+    """
+    return privacy.export_user_data(db, current_user.id)
+
+
+@router.delete("/account", status_code=200)
+def delete_my_account(
+    confirm: str = Query(..., description="Must be the literal string DELETE"),
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Erase every row this product holds about the caller.
+
+    Irreversible, so it requires an explicit confirm=DELETE rather than being
+    reachable by a stray DELETE to a URL. That guard is deliberately in the
+    query string and not a body: a client library that drops bodies from
+    DELETE requests would otherwise turn a safety check into a no-op.
+
+    Returns per-table counts rather than a bare success. "Deleted" is a claim
+    a person should be able to check against their export.
+
+    The Supabase auth record is not touched — this owns the application's own
+    data. Removing the identity is a separate action against a different
+    system, and doing it here would leave a signed-in session whose data has
+    vanished underneath it.
+    """
+    if confirm != "DELETE":
+        raise HTTPException(
+            status_code=400,
+            detail="Pass confirm=DELETE to erase your data. This cannot be undone.",
+        )
+    return {"deleted": privacy.delete_user_data(db, current_user.id)}

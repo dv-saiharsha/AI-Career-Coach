@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   // dependency into the runtime layer.
   output: "standalone",
 
+  // No dev overlay badge. It floats over the bottom-left of every page in
+  // development, which is exactly where this app puts the account card — so
+  // it sat on top of real UI and showed up in screenshots of the product.
+  // Purely a development affordance; nothing in production renders it.
+  devIndicators: false,
+
   /* /features and /how-it-works answered halves of the same question, so
      people had to read both and join them up. They are one page now.
      Permanent rather than temporary: the old URL is not coming back, and a

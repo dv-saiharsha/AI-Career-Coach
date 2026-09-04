@@ -839,6 +839,9 @@
 
 .typewriter-line {
   width: 0;
+  /* Never wider than the cell, however long the string is — a line that
+     overflows would push the caret off the panel entirely on a narrow
+     viewport. */
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
@@ -870,10 +873,10 @@
     width: 0;
   }
   16% {
-    width: 100%;
+    width: var(--typewriter-width, 100%);
   }
   30% {
-    width: 100%;
+    width: var(--typewriter-width, 100%);
   }
   33.33% {
     width: 0;

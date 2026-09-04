@@ -112,6 +112,14 @@ export function AuthCard({
                     style={
                       {
                         '--typewriter-delay': `${i * 4.5}s`,
+                        // Each line types to ITS OWN width, not the
+                        // container's. The animation used to run to 100%,
+                        // which is the grid cell — as wide as the longest
+                        // line — so on every shorter line the caret carried
+                        // on travelling well past the full stop, blinking in
+                        // empty space. ch is the right unit here because the
+                        // face is monospaced, so one character is one ch.
+                        '--typewriter-width': `${line.length}ch`,
                       } as React.CSSProperties
                     }
                   >
