@@ -140,3 +140,68 @@ class TestInterviewTranscribeGuards:
             files={"audio": ("a.wav", io.BytesIO(b"x" * 100), "audio/wav")},
         )
         assert response.status_code == 413
+
+
+class TestTheLimitIsEnforcedNotJustDeclared:
+    """test_llm_rate_limits.py asserts every billed route *has* a limit. That
+    is a structural check and would still pass if RateLimit.__call__ were
+    broken. These two exercise a newly-limited route over real HTTP."""
+
+    def test_a_newly_limited_route_returns_429(self, client):
+        for _ in range(15):
+            core_ratelimit.check_rate_limit(f"cover_letter:{ALICE}", 15, 3600)
+        response = client.post(
+            "/api/cover-letter/generate",
+            json={"job_id": 1, "analysis_id": 1, "tone": "professional"},
+        )
+        assert response.status_code == 429, response.text
+        assert "cover letter" in response.json()["detail"].lower()
+
+    def test_the_limit_rejects_an_upload_before_reading_it(self, client, monkeypatch):
+        """The reason the limit is a dependency and not a statement in the
+        handler. A 100MB body from a user already over their ceiling must not
+        be read into memory first — the dependency runs before the body is
+        touched, so this returns 429 and never reaches the 413 check.
+        """
+        monkeypatch.setattr(resume_router_module, "MAX_RESUME_UPLOAD_BYTES", 10)
+        for _ in range(resume_router_module.MAX_ANALYSES_PER_WINDOW):
+            core_ratelimit.check_rate_limit(
+                f"resume_analyze:{ALICE}",
+                resume_router_module.MAX_ANALYSES_PER_WINDOW,
+                resume_router_module.ANALYSIS_WINDOW_SECONDS,
+            )
+        response = client.post(
+            "/api/resume/analyze",
+            files={"resume": ("r.txt", io.BytesIO(b"x" * 5000), "text/plain")},
+            data={"job_description": "Backend role."},
+        )
+        assert response.status_code == 429, (
+            f"expected the limiter to reject before the size check, got {response.status_code}"
+        )
+
+
+class TestBucketEviction:
+    """The sweep runs on the SWEEP_EVERY-th recorded call, so each test times
+    its final call to be exactly that one."""
+
+    def test_expired_buckets_are_swept(self):
+        """Keys are per user, so without a sweep the dict gains one entry per
+        account that ever hits a limited endpoint and loses none."""
+        for index in range(core_ratelimit.SWEEP_EVERY - 1):
+            core_ratelimit.check_rate_limit(f"scan:user-{index}", 5, 60, now=1000.0)
+        assert len(core_ratelimit._recent_calls) == core_ratelimit.SWEEP_EVERY - 1
+
+        # The sweeping call, long past every one of those 60s windows.
+        core_ratelimit.check_rate_limit("scan:latecomer", 5, 60, now=100_000.0)
+        assert list(core_ratelimit._recent_calls) == ["scan:latecomer"], (
+            "stale buckets survived the sweep"
+        )
+
+    def test_a_live_bucket_is_not_swept(self):
+        core_ratelimit.check_rate_limit("scan:active", 5, 3600, now=1000.0)
+        for index in range(core_ratelimit.SWEEP_EVERY - 2):
+            core_ratelimit.check_rate_limit(f"scan:other-{index}", 5, 1, now=1000.0)
+        core_ratelimit.check_rate_limit("scan:trigger", 5, 1, now=1100.0)
+
+        assert "scan:active" in core_ratelimit._recent_calls, "a live bucket was swept"
+        assert "scan:other-0" not in core_ratelimit._recent_calls, "the sweep did not run"

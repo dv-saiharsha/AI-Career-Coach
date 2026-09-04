@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.ratelimit import RateLimit
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.resume import ResumeAnalysis
 from app.modules.resume_builder import autofill, faang, optimizer, services, tailor
@@ -23,6 +24,8 @@ from app.schemas.resume_builder import (
     StageFixesResponseSchema,
 )
 
+HOUR = 3600
+
 router = APIRouter()
 
 
@@ -32,6 +35,7 @@ def stage_fixes(
     payload: StageFixesRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_stage_fixes", 20, HOUR, "Too many fix requests. Try again in a while.")),
 ):
     record = (
         db.query(ResumeAnalysis)
@@ -157,6 +161,7 @@ def tailor_handoff(
     payload: TailorHandoffRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_tailor", 20, HOUR, "Too many tailoring requests. Try again in a while.")),
 ):
     """What to change on this resume for this specific job.
 
@@ -178,6 +183,7 @@ def tailor_preview(
     payload: TailorPreviewRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_tailor", 20, HOUR, "Too many tailoring requests. Try again in a while.")),
 ):
     """A tailoring proposal for one resume against one posting.
 

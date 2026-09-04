@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
-from app.core.ratelimit import check_rate_limit
+from app.core.ratelimit import RateLimit
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
 from app.models.interview_prep import PrepQuestion
 from app.models.resume import ResumeAnalysis
@@ -45,6 +45,8 @@ from app.schemas.story import (
     StarStoryUpdateSchema,
 )
 
+HOUR = 3600
+
 router = APIRouter()
 
 # /evaluate calls Claude, /transcribe calls Deepgram — both real per-call
@@ -67,6 +69,7 @@ def create_questions(
     req: QuestionRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_questions", 20, HOUR, "Too many question sets requested. Try again in a while.")),
 ):
     """Starts a new Mock Interview session, sourcing its questions from the
     same shared Interview Preparation cache the "Learn concepts" tab uses —
@@ -121,6 +124,7 @@ def get_session_report(
     session_id: int,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_report", 20, HOUR, "Too many reports requested. Try again in a while.")),
 ):
     session = engine.get_owned_session(db, current_user.id, session_id)
     if not session:
@@ -173,6 +177,7 @@ def _serialize_active_session(db: Session, session: InterviewSession) -> dict:
 async def transcribe_answer(
     audio: UploadFile = File(...),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_transcribe", MAX_TRANSCRIPTIONS_PER_WINDOW, INTERVIEW_RATE_WINDOW_SECONDS, "Too many transcription requests. Try again in a while.")),
 ):
     """Voice Interview's one new endpoint. Pure transformation — audio in,
     transcript + voice_metrics out — and touches no session/question/answer
@@ -184,11 +189,6 @@ async def transcribe_answer(
     the user accepts it (or their edited version of it) and submits it
     through the existing /evaluate below, exactly like a typed answer.
     """
-    if not check_rate_limit(
-        f"interview_transcribe:{current_user.id}", MAX_TRANSCRIPTIONS_PER_WINDOW, INTERVIEW_RATE_WINDOW_SECONDS
-    ):
-        raise HTTPException(status_code=429, detail="Too many transcription requests. Try again in a while.")
-
     content = await audio.read()
     if len(content) > MAX_AUDIO_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That recording is too large.")
@@ -205,12 +205,8 @@ def evaluate(
     req: EvaluationRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_evaluate", MAX_EVALUATIONS_PER_WINDOW, INTERVIEW_RATE_WINDOW_SECONDS, "Too many answers submitted. Try again in a while.")),
 ):
-    if not check_rate_limit(
-        f"interview_evaluate:{current_user.id}", MAX_EVALUATIONS_PER_WINDOW, INTERVIEW_RATE_WINDOW_SECONDS
-    ):
-        raise HTTPException(status_code=429, detail="Too many answers submitted. Try again in a while.")
-
     row = (
         db.query(InterviewQuestion, InterviewSession)
         .join(InterviewSession, InterviewQuestion.session_id == InterviewSession.id)
@@ -267,6 +263,7 @@ def get_model_answer(
     req: ModelAnswerRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_model_answer", 30, HOUR, "Too many model answers requested. Try again in a while.")),
 ):
     row = (
         db.query(InterviewQuestion, InterviewSession)
@@ -337,6 +334,7 @@ def screening_prep(
     payload: ScreeningPrepRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_screening_prep", 15, HOUR, "Too many screening preps. Try again in a while.")),
 ):
     """Screening-call questions with answer templates tailored to the JD.
 
@@ -443,6 +441,7 @@ def get_prep_questions(
     category: PrepCategory,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("interview_prep", 30, HOUR, "Too many prep requests. Try again in a while.")),
 ):
     """Cache-first across all three difficulties for this role + category —
     generated once for everyone, not per user. Every field is returned

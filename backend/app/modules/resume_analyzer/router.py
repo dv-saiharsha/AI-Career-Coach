@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
-from app.core.ratelimit import check_rate_limit
+from app.core.ratelimit import RateLimit
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
 from app.modules.notifications.service import notify_resume_scanned
@@ -27,6 +27,8 @@ from app.schemas.resume import (
     ScoreBreakdownSchema,
 )
 from app.schemas.resume_review import ResumeReviewSchema
+
+HOUR = 3600
 
 router = APIRouter()
 
@@ -62,10 +64,8 @@ async def analyze_resume(
     job_description: str = Form(...),
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_analyze", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS, "Too many resume scans. Try again in a while.")),
 ):
-    if not check_rate_limit(f"resume_analyze:{current_user.id}", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS):
-        raise HTTPException(status_code=429, detail="Too many resume scans. Try again in a while.")
-
     content = await resume.read()
     if len(content) > MAX_RESUME_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That file is too large. Resumes should be under 10MB.")
@@ -177,6 +177,7 @@ def rescan_stored_resume(
     payload: RescanRequest,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_analyze", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS, "Too many resume scans. Try again in a while.")),
 ):
     """Score the resume already on file against a new job description.
 
@@ -184,11 +185,6 @@ def rescan_stored_resume(
     LLM call, and exempting it would leave an unmetered path to the expensive
     operation the limit exists to bound.
     """
-    if not check_rate_limit(
-        f"resume_analyze:{current_user.id}", MAX_ANALYSES_PER_WINDOW, ANALYSIS_WINDOW_SECONDS
-    ):
-        raise HTTPException(status_code=429, detail="Too many resume scans. Try again in a while.")
-
     latest = (
         db.query(ResumeAnalysis)
         .filter(ResumeAnalysis.user_id == current_user.id)
@@ -451,6 +447,7 @@ def resume_review_job_specific(
     analysis_id: int,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_review", 15, HOUR, "Too many resume reviews. Try again in a while.")),
 ):
     """Job-specific Resume Review (Mode B) for an existing scan.
 
@@ -489,6 +486,7 @@ def resume_review_job_specific(
 async def resume_review_general(
     resume: UploadFile = File(...),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_review", 15, HOUR, "Too many resume reviews. Try again in a while.")),
 ):
     """General Resume Review (Mode A) — a resume with no job description.
 
@@ -499,6 +497,8 @@ async def resume_review_general(
     comes from the upload in this one request.
     """
     content = await resume.read()
+    if len(content) > MAX_RESUME_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="That file is too large. Resumes should be under 10MB.")
     try:
         resume_text = extract_text(resume.filename or "resume", content)
     except ValueError as exc:

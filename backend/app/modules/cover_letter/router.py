@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.ratelimit import RateLimit
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
@@ -18,6 +19,8 @@ from app.schemas.cover_letter import CoverLetterSchema, GenerateCoverLetterReque
 
 logger = logging.getLogger(__name__)
 
+HOUR = 3600
+
 router = APIRouter()
 
 
@@ -26,6 +29,7 @@ def generate(
     payload: GenerateCoverLetterRequestSchema,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("cover_letter", 15, HOUR, "Too many cover letters. Try again in a while.")),
 ):
     """Draft a cover letter for one posting from one resume, and compile it.
 
