@@ -1,0 +1,111 @@
+name: Publish images
+
+# WHY workflow_run RATHER THAN A SECOND on: push
+#
+# This must not run its own copy of the test suite — that would mean two
+# workflows independently deciding "the code is good," which can (and
+# eventually will) disagree, and would double the CI minutes on every push
+# for no benefit. workflow_run instead waits for the "CI" workflow itself to
+# finish on `main` and reads its actual conclusion, so there is exactly one
+# place that decides whether the code passed: the CI job that already ran
+# every check documented in ci.yml. An image is only ever pushed for a
+# commit CI has already certified.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    # The one condition that matters: CI ran against this exact push to
+    # main and passed. Anything else (CI failed, or this fired for a PR
+    # branch's CI run) is a no-op, not a failure — there is nothing to
+    # publish and nothing to report as broken.
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The exact commit CI validated, not whatever main has moved to
+          # since — a second push during a slow CI run must not publish an
+          # image for code that was never actually checked.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          # The workflow's own token, scoped to this repo's package registry
+          # by the `packages: write` permission above — no separate secret
+          # to create or rotate for registry auth itself.
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Two tags per image: :latest for "pull whatever's current" and the
+      # short commit SHA for "pull exactly this build" — a rollback is
+      # `docker compose pull backend@sha-<old-sha>`, not a guess at which
+      # :latest used to be right.
+      - name: Backend image metadata
+        id: backend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-backend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Frontend image metadata
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      # NEXT_PUBLIC_* is inlined into the client bundle at THIS build step,
+      # not read when the container later starts — see README.md's
+      # Production Deployment section and next.config.ts's own build-time
+      # guard. The placeholder fallbacks exist so this workflow doesn't hard
+      # fail before the three repo secrets below are set, but an image built
+      # from the placeholders is not a working production image — it will
+      # point at localhost and a Supabase project that doesn't exist. Set
+      # these under Settings -> Secrets and variables -> Actions before
+      # treating anything this workflow publishes as deployable:
+      #
+      #   PROD_NEXT_PUBLIC_API_BASE_URL
+      #   PROD_NEXT_PUBLIC_SUPABASE_URL
+      #   PROD_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ secrets.PROD_NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api' }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder' }}

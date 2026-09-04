@@ -218,6 +218,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 That overlay sets `ENVIRONMENT=production`, which turns on real enforcement — see below. It does not supply TLS termination, a real `DB_URL`, or secrets; those are the deployer's responsibility, same as any other container deployment.
 
+**Continuous delivery builds and publishes images; it does not deploy them.** `.github/workflows/publish.yml` triggers on `workflow_run` of the CI workflow completing successfully on `main` — not on its own `push` trigger, so there is exactly one place that decides a commit is good, and an image is only ever built from a commit CI has already certified (the exact SHA CI ran against, not whatever `main` has moved to by the time the build starts). It builds and pushes both images to GHCR, tagged `:latest` and `:sha-<short-sha>`, using the repo's own `GITHUB_TOKEN` for registry auth — no extra secret needed for that part.
+
+The frontend image needs three more secrets before it's a real, working build — `NEXT_PUBLIC_*` is baked into the client bundle at this build step, not read later at container start (same rule as the manual build above):
+
+- `PROD_NEXT_PUBLIC_API_BASE_URL`
+- `PROD_NEXT_PUBLIC_SUPABASE_URL`
+- `PROD_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Set these under **Settings → Secrets and variables → Actions**. Until they're set, the workflow still runs (falling back to inert placeholders so it doesn't hard-fail), but the resulting frontend image points at `localhost` and a Supabase project that doesn't exist — don't run that build in production.
+
+**What ships after that is still a manual (or externally-triggered) step.** This repo has no configured deploy target — no VPS, no PaaS account, nothing to `docker compose pull` on automatically. Pulling the new images onto wherever this actually runs, and restarting the stack, is the one piece intentionally left out until there's a real server or platform to point it at.
+
 **Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `RAPIDAPI_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
 
 **CORS.** `ALLOWED_ORIGINS` is a comma-separated list, read from settings rather than hardcoded — set it to your real frontend origin(s) in production. It is never `*` in production; `validate_startup()` enforces that directly.
