@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     # should not sweep: a one-off script, or a second replica where one worker
     # already covers it. Upserts are idempotent on content_hash, so two
     # workers sweeping is wasteful rather than wrong.
+    # JSearch on RapidAPI. Aggregates LinkedIn, Indeed and career sites, so it
+    # reaches employers who publish no Greenhouse or Lever board — which is
+    # most of the market outside well-known tech.
+    #
+    # Both blank means the source is simply skipped. The plan on this key
+    # allows 200 requests a month, so app/modules/job_market/jsearch.py
+    # enforces a budget from the API's own remaining-request header rather
+    # than polling it like a free source.
+    RAPIDAPI_KEY: str = ""
+    RAPIDAPI_HOST: str = "jsearch.p.rapidapi.com"
+
     JOB_SWEEP_ENABLED: bool = True
 
     DB_POOL_SIZE: int = 5

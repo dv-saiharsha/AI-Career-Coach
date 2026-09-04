@@ -189,7 +189,7 @@ class TestSpendGuards:
         def fail(*a, **k):
             raise AssertionError("dry run must not call Apify")
 
-        monkeypatch.setattr(ingestion.apify_jobs, "search", fail)
+        monkeypatch.setattr(ingestion.jsearch, "search_many", fail)
         report = ingestion.refresh_global_jobs(db)
         assert report.dry_run is True
         assert report.postings_seen == 0
@@ -197,42 +197,45 @@ class TestSpendGuards:
 
     def test_dry_run_reports_what_it_would_spend(self, db):
         report = ingestion.refresh_global_jobs(db, roles=["a", "b", "c"])
-        # Roles are listed as what *would* be swept; no run happens.
-        assert len(report.roles_searched) == 3
+        # Only what would actually be queried, which the per-sweep cap bounds
+        # — listing three when two would run overstates the plan.
+        assert len(report.roles_searched) == ingestion.jsearch.MAX_QUERIES_PER_SWEEP
         assert report.runs_completed == 0
-        assert report.apify_cost_usd == 0.0
+        assert report.total_cost_usd() == 0.0
 
     def test_live_run_without_key_fetches_nothing(self, db, monkeypatch):
-        monkeypatch.setattr(ingestion.apify_jobs, "is_configured", lambda: False)
+        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: False)
         report = ingestion.refresh_global_jobs(db, dry_run=False)
         assert report.postings_seen == 0
-        assert any("APIFY_API_TOKEN" in e for e in report.errors)
+        assert any("RAPIDAPI_KEY" in e for e in report.errors)
 
     def test_cost_uses_measured_tokens(self):
         report = ingestion.SweepReport(input_tokens=1_000_000, output_tokens=1_000_000)
         # Haiku at $1/$5 per MTok, halved by the Batch API.
         assert report.claude_cost_usd() == 3.0
 
-    def test_total_cost_includes_apify(self):
-        """The Apify half is what the API billed, not a projection."""
-        report = ingestion.SweepReport(apify_cost_usd=1.14, input_tokens=1_000_000)
-        assert report.total_cost_usd() == 1.64
+    def test_the_aggregator_is_capped_per_sweep(self, db, monkeypatch):
+        """Replaces a per-run cost ceiling with a per-sweep request cap.
 
-    def test_sweep_ceiling_stops_the_loop(self, db, monkeypatch):
-        """max_total_charge_usd is per RUN; without this a nine-role sweep
-        under a $1 per-run cap could still reach $9."""
-        monkeypatch.setattr(ingestion, "MAX_SWEEP_COST_USD", 0.30)
-        monkeypatch.setattr(
-            ingestion.apify_jobs, "search",
-            lambda role, locations=None: SimpleNamespace(
-                items=[], cost_usd=0.127, run_id="r", status="SUCCEEDED"),
-        )
-        monkeypatch.setattr(ingestion.apify_jobs, "normalise_items", lambda i, r: [])
+        The scraper this used to bound billed per run, so the guard was a
+        dollar ceiling. Its replacement bills nothing per call and is limited
+        instead by a 200-request monthly quota, which a sweep running hourly
+        would exhaust in under two hours if it were allowed a query per role.
+        """
+        seen = {"queries": []}
+
+        def capture(roles, fetch=None):
+            seen["queries"] = list(roles)[: ingestion.jsearch.MAX_QUERIES_PER_SWEEP]
+            return []
+
+        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
+        monkeypatch.setattr(ingestion.jsearch, "search_many", capture)
+
         report = ingestion.SweepReport(dry_run=False)
         ingestion._collect(db, ["a", "b", "c", "d", "e"], report)
-        assert report.stopped_on_budget is True
-        assert report.runs_completed == 3  # stops once accumulated cost passes 0.30
-        assert report.apify_cost_usd < 0.50
+
+        assert len(report.roles_searched) <= ingestion.jsearch.MAX_QUERIES_PER_SWEEP
+        assert report.total_cost_usd() == 0.0, "the aggregator bills nothing per call"
 
     def test_cost_is_zero_for_an_unpriced_model(self, monkeypatch):
         """Better to report nothing than a figure from a stale rate table."""
@@ -247,18 +250,25 @@ class TestSweepFlow:
         digest = ingestion.content_hash("Acme", "Engineer", "Remote")
         add_listing(db, digest, enriched=True)
 
-        monkeypatch.setattr(ingestion.apify_jobs, "is_configured", lambda: True)
+        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
         monkeypatch.setattr(
-            ingestion.apify_jobs, "search",
-            lambda role, locations=None: SimpleNamespace(items=[{"raw": 1}], cost_usd=0.127, run_id="r1", status="SUCCEEDED"),
-        )
-        monkeypatch.setattr(
-            ingestion.apify_jobs, "normalise_items",
-            lambda items, role: [{
-                "query_key": role, "external_id": "x", "title": "Engineer", "company": "Acme",
-                "location": "Remote", "work_mode": "Remote", "apply_url": "https://e.com/j",
-                "description": "d", "skills": "[]", "posted_at": None,
-            }],
+            ingestion.jsearch,
+            "search_many",
+            lambda roles, fetch=None: [
+                {
+                    "query_key": "jsearch:engineer",
+                    "external_id": "x",
+                    "title": "Engineer",
+                    "company": "Acme",
+                    "location": "Remote",
+                    "work_mode": "Remote",
+                    "apply_url": "https://e.com/j",
+                    "description": "d",
+                    "skills": "[]",
+                    "posted_at": None,
+                    "source": "jsearch",
+                }
+            ],
         )
 
         def fail(*a, **k):
@@ -269,40 +279,27 @@ class TestSweepFlow:
         assert report.already_known == 1
         assert report.newly_enriched == 0
 
-    def test_quota_exhaustion_keeps_earlier_results(self, db, monkeypatch):
-        """A mid-sweep quota failure must not discard roles already paid for."""
-        calls = {"n": 0}
-
-        def flaky(role, locations=None):
-            calls["n"] += 1
-            if calls["n"] > 1:
-                raise ingestion.apify_jobs.ApifyUnavailable("actor failed")
-            return SimpleNamespace(items=[{}], cost_usd=0.127, run_id="r1", status="SUCCEEDED")
-
-        monkeypatch.setattr(ingestion.apify_jobs, "search", flaky)
+    def test_the_same_posting_from_two_queries_is_one_job(self, db, monkeypatch):
+        """De-dup is on content_hash, so an aggregator returning the same role
+        under two searches must not produce two rows to enrich and pay for."""
+        row = {"title": "Engineer", "company": "Acme", "location": "Remote"}
+        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
         monkeypatch.setattr(
-            ingestion.apify_jobs, "normalise_items",
-            lambda items, role: [{"title": "T", "company": "C", "location": "L"}],
-        )
-        report = ingestion.SweepReport(dry_run=False)
-        candidates = ingestion._collect(db, ["a", "b", "c"], report)
-        assert len(candidates) == 1
-        assert report.runs_completed == 1
-        assert len(report.errors) == 2
-
-    def test_same_posting_under_two_roles_enriched_once(self, db, monkeypatch):
-        monkeypatch.setattr(
-            ingestion.apify_jobs, "search",
-            lambda role, locations=None: SimpleNamespace(items=[{}], cost_usd=0.127, run_id="r1", status="SUCCEEDED"),
-        )
-        monkeypatch.setattr(
-            ingestion.apify_jobs, "normalise_items",
-            lambda items, role: [{"title": "Engineer", "company": "Acme", "location": "Remote"}],
+            ingestion.jsearch, "search_many", lambda roles, fetch=None: [dict(row), dict(row)]
         )
         report = ingestion.SweepReport(dry_run=False)
         candidates = ingestion._collect(db, ["ai engineer", "ml engineer"], report)
         assert report.postings_seen == 2
         assert len(candidates) == 1
+
+    def test_an_unconfigured_key_is_reported_not_raised(self, db, monkeypatch):
+        """A missing key leaves the board rows intact — the sweep degrades to
+        its free half rather than failing outright."""
+        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: False)
+        report = ingestion.SweepReport(dry_run=False)
+        candidates = ingestion._collect(db, ["ai engineer"], report)
+        assert candidates == {}
+        assert any("RAPIDAPI_KEY" in e for e in report.errors)
 
 
 class TestEvidenceOnlyAccompaniesAVerdict:

@@ -64,6 +64,36 @@ GREENHOUSE_BOARDS: tuple[str, ...] = (
     "carta",        # 61
     "discord",      # 49
     "checkr",       # 44
+
+    # Second probe: 153 further candidates, 34 live. Deliberately widened
+    # past pure software, because the feed was almost entirely SaaS and the
+    # roles people search for are not. Autonomous vehicles, space, energy and
+    # health all publish Greenhouse boards and none were represented.
+    "rocketlab",        # 454
+    "waymo",            # 343
+    "redwoodmaterials",  # 139
+    "nuro",             # 108
+    "justworks",        # 102
+    "mixpanel",         # 84
+    "astranis",         # 81
+    "kodiak",           # 71
+    "motional",         # 68
+    "faire",            # 60
+    "mercury",          # 58
+    "zocdoc",           # 50
+    "amplitude",        # 37
+    "komodohealth",     # 34
+    "stockx",           # 34
+    "webflow",          # 29
+    "freenome",         # 28
+    "alloy",            # 22
+    "airtable",         # 16
+    "modernhealth",     # 12
+    "honor",            # 12
+    "labelbox",         # 10
+    "lithic",           # 6
+    "forward",          # 5
+    "highnote",         # 4
 )
 
 LEVER_BOARDS: tuple[str, ...] = (
@@ -71,6 +101,9 @@ LEVER_BOARDS: tuple[str, ...] = (
     "palantir",     # 310
     "binance",      # 280
     "spotify",      # 73
+    "zoox",         # 241
+    "sila",         # 210
+    "arcadia",      # 18
 )
 
 # Probed and confirmed dead. Kept so the next person does not spend an

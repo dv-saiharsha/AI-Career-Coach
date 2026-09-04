@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.models.job import JobListing
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.job_market import apify_jobs
+from app.modules.job_market import jsearch
 from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
@@ -49,23 +49,27 @@ def _fetch(query_key: str, limit: int) -> tuple[list[dict], float]:
     swapping a provider should be one more elif here, not re-plumbing every
     caller. Returns rows plus the run's real billed cost in USD.
     """
-    source = (settings.JOB_SOURCE or "apify").lower()
+    source = (settings.JOB_SOURCE or "jsearch").lower()
 
-    if source == "apify":
-        if not apify_jobs.is_configured():
-            raise SourceUnavailable("APIFY_API_TOKEN is not configured")
-        try:
-            result = apify_jobs.search(query_key, max_items=limit)
-        except apify_jobs.ApifyUnavailable as exc:
-            raise SourceUnavailable(str(exc)) from exc
-        return apify_jobs.normalise_items(result.items, query_key), result.cost_usd
+    if source == "jsearch":
+        if not jsearch.is_configured():
+            raise SourceUnavailable("RAPIDAPI_KEY is not configured")
+        rows = jsearch.search(query_key)
+        if not rows and jsearch.remaining_requests() is not None:
+            # Distinguishes "budget exhausted" from "no matches", which the
+            # caller renders very differently: one is a temporary limit, the
+            # other is a genuine empty result.
+            if jsearch.remaining_requests() <= jsearch.RESERVE_REQUESTS:
+                raise SourceUnavailable("monthly search quota reserved — try again next cycle")
+        # Cost is zero per call: this key is quota-limited, not usage-billed.
+        return rows, 0.0
 
-    raise SourceUnavailable(f"unknown JOB_SOURCE {source!r} (expected 'apify')")
+    raise SourceUnavailable(f"unknown JOB_SOURCE {source!r} (expected 'jsearch')")
 
 
 def source_configured() -> bool:
     """Whether the active source has credentials. Gates every outbound call."""
-    return apify_jobs.is_configured() if (settings.JOB_SOURCE or "apify").lower() == "apify" else False
+    return jsearch.is_configured() if (settings.JOB_SOURCE or "jsearch").lower() == "jsearch" else False
 
 
 # Grouped by domain so a sweep covers the whole product rather than the

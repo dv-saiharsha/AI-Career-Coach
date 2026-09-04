@@ -1,13 +1,14 @@
 """Background sweep: fetch postings, enrich the new ones, upsert, archive.
 
-Cost shape, since both halves of this spend real money:
+Cost shape. Only one half spends money now:
 
-    Apify    — ~$0.13 per role: $0.02 actor start plus 150 results at $0.0007.
-               The 150-result floor is enforced by the actor, so there is no
-               cheaper sweep. Two ceilings apply: max_total_charge_usd bounds
-               each individual run server-side, and MAX_SWEEP_COST_USD below
-               bounds the total across roles by checking accumulated spend
-               between runs.
+    Boards   — free. Employers' own Greenhouse and Lever boards, no key and
+               no per-call charge. ~7,800 roles a sweep, which is why the
+               paid scraper this replaced was worth removing rather than
+               keeping alongside.
+    JSearch  — no per-call charge, but a hard monthly request quota (200 on
+               the current key). Budgeted in jsearch.py against the API's own
+               remaining-request header, with a reserve held back.
     Claude   — one batch request per *new* posting. Postings already enriched
                are skipped entirely (see `_unenriched`), so a re-run costs
                nothing for jobs already held. Without that filter a daily sweep
@@ -30,10 +31,9 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.llm import llm_client
 from app.models.job import JobListing
-from app.modules.job_market import apify_jobs, ats_boards, boards_registry, enrichment, services
+from app.modules.job_market import ats_boards, boards_registry, enrichment, jsearch, services
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +46,8 @@ BATCH_POLL_INTERVAL_SECS = 15
 # Postings older than this are dropped on the next sweep.
 ARCHIVE_AFTER_HOURS = 72
 
-# Ceiling for a whole sweep, checked against accumulated usage_total_usd
-# between runs. Distinct from apify_jobs.MAX_CHARGE_PER_RUN_USD, which Apify
-# enforces per run: nine runs each under a $1 per-run cap could still reach $9
-# without this.
+# Ceiling for the Claude enrichment half, which is the only part that still
+# bills per unit. The scraper this once bounded is gone.
 MAX_SWEEP_COST_USD = 3.00
 
 
@@ -70,7 +68,9 @@ class SweepReport:
     """What a sweep actually did. Every figure is measured, not projected."""
 
     roles_searched: list[str] = field(default_factory=list)
-    apify_cost_usd: float = 0.0
+    # Requests left on the aggregator's monthly quota, as the API last
+    # reported it. None when that source was never called.
+    jsearch_requests_left: int | None = None
     runs_completed: int = 0
     stopped_on_budget: bool = False
     postings_seen: int = 0
@@ -103,7 +103,7 @@ class SweepReport:
     def total_cost_usd(self) -> float:
         """Apify's own billed figure plus computed Claude spend. The Apify half
         is what the API reported, not a projection."""
-        return round(self.apify_cost_usd + self.claude_cost_usd(), 4)
+        return round(self.claude_cost_usd(), 4)
 
 
 def _unenriched(db: Session, candidates: dict[str, dict]) -> dict[str, dict]:
@@ -157,44 +157,39 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
 
 
 def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, dict]:
-    """One actor run per role, stopping if the sweep ceiling is reached.
+    """One JSearch query per role, within that API's request budget.
 
-    The budget check happens *between* runs using each run's real billed cost,
-    so a sweep can overshoot by at most one role rather than by the whole
-    remaining list.
+    Replaced Apify, which billed per actor run. Apify contributed 2,578 rows
+    accumulated over months; the free ATS boards return ~7,800 in a single
+    35-second sweep and now do so hourly at no cost, so the paid scraper was
+    the smallest and most expensive source in the feed.
+
+    JSearch is the breadth that replaces it — it aggregates LinkedIn, Indeed
+    and company career sites, reaching employers who publish no Greenhouse or
+    Lever board, which is most of the market outside well-known tech.
+
+    There is no cost ceiling here any more because there is no per-call
+    charge. The constraint is requests: 200 a month on this key, enforced in
+    jsearch.py from the API's own remaining-request header, with a reserve
+    held back so an automated sweep can never take the last of the quota.
     """
-    locations = [loc.strip() for loc in (settings.JOB_LOCATIONS or "").split(",") if loc.strip()]
     candidates: dict[str, dict] = {}
 
-    for role in roles:
-        if report.apify_cost_usd >= MAX_SWEEP_COST_USD:
-            report.stopped_on_budget = True
-            report.errors.append(
-                f"sweep ceiling ${MAX_SWEEP_COST_USD:.2f} reached after "
-                f"{report.runs_completed} role(s) — remaining roles skipped"
-            )
-            break
+    if not jsearch.is_configured():
+        report.errors.append("RAPIDAPI_KEY not configured — aggregator search skipped")
+        return candidates
 
-        try:
-            result = apify_jobs.search(role, locations=locations)
-        except apify_jobs.ApifyUnavailable as exc:
-            # A failed run may still have billed the start fee, so this is
-            # recorded rather than retried — retrying would pay twice for the
-            # same bad input.
-            report.errors.append(f"{role}: {exc}")
-            logger.warning("sweep: %s failed (%s)", role, exc)
-            continue
+    for row in jsearch.search_many(list(roles)):
+        report.postings_seen += 1
+        digest = content_hash(row.get("company", ""), row.get("title", ""), row.get("location", ""))
+        # First occurrence wins: the same posting surfacing under two roles is
+        # one job. Board rows are collected before this and keep priority,
+        # because an employer's own posting beats an aggregator's copy of it.
+        candidates.setdefault(digest, {**row, "content_hash": digest})
 
-        report.roles_searched.append(role)
-        report.runs_completed += 1
-        report.apify_cost_usd = round(report.apify_cost_usd + result.cost_usd, 4)
-
-        for row in apify_jobs.normalise_items(result.items, role):
-            report.postings_seen += 1
-            digest = content_hash(row.get("company", ""), row.get("title", ""), row.get("location", ""))
-            # First occurrence wins: the same posting surfacing under two roles
-            # is one job, and enriching it twice would be paying twice.
-            candidates.setdefault(digest, {**row, "content_hash": digest})
+    report.roles_searched = list(roles)[: jsearch.MAX_QUERIES_PER_SWEEP]
+    report.runs_completed = len(report.roles_searched)
+    report.jsearch_requests_left = jsearch.remaining_requests()
     return candidates
 
 
@@ -324,26 +319,21 @@ def refresh_global_jobs(
     report = SweepReport(dry_run=dry_run)
 
     if dry_run:
-        report.roles_searched = targets
-        # ~$0.13 a role: $0.02 actor start + 150 results at $0.0007.
-        projected = round(len(targets) * 0.1270, 2)
+        report.roles_searched = targets[: jsearch.MAX_QUERIES_PER_SWEEP]
         report.boards_swept = boards_registry.board_count()
         report.errors.append(
-            f"DRY RUN — no requests issued. A live sweep would first read "
-            f"{boards_registry.board_count()} employer ATS boards at no cost, then run "
-            f"{len(targets)} actor(s) at "
-            f"roughly ${projected:.2f} on Apify, plus Claude enrichment for postings not "
-            f"already stored, stopping at the ${MAX_SWEEP_COST_USD:.2f} ceiling."
+            f"DRY RUN — no requests issued. A live sweep would read "
+            f"{boards_registry.board_count()} employer ATS boards at no cost, then spend up "
+            f"to {jsearch.MAX_QUERIES_PER_SWEEP} of the aggregator's monthly request quota, "
+            f"plus Claude enrichment for postings not already stored — capped at "
+            f"${MAX_SWEEP_COST_USD:.2f}."
         )
         return report
 
-    if not apify_jobs.is_configured():
-        report.errors.append("APIFY_API_TOKEN not configured — nothing fetched")
-        return report
-
-    # Free first, paid second. Board rows are merged under the same content
-    # hash the Apify pass uses, so the two sources cannot produce duplicate
-    # listings for the same role.
+    # Boards first. They are free and they are the employer's own posting, so
+    # when the same role also appears in the aggregator the board copy is the
+    # one that survives the content-hash de-dup — its apply URL goes to the
+    # real form rather than an aggregator's interstitial.
     candidates = _collect_boards(report)
     candidates.update(_collect(db, targets, report))
     pending = _unenriched(db, candidates)
@@ -363,8 +353,8 @@ def refresh_global_jobs(
     _archive(db, report)
 
     logger.info(
-        "sweep: %d boards + %d roles, %d postings (%d known), %d enriched — apify $%.4f + claude $%.4f",
+        "sweep: %d boards + %d queries, %d postings (%d known), %d enriched — claude $%.4f",
         report.boards_swept, len(report.roles_searched), report.postings_seen, report.already_known,
-        report.newly_enriched, report.apify_cost_usd, report.claude_cost_usd(),
+        report.newly_enriched, report.claude_cost_usd(),
     )
     return report
