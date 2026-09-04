@@ -1,5 +1,6 @@
 import json
 
+from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -173,6 +174,13 @@ def _serialize_active_session(db: Session, session: InterviewSession) -> dict:
     }
 
 
+# FastAPI runs a `def` handler in a threadpool and an `async def` handler on
+# the event loop itself. The handlers below are async only because they need
+# `await upload.read()`, and the work after that is synchronous and slow —
+# the blocking Anthropic client, PDF text extraction, the scikit-learn model.
+# Left on the loop, one scan stops every other request on the worker for its
+# whole duration; run_in_threadpool puts it exactly where FastAPI would have
+# put it had the handler been `def`. See tests/test_event_loop_blocking.py.
 @router.post("/transcribe", response_model=TranscribeResponseSchema)
 async def transcribe_answer(
     audio: UploadFile = File(...),
@@ -193,7 +201,9 @@ async def transcribe_answer(
     if len(content) > MAX_AUDIO_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That recording is too large.")
     try:
-        result = voice.transcribe(content, audio.content_type or "application/octet-stream")
+        result = await run_in_threadpool(
+            voice.transcribe, content, audio.content_type or "application/octet-stream"
+        )
     except voice.TranscriptionError as exc:
         status = 503 if "not configured" in str(exc) or "unavailable" in str(exc) else 422
         raise HTTPException(status_code=status, detail=str(exc)) from exc

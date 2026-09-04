@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -57,6 +58,13 @@ def model_info():
     return json.loads(_MODEL_METADATA_PATH.read_text(encoding="utf-8"))
 
 
+# FastAPI runs a `def` handler in a threadpool and an `async def` handler on
+# the event loop itself. The handlers below are async only because they need
+# `await upload.read()`, and the work after that is synchronous and slow —
+# the blocking Anthropic client, PDF text extraction, the scikit-learn model.
+# Left on the loop, one scan stops every other request on the worker for its
+# whole duration; run_in_threadpool puts it exactly where FastAPI would have
+# put it had the handler been `def`. See tests/test_event_loop_blocking.py.
 @router.post("/analyze", response_model=AnalysisResultSchema)
 async def analyze_resume(
     background_tasks: BackgroundTasks,
@@ -70,7 +78,9 @@ async def analyze_resume(
     if len(content) > MAX_RESUME_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That file is too large. Resumes should be under 10MB.")
     try:
-        result = analyze_resume_against_job(resume.filename or "resume", content, job_description)
+        result = await run_in_threadpool(
+            analyze_resume_against_job, resume.filename or "resume", content, job_description
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -500,7 +510,7 @@ async def resume_review_general(
     if len(content) > MAX_RESUME_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That file is too large. Resumes should be under 10MB.")
     try:
-        resume_text = extract_text(resume.filename or "resume", content)
+        resume_text = await run_in_threadpool(extract_text, resume.filename or "resume", content)
     except ValueError as exc:
         # Same conversion /analyze applies around analyze_resume_against_job
         # (which calls extract_text internally) — an unsupported file type is
@@ -514,7 +524,8 @@ async def resume_review_general(
     if not looks_like_resume(resume_text):
         raise HTTPException(status_code=400, detail=NOT_A_RESUME_MESSAGE)
 
-    return review.build_review(
+    return await run_in_threadpool(
+        review.build_review,
         resume_text,
         "",
         pdf_bytes=content,

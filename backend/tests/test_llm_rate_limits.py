@@ -108,6 +108,23 @@ def _callees(qualified: str) -> set[str]:
         if name in ALIASES[module]:
             found.add(ALIASES[module][name])
         found.update(c for c in FUNCTIONS if c.rsplit(".", 1)[-1] == name)
+
+        # run_in_threadpool(fn, ...) calls fn, but passes it as a reference,
+        # so fn never appears as a Call and the plain walk above misses it
+        # entirely. Moving one billed handler off the event loop was enough
+        # to make this trace stop seeing /api/resume/analyze — which the
+        # sanity test above caught, and which is the reason it exists.
+        if name == "run_in_threadpool" and child.args:
+            target = child.args[0]
+            referenced = (
+                target.id if isinstance(target, ast.Name) else getattr(target, "attr", None)
+            )
+            if referenced:
+                if referenced in ALIASES[module]:
+                    found.add(ALIASES[module][referenced])
+                found.update(
+                    c for c in FUNCTIONS if c.rsplit(".", 1)[-1] == referenced
+                )
     return found
 
 
