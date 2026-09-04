@@ -161,7 +161,11 @@ class TestApplicationDetail:
         detail = client.get(f"/api/applications/{app_id}").json()
         assert detail["job_match"] is None
 
-    def test_job_match_falls_back_to_latest_scan_without_explicit_link(self, client, db_session):
+    def test_job_match_falls_back_to_latest_scan_without_explicit_link(self, client, db_session, monkeypatch):
+        from app.modules.job_market import matching
+
+        monkeypatch.setattr(matching, "model_available", lambda: True)
+        monkeypatch.setattr(matching, "predict_score", lambda resume_text, job_description: 72.0)
         db_session.add(
             ResumeAnalysis(
                 user_id=USER_A, resume_filename="latest.pdf", job_description="", ats_score=60.0,

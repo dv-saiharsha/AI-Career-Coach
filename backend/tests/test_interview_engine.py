@@ -87,16 +87,19 @@ def _dispatch_by_tool_name(system, user, tool_name, input_schema, max_tokens=150
 
 @pytest.fixture
 def mock_prep_llm(monkeypatch):
+    monkeypatch.setattr(prep.llm_client, "_client", object())
     monkeypatch.setattr(prep.llm_client, "complete_tool_json", _dispatch_by_tool_name)
 
 
 @pytest.fixture
 def mock_eval_llm(monkeypatch):
+    monkeypatch.setattr(evaluation.llm_client, "_client", object())
     monkeypatch.setattr(evaluation.llm_client, "complete_tool_json", _dispatch_by_tool_name)
 
 
 @pytest.fixture
 def mock_report_llm(monkeypatch):
+    monkeypatch.setattr(reports.llm_client, "_client", object())
     monkeypatch.setattr(reports.llm_client, "complete_tool_json", _dispatch_by_tool_name)
 
 

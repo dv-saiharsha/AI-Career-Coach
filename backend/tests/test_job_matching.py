@@ -4,6 +4,8 @@ and the cross-feed priority-ranking behavior, which is the one part of
 this module that isn't a thin wrapper around something already tested
 elsewhere (predict_score has its own tests; taxonomy has its own tests)."""
 
+import pytest
+
 from app.modules.job_market.matching import (
     MatchContext,
     attach_matches,
@@ -11,6 +13,15 @@ from app.modules.job_market.matching import (
     score_resume_match,
     score_skills_match,
 )
+
+
+@pytest.fixture(autouse=True)
+def _scoring_model(monkeypatch):
+    from app.modules.job_market import matching
+
+    monkeypatch.setattr(matching, "model_available", lambda: True)
+    monkeypatch.setattr(matching, "predict_score", lambda resume_text, job_description: 72.0)
+
 
 RESUME = """Venkata Danda
 Phoenix, AZ | venkata@example.com

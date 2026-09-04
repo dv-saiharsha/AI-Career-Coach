@@ -17,12 +17,19 @@ from app.core.database import Base, get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.main import app
 from app.models.resume import ResumeAnalysis
+from app.modules.resume_builder import optimizer
 
 ALICE = "00000000-0000-0000-0000-00000000000a"
 BOB = "00000000-0000-0000-0000-00000000000b"
 
 WEAK_RESUME = "Jane Doe. Worked on backend stuff. Helped with deployments."
 JD = "Senior Backend Engineer. Python, Go, Kubernetes, PostgreSQL, Terraform."
+
+
+@pytest.fixture(autouse=True)
+def _scoring_model(monkeypatch):
+    monkeypatch.setattr(optimizer, "model_available", lambda: True)
+    monkeypatch.setattr(optimizer, "predict_score", lambda resume_text, job_description: 65.0)
 
 
 @pytest.fixture
