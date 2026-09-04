@@ -78,6 +78,29 @@ class TestSanitizeUrl:
         assert latex.sanitize_url(None) is None
 
 
+class TestSanitizeEmail:
+    def test_valid_email(self):
+        assert latex.sanitize_email("jane@example.com") == "jane@example.com"
+
+    def test_an_underscore_survives_unescaped(self):
+        """The whole reason this function exists. escape_latex would turn
+        this into "jane\\_doe@x.com", which is not a valid mailto: target —
+        the link would silently fail to open a mail client."""
+        assert latex.sanitize_email("jane_doe@x.com") == "jane_doe@x.com"
+
+    def test_rejects_non_email(self):
+        assert latex.sanitize_email("not an email") is None
+
+    def test_rejects_injection_attempt(self):
+        """A brace inside the mailto: target could close \\href's argument
+        early, same risk sanitize_url guards against for a plain URL."""
+        assert latex.sanitize_email("x@y.com}\\input{/etc/passwd}") is None
+
+    def test_rejects_empty(self):
+        assert latex.sanitize_email("") is None
+        assert latex.sanitize_email(None) is None
+
+
 class TestRenderResumeTex:
     def test_omits_empty_phone_without_dangling_separator(self):
         """Regression: the original template had four fixed VAR_ slots with
@@ -117,7 +140,7 @@ class TestRenderResumeTex:
 
     def test_valid_linkedin_produces_href(self):
         tex = latex.render_resume_tex({"candidate_name": "Jane Doe", "linkedin": "https://linkedin.com/in/jane"})
-        assert r"\href{https://linkedin.com/in/jane}{LinkedIn}" in tex
+        assert r"\href{https://linkedin.com/in/jane}{\faLinkedin\ LinkedIn}" in tex
 
     def test_invalid_linkedin_omitted_entirely(self):
         tex = latex.render_resume_tex({"candidate_name": "Jane Doe", "linkedin": "not-a-url"})
@@ -126,6 +149,47 @@ class TestRenderResumeTex:
     def test_default_name_when_missing(self):
         tex = latex.render_resume_tex({})
         assert "Candidate Name" in tex
+
+    def test_mailto_target_and_display_text_are_not_the_same_string(self):
+        """The other half of the underscore bug, at the render layer: the
+        mailto: target must be the raw address and the visible text next to
+        it must be the escaped one, or an address with a LaTeX-special
+        character breaks the link while looking fine as text (or vice
+        versa)."""
+        tex = latex.render_resume_tex({"candidate_name": "Jane Doe", "email": "jane_doe@x.com"})
+        assert "\\href{mailto:jane_doe@x.com}" in tex, "the mailto target was escaped"
+        assert "jane\\_doe@x.com" in tex, "the visible address was not escaped"
+
+
+class TestSubheadingTabularx:
+    """The two-line Title/Dates + Company block shared by Experience and
+    Education. tabularx does the alignment tectonic can actually render —
+    see TestCompileTexToPdf.test_the_section_heading_style_actually_compiles
+    for why \\hfill-in-a-plain-line was replaced rather than just restyled."""
+
+    def test_experience_entry_uses_the_tabularx_layout(self):
+        tex = latex.render_resume_tex(
+            {
+                "candidate_name": "Jane Doe",
+                "experiences": [
+                    {"title": "Engineer", "company": "Acme", "dates": "2020", "bullets": ["Did a thing."]}
+                ],
+            }
+        )
+        assert "\\begin{tabularx}" in tex
+        assert "\\textbf{Engineer}" in tex
+        assert "\\textit{2020}" in tex
+        assert "\\textit{Acme}" in tex
+
+    def test_education_entry_uses_the_same_layout(self):
+        tex = latex.render_resume_tex(
+            {
+                "candidate_name": "Jane Doe",
+                "education": [{"degree": "B.S. CS", "institution": "MIT", "dates": "2019"}],
+            }
+        )
+        assert "\\textbf{B.S. CS}" in tex
+        assert "\\textit{MIT}" in tex
 
 
 class TestCompileTexToPdf:
@@ -140,6 +204,54 @@ class TestCompileTexToPdf:
         pdf_bytes = latex.compile_tex_to_pdf(tex)
         assert pdf_bytes.startswith(b"%PDF")
         assert latex.count_pdf_pages(pdf_bytes) == 1
+
+    def test_a_full_resume_with_every_section_actually_compiles(self):
+        """Regression for a real defect: the template's section heading was
+
+            \\titleformat{\\section}{\\color{headingcolor}...\\uppercase}{}{0em}{}
+                [\\color{headingcolor}\\titlerule]
+
+        — \\color repeated in BOTH the format argument and the rule's
+        bracket argument. Every unit test above passed throughout, because
+        none of them actually compile a document with an Experience or
+        Education section (the only sections that render \\section at all
+        when the template is otherwise empty): render_resume_tex just does
+        string substitution and has no opinion on whether the result is
+        valid LaTeX.
+
+        Compiled, it failed with "Undefined color `HEADINGCOLOR'" — the
+        second \\color, combined with \\uppercase in the format argument,
+        made titlesec's title-casing machinery consume the colour NAME
+        itself as if it were the section title. Confirmed by bisection
+        against a minimal document: colour in the format argument alone
+        compiles cleanly; colour in both places breaks regardless of which
+        other packages are loaded, hyperref included. Any resume with a real
+        job history hits this on every single \\section it renders — this
+        was not an edge case, it was the common case.
+        """
+        tex = latex.render_resume_tex(
+            {
+                "candidate_name": "Jane Doe",
+                "location": "Austin, TX",
+                "email": "jane@example.com",
+                "phone": "555-0100",
+                "linkedin": "https://linkedin.com/in/jane",
+                "summary": "Backend engineer.",
+                "technical_skills": ["Python", "Go"],
+                "tools_skills": ["Docker"],
+                "experiences": [
+                    {
+                        "title": "Senior Engineer",
+                        "company": "Acme Corp",
+                        "dates": "2020 - Present",
+                        "bullets": ["Cut latency 40%.", "Shipped a thing."],
+                    }
+                ],
+                "education": [{"degree": "B.S. CS", "institution": "MIT", "dates": "2019"}],
+            }
+        )
+        pdf_bytes = latex.compile_tex_to_pdf(tex)  # raises LatexCompileError if this regresses
+        assert pdf_bytes.startswith(b"%PDF")
 
     def test_special_characters_render_literally_not_as_escapes(self):
         """End-to-end proof, not just a unit test of the escaper: the

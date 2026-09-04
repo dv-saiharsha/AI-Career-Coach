@@ -126,3 +126,125 @@ def test_counts_let_the_ui_distinguish_empty_from_untried():
     result = build_autofill(RESUME)
     assert result["parsed_experience_count"] == 2
     assert result["parsed_education_count"] == 1
+
+
+# A resume shaped exactly like the one that surfaced this bug: bullet
+# characters lost in PDF extraction (a real, common failure — the glyph is
+# not always present in the text stream), an employer line sitting ABOVE the
+# date instead of beside it, a five-word name, and education written as one
+# pipe-joined header line followed by a separate date line. Every one of
+# these produced a wrong field before the fix; the resume that reached a
+# real user had "Implemented secure user authentication..." as an employer.
+MARKERLESS_RESUME = """Shiva Venkata Raj Chowdary Valluri
++1-(623) 275-6345 | shivavenkatarajchowdary@gmail.com
+
+SUMMARY
+Backend engineer with hands-on experience building distributed systems.
+
+EXPERIENCE
+Arizona State University
+November 2024 - April 2026
+Research Assistant - Arizona State University
+Collaborated in an Agile/Scrum environment, participating in sprint planning and structured
+code reviews to align data engineering deliverables with research milestones.
+Deployed and managed data ingestion workflows on AWS using Docker and Kubernetes
+orchestration, applying CI/CD practices to maintain reliable pipeline execution.
+Microsoft
+September 2021 - February 2022
+Software Engineer - Microsoft
+Implemented secure user authentication and middleware-based authorization controls,
+applying secure coding practices to protect application data and restrict unauthorized access.
+Developed and deployed a cloud-native web application on Microsoft Azure, provisioning and
+configuring Virtual Machines to support scalable, reliable production infrastructure.
+
+EDUCATION
+Arizona State University, Tempe, AZ, USA | Master of Science, Information Technology | GPA: 4.0/4.0
+2024 - 2026
+Koneru Lakshmaiah University, Vijayawada, AP, India | Bachelor of Technology, Computer Science and Engineering | GPA: 9.0/10.0
+2020 - 2024
+"""
+
+
+class TestBulletMarkersLostInPdfExtraction:
+    """The actual bug: a PDF whose bullet glyphs did not survive extraction,
+    so the old marker-only test read every bullet as a header line."""
+
+    def test_the_company_is_the_employer_not_a_bullet(self):
+        """This is the literal defect a real user hit: a bullet promoted to
+        an employer name, printed on their generated resume."""
+        roles = extract_experiences(MARKERLESS_RESUME)
+        companies = [r["company"] for r in roles]
+        assert companies == ["Arizona State University", "Microsoft"]
+        assert not any(c.lower().startswith("implemented") for c in companies)
+        assert not any(c.lower().startswith("collaborated") for c in companies)
+
+    def test_the_title_is_the_role_not_the_school(self):
+        roles = extract_experiences(MARKERLESS_RESUME)
+        assert roles[0]["title"] == "Research Assistant"
+        assert roles[1]["title"] == "Software Engineer"
+
+    def test_no_bullets_are_dropped(self):
+        """Every bullet fell into the header block and vanished entirely
+        before the fix — 0 bullets on a role that has several."""
+        roles = extract_experiences(MARKERLESS_RESUME)
+        assert len(roles[0]["bullets"]) == 2
+        assert len(roles[1]["bullets"]) == 2
+
+    def test_a_hard_wrapped_bullet_is_rejoined_into_one(self):
+        """The PDF wraps a long bullet across two lines with no marker on
+        either. Both fragments must become a single bullet, not two."""
+        roles = extract_experiences(MARKERLESS_RESUME)
+        assert roles[0]["bullets"][0].startswith("Collaborated in an Agile/Scrum")
+        assert "milestones." in roles[0]["bullets"][0]
+        assert len(roles[0]["bullets"]) == 2, "a wrapped line became its own bullet"
+
+    def test_marked_bullets_are_still_never_merged(self):
+        """The guard against the regression this fix nearly introduced: a
+        bullet that DOES carry an explicit marker, and has no full stop, must
+        stay its own bullet rather than being fused with its neighbour."""
+        roles = extract_experiences(RESUME)  # the marker-based fixture above
+        assert len(roles[0]["bullets"]) == 2
+        assert roles[0]["bullets"][0] != roles[0]["bullets"][0] + roles[0]["bullets"][1]
+
+    def test_a_five_word_name_is_still_read_as_a_name(self):
+        """The old range was two to four words. A candidate with five given
+        and family names produced no name at all."""
+        assert extract_contact(MARKERLESS_RESUME)["name"] == "Shiva Venkata Raj Chowdary Valluri"
+
+    def test_a_role_title_is_never_mistaken_for_a_name(self):
+        """The widened word-count range must not start matching job titles
+        that happen to fit in six words."""
+        text = "Senior Backend Software Engineer Manager Lead\njane@x.com\n"
+        assert extract_contact(text)["name"] is None
+
+
+class TestEducationWithTheDateOnItsOwnLine:
+    """A school block ending in a standalone date line, repeated per degree —
+    common, and the layout _split_entries (built for experience) could not
+    handle: the second entry's date closed the first one instead."""
+
+    def test_two_degrees_are_not_merged_into_one(self):
+        edu = extract_education(MARKERLESS_RESUME)
+        assert len(edu) == 2, "the second school's name leaked into the first entry"
+
+    def test_the_pipe_joined_header_is_split_by_content(self):
+        """"School | Degree | GPA" on one line has no positional label for
+        which segment is which — the institution is identified by a word
+        like "University", not by being first or second."""
+        edu = extract_education(MARKERLESS_RESUME)
+        assert edu[0]["institution"] == "Arizona State University, Tempe, AZ, USA"
+        assert edu[0]["degree"] == "Master of Science, Information Technology, GPA: 4.0/4.0"
+        assert edu[1]["institution"] == "Koneru Lakshmaiah University, Vijayawada, AP, India"
+
+    def test_a_gpa_past_the_field_length_cap_is_not_cut_off(self):
+        """A combined "school | degree | GPA" line ran to 133 characters and
+        the default 120-char field cap truncated it before the pipe-split
+        ever ran, leaving the degree as "...GPA: 9." with the actual number
+        gone."""
+        edu = extract_education(MARKERLESS_RESUME)
+        assert edu[1]["degree"].endswith("GPA: 9.0/10.0")
+
+    def test_dates_are_captured_per_degree(self):
+        edu = extract_education(MARKERLESS_RESUME)
+        assert edu[0]["dates"] == "2024 - 2026"
+        assert edu[1]["dates"] == "2020 - 2024"

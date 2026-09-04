@@ -65,6 +65,31 @@ _DATE_RANGE = re.compile(
 
 _BULLET_PREFIX = re.compile(r"^\s*[-•*·▪◦‣o]\s+|^\s*\d+[.)]\s+")
 
+# Words that name a job, and words that name an employer. Used to tell a
+# title from a company by what the line SAYS rather than where it sits,
+# because where it sits is genuinely not reliable — the same resume puts the
+# company above the dates and the title below them, and the next template
+# does the reverse.
+_ROLE_WORDS = re.compile(
+    r"\b(engineer|developer|scientist|analyst|manager|director|intern(?:ship)?|"
+    r"assistant|consultant|architect|designer|lead|specialist|administrator|"
+    r"researcher|associate|officer|founder|head|coordinator|technician|"
+    r"programmer|strategist|advisor|apprentice|fellow|trainee)\b",
+    re.I,
+)
+_ORG_WORDS = re.compile(
+    r"\b(inc|llc|ltd|corp|corporation|university|college|institute|labs?|"
+    r"technologies|technology|systems|solutions|group|company|holdings|"
+    r"gmbh|plc|foundation|hospital|bank|school)\b",
+    re.I,
+)
+
+# A line long enough to be a sentence rather than a heading. Bullet markers do
+# not survive PDF text extraction — the • is a glyph, not a character in the
+# content stream — so length and terminal punctuation are what is left to
+# separate a role's body from its header.
+PROSE_MIN_CHARS = 55
+
 # Guards against a parse that has clearly gone wrong. A "role title" of 200
 # characters is a paragraph that happened to contain a date.
 MAX_FIELD_CHARS = 120
@@ -120,11 +145,24 @@ def extract_contact(resume_text: str) -> dict:
         if _EMAIL.search(stripped) or _PHONE.search(stripped):
             continue
         words = stripped.split()
-        # Two to four words, mostly alphabetic. Titles ("Senior Software
-        # Engineer") usually fail the alphabetic-and-capitalised test less
-        # cleanly than names do, so this is the least certain field here and
-        # is reported as a guess.
-        if 2 <= len(words) <= 4 and all(re.fullmatch(r"[A-Za-z.'-]+", w) for w in words):
+        # Two to six words, alphabetic.
+        #
+        # The cap was four, and "Shiva Venkata Raj Chowdary Valluri" is five —
+        # so the header of a real CV produced no name at all, and the built
+        # resume was printed with a blank or a fragment where the candidate's
+        # name belongs. Four words is not a property of names; it is a
+        # property of the naming convention the author happened to have in
+        # mind, and it fails on South Asian, Hispanic and Portuguese names
+        # among others.
+        #
+        # A role word is the real guard against matching a job title, and it
+        # is one the old range never provided: "Senior Software Engineer" is
+        # three words and passed the count test cleanly.
+        if (
+            2 <= len(words) <= 6
+            and all(re.fullmatch(r"[A-Za-z.'-]+", w) for w in words)
+            and not _ROLE_WORDS.search(stripped)
+        ):
             name = _clean(stripped)
             break
 
@@ -176,14 +214,153 @@ def _split_entries(section_text: str) -> list[list[str]]:
             continue
         starts_entry = bool(_DATE_RANGE.search(line)) and not _BULLET_PREFIX.match(line)
         if starts_entry and current and any(_DATE_RANGE.search(ln) for ln in current):
+            # The employer's name usually sits on the line ABOVE the dates, so
+            # a clean cut at the date line leaves it stranded at the end of
+            # the previous role — which then reports no company at all. Any
+            # short non-prose lines trailing the previous entry are handed to
+            # the new one instead. Bounded at two so a genuinely short final
+            # bullet cannot drag real content across the boundary.
+            carried: list[str] = []
+            while (
+                len(carried) < 2
+                and current
+                and len(current[-1].strip()) < PROSE_MIN_CHARS
+                # A short line ending in a full stop is the tail of a wrapped
+                # bullet, not an employer. Without this the last fragment of
+                # the previous role's final bullet becomes the next role's
+                # company — "pipeline execution time by 40%." as an employer.
+                and not current[-1].strip().endswith((".", "!", "?", ";", ":"))
+                and not _DATE_RANGE.search(current[-1])
+                and not _BULLET_PREFIX.match(current[-1])
+                and any(_DATE_RANGE.search(ln) for ln in current[:-1])
+            ):
+                carried.insert(0, current.pop())
+
             entries.append(current)
-            current = [line]
+            current = [*carried, line]
         else:
             current.append(line)
 
     if current:
         entries.append(current)
     return entries[:MAX_ENTRIES]
+
+
+def _split_header_and_bullets(entry: list[str]) -> tuple[list[str], list[str]]:
+    """One role's lines, divided into its header block and its bullets.
+
+    WHY THIS CANNOT JUST LOOK FOR BULLET CHARACTERS
+
+    It used to, and that produced the bug this function exists to fix. A PDF
+    draws "•" as a glyph; it is frequently absent from the extracted text
+    stream. So on a real uploaded CV every bullet failed the marker test,
+    fell through into the header block, and the second bullet was read as the
+    employer's name. The generated resume then said the candidate worked at
+    "Implemented secure user authentication and middleware-based
+    authorization controls".
+
+    What survives extraction is shape. A header line is short and has no
+    sentence punctuation; a bullet is a sentence. Once the first sentence
+    appears, everything after it in the entry is body — resumes do not return
+    to header material half way down a role.
+
+    Wrapped lines are rejoined on that same basis, but ONLY when no marker
+    ever survived for them: a line that did carry a marker is unambiguous
+    on its own and must not be merged into its neighbour just because it
+    lacks a full stop — real bullets routinely end "...by 40%" with no
+    terminal punctuation at all, and merging those on marker-having lines
+    silently fused two separate achievements into one.
+    """
+    header: list[str] = []
+    # (text, had_an_explicit_marker) — the marker is what decides whether a
+    # line is ever eligible to be merged into its neighbour below.
+    body: list[tuple[str, bool]] = []
+    in_body = False
+
+    for raw in entry:
+        line = raw.strip()
+        if not line:
+            continue
+
+        if _BULLET_PREFIX.match(line):
+            # A marker did survive. Unambiguous, and it also proves the body
+            # has started.
+            in_body = True
+            body.append((_BULLET_PREFIX.sub("", line), True))
+            continue
+
+        if not in_body:
+            is_prose = len(line) >= PROSE_MIN_CHARS and not _DATE_RANGE.search(line)
+            if not is_prose:
+                header.append(line)
+                continue
+            in_body = True
+
+        body.append((line, False))
+
+    # A marked line closes any pending unmarked buffer and stands alone.
+    # Unmarked lines accumulate until the sentence closes — that is the
+    # wrapped-bullet case a lost "•" produces.
+    bullets: list[str] = []
+    buffer = ""
+    for text, had_marker in body:
+        if had_marker:
+            if buffer:
+                bullets.append(buffer)
+                buffer = ""
+            bullets.append(text)
+            continue
+        buffer = f"{buffer} {text}".strip() if buffer else text
+        if buffer.endswith((".", "!", "?", ";")):
+            bullets.append(buffer)
+            buffer = ""
+    if buffer:
+        bullets.append(buffer)
+
+    cleaned = [c for c in (_clean(b, MAX_BULLET_CHARS) for b in bullets) if c]
+    return header, cleaned[:MAX_BULLETS_PER_ROLE]
+
+
+def _title_and_company(fragments: list[str]) -> tuple[str | None, str | None]:
+    """Which fragment is the job and which is the employer.
+
+    Decided by vocabulary, not position. Position was the old rule and it is
+    wrong about half the time by construction: this resume reads
+    company / dates / title, the next reads title / company / dates, and
+    taking fragments[0] as the title silently swaps the two on everything in
+    the first group.
+
+    "Research Assistant - Arizona State University" contains both a role word
+    and an org word, and "Arizona State University" contains only the org
+    word — so a role word is what decides, and the employer is whatever is
+    left rather than whatever came second.
+    """
+    if not fragments:
+        return None, None
+
+    titles = [f for f in fragments if _ROLE_WORDS.search(f)]
+    if titles:
+        title = titles[0]
+        rest = [f for f in fragments if f is not title]
+        # Prefer an explicit organisation name for the employer; otherwise the
+        # nearest remaining fragment.
+        company = next((f for f in rest if _ORG_WORDS.search(f)), rest[0] if rest else None)
+    else:
+        # No role word anywhere. Fall back to the old positional reading,
+        # which is a guess, but an ordered one.
+        title = fragments[0]
+        company = fragments[1] if len(fragments) > 1 else None
+
+    # Templates that repeat the employer inside the title ("Research Assistant
+    # - Arizona State University") would otherwise print it twice on one line.
+    if title and company:
+        trimmed = re.sub(
+            rf"\s*[-–—|,]\s*{re.escape(company)}\s*$", "", title, flags=re.I
+        ).strip()
+        if trimmed:
+            title = trimmed
+
+    return _clean(title), _clean(company)
 
 
 def extract_experiences(resume_text: str) -> list[dict]:
@@ -197,13 +374,7 @@ def extract_experiences(resume_text: str) -> list[dict]:
     results: list[dict] = []
 
     for entry in _split_entries(section):
-        header_lines = [ln for ln in entry if not _BULLET_PREFIX.match(ln)]
-        bullets = [
-            _clean(_BULLET_PREFIX.sub("", ln), MAX_BULLET_CHARS)
-            for ln in entry
-            if _BULLET_PREFIX.match(ln)
-        ]
-        bullets = [b for b in bullets if b][:MAX_BULLETS_PER_ROLE]
+        header_lines, bullets = _split_header_and_bullets(entry)
 
         dates = None
         remainder: list[str] = []
@@ -223,18 +394,17 @@ def extract_experiences(resume_text: str) -> list[dict]:
         if not dates and not bullets:
             continue
 
-        # Order varies by template and cannot be told apart reliably, so the
-        # first two non-date fragments are taken positionally and the user
-        # corrects them. This is why `confident` never includes experience.
-        title = remainder[0] if remainder else None
-        company = remainder[1] if len(remainder) > 1 else None
+        title, company = _title_and_company(remainder)
 
         # "Senior Software Engineer, Stripe" is one line in many templates, so
         # a title carrying a separator is split rather than left whole with an
         # empty company beside it. Only when company is otherwise unknown —
         # a real two-line layout already has the better answer.
         if title and not company:
-            if parts := re.split(r"\s*(?:[|•·–—]|,|\bat\b)\s*", title, maxsplit=1):
+            # The plain hyphen belongs here: "Software Engineer - Microsoft"
+            # is the commonest form of this and the class used to list only
+            # the typographic dashes, so it never split.
+            if parts := re.split(r"\s*(?:[|•·–—-]|,|\bat\b)\s*", title, maxsplit=1):
                 if len(parts) == 2 and all(p.strip() for p in parts):
                     title, company = _clean(parts[0]), _clean(parts[1])
 
@@ -250,12 +420,73 @@ def extract_experiences(resume_text: str) -> list[dict]:
     return results
 
 
+def _split_education_entries(section_text: str) -> list[list[str]]:
+    """Group an EDUCATION section's lines into one block per degree.
+
+    Deliberately not _split_entries. That function treats a date as the
+    START of a new entry, which is right for experience — the date sits on
+    the same header line as the title, with bullets still to come — and
+    wrong for education, where a resume commonly writes
+
+        Arizona State University, Tempe, AZ | Master of Science | GPA: 4.0
+        2024 - 2026
+        Koneru Lakshmaiah University, ... | Bachelor of Technology | GPA: 9.0
+        2020 - 2024
+
+    Here the date is the LAST line of the entry it belongs to, not the
+    first line of the next one. Reusing the experience rule merged both
+    degrees into a single entry — the date line "2024 - 2026" was appended
+    to the school above it and did not become a boundary until a second
+    date was reached, by which point the second school's name had already
+    been swept into the first entry's remainder.
+
+    So here a date — range or bare year — closes whatever entry it is part
+    of. Education blocks have no bullets to protect, which is what makes
+    this simpler rule safe for this section specifically.
+    """
+    entries: list[list[str]] = []
+    current: list[str] = []
+
+    for line in (section_text or "").splitlines():
+        if not line.strip():
+            continue
+        current.append(line)
+        if _DATE_RANGE.search(line) or re.search(r"\b(19|20)\d{2}\b", line):
+            entries.append(current)
+            current = []
+
+    if current:
+        entries.append(current)
+    return entries[:MAX_ENTRIES]
+
+
+def _institution_and_degree(line: str) -> tuple[str | None, str | None]:
+    """A pipe-joined header line, split by what each segment names.
+
+    "Arizona State University, Tempe, AZ | Master of Science | GPA: 4.0"
+    has no positional label saying which half is the school — so, as with
+    _title_and_company, the segment naming an institution (a word like
+    "University" or "College") is taken as the institution and the rest is
+    kept together as the degree, GPA included, rather than discarded.
+    """
+    segments = [s.strip() for s in line.split("|") if s.strip()]
+    if len(segments) < 2:
+        return None, None
+
+    institution = next((s for s in segments if _ORG_WORDS.search(s)), None)
+    if not institution:
+        return None, None
+
+    degree = ", ".join(s for s in segments if s != institution)
+    return _clean(institution), _clean(degree) or None
+
+
 def extract_education(resume_text: str) -> list[dict]:
-    """Degrees from the EDUCATION section, same entry-splitting rules."""
+    """Degrees from the EDUCATION section."""
     section = split_sections(resume_text).get("education", "")
     results: list[dict] = []
 
-    for entry in _split_entries(section):
+    for entry in _split_education_entries(section):
         dates = None
         remainder: list[str] = []
         for line in entry:
@@ -274,16 +505,31 @@ def extract_education(resume_text: str) -> list[dict]:
                     if rest:
                         remainder.append(rest)
                     continue
-                cleaned = _clean(line)
+                # A combined "School | Degree | GPA" line legitimately runs
+                # past MAX_FIELD_CHARS (120) — this one real example is 133 —
+                # and the default limit truncated it to "GPA: 9." before
+                # _institution_and_degree ever got to split it on "|". The
+                # institution and degree are re-cleaned to the normal length
+                # individually once they are apart; only the combined,
+                # still-unsplit line needs the longer allowance.
+                cleaned = _clean(line, limit=300)
                 if cleaned:
                     remainder.append(cleaned)
 
         if not remainder:
             continue
+
+        # One line holding "School | Degree | GPA" is common enough on its
+        # own — split it by content rather than reporting the whole thing
+        # as the degree with no institution at all.
+        institution, degree = (None, None)
+        if len(remainder) == 1:
+            institution, degree = _institution_and_degree(remainder[0])
+
         results.append(
             {
-                "degree": remainder[0] if remainder else "",
-                "institution": remainder[1] if len(remainder) > 1 else "",
+                "degree": degree or (remainder[0] if remainder else ""),
+                "institution": institution or (remainder[1] if len(remainder) > 1 else ""),
                 "dates": dates or "",
             }
         )

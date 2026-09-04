@@ -106,6 +106,28 @@ def sanitize_url(url: str | None) -> str | None:
     return candidate
 
 
+_SAFE_EMAIL_RE = re.compile(r"^[^\s{}\\<>]+@[^\s{}\\<>]+\.[^\s{}\\<>]+$")
+
+
+def sanitize_email(email: str | None) -> str | None:
+    """Validate an email for use inside \\href{mailto:...}.
+
+    Same reasoning as sanitize_url, for the same reason: the contact line
+    puts the address in two places — the mailto: target and the visible
+    text — and those are not the same job. escape_latex() is right for the
+    visible text and wrong for the URL argument, which hyperref parses with
+    its own catcode rules; running the general escaper over "jane_doe@x.com"
+    would turn it into a literal "jane\\_doe@x.com" mailto target, and the
+    link would not resolve. So the two are built from the raw address
+    (validated here, never escaped) and the escaped address (for display)
+    separately, rather than escaping once and reusing the result for both.
+    """
+    candidate = (email or "").strip()
+    if not candidate or not _SAFE_EMAIL_RE.match(candidate):
+        return None
+    return candidate
+
+
 # ── Template rendering ──────────────────────────────────────────────────────
 
 
@@ -115,18 +137,38 @@ def _render_contact_line(location: str, email: str, phone: str, linkedin_url: st
     The naive approach — four fixed VAR_ slots with hardcoded '|' separators
     between them — renders a bare '|  |' when a field is empty. Building the
     list first and joining it avoids that regardless of which fields are set.
+
+    Icons come from fontawesome5, and only the three macros actually
+    confirmed against this project's tectonic install are used —
+    \\faLinkedin, \\faMapMarker, \\faGithub, \\faPhone and \\faEnvelope. The
+    package ships several near-identical names per icon (faLinkedin vs.
+    faLinkedinSquare, faMapMarker vs. faMapMarkerAlt vs. the newer
+    faLocationDot), and only some of them exist in the icon font tectonic
+    actually resolves here — the rest fail with "Undefined control
+    sequence" and would take the whole resume compile down with them. Do
+    not swap these for a name that merely looks more "correct"; probe it
+    the way this one was probed before using it.
     """
     parts: list[str] = []
-    if location.strip():
-        parts.append(escape_latex(location))
-    if email.strip():
-        parts.append(escape_latex(email))
     if phone.strip():
-        parts.append(escape_latex(phone))
+        parts.append(f"\\faPhone\\ {escape_latex(phone)}")
+    mail_target = sanitize_email(email)
+    if mail_target:
+        # Raw (validated, unescaped) in the mailto: target; escaped for the
+        # visible text next to it — see sanitize_email's docstring for why
+        # those cannot be the same string.
+        parts.append(f"\\href{{mailto:{mail_target}}}{{\\faEnvelope\\ {escape_latex(mail_target)}}}")
+    elif email.strip():
+        # Doesn't pass as a real address (or contains a brace/backslash we
+        # will not risk inside \\href) — shown as plain text rather than
+        # silently dropped, so the candidate can see what they typed.
+        parts.append(f"\\faEnvelope\\ {escape_latex(email)}")
+    if location.strip():
+        parts.append(f"\\faMapMarker\\ {escape_latex(location)}")
     safe_url = sanitize_url(linkedin_url)
     if safe_url:
-        parts.append(f"\\href{{{safe_url}}}{{LinkedIn}}")
-    return " \\ $|$ \\ ".join(parts)
+        parts.append(f"\\href{{{safe_url}}}{{\\faLinkedin\\ LinkedIn}}")
+    return " \\quad ".join(parts)
 
 
 def _render_summary_section(summary: str) -> str:
@@ -149,6 +191,29 @@ def _render_skills_section(technical_skills: list[str], tools_skills: list[str])
     return "\n".join(lines) + "\n"
 
 
+def _render_subheading(bold_left: str, italic_right: str, italic_below: str) -> str:
+    """The two-line header used by both Experience and Education entries:
+
+        Bold text                                        Italic right
+        Italic text below
+
+    tabularx (an X column plus a right-aligned r column) does the alignment
+    rather than \\hfill inside a plain paragraph, because \\hfill's spacing
+    inside a run of already-escaped text is exactly the kind of thing that
+    silently drifts across LaTeX engines and font metrics — a table column
+    keyed to \\textwidth does not.
+
+    All three arguments are LaTeX-ready fragments (already escaped by the
+    caller); this only arranges them.
+    """
+    return (
+        "\\begin{tabularx}{\\linewidth}{@{}X r@{}}\n"
+        f"    \\textbf{{{bold_left}}} & \\textit{{{italic_right}}} \\\\\n"
+        "\\end{tabularx}\\\\[-2pt]\n"
+        f"\\textit{{{italic_below}}}\\\\"
+    )
+
+
 def _render_experience_section(experiences: list[dict]) -> str:
     if not experiences:
         return ""
@@ -157,7 +222,7 @@ def _render_experience_section(experiences: list[dict]) -> str:
         title = escape_latex(exp.get("title", ""))
         company = escape_latex(exp.get("company", ""))
         dates = escape_latex(exp.get("dates", ""))
-        blocks.append(f"\\textbf{{{title}}} --- \\textit{{{company}}} \\hfill {dates}\\\\")
+        blocks.append(_render_subheading(title, dates, company))
         bullets = [b for b in exp.get("bullets", []) if b.strip()]
         if bullets:
             blocks.append("\\begin{itemize}")
@@ -176,7 +241,8 @@ def _render_education_section(education: list[dict]) -> str:
         degree = escape_latex(edu.get("degree", ""))
         institution = escape_latex(edu.get("institution", ""))
         dates = escape_latex(edu.get("dates", ""))
-        blocks.append(f"\\textbf{{{degree}}} --- \\textit{{{institution}}} \\hfill {dates}\\\\")
+        blocks.append(_render_subheading(degree, dates, institution))
+        blocks.append("\\vspace{2pt}")
     return "\n".join(blocks) + "\n"
 
 

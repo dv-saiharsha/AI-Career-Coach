@@ -4,12 +4,43 @@
 \usepackage{hyperref}
 \usepackage{enumitem}
 \usepackage{titlesec}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{fontawesome5}
+
+% No \usepackage{fontspec} / \setmainfont here — deliberately. This engine
+% (tectonic) has no OS font directory to draw from, so fontspec's font
+% lookup fails for every family name that was tried, including the ones
+% shipped with a typical TeX install (Latin Modern, TeX Gyre, DejaVu). The
+% default Computer Modern the base document class already uses is the one
+% typeface guaranteed to compile everywhere this runs.
 
 \pagestyle{empty}
 \raggedright
+\raggedbottom
 \urlstyle{same}
 
-\titleformat{\section}{\large\bfseries\uppercase}{}{0em}{}[\titlerule]
+% A neutral slate palette, not the product's own accent colour — this
+% document is read by a recruiter's ATS and by a human skimming a PDF, and a
+% resume in the app's brand colour would look like a stray fragment of the
+% website rather than a resume.
+\definecolor{headingcolor}{RGB}{15, 23, 42}
+\definecolor{mutedcolor}{RGB}{71, 85, 105}
+
+% \color set ONLY in the format argument, not repeated in the rule's
+% bracket argument. \color{headingcolor} here already colors everything
+% typeset for the rest of this heading's line, the ruled line included — a
+% second \color{headingcolor} placed before \titlerule in the bracket
+% argument looks like harmless belt-and-braces and is not: paired with
+% \uppercase in the format argument, that second \color makes titlesec's
+% internal title-casing machinery consume the color NAME itself as if it
+% were the section title, and the document fails to compile with
+% "Undefined color `HEADINGCOLOR'" — the uppercased color name, not a typo
+% in this file. Confirmed by bisection: color-in-format alone compiles
+% clean; color in both places breaks regardless of which other packages are
+% loaded. Do not "restore" the second \color if this file is next edited —
+% it is not missing, it was removed for this exact reason.
+\titleformat{\section}{\color{headingcolor}\large\bfseries\uppercase}{}{0em}{}[\titlerule]
 \titlespacing*{\section}{0pt}{VAR_SECTION_SPACE}{4pt}
 
 \setlist[itemize]{leftmargin=1.5em, nosep, itemsep=VAR_ITEM_SPACE}
@@ -17,8 +48,8 @@
 \begin{document}
 
 \begin{center}
-    {\Huge \textbf{VAR_CANDIDATE_NAME}} \\ \vspace{2pt}
-    \small VAR_CONTACT_LINE
+    {\Huge \bfseries \color{headingcolor} VAR_CANDIDATE_NAME} \\ \vspace{3pt}
+    \small \color{mutedcolor} VAR_CONTACT_LINE
 \end{center}
 
 VAR_SUMMARY_SECTION
