@@ -36,6 +36,26 @@ import { cn } from '@/lib/utils'
    in the product, reachable only by typing the URL. "Applications & Offers"
    also promised a destination it didn't lead to; Offers is its own entry
    now, so every label matches where it actually goes. */
+/* ── The shell's one horizontal grid ──────────────────────────────────────
+ *
+ * Three things have to start at the same x: the sidebar's own rows, the
+ * sticky header's title, and the page content under it. They were set
+ * independently and drifted — the header used px-4 sm:px-5 while <main>
+ * used p-7 from md up, so on every desktop screen the route title
+ * ("Resume Analyzer") began eight pixels left of the <h1> directly beneath
+ * it, and four pixels right of it on phones. Small enough to survive review,
+ * large enough to read as a mistake once seen.
+ *
+ * The gutter is therefore written once here and applied in all three places.
+ * Nav rows carry mx-2 for the active pill's inset, so their own padding is
+ * the gutter minus that 8px — which is why they get their own constant
+ * rather than reusing this one.
+ */
+export const SHELL_GUTTER = 'px-5 md:px-7'
+
+/* Gutter minus the pill's mx-2, so the label still lands on the grid. */
+export const NAV_ROW_GUTTER = 'mx-2 px-3 md:px-5'
+
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Overview', href: '/dashboard' },
   { icon: FileSearch, label: 'Resume Analyzer', href: '/resume' },
@@ -89,7 +109,7 @@ function NavLink({
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative mx-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
+        `relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium ${NAV_ROW_GUTTER}`,
         'outline-none transition-colors duration-200',
         'focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
         active ? 'text-ink' : 'text-ink-dim hover:text-ink'
@@ -129,7 +149,7 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center px-5 py-4">
+      <div className={`flex items-center py-4 ${SHELL_GUTTER}`}>
         <Link
           href="/"
           className="group flex items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -142,7 +162,7 @@ function SidebarContent({
       <Separator />
 
       <nav aria-label="Workspace" className="flex-1 space-y-0.5 overflow-y-auto py-4">
-        <p className="mb-2 px-5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+        <p className={`mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint ${SHELL_GUTTER}`}>
           Menu
         </p>
         {NAV_ITEMS.map((item) => (
@@ -154,7 +174,7 @@ function SidebarContent({
           />
         ))}
 
-        <p className="mb-2 mt-5 px-5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+        <p className={`mb-2 mt-5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint ${SHELL_GUTTER}`}>
           Insights
         </p>
         {INSIGHT_ITEMS.map((item) => (
@@ -170,7 +190,7 @@ function SidebarContent({
       <Separator />
 
       <div className="space-y-0.5 py-4">
-        <p className="mb-2 px-5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+        <p className={`mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint ${SHELL_GUTTER}`}>
           Account
         </p>
         {BOTTOM_ITEMS.map((item) => (
@@ -191,7 +211,7 @@ function SidebarContent({
           loading={signingOut}
           loadingLabel="Signing out"
           disabled={signingOut}
-          className="mx-2 h-auto w-[calc(100%-1rem)] justify-start gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:text-danger"
+          className={`h-auto w-[calc(100%-1rem)] justify-start gap-3 rounded-xl py-2.5 text-sm font-medium hover:text-danger ${NAV_ROW_GUTTER}`}
         >
           {/* The Button prepends its own spinner, so the icon steps aside
               rather than sitting next to it — two glyphs in a row that both
@@ -246,7 +266,7 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
             column beside this header, not stacked above it), so a shorter
             py-3 here read as two rows of different heights rather than one
             continuous top bar. */}
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-canvas-line bg-canvas/80 px-4 py-4 backdrop-blur-xl sm:px-5">
+        <header className={`sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-canvas-line bg-canvas/80 py-4 backdrop-blur-xl ${SHELL_GUTTER}`}>
           <div className="flex min-w-0 items-center gap-2">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
@@ -295,7 +315,7 @@ export function DashboardNav({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 p-5 pb-24 md:p-7 md:pb-7">{children}</main>
+        <main className={`flex-1 py-5 pb-24 md:py-7 md:pb-7 ${SHELL_GUTTER}`}>{children}</main>
       </div>
 
       {/* Bottom bar on small screens, where the sidebar is behind a trigger */}
