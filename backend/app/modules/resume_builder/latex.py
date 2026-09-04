@@ -30,8 +30,10 @@ _LOCAL_TOOLS_DIR = Path(__file__).resolve().parents[3] / ".tools"
 # Real LaTeX compiles can hang — a malformed input occasionally drops into an
 # interactive "please type a command to continue" prompt rather than failing
 # outright. -halt-on-error/-interaction=nonstopmode covers most of that; the
-# timeout is the backstop for whatever isn't covered.
-COMPILE_TIMEOUT_SECS = 45
+# timeout is the backstop for whatever isn't covered. The first invocation on
+# a clean machine may also download tectonic's package cache, so allow that
+# one-time setup without weakening the protection against a genuine hang.
+COMPILE_TIMEOUT_SECS = 120
 MAX_ONE_PAGE_HINT_PAGES = 1
 
 
