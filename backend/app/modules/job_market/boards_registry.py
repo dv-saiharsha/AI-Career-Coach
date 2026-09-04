@@ -134,12 +134,30 @@ KNOWN_DEAD: tuple[tuple[str, str], ...] = (
 )
 
 
+# Ashby's board API returns no company name — not on the posting, not on the
+# payload — so the display name lives here or users see "mistral.ai" as an
+# employer. Greenhouse and Lever both carry their own name and need no entry.
+ASHBY_BOARDS: tuple[tuple[str, str], ...] = ()
+
+
+def display_name(provider: str, token: str) -> str | None:
+    """The employer's real name, where the provider does not supply one."""
+    if provider != "ashby":
+        return None
+    for board, name in ASHBY_BOARDS:
+        if board == token:
+            return name
+    return None
+
+
 def all_boards() -> list[tuple[str, str]]:
     """Every live board as (provider, token), biggest first."""
-    return [("greenhouse", token) for token in GREENHOUSE_BOARDS] + [
-        ("lever", token) for token in LEVER_BOARDS
-    ]
+    return (
+        [("greenhouse", token) for token in GREENHOUSE_BOARDS]
+        + [("lever", token) for token in LEVER_BOARDS]
+        + [("ashby", token) for token, _name in ASHBY_BOARDS]
+    )
 
 
 def board_count() -> int:
-    return len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS)
+    return len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS)

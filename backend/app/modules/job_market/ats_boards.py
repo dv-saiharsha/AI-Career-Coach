@@ -46,11 +46,18 @@ import logging
 import re
 from datetime import datetime, timezone
 from typing import Callable, Iterable
+from app.modules.job_market import boards_registry
 
 logger = logging.getLogger(__name__)
 
 GREENHOUSE_URL = "https://boards-api.greenhouse.io/v1/boards/{board}/jobs?content=true"
 LEVER_URL = "https://api.lever.co/v0/postings/{board}?mode=json"
+# Ashby publishes the same public board API. includeCompensation is opt-in
+# and free, and it is the only one of the three providers that returns pay
+# as structured numbers rather than prose buried in the description.
+ASHBY_URL = (
+    "https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true"
+)
 
 # Long enough for a large board, short enough that a hung host cannot stall a
 # sweep. Stripe's 611-job payload is ~380KB and returns well inside this.
@@ -108,6 +115,78 @@ def strip_html(raw: str | None) -> str:
         cleaned.append(line)
 
     return "\n".join(cleaned).strip()[:MAX_DESCRIPTION_CHARS]
+
+
+
+def _ashby_salary(compensation: dict | None) -> str | None:
+    """Ashby's structured pay -> the one-line string the rest of the app uses.
+
+    Returns None rather than a partial range: "USD 180000 -" is worse than
+    saying nothing, because the UI renders whatever it is given.
+    """
+    if not compensation:
+        return None
+    for tier in compensation.get("compensationTiers") or []:
+        for component in tier.get("components") or []:
+            if (component.get("compensationType") or "").lower() != "salary":
+                continue
+            low, high = component.get("minValue"), component.get("maxValue")
+            currency = component.get("currencyCode") or "USD"
+            if low and high:
+                return f"{currency} {int(low):,} - {int(high):,}"
+            if low:
+                return f"{currency} {int(low):,}+"
+    return None
+
+
+def normalise_ashby(
+    payload: dict, board: str, query_key: str, display_name: str | None = None
+) -> list[dict]:
+    """Ashby board JSON -> the same row shape as the other two providers.
+
+    Ashby gives descriptionPlain as real text, so the HTML fallback is only
+    for boards that omit it.
+
+    display_name exists because Ashby's board API returns no company name at
+    all — not on the posting and not on the payload. Falling back to the
+    token would put "openai" and "mistral.ai" in front of users as employer
+    names, so the registry carries the real name and the discovery script
+    reads it from the directory feed that already knows it.
+
+    isListed is honoured: a posting can exist in the API while the company
+    has unpublished it, and importing those would show applicants roles the
+    employer has deliberately taken down.
+    """
+    rows = []
+    for job in payload.get("jobs") or []:
+        title = (job.get("title") or "").strip()
+        apply_url = (job.get("applyUrl") or job.get("jobUrl") or "").strip()
+        if not title or not apply_url:
+            continue
+        if job.get("isListed") is False:
+            continue
+
+        location = (job.get("location") or "").strip() or "Not specified"
+        description = job.get("descriptionPlain") or strip_html(job.get("descriptionHtml"))
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"ashby:{board}:{job.get('id')}",
+                "title": title,
+                "company": display_name or board,
+                "location": location,
+                # Ashby states remoteness outright, so it is used in
+                # preference to inferring it from the location string.
+                "work_mode": "Remote" if job.get("isRemote") else _work_mode(location),
+                "salary_range": _ashby_salary(job.get("compensation")),
+                "description": (description or "").strip()[:MAX_DESCRIPTION_CHARS] or None,
+                "skills": json.dumps([]),
+                "apply_url": apply_url,
+                "posted_at": _parse_iso(job.get("publishedAt")),
+                "source": "ashby",
+            }
+        )
+    return rows
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -246,6 +325,7 @@ def fetch_board(
     board: str,
     query_key: str = "ats-board",
     fetch: Callable[[str], tuple[int, str]] | None = None,
+    display_name: str | None = None,
 ) -> list[dict]:
     """One board from one provider. Returns [] on any failure.
 
@@ -255,7 +335,11 @@ def fetch_board(
     and not an error worth propagating.
     """
     fetch = fetch or _default_fetch
-    url = (GREENHOUSE_URL if provider == "greenhouse" else LEVER_URL).format(board=board)
+    urls = {"greenhouse": GREENHOUSE_URL, "lever": LEVER_URL, "ashby": ASHBY_URL}
+    if provider not in urls:
+        logger.warning("unknown ATS provider %r for board %s", provider, board)
+        return []
+    url = urls[provider].format(board=board)
 
     try:
         status, body = fetch(url)
@@ -275,6 +359,8 @@ def fetch_board(
 
     if provider == "greenhouse":
         return normalise_greenhouse(payload, board, query_key)
+    if provider == "ashby":
+        return normalise_ashby(payload, board, query_key, display_name)
     return normalise_lever(payload, board, query_key)
 
 
@@ -286,7 +372,13 @@ def fetch_boards(
     """Several boards, as (provider, board) pairs. Order is preserved."""
     rows: list[dict] = []
     for provider, board in boards:
-        found = fetch_board(provider, board, query_key=query_key, fetch=fetch)
+        found = fetch_board(
+            provider,
+            board,
+            query_key=query_key,
+            fetch=fetch,
+            display_name=boards_registry.display_name(provider, board),
+        )
         logger.info("ats board %s/%s -> %d roles", provider, board, len(found))
         rows.extend(found)
     return rows
