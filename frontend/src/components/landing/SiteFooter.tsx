@@ -5,7 +5,8 @@ import { ApplyCenterMark } from '@/components/ApplyCenterMark'
    Privacy Policy, Terms, Cookie Policy and Security at "#", which is worse
    than not listing them: a privacy link that goes nowhere is a broken
    promise on the exact subject where this audience is entitled to one.
-   Those pages need writing; until they exist they are not listed. */
+   About, Blog, Careers and Cookie Policy still don't exist and stay off
+   this list; Privacy and Terms do now, so they're the one addition. */
 const COLUMNS = [
   {
     heading: 'What it does',
@@ -13,6 +14,13 @@ const COLUMNS = [
       { label: 'How it works', href: '/how-it-works' },
       { label: 'Check your CV', href: '/resume' },
       { label: 'Practise interviews', href: '/interview' },
+    ],
+  },
+  {
+    heading: 'Legal',
+    links: [
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Terms of Service', href: '/terms' },
     ],
   },
   {
@@ -29,7 +37,7 @@ export function SiteFooter() {
     <footer className="px-4 pb-12 pt-8">
       <div className="shell">
         <div className="rounded-3xl bg-canvas-raise px-6 py-12 elev-md lg:px-12">
-          <div className="grid gap-12 lg:grid-cols-[1.5fr_1fr_1fr]">
+          <div className="grid gap-12 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
             <div className="max-w-[40ch]">
               <Link
                 href="/"
