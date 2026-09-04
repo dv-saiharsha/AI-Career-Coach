@@ -23,6 +23,46 @@ const nextConfig: NextConfig = {
     return [{ source: "/features", destination: "/how-it-works", permanent: true }];
   },
 
+  /* Response headers. Next serves the HTML, so this is where they belong —
+     the FastAPI side returns JSON to fetch() and gets nothing from them.
+
+     Permissions-Policy is the one that needed checking rather than copying.
+     The interview composer calls getUserMedia({ audio: true }), so a blanket
+     microphone=() — which is what most boilerplate ships — would silently
+     break voice answers with a permissions error and no obvious cause.
+     Camera and geolocation are denied outright because nothing asks for them.
+
+     There is deliberately no full Content-Security-Policy here. Next injects
+     inline bootstrap scripts, so a real CSP needs per-request nonces through
+     middleware, and a script-src that is wrong in a way this environment
+     cannot see would take the app down in production rather than degrade it.
+     frame-ancestors is the one directive that carries no such risk and is
+     the modern half of X-Frame-Options, so it ships now; the rest wants a
+     browser to verify against. */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // The app is never framed, and clickjacking a resume upload or an
+          // account-deletion confirmation is the reason to say so twice:
+          // X-Frame-Options for older browsers, frame-ancestors for current.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Full URLs leak analysis ids and job ids into third-party
+          // referers; the origin alone is all any of them need.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(self)" },
+          // Sent unconditionally: browsers ignore HSTS over plain HTTP, so
+          // this is inert in local development rather than something that
+          // needs a production-only branch to stay safe.
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        ],
+      },
+    ];
+  },
+
   compiler: {
     styledComponents: true,
   },
