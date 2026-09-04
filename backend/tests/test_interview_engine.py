@@ -85,18 +85,43 @@ def _dispatch_by_tool_name(system, user, tool_name, input_schema, max_tokens=150
     return FAKE_RESPONSES_BY_TOOL[tool_name]
 
 
+def _force_available(monkeypatch, llm_client) -> None:
+    """Make `.available` True regardless of whether ANTHROPIC_API_KEY is set
+    in this environment.
+
+    `available` is a read-only property (`self._client is not None`), so it
+    is patched via the underlying `_client` attribute rather than the
+    property itself — the same pattern already used elsewhere in this suite
+    for the same reason.
+
+    Without this, these fixtures mocked complete_tool_json but the code
+    under test checks `.available` BEFORE ever calling it. Locally that was
+    invisible: a real (if credit-exhausted) key in .env made `.available`
+    True regardless of mocking, so complete_tool_json's mock was reached
+    either way. CI's Test step sets no ANTHROPIC_API_KEY at all, so
+    `.available` was False there, the mock was never reached, and every one
+    of these tests took the real degraded-fallback path instead — three
+    failures whose actual cause had nothing to do with what they were
+    testing.
+    """
+    monkeypatch.setattr(llm_client, "_client", object())
+
+
 @pytest.fixture
 def mock_prep_llm(monkeypatch):
+    _force_available(monkeypatch, prep.llm_client)
     monkeypatch.setattr(prep.llm_client, "complete_tool_json", _dispatch_by_tool_name)
 
 
 @pytest.fixture
 def mock_eval_llm(monkeypatch):
+    _force_available(monkeypatch, evaluation.llm_client)
     monkeypatch.setattr(evaluation.llm_client, "complete_tool_json", _dispatch_by_tool_name)
 
 
 @pytest.fixture
 def mock_report_llm(monkeypatch):
+    _force_available(monkeypatch, reports.llm_client)
     monkeypatch.setattr(reports.llm_client, "complete_tool_json", _dispatch_by_tool_name)
 
 
