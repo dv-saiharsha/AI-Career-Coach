@@ -292,3 +292,35 @@ class OptimizePlanSchema(BaseModel):
     integrity: dict = {}
     edits: List[OptimizeEditSchema] = []
     note: Optional[str] = None
+
+
+class QuickTailorRequestSchema(BaseModel):
+    """One page or two, and the name to put at the top.
+
+    target_pages is constrained to 1 or 2 rather than left open: the two
+    layouts this produces are a one-page resume for most candidates and a
+    two-page one for people with enough history to fill it. A three-page
+    resume is not a supported outcome — it is a resume nobody finishes
+    reading.
+    """
+
+    full_name: str = Field(default="", max_length=120)
+    job_description: str = Field(default="", max_length=20000)
+    target_pages: int = Field(default=1, ge=1, le=2)
+
+
+class QuickTailorResponseSchema(BaseModel):
+    pdf_base64: str
+    # The Overleaf-ready source, returned alongside the PDF so the candidate
+    # can keep editing rather than being handed a file they cannot change.
+    tex_source: str
+    # What the compiler actually produced, which is not always what was
+    # asked for — see resume_builder/fit.py.
+    page_count: int
+    target_pages: int
+    fits: bool
+    # Every trim, in the order applied, so a candidate whose oldest role was
+    # dropped is told rather than left to notice.
+    adjustments: List[str] = Field(default_factory=list)
+    ats_score: int
+    filename: str

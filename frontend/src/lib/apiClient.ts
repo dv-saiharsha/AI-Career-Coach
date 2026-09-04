@@ -1653,3 +1653,58 @@ export const pdfBlobUrl = (pdfBase64: string): string => {
   const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))
   return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
 }
+
+export interface QuickTailorResult {
+  pdf_base64: string
+  tex_source: string
+  page_count: number
+  target_pages: number
+  fits: boolean
+  adjustments: string[]
+  ats_score: number
+  filename: string
+}
+
+/**
+ * A finished, page-fitted FAANG-format resume built from a scan already on
+ * file. The server compiles and measures to hit the page count rather than
+ * assuming the template does — so `page_count` is what came out, which is
+ * not always `target_pages`, and `adjustments` says what was cut to get
+ * there.
+ */
+export const buildQuickTailoredResume = async (
+  analysisId: number,
+  payload: { full_name: string; job_description: string; target_pages: 1 | 2 },
+): Promise<QuickTailorResult> => {
+  const response = await apiClient.post<QuickTailorResult>(
+    `/resume-builder/quick-tailor/${analysisId}`,
+    payload,
+  )
+  return response.data
+}
+
+/** Save a base64 PDF the server built. Same mechanics as the builder's own
+ *  download, kept here so the tailor path does not import from a panel. */
+export const savePdfFromBase64 = (pdfBase64: string, filename: string) => {
+  const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0))
+  const url = window.URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+/** The Overleaf-ready source as a .tex file. */
+export const saveTexSource = (tex: string, filename: string) => {
+  const url = window.URL.createObjectURL(new Blob([tex], { type: 'application/x-tex' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}

@@ -4,31 +4,47 @@ import { useMemo, useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
 import {
   CheckCircle2, Sparkles, RotateCcw,
-  GitCompare, Hash, Check, X, Wand2,
+  GitCompare, Hash, Check, X,
+  FileText, Files, FileCode,
 } from 'lucide-react'
 import Waveform from '@/components/Waveform'
-import { ResumeBuilderPanel } from '@/components/resume/ResumeBuilderPanel'
 import { ResumeQualityPanel } from '@/components/resume/ResumeQualityPanel'
 import { ResumeReviewPanel } from '@/components/resume/ResumeReviewPanel'
-import type { AnalysisResult } from '@/lib/apiClient'
+import type { AnalysisResult, QuickTailorResult } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InlineError } from './InlineError'
 import { OptimizePlanPanel } from './OptimizePlanPanel'
 import { type GenStatus, type ResultTab } from './scanShared'
 
-type BuildMode = 'quick' | 'studio'
+const LENGTHS = [
+  {
+    pages: 1 as const,
+    label: 'One page',
+    icon: FileText,
+    hint: 'The default, and what most screens expect. Your most job-relevant roles and bullets, trimmed to fit.',
+  },
+  {
+    pages: 2 as const,
+    label: 'Two pages — experienced',
+    icon: Files,
+    hint: 'Keeps more of a long history: earlier roles and more bullets per role. If your content only fills one page, you get one page — nothing is padded.',
+  },
+]
 
 /** Shared trigger styling for the build-mode tabs — mirrors Button's
  *  `default` (active) and `ghost` (inactive) variants so the segmented
  *  control reads identically to the two buttons it replaced. */
-const BUILD_TAB_CLASS = [
+/* The segmented control the two length options sit in. Selection is
+   aria-pressed on a real Button now rather than Radix's data-[state], since
+   these are two states of one control, not two tabs onto different panels. */
+const BUILD_TAB_BASE = [
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full',
-  'h-9 px-4 text-sm font-medium cursor-pointer transition-colors',
-  'outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-  'text-ink-dim hover:text-ink hover:bg-canvas-elevated',
-  'data-[state=active]:bg-accent data-[state=active]:text-on-accent data-[state=active]:shadow-(--glow-signal)',
+  'h-9 px-4 text-sm font-medium transition-colors',
 ].join(' ')
+
+const BUILD_TAB_CLASS = `${BUILD_TAB_BASE} text-ink-dim hover:text-ink hover:bg-canvas-elevated`
+const BUILD_TAB_CLASS_ACTIVE = `${BUILD_TAB_BASE} bg-accent text-on-accent shadow-(--glow-signal) hover:bg-accent`
 
 interface ScanResultsPanelProps {
   result: AnalysisResult
@@ -40,7 +56,9 @@ interface ScanResultsPanelProps {
   resultTab: ResultTab
   onToggleSkill: (skill: string) => void
   onFullNameChange: (name: string) => void
-  onGenerate: () => void
+  onGenerate: (targetPages: 1 | 2) => void
+  genResult: QuickTailorResult | null
+  onDownloadTex: () => void
   onResultTabChange: (tab: ResultTab) => void
   onReset: () => void
 }
@@ -50,24 +68,18 @@ interface ScanResultsPanelProps {
  *
  * Score, tabs, and diagnostics stay in one shared view regardless of what the
  * user does next — they're groundwork for either path, not part of the
- * choice. The choice itself is which PDF-producing action to take: a quick
- * skill-append onto the original file, or the full manual builder that
- * compiles a new one from scratch. Those were previously stacked as if the
- * second were a continuation of the first; they're two different products,
- * so the mode switch below is the actual fix.
+ * choice.
  *
- * The switch is Radix Tabs rather than two buttons for two reasons, both
- * load-bearing:
+ * There is no longer a choice of builder. The Studio — a manual form that
+ * asked the candidate to re-type the contact details, roles and bullets the
+ * parser had just read out of the file they uploaded — is gone, and
+ * everything it could produce is produced directly from the scan now. What
+ * remains is one action with two lengths.
  *
- *   `forceMount` keeps ResumeBuilderPanel alive when the user flips to Quick
- *   tailor and back. That panel owns roughly a dozen fields of local form
- *   state and fires its own autofill request on mount, so conditionally
- *   rendering it turned a mis-click into silent data loss.
- *
- *   Two bare buttons communicated the active mode only through colour, which
- *   a screen reader cannot see. Tabs supply role/aria-selected and arrow-key
- *   navigation for free, and match how segmented filters are already built
- *   elsewhere in the app.
+ * The length control is two aria-pressed buttons rather than Radix Tabs.
+ * Tabs were right when the two options were separate panels holding separate
+ * form state; these are two states of one control, and a tablist that
+ * switches nothing but a number reads wrong to a screen reader.
  */
 export function ScanResultsPanel({
   result,
@@ -80,10 +92,12 @@ export function ScanResultsPanel({
   onToggleSkill,
   onFullNameChange,
   onGenerate,
+  genResult,
+  onDownloadTex,
   onResultTabChange,
   onReset,
 }: ScanResultsPanelProps) {
-  const [buildMode, setBuildMode] = useState<BuildMode>('quick')
+  const [targetPages, setTargetPages] = useState<1 | 2>(1)
 
   // One pass instead of four: the two columns below previously filtered the
   // same array once to render and again to test for emptiness.
@@ -295,102 +309,115 @@ export function ScanResultsPanel({
         <ResumeQualityPanel key={result.id} analysisId={result.id} />
       </div>
 
-      {/* The choice: patch the existing file, or rebuild it in the Studio.
-          Both panels stay mounted (forceMount) — see the component docstring. */}
+      {/* One action, two lengths. The Studio tab that used to sit beside
+          this is gone: it asked the candidate to re-enter, by hand, content
+          the parser had already read out of the file they just uploaded, and
+          almost nobody finished it. Everything it produced this now produces
+          directly. */}
       <div className="panel-enter">
-        <Tabs.Root value={buildMode} onValueChange={(v) => setBuildMode(v as BuildMode)}>
-          <Tabs.List
-            aria-label="How to produce your updated resume"
-            className="card p-1.5 flex gap-1.5 w-fit mb-5"
-          >
-            <Tabs.Trigger value="quick" className={BUILD_TAB_CLASS}>
-              <Sparkles strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
-              Quick tailor
-            </Tabs.Trigger>
-            <Tabs.Trigger value="studio" className={BUILD_TAB_CLASS}>
-              <Wand2 strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
-              Rebuild in the Studio
-            </Tabs.Trigger>
-          </Tabs.List>
+        <div className="card p-6">
+          <div className="eyebrow mb-1">Build my resume</div>
+          <p className="mb-5 text-sm text-(--color-ink-dim)">
+            A FAANG-format resume built from the CV you uploaded, compiled to
+            the length you pick. Every line is your own — the layout, the
+            ordering and what fits are what change.
+            {selectedSkills.size > 0 && (
+              <> The {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''} you staged above are included.</>
+            )}
+          </p>
 
-          <Tabs.Content value="quick" forceMount className="card p-6 data-[state=inactive]:hidden">
-            <div className="eyebrow mb-1">Tailor my resume</div>
-            <p className="text-sm text-(--color-ink-dim) mb-5">
-              {selectedSkills.size > 0 ? (
-                <>
-                  You&apos;ve staged {selectedSkills.size} missing skill
-                  {selectedSkills.size !== 1 ? 's' : ''} above. Click below and we&apos;ll add them to
-                  your resume&apos;s existing skills section — same layout, same formatting, no rebuild
-                  from scratch. The panel above shows what the real model does with it.
-                </>
-              ) : (
-                <>Select the missing skills you actually have from the list above, then tailor your resume to include them.</>
-              )}
+          <fieldset className="mb-5">
+            <legend className="mb-2 text-xs font-medium text-(--color-ink-dim)">Length</legend>
+            <div className="card flex w-fit gap-1.5 p-1.5">
+              {LENGTHS.map((option) => {
+                const active = targetPages === option.pages
+                return (
+                  <Button
+                    key={option.pages}
+                    type="button"
+                    variant="ghost"
+                    aria-pressed={active}
+                    onClick={() => setTargetPages(option.pages)}
+                    className={active ? BUILD_TAB_CLASS_ACTIVE : BUILD_TAB_CLASS}
+                  >
+                    <option.icon strokeWidth={1.5} className="h-3.5 w-3.5" aria-hidden="true" />
+                    {option.label}
+                  </Button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-xs text-(--color-ink-faint)">
+              {LENGTHS.find((l) => l.pages === targetPages)?.hint}
             </p>
+          </fieldset>
 
-            <div className="flex flex-col sm:flex-row gap-3 items-start">
-              <label htmlFor="fullName" className="sr-only">
-                Your full name
-              </label>
-              <Input
-                id="fullName"
-                autoComplete="name"
-                value={fullName}
-                onChange={(e) => onFullNameChange(e.target.value)}
-                placeholder="Your full name (e.g. John Doe)"
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                onClick={onGenerate}
-                disabled={genStatus === 'loading' || selectedSkills.size === 0}
-                aria-busy={genStatus === 'loading'}
-                className="whitespace-nowrap"
-              >
-                {genStatus === 'loading' ? (
-                  <>
-                    <span
-                      className="w-4 h-4 rounded-full border-2 border-(--color-on-accent)/30 border-t-(--color-on-accent) animate-spin"
-                      aria-hidden="true"
-                    />
-                    Tailoring…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles strokeWidth={1.5} className="w-4 h-4" aria-hidden="true" />
-                    Tailor my resume
-                  </>
-                )}
+          <div className="flex flex-col items-start gap-3 sm:flex-row">
+            <label htmlFor="fullName" className="sr-only">
+              Your full name
+            </label>
+            <Input
+              id="fullName"
+              autoComplete="name"
+              value={fullName}
+              onChange={(e) => onFullNameChange(e.target.value)}
+              placeholder="Your full name (e.g. John Doe)"
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              onClick={() => onGenerate(targetPages)}
+              loading={genStatus === 'loading'}
+              loadingLabel="Building your resume"
+              disabled={genStatus === 'loading'}
+              className="whitespace-nowrap"
+            >
+              {genStatus !== 'loading' && (
+                <Sparkles strokeWidth={1.5} className="h-4 w-4" aria-hidden="true" />
+              )}
+              {genStatus === 'loading' ? 'Building…' : 'Build my resume'}
+            </Button>
+          </div>
+
+          {genResult && genStatus === 'done' && (
+            <div role="status" className="panel-enter mt-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-(--color-accent)">
+                <CheckCircle2 strokeWidth={1.5} className="h-4 w-4" aria-hidden="true" />
+                Downloaded {genResult.filename} — {genResult.page_count} page
+                {genResult.page_count !== 1 ? 's' : ''}, scoring {genResult.ats_score}.
+              </div>
+
+              {/* Said plainly rather than hidden: a candidate whose oldest
+                  role was cut to make the page needs to know before they
+                  send it. */}
+              {genResult.adjustments.length > 0 && (
+                <ul className="list-disc space-y-0.5 pl-5 text-xs text-(--color-ink-dim)">
+                  {genResult.adjustments.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              )}
+
+              {!genResult.fits && (
+                <p className="text-xs text-(--color-signal-low)">
+                  Your history would not compress to {genResult.target_pages} page
+                  {genResult.target_pages !== 1 ? 's' : ''} without cutting a role you
+                  should keep, so this is {genResult.page_count}.
+                </p>
+              )}
+
+              <Button type="button" variant="ghost" size="sm" onClick={onDownloadTex}>
+                <FileCode strokeWidth={1.5} className="h-3.5 w-3.5" aria-hidden="true" />
+                Download the LaTeX source for Overleaf
               </Button>
             </div>
+          )}
 
-              {genStatus === 'done' && (
-                <div
-                 
-                 
-                  role="status"
-                  className="mt-3 flex items-center gap-2 text-sm text-(--color-accent) panel-enter"
-                >
-                  <CheckCircle2 strokeWidth={1.5} className="w-4 h-4" aria-hidden="true" />
-                  Your tailored resume has been downloaded.
-                </div>
-              )}
-            {genError && (
-              <div className="mt-3">
-                <InlineError message={genError} />
-              </div>
-            )}
-          </Tabs.Content>
-
-          <Tabs.Content value="studio" forceMount className="data-[state=inactive]:hidden">
-            <ResumeBuilderPanel
-              analysisId={result.id}
-              jobDescription={jobDescription}
-              defaultName={fullName}
-              prefillSkills={[...result.matched_skills, ...Array.from(selectedSkills)]}
-            />
-          </Tabs.Content>
-        </Tabs.Root>
+          {genError && (
+            <div className="mt-3">
+              <InlineError message={genError} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

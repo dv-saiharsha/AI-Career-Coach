@@ -180,7 +180,33 @@ def _render_education_section(education: list[dict]) -> str:
     return "\n".join(blocks) + "\n"
 
 
-def render_resume_tex(data: dict) -> str:
+# Two typographic densities, not two templates.
+#
+# A two-page resume is not a one-page resume with invented content added; it
+# is the same content set to be read rather than squeezed. So the only thing
+# that differs here is point size, margins and leading — the words are
+# identical either way, which is what makes offering the longer format
+# honest rather than padding.
+#
+# "compact" reproduces the values that were hard-coded in the template, so a
+# caller that does not ask for a density gets a byte-identical document.
+DENSITIES: dict[str, dict[str, str]] = {
+    "compact": {
+        "VAR_FONT_SIZE": "10pt",
+        "VAR_MARGIN": "0.5in",
+        "VAR_SECTION_SPACE": "8pt",
+        "VAR_ITEM_SPACE": "2pt",
+    },
+    "regular": {
+        "VAR_FONT_SIZE": "11pt",
+        "VAR_MARGIN": "0.75in",
+        "VAR_SECTION_SPACE": "12pt",
+        "VAR_ITEM_SPACE": "4pt",
+    },
+}
+
+
+def render_resume_tex(data: dict, density: str = "compact") -> str:
     """Build the full .tex document from a validated payload dict.
 
     Every value is escaped or explicitly sanitized before interpolation —
@@ -190,6 +216,7 @@ def render_resume_tex(data: dict) -> str:
     """
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     replacements = {
+        **DENSITIES.get(density, DENSITIES["compact"]),
         "VAR_CANDIDATE_NAME": escape_latex(data.get("candidate_name") or "Candidate Name"),
         "VAR_CONTACT_LINE": _render_contact_line(
             data.get("location", ""), data.get("email", ""), data.get("phone", ""), data.get("linkedin", "")

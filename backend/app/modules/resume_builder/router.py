@@ -16,12 +16,14 @@ from app.schemas.resume_builder import (
     OptimizePlanSchema,
     QualityReportRequestSchema,
     QualityReportSchema,
+    QuickTailorRequestSchema,
+    QuickTailorResponseSchema,
     StageFixesRequestSchema,
+    StageFixesResponseSchema,
     TailorHandoffRequestSchema,
+    TailorHandoffSchema,
     TailorPreviewRequestSchema,
     TailorPreviewSchema,
-    TailorHandoffSchema,
-    StageFixesResponseSchema,
 )
 
 HOUR = 3600
@@ -232,3 +234,48 @@ def autofill_from_scan(
             detail="The original resume text isn't available for this scan. Please re-scan your resume.",
         )
     return autofill.build_autofill(record.resume_text)
+
+
+@router.post("/quick-tailor/{analysis_id}", response_model=QuickTailorResponseSchema)
+def quick_tailor(
+    analysis_id: int,
+    payload: QuickTailorRequestSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("resume_quick_tailor", 15, HOUR, "Too many resumes generated. Try again in a while.")),
+):
+    """A finished FAANG-format resume from a scan already on file.
+
+    One page by default; two for a candidate with enough history to fill
+    them. The page count is achieved by compiling and measuring rather than
+    assumed from the template — see resume_builder/fit.py — so the response
+    reports what the compiler produced and what had to be trimmed to get
+    there.
+
+    Rate limited at 15/hour: no LLM call, but every attempt runs several
+    tectonic compiles, which is real CPU on a shared worker.
+    """
+    record = (
+        db.query(ResumeAnalysis)
+        .filter(ResumeAnalysis.id == analysis_id, ResumeAnalysis.user_id == current_user.id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    if not record.resume_text:
+        raise HTTPException(
+            status_code=400,
+            detail="The original resume text isn't available for this scan. Please re-scan your resume.",
+        )
+
+    try:
+        return services.quick_tailor(
+            record,
+            payload.full_name,
+            payload.job_description,
+            payload.target_pages,
+        )
+    except LatexToolchainMissing as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except LatexCompileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

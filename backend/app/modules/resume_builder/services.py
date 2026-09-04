@@ -19,11 +19,11 @@ import logging
 
 from app.core.keywords import keyword_candidates
 from app.core.llm import llm_client
-from app.core.taxonomy import group_by_domain, skill_candidates
+from app.core.taxonomy import expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import layout_check, quality
 from app.ml.features import extract_features
 from app.ml.inference import predict_score
-from app.modules.resume_builder import guards, latex
+from app.modules.resume_builder import autofill, fit, guards, latex
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing  # noqa: F401 (re-exported)
 
 logger = logging.getLogger(__name__)
@@ -218,3 +218,74 @@ def quality_report(
         # than as an unordered bag of words.
         "domain_gaps": group_by_domain(missing),
     }
+
+
+def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dict:
+    """A finished, page-fitted FAANG-format resume from a stored scan.
+
+    Everything here comes out of the candidate's own uploaded resume:
+    autofill parses it into structured sections, the JD decides which of
+    their bullets lead, and fit.py compiles-and-measures until it is the
+    requested length. Nothing is written for them — see fit.py's docstring
+    for why there is no expansion ladder to match the trim ladder.
+
+    The score is the trained model's, computed on the resulting text, so a
+    candidate is told what their new resume actually scores rather than what
+    the tailoring was supposed to achieve.
+    """
+    parsed = autofill.build_autofill(record.resume_text or "")
+    stored = parse_stored_result(record.result_json or "{}")
+
+    # Their matched skills lead, then the ones they staged as genuinely held.
+    # Not the JD's full keyword list: that would put skills on the resume the
+    # candidate never claimed, which is the one thing this must not do.
+    technical = [s for s in (stored.get("matched_skills") or []) if s][:18]
+    tools = [s for s in (stored.get("extracted_skills") or []) if s and s not in technical][:12]
+
+    keywords = {k.lower() for k in expand_skills(skill_candidates(jd_text))} if jd_text else set()
+
+    payload = {
+        "candidate_name": (full_name or "").strip() or parsed.get("name") or "Candidate",
+        "email": parsed.get("email") or "",
+        "phone": parsed.get("phone") or "",
+        "location": parsed.get("location") or "",
+        "linkedin": parsed.get("linkedin") or "",
+        "summary": parsed.get("summary") or "",
+        "technical_skills": technical,
+        "tools_skills": tools,
+        "experiences": parsed.get("experiences") or [],
+        "education": parsed.get("education") or [],
+    }
+
+    fitted = fit.fit_to_pages(payload, target_pages, keywords)
+    resume_text = _resume_text_from_payload(fitted["content"])
+
+    return {
+        "pdf_base64": base64.b64encode(fitted["pdf_bytes"]).decode("ascii"),
+        "tex_source": fitted["tex"],
+        "page_count": fitted["page_count"],
+        "target_pages": target_pages,
+        "fits": fitted["fits"],
+        "adjustments": fitted["adjustments"],
+        "ats_score": predict_score(resume_text, jd_text),
+        # Imported here, not at module scope: faang imports this module, and
+        # at the top level that is a cycle.
+        "filename": _faang_filename(payload["candidate_name"]),
+    }
+
+
+def _faang_filename(full_name: str) -> str:
+    """LASTNAME_FIRSTNAME_RESUME.pdf.
+
+    build_filename also takes a role and a company, and there is neither on
+    this path — the only thing available is the pasted job description, which
+    is prose. Taking its first forty characters produced
+    DOE_JANE_RESUME_SENIOR_BACKEND_ENGINEER_KUBE_COMPANY.pdf, truncated
+    mid-word, with a literal "COMPANY" placeholder in it. A guess that looks
+    like a mistake is worse than the shorter name, so the role and company
+    are omitted rather than invented.
+    """
+    from app.modules.resume_builder import faang
+
+    first, last = faang.split_name(full_name)
+    return f"{last}_{first}_RESUME.pdf"

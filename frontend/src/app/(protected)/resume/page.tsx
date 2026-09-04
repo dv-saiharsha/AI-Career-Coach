@@ -8,11 +8,14 @@ import { ScanResultsPanel } from '@/components/resume/ScanResultsPanel'
 import { consumeJobContext } from '@/lib/jobContext'
 import {
   analyzeResume,
+  buildQuickTailoredResume,
   getResumeOnFile,
   rescanResume,
-  type ResumeOnFile,
-  generateImprovedResume,
+  savePdfFromBase64,
+  saveTexSource,
   type AnalysisResult,
+  type QuickTailorResult,
+  type ResumeOnFile,
 } from '../../../lib/apiClient'
 import type { ScanStatus, GenStatus, ResultTab } from '@/components/resume/scanShared'
 import { useRealtimeStream } from '@/hooks/useRealtimeStream'
@@ -64,6 +67,7 @@ export default function ResumeAnalyzer() {
   const [fullName, setFullName] = useState('')
   const [genStatus, setGenStatus] = useState<GenStatus>('idle')
   const [genError, setGenError] = useState('')
+  const [genResult, setGenResult] = useState<QuickTailorResult | null>(null)
   const [resultTab, setResultTab] = useState<ResultTab>('missing')
   const [jobContextNotice, setJobContextNotice] = useState<string | null>(null)
 
@@ -197,23 +201,48 @@ export default function ResumeAnalyzer() {
       return next
     })
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (targetPages: 1 | 2) => {
     if (!fullName.trim()) { setGenError('Enter your full name for the PDF filename.'); return }
     if (!result) return
-    setGenStatus('loading'); setGenError('')
+    setGenStatus('loading'); setGenError(''); setGenResult(null)
     try {
-      await generateImprovedResume(result.id, fullName.trim(), Array.from(selectedSkills))
+      const built = await buildQuickTailoredResume(result.id, {
+        full_name: fullName.trim(),
+        job_description: jobDescription,
+        target_pages: targetPages,
+      })
+      savePdfFromBase64(built.pdf_base64, built.filename)
+      setGenResult(built)
       setGenStatus('done')
-    } catch {
-      setGenError('Could not generate the improved resume. Check that the API is running.')
+    } catch (err) {
+      // The server distinguishes a missing LaTeX toolchain (503) from a
+      // document that would not compile (422), and both are worth saying
+      // plainly — "could not generate" sends the user to check their file
+      // when the cause is on our side.
+      const status = (err as { response?: { status?: number } })?.response?.status
+      setGenError(
+        status === 503
+          ? 'The PDF compiler is not available on the server right now. Nothing is wrong with your resume.'
+          : status === 422
+            ? 'Your resume could not be typeset. Re-scan it and try again.'
+            : 'Could not build the resume. Check that the API is running.',
+      )
       setGenStatus('error')
     }
+  }
+
+  /* Offered after a successful build rather than as a second button up
+     front: the .tex is only useful to someone who already has the PDF and
+     wants to keep editing it in Overleaf. */
+  const handleDownloadTex = () => {
+    if (!genResult) return
+    saveTexSource(genResult.tex_source, genResult.filename.replace(/\.pdf$/, '.tex'))
   }
 
   const reset = () => {
     setFile(null); setJobDescription(''); setResult(null)
     setError(''); setStatus('idle'); setSelectedSkills(new Set())
-    setFullName(''); setGenStatus('idle'); setGenError(''); setResultTab('missing')
+    setFullName(''); setGenStatus('idle'); setGenError(''); setGenResult(null); setResultTab('missing')
   }
 
 
@@ -245,6 +274,8 @@ export default function ResumeAnalyzer() {
             onToggleSkill={toggleSkill}
             onFullNameChange={setFullName}
             onGenerate={handleGenerate}
+            genResult={genResult}
+            onDownloadTex={handleDownloadTex}
             onResultTabChange={setResultTab}
             onReset={reset}
           />
