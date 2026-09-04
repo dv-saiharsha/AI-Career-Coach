@@ -353,7 +353,18 @@ def _warm_feed(
         # turned one query into one lazy load per row — 38 round-trips to
         # us-east-1 at ~85ms each, which was the entire cold-start cost.
         # Fetching the column up front costs bytes; deferring it cost seconds.
-        .filter(JobListing.query_key.in_(keys), _age_filter())
+        # Warm-role rows OR anything from a curated employer board.
+        #
+        # query_key exists to tie a scraped row to the search that produced
+        # it, which is how the warm feed knows a row is relevant. Board rows
+        # have no such search behind them — they are a standing source, keyed
+        # by which company board they came from ("greenhouse:stripe"), so
+        # filtering on query_key alone made all 7,836 of them invisible to
+        # the feed the moment they landed.
+        .filter(
+            or_(JobListing.query_key.in_(keys), JobListing.source.isnot(None)),
+            _age_filter(),
+        )
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
     )

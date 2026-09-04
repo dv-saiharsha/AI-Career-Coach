@@ -271,7 +271,13 @@ def _upsert(db: Session, candidates: dict[str, dict], facts: dict[str, dict], re
         for column in ("query_key", "external_id", "title", "company", "location", "work_mode",
                        "salary_range", "description", "skills", "apply_url", "posted_at",
                        # Straight from the actor — not inferred, not paid for.
-                       "experience_level", "employment_type"):
+                       "experience_level", "employment_type",
+                       # Which ATS the row came from. Only board rows carry it;
+                       # the Apify path omits the key entirely and the `in item`
+                       # guard below leaves any existing value alone, so a row
+                       # that was first seen on a company board keeps its
+                       # provenance if it is later re-seen via the scraper.
+                       "source"):
             if column in item:
                 setattr(row, column, item[column])
         row.fetched_at = now
