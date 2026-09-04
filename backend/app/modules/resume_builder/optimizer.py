@@ -70,13 +70,38 @@ stops when the band is reached. Three rules make it safe:
 """
 
 import logging
+import re
 
 from app.core.taxonomy import canonical, expand_skills, skill_candidates
+from app.ml.features import _QUANTIFIED_PATTERN
 from app.ml.inference import model_available, predict_score
 from app.modules.resume_analyzer import integrity, rubric
 from app.modules.resume_analyzer.quality import split_sections
 
 logger = logging.getLogger(__name__)
+
+# Achievement lines this short are almost always a company, a title, or a
+# date range, not a sentence describing what was done — the same threshold
+# and the same reasoning as autofill.py's PROSE_MIN_CHARS, which exists for
+# an identical problem: a PDF's bullet marker frequently does not survive
+# extraction (one real resume's markers all came back as U+FFFD), so shape
+# is what is left to tell a header line from a bullet.
+_MIN_ACHIEVEMENT_CHARS = 45
+
+# A resume with fifteen unquantified bullets does not need fifteen callouts —
+# it needs to hear the pattern once. Capped for the same reason
+# MAX_SURFACED_SKILLS is: a wall of flagged lines reads as a lecture, not
+# coaching, and the point is made after a handful of examples.
+_MAX_FLAGGED_BULLETS = 5
+
+# A line that opens with a date is a role's header row, not a bullet — this
+# already exists to keep the date range that belongs to a job title out of
+# the achievement text sent to the model.
+_LEADING_DATE = re.compile(
+    r"^\s*(?:\d{1,2}[/-])?(?:19|20)\d{2}\b|"
+    r"^\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)",
+    re.IGNORECASE,
+)
 
 # The band the brief asks for. Named rather than inlined because both ends are
 # load-bearing: below it the resume is not competitive, and above ~85 the
@@ -96,6 +121,40 @@ MAX_SURFACED_SKILLS = 12
 
 def _has_section(sections: dict, *names: str) -> bool:
     return any(sections.get(name) for name in names)
+
+
+def _unquantified_achievement_bullets(experience_text: str) -> list[str]:
+    """Achievement lines in Experience that name no concrete number, %, or $.
+
+    "Achievement line", not "bullet starting with a marker": a PDF's bullet
+    glyph frequently does not survive text extraction (one real resume in
+    this system had every marker come back as U+FFFD, the replacement
+    character, not a dash or a dot), so a line is judged as an achievement by
+    its shape — long enough to be a sentence, and not a company/date header
+    row — the same reasoning autofill.py's bullet-vs-header split already
+    relies on for the identical problem.
+
+    Deliberately reuses features._QUANTIFIED_PATTERN rather than a second,
+    hand-written check: this is the model's own definition of "quantified",
+    and coaching toward a test the model does not actually apply would be
+    advice that does not do what it claims.
+    """
+    flagged: list[str] = []
+    for raw in experience_text.splitlines():
+        # Whatever marker survived — a real one or the U+FFFD a corrupted PDF
+        # leaves behind — is stripped the same way regardless of which it is;
+        # neither carries information about whether a metric follows it.
+        line = re.sub(r"^\s*[-•*·▪◦‣o�]\s*", "", raw).strip()
+        if len(line) < _MIN_ACHIEVEMENT_CHARS:
+            continue
+        if _LEADING_DATE.match(line):
+            continue
+        if _QUANTIFIED_PATTERN.search(line):
+            continue
+        flagged.append(line)
+        if len(flagged) >= _MAX_FLAGGED_BULLETS:
+            break
+    return flagged
 
 
 def find_honest_edits(resume_text: str, jd_text: str) -> list[dict]:
@@ -192,6 +251,31 @@ def find_honest_edits(resume_text: str, jd_text: str) -> list[dict]:
             }
         )
 
+    # 4. Quantification, in the Google X-Y-Z shape: "Achieved [X], measured by
+    #    [Y], by doing [Z]". quantified_bullet_ratio is the single heaviest
+    #    feature the trained model reads (0.275) — but only for a number that
+    #    is actually there. Coaching cannot supply it: only the candidate
+    #    knows what the real figure was, which is exactly why this is
+    #    requires_review rather than an applied edit, same as
+    #    adopt_jd_vocabulary above. See _apply()'s handling of this edit for
+    #    why "applying" it for a speculative score is correctly a no-op.
+    unquantified = _unquantified_achievement_bullets(sections.get("experience", ""))
+    if unquantified:
+        edits.append(
+            {
+                "edit": "quantify_bullets_xyz",
+                "label": "Add a real number to these achievements",
+                "rationale": (
+                    "These lines describe what you did but not its scale or result. "
+                    "Restructure each as \"Achieved [outcome], measured by [a real number], "
+                    "by [doing this]\" once you have the figure — a placeholder would not "
+                    "move the score and would read as padding to a person."
+                ),
+                "adds": unquantified,
+                "requires_review": True,
+            }
+        )
+
     return edits
 
 
@@ -251,16 +335,29 @@ def plan(resume_text: str, jd_text: str) -> dict:
         # arithmetic instead of by a language model.
         if edit.get("requires_review"):
             speculative = float(predict_score(_apply(working, edit), jd_text))
+            # Per edit type, not one sentence for every requires_review edit —
+            # adopt_jd_vocabulary is unverified JD language and
+            # quantify_bullets_xyz is a missing number, and telling someone
+            # "only you know which you actually did" about a bullet that
+            # simply needs a metric answers a different question than the one
+            # they are asking.
+            reason = (
+                "Not counted in the projection — this edit has no real number to test, "
+                "only you have it, so applying it changes nothing a model can measure. "
+                "The score moves once you add the real figure yourself."
+                if edit["edit"] == "quantify_bullets_xyz"
+                else (
+                    "Not counted in the projection. These are terms the posting uses "
+                    "for work your resume does not describe — only you know which "
+                    "you actually did."
+                )
+            )
             scored.append(
                 {
                     **edit,
                     "applied": False,
                     "potential_score": round(speculative, 1),
-                    "reason": (
-                        "Not counted in the projection. These are terms the posting uses "
-                        "for work your resume does not describe — only you know which "
-                        "you actually did."
-                    ),
+                    "reason": reason,
                 }
             )
             continue
@@ -329,5 +426,16 @@ def _apply(resume_text: str, edit: dict) -> str:
 
     if edit["edit"] in ("add_skills_section", "surface_implied_skills"):
         return f"{resume_text}\n\nSkills\n{', '.join(adds)}"
+
+    if edit["edit"] == "quantify_bullets_xyz":
+        # A genuine no-op, not an oversight. "adds" here is the flagged
+        # bullets themselves, not insertable text — there is no real number
+        # to test, only the candidate has it, so the honest speculative score
+        # for this edit is the score of the resume unchanged. Appending the
+        # flagged lines again via the fallback below would duplicate real
+        # content and silently improve keyword_overlap on lines that were
+        # never actually added, which is exactly the kind of arithmetic
+        # fabrication this module's own docstring warns against.
+        return resume_text
 
     return f"{resume_text}\n{', '.join(adds)}"

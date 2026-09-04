@@ -166,3 +166,111 @@ def test_plan_reports_when_the_score_stops_being_meaningful() -> None:
     assert optimizer.MEANINGLESS_ABOVE == 85
     result = optimizer.plan(WEAK_PRESENTATION, JD)
     assert result["beyond_meaningful"] == (result["projected_score"] > 85)
+
+
+# ── Google X-Y-Z bullet quantification ──────────────────────────────────────
+# "Achieved [outcome], measured by [a real number], by [doing this]". Coaching
+# cannot supply the number — only the candidate has it — so this edit is
+# requires_review, same as adopt_jd_vocabulary, and applying it for a
+# speculative score must be a no-op rather than a fabricated delta.
+
+MIXED_QUANTIFICATION_EXPERIENCE = (
+    "Acme Corp (2020 - 2025)\n"
+    "- Reduced checkout latency by 34% by rewriting the payment path in Go\n"
+    "- Owned the on-call rotation and mentored two junior engineers on distributed systems\n"
+    "- Migrated the legacy monolith to a set of Kubernetes-native microservices\n"
+    "- Go\n"
+)
+
+ISOLATED_JD = "Senior Backend Engineer. We need Python, Kubernetes, and distributed systems experience."
+
+QUANTIFY_ONLY_RESUME = (
+    "Senior Backend Engineer\n"
+    "Skills\nPython, Kubernetes, distributed systems\n"
+    "Experience\n"
+    "Acme Corp (2020 - 2025)\n"
+    "- Owned the on-call rotation and mentored two junior engineers on distributed systems "
+    "using Python and Kubernetes\n"
+    "- Migrated the legacy monolith to a set of Kubernetes-native microservices written in Python\n"
+)
+
+
+def test_unquantified_achievement_bullets_flags_only_missing_metrics() -> None:
+    flagged = optimizer._unquantified_achievement_bullets(MIXED_QUANTIFICATION_EXPERIENCE)
+
+    assert (
+        "Owned the on-call rotation and mentored two junior engineers on distributed systems"
+        in flagged
+    )
+    assert "Migrated the legacy monolith to a set of Kubernetes-native microservices" in flagged
+    assert not any("34%" in line for line in flagged), "the quantified bullet must not be flagged"
+    assert not any(line.startswith("Acme Corp") for line in flagged), (
+        "a company/date header is not an achievement"
+    )
+    assert "Go" not in flagged, "too short to be a real achievement line"
+
+
+def test_unquantified_achievement_bullets_caps_at_five() -> None:
+    experience = "\n".join(
+        "- Led a cross functional initiative to modernize the platform end to end"
+        for _ in range(10)
+    )
+    flagged = optimizer._unquantified_achievement_bullets(experience)
+    assert len(flagged) == optimizer._MAX_FLAGGED_BULLETS
+
+
+def test_quantify_bullets_edit_is_proposed_for_unquantified_achievements() -> None:
+    edits = optimizer.find_honest_edits(QUANTIFY_ONLY_RESUME, ISOLATED_JD)
+    quantify_edits = [e for e in edits if e["edit"] == "quantify_bullets_xyz"]
+
+    assert len(quantify_edits) == 1
+    edit = quantify_edits[0]
+    assert edit["requires_review"] is True
+    assert "Migrated the legacy monolith to a set of Kubernetes-native microservices written in Python" in edit["adds"]
+    assert "Achieved" in edit["rationale"] and "measured by" in edit["rationale"]
+
+
+def test_quantify_bullets_apply_is_a_no_op() -> None:
+    edit = {
+        "edit": "quantify_bullets_xyz",
+        "adds": ["Owned the on-call rotation and mentored two junior engineers"],
+    }
+    assert optimizer._apply(WEAK_PRESENTATION, edit) == WEAK_PRESENTATION
+
+
+def test_quantify_bullets_is_excluded_from_the_projection_without_moving_it() -> None:
+    """Applying this edit must not change the score at all, in either direction.
+
+    Unlike adopt_jd_vocabulary (which changes the text it scores, just doesn't
+    count the delta), quantify_bullets_xyz has nothing to insert — so its
+    potential_score must equal the score of the resume as it stood immediately
+    before this edit, not a different number arrived at by duplicating the
+    flagged bullets.
+    """
+    result = optimizer.plan(QUANTIFY_ONLY_RESUME, ISOLATED_JD)
+    quantify_edits = [e for e in result["edits"] if e["edit"] == "quantify_bullets_xyz"]
+    assert quantify_edits, "this resume has unquantified achievements; the edit should be proposed"
+
+    edit = quantify_edits[0]
+    assert edit["applied"] is False
+    # Nothing else was proposed for this deliberately isolated resume/JD pair,
+    # so the score immediately before this edit is simply the baseline.
+    assert edit["potential_score"] == result["baseline_score"]
+
+
+def test_quantify_bullets_reason_is_not_the_jd_vocabulary_reason() -> None:
+    """plan()'s requires_review reason must describe THIS edit's situation.
+
+    The sentence written for adopt_jd_vocabulary — "these are terms the
+    posting uses for work your resume does not describe" — is false here:
+    these bullets DO describe real work the candidate did, they are only
+    missing a number. Reusing it verbatim would tell the candidate the wrong
+    thing about their own edit.
+    """
+    result = optimizer.plan(QUANTIFY_ONLY_RESUME, ISOLATED_JD)
+    quantify_edits = [e for e in result["edits"] if e["edit"] == "quantify_bullets_xyz"]
+    assert quantify_edits
+
+    reason = quantify_edits[0]["reason"]
+    assert "only you know which you actually did" not in reason
+    assert "real number" in reason

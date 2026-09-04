@@ -94,11 +94,20 @@ def _tfidf_cosine(resume_text: str, jd_text: str) -> float:
     return float(cosine_similarity(matrix[0], matrix[1])[0][0])
 
 
+# Named and compiled once rather than left as a literal inside the function
+# below: this is the model's own definition of "quantified", and
+# resume_builder/optimizer.py needs the identical test to flag bullets
+# missing a metric — coaching someone toward what the trained model does not
+# actually recognise as quantified would be advice that does not do what it
+# claims.
+_QUANTIFIED_PATTERN = re.compile(r"\d+\s*%|\$\s*\d|\b\d[\d,\.]*\b")
+
+
 def _quantified_bullet_count(resume_text: str) -> int:
     """Lines that carry a concrete number, %, or $ — quantified impact."""
     count = 0
     for line in resume_text.splitlines():
-        if re.search(r"\d+\s*%|\$\s*\d|\b\d[\d,\.]*\b", line):
+        if _QUANTIFIED_PATTERN.search(line):
             count += 1
     return count
 
