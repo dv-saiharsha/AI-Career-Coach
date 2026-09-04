@@ -78,6 +78,7 @@ export default function ProfilePage() {
     role: 'Software Engineer',
     seniority: 'Senior',
     targetRole: 'Staff Engineer',
+    roles: [] as string[],
     bio: '',
   });
   // Tracks which fields the user has actually touched, so a server value
@@ -109,8 +110,11 @@ export default function ProfilePage() {
         ? current.targetRole
         : (profile.primary_target_role ?? profile.target_roles[0] ?? current.targetRole),
       bio: dirty.has('bio') ? current.bio : (profile.bio ?? current.bio),
+      roles: dirty.has('roles') ? current.roles : (profile.target_roles ?? current.roles),
     }));
   }
+
+  const [roleDraft, setRoleDraft] = useState('');
 
   const markDirty = useCallback((field: string) => {
     setDirty((current) => (current.has(field) ? current : new Set(current).add(field)));
@@ -193,6 +197,9 @@ export default function ProfilePage() {
           // driving the job feed, and writing one value into it would delete
           // the user's onboarding choices.
           primary_target_role: form.targetRole.trim(),
+          // Only when edited. Sending it unchanged would be harmless, but
+          // omitting it keeps the PATCH honest about what actually changed.
+          ...(dirty.has('roles') ? { target_roles: form.roles } : {}),
         }),
       ]);
       queryClient.setQueryData(['user', 'profile'], updated);
@@ -410,6 +417,68 @@ export default function ProfilePage() {
             onChange={(e) => { markDirty('targetRole'); setForm((f) => ({ ...f, targetRole: e.target.value })); }}
             startAdornment={<Target />}
           />
+        </Field>
+
+        {/* The roles the job feed is actually built from.
+            Distinct from "Target role" above, which is a single headline
+            shown on the profile. This list drives what appears in Job Market,
+            and until now it was writable only during onboarding — so whatever
+            someone picked in their first ninety seconds decided their feed
+            forever, with no way to change it as their interests moved. */}
+        <Field label="Roles your job feed is built from" htmlFor="roleInput">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5" role="list">
+              {form.roles.map((role) => (
+                <span
+                  key={role}
+                  role="listitem"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-canvas px-2.5 py-1 text-[12px] text-ink field-ring-soft"
+                >
+                  {role}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${role}`}
+                    onClick={() => { markDirty('roles'); setForm((f) => ({ ...f, roles: f.roles.filter((r) => r !== role) })); }}
+                    className="text-ink-faint transition-colors hover:text-danger"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <Input
+              id="roleInput"
+              value={roleDraft}
+              placeholder="Add a role and press Enter"
+              onChange={(e) => setRoleDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                const next = roleDraft.trim();
+                if (!next) return;
+                // Case-insensitive, matching the backend's own dedupe — so the
+                // UI cannot build a list the API will then reject.
+                if (form.roles.some((r) => r.toLowerCase() === next.toLowerCase())) {
+                  setRoleDraft('');
+                  return;
+                }
+                markDirty('roles');
+                setForm((f) => ({ ...f, roles: [...f.roles, next] }));
+                setRoleDraft('');
+              }}
+              startAdornment={<Target />}
+            />
+
+            {/* Stated, not enforced by disabling save: the rule belongs to the
+                API, and a message explains it where a greyed-out button would
+                not. */}
+            <p className="text-[11px] text-ink-faint">
+              {form.roles.length < 3
+                ? `Add ${3 - form.roles.length} more — the feed needs at least three to work from.`
+                : `${form.roles.length} roles. Remove one to stop seeing it in Job Market.`}
+            </p>
+          </div>
         </Field>
 
         <Button onClick={handleSave} disabled={saving} aria-busy={saving || undefined}>

@@ -16,9 +16,9 @@ import { createClient } from '@/lib/supabase/server'
  * credential phishing.
  */
 function safeNext(raw: string | null): string {
-  if (!raw) return '/jobs'
-  if (!raw.startsWith('/')) return '/jobs'
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/jobs'
+  if (!raw) return '/dashboard'
+  if (!raw.startsWith('/')) return '/dashboard'
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/dashboard'
   return raw
 }
 

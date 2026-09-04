@@ -695,6 +695,14 @@ export interface ProfileUpdate {
   /** Set by the dashboard resume reminder when upload was skipped at onboarding. */
   primary_resume_analysis_id?: number | null
   primary_resume_filename?: string | null
+  /**
+   * The roles the job feed is built from.
+   *
+   * Omit the key to leave them untouched — the backend treats an absent
+   * field as "no change", so editing a bio does not wipe the feed. Sending
+   * fewer than three distinct roles is rejected with a 422.
+   */
+  target_roles?: string[]
 }
 
 export const updateUserProfile = async (patch: ProfileUpdate): Promise<UserProfile> => {

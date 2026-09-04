@@ -42,7 +42,7 @@ export default function ResetPassword() {
       return
     }
     setStatus('done')
-    setTimeout(() => router.replace('/jobs'), 1500)
+    setTimeout(() => router.replace('/dashboard'), 1500)
   }
 
   return (

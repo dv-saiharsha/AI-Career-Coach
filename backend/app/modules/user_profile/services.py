@@ -105,6 +105,13 @@ def update_profile(db: Session, user_id: str, fields: dict) -> Profile:
     for key, value in fields.items():
         if not hasattr(profile, key):
             continue
+        if key == "target_roles":
+            # A JSON-encoded Text column, not a scalar. A raw setattr would
+            # store the Python repr — "['Backend Engineer']" with single
+            # quotes — which read_target_roles then fails to decode, leaving
+            # the user with an empty feed and no error anywhere.
+            profile.target_roles = json.dumps(value or [])
+            continue
         setattr(profile, key, value if value not in ("", None) else None)
     db.commit()
     db.refresh(profile)

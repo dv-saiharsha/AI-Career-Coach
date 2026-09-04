@@ -47,6 +47,45 @@ class ProfileUpdateSchema(BaseModel):
     primary_resume_analysis_id: Optional[int] = None
     primary_resume_filename: Optional[str] = Field(default=None, max_length=512)
 
+    # The roles that drive the job feed.
+    #
+    # This list was writable only at onboarding, so a user's interests were
+    # fixed at the moment they signed up — the feed kept serving whatever they
+    # picked in their first ninety seconds, with no way to change it short of
+    # a database edit. Someone moving from backend to ML had no route back.
+    #
+    # Optional here, unlike in OnboardingRequestSchema where it is required:
+    # a PATCH that does not mention roles must leave them alone rather than
+    # clearing them. The length bounds only apply when it IS supplied.
+    target_roles: Optional[List[str]] = Field(
+        default=None, min_length=MIN_TARGET_ROLES, max_length=MAX_TARGET_ROLES
+    )
+
+    @field_validator("target_roles")
+    @classmethod
+    def clean_update_roles(cls, roles: Optional[List[str]]) -> Optional[List[str]]:
+        """Same cleaning onboarding applies, so the two paths cannot disagree.
+
+        Trim, drop blanks, de-duplicate case-insensitively. Without the dedupe
+        ["Backend Engineer", "backend engineer"] satisfies the minimum while
+        describing one role twice.
+        """
+        if roles is None:
+            return None
+        seen: set[str] = set()
+        cleaned: List[str] = []
+        for role in roles:
+            trimmed = role.strip()
+            if not trimmed or trimmed.lower() in seen:
+                continue
+            seen.add(trimmed.lower())
+            cleaned.append(trimmed)
+        if len(cleaned) < MIN_TARGET_ROLES:
+            raise ValueError(
+                f"Pick at least {MIN_TARGET_ROLES} distinct roles — the job feed is built from them."
+            )
+        return cleaned
+
     @field_validator("bio", "current_title", "seniority", "primary_target_role")
     @classmethod
     def strip_text(cls, value: Optional[str]) -> Optional[str]:
