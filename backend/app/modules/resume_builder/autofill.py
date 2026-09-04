@@ -264,12 +264,21 @@ def _split_header_and_bullets(entry: list[str]) -> tuple[list[str], list[str]]:
     appears, everything after it in the entry is body — resumes do not return
     to header material half way down a role.
 
-    Wrapped lines are rejoined on that same basis, but ONLY when no marker
-    ever survived for them: a line that did carry a marker is unambiguous
-    on its own and must not be merged into its neighbour just because it
-    lacks a full stop — real bullets routinely end "...by 40%" with no
-    terminal punctuation at all, and merging those on marker-having lines
-    silently fused two separate achievements into one.
+    Wrapped lines are rejoined on that same basis, but a marker only ever
+    closes the bullet BEFORE it, never the one it starts: two marked lines in
+    a row are always two separate bullets, even when the first has no
+    terminal punctuation — real bullets routinely end "...by 40%" with no
+    full stop, and merging those would silently fuse two separate
+    achievements into one. But a marked line followed by an UNMARKED one is
+    exactly the wrapped-bullet case: the marker survived on the first physical
+    line of a bullet that word-wrapped in the source PDF, and the second
+    physical line carries no marker of its own. Confirmed against a real
+    resume in production: five wrapped bullets each split into two — one
+    ending mid-clause ("...case assignment, user") and the next starting
+    lower-case with the rest of the same sentence ("tracking, and
+    service-level agreement (SLA) workflows.") — because the old version
+    flushed every marked line immediately, before it had a chance to pick up
+    the continuation that followed it.
     """
     header: list[str] = []
     # (text, had_an_explicit_marker) — the marker is what decides whether a
@@ -298,19 +307,23 @@ def _split_header_and_bullets(entry: list[str]) -> tuple[list[str], list[str]]:
 
         body.append((line, False))
 
-    # A marked line closes any pending unmarked buffer and stands alone.
-    # Unmarked lines accumulate until the sentence closes — that is the
-    # wrapped-bullet case a lost "•" produces.
+    # A marked line closes any pending buffer and starts a new one — two
+    # marked lines are always two bullets, whatever punctuation either ends
+    # with. An unmarked line only ever extends the buffer already open: at
+    # the top of an entry that is the sentence-accumulation case above; after
+    # a marked line it is that same bullet's wrapped continuation. Either way
+    # the buffer is not closed until it actually ends in terminal punctuation
+    # — a marked line is not "unambiguous on its own" just because it has a
+    # marker, only because nothing after it claims to continue it.
     bullets: list[str] = []
     buffer = ""
     for text, had_marker in body:
         if had_marker:
             if buffer:
                 bullets.append(buffer)
-                buffer = ""
-            bullets.append(text)
-            continue
-        buffer = f"{buffer} {text}".strip() if buffer else text
+            buffer = text
+        else:
+            buffer = f"{buffer} {text}".strip() if buffer else text
         if buffer.endswith((".", "!", "?", ";")):
             bullets.append(buffer)
             buffer = ""

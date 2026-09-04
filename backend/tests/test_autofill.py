@@ -218,6 +218,54 @@ class TestBulletMarkersLostInPdfExtraction:
         assert extract_contact(text)["name"] is None
 
 
+WRAPPED_MARKED_BULLET_RESUME = """Venkata Sai Harshith Danda
+Tempe, AZ | dandaharshith64@gmail.com
+
+EXPERIENCE
+HGS (Hinduja Global Solutions)
+Jan 2022 - Dec 2023
+Software Engineer
+• Engineered and maintained backend RESTful microservices in Java and Spring Boot to automate customer case assignment, user
+tracking, and service-level agreement (SLA) workflows.
+• Developed interactive, reusable UI components using React.js, integrating backend services to streamline call-center agent workflows
+and reduce case resolution time.
+
+EDUCATION
+Arizona State University
+2026
+"""
+
+
+class TestMarkedBulletWrappedOntoAnUnmarkedLine:
+    """The actual bug, found by running a real user's real resume and a real
+    job description through the built pipeline end to end (predict_score,
+    optimizer.plan, and a real fit.py/tectonic compile) rather than by
+    reading the source: every bullet in that resume DOES carry a real "•",
+    but each one word-wraps in the source PDF, and the continuation line
+    carries no marker of its own.
+
+    The old code treated any marked line as "unambiguous on its own" and
+    pushed it straight to the output, bypassing the punctuation-based merge
+    entirely — so the wrapped continuation became its own bullet, starting
+    mid-sentence in lower case: "tracking, and service-level agreement (SLA)
+    workflows." printed on the compiled PDF as if it were a second,
+    standalone achievement.
+    """
+
+    def test_a_marked_bullet_absorbs_its_unmarked_continuation(self):
+        roles = extract_experiences(WRAPPED_MARKED_BULLET_RESUME)
+        bullets = roles[0]["bullets"]
+
+        assert len(bullets) == 2, f"a wrapped continuation became its own bullet: {bullets!r}"
+        assert bullets[0] == (
+            "Engineered and maintained backend RESTful microservices in Java and "
+            "Spring Boot to automate customer case assignment, user tracking, and "
+            "service-level agreement (SLA) workflows."
+        )
+        assert not any(b.lower().startswith("tracking,") for b in bullets)
+        assert not any(b.lower().startswith("and reduce") for b in bullets)
+
+
 class TestEducationWithTheDateOnItsOwnLine:
     """A school block ending in a standalone date line, repeated per degree —
     common, and the layout _split_entries (built for experience) could not
