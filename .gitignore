@@ -62,3 +62,7 @@ skills-lock.json
 
 # Local agent tooling (skill packages installed per-machine, like .claude/skills)
 .agents/
+
+# A SQLite file was committed at the repo root once; keep it from happening
+# again. The real database is Postgres — see backend/app/core/config.py.
+*.db
