@@ -51,7 +51,7 @@ export function ApplyTrackerButton({
         onClick={handleClick}
         className={
           variant === 'block'
-            ? 'btn-primary flex w-full items-center justify-center gap-2'
+            ? 'btn-apply flex w-full items-center justify-center gap-2'
             : 'inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-accent)] transition-colors hover:text-[var(--color-accent-light)]'
         }
       >

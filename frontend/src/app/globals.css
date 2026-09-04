@@ -1679,6 +1679,47 @@
     cursor: not-allowed;
   }
 
+  /* One deliberate exception to the monochrome button language: the Apply
+     action in a job's detail view, and only that one. Everything else on
+     the page (Match resume, Practice, Save, cover letter, tailor) stays
+     btn-primary/btn-secondary's black-or-white system — this is the single
+     control on the screen a candidate is actually there to press, and it
+     is given the app's one real semantic-success colour rather than making
+     .btn-primary itself green, which would repaint every primary button
+     across the whole product.
+
+     Reuses --color-ok / --on-accent rather than a literal hex, and the
+     pairing is not a guess: white on light-theme --color-ok (#22704d)
+     measures 6.01:1, black on dark-theme --color-ok (#6fdba4) measures
+     12.34:1 — both computed, not eyeballed. --on-accent happens to invert
+     black/white on exactly the same light/dark polarity --color-ok needs,
+     which is why it is reused here instead of a second on-success token. */
+  .btn-apply {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.875rem;
+    font-weight: 500;
+    background: var(--color-ok);
+    color: var(--on-accent);
+    box-shadow: var(--shadow-accent);
+    transition:
+      transform 200ms var(--ease-enter),
+      box-shadow 200ms var(--ease-enter);
+  }
+  .btn-apply:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .btn-apply:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: var(--ring-field-soft);
+    transition: none;
+  }
+
   .btn-secondary {
     display: inline-flex;
     align-items: center;

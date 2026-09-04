@@ -655,6 +655,12 @@ export default function JobsPage() {
         onApply={applyTracker.openAndTrack}
         onUndoApply={applyTracker.undo}
         onMatchResume={handleMatchResume}
+        // Identical stash-then-navigate hand-off as Match — Quick Tailor on
+        // /resume reads the same stashed context and needs the same real
+        // description, not a manually-typed one. Reused rather than
+        // duplicated: the two buttons land on the same page for the same
+        // reason and only diverge in what the user does once there.
+        onTailorResume={handleMatchResume}
         onPracticeInterview={handlePracticeInterview}
         onSaveToPipeline={handleSaveToPipeline}
         saveState={selectedJob ? (saveStates[selectedJob.id] ?? 'idle') : 'idle'}

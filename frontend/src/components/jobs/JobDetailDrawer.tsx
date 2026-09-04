@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState} from 'react'
+import { createPortal } from 'react-dom'
 import { Presence, EXIT_SLOW } from '@/lib/presence'
 import Link from 'next/link'
 import { Bookmark, Briefcase, Building2, Check, Clock, ExternalLink, FileText, Lightbulb, Mail, MapPin, MessageSquare, Wand2, X } from 'lucide-react'
@@ -20,6 +21,11 @@ interface JobDetailDrawerProps {
   onClose: () => void
   /** Send this listing to /resume to score a resume against it. */
   onMatchResume: (job: JobPosting) => void
+  /** Send this listing to /resume so Quick Tailor builds against this
+   *  posting's real description, not a blank or manually-typed one — same
+   *  stash-then-navigate hand-off as onMatchResume (see lib/jobContext.ts).
+   *  Optional so the drawer still renders anywhere this isn't wired up. */
+  onTailorResume?: (job: JobPosting) => void
   /** Start interview practice pre-filled with this role. */
   onPracticeInterview: (job: JobPosting) => void
   /** Whether opening this posting has already been recorded as an application. */
@@ -51,6 +57,7 @@ export function JobDetailDrawer({
   isOpen,
   onClose,
   onMatchResume,
+  onTailorResume,
   onPracticeInterview,
   onSaveToPipeline,
   saveState = 'idle',
@@ -95,7 +102,7 @@ export function JobDetailDrawer({
     if (isOpen) closeRef.current?.focus()
   }, [isOpen])
 
-  return (
+  const content = (
     <Presence open={Boolean(isOpen && job)} duration={EXIT_SLOW}>
       {(state) =>
         shown && (
@@ -139,7 +146,16 @@ export function JobDetailDrawer({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5">
+            {/* min-h-0 is load-bearing, not decorative. A flex child's default
+                min-height is `auto` — sized to its own content — not 0, so
+                without this override a long description grows the panel to
+                its full intrinsic height instead of being clipped to the
+                space flex-1 assigns it. Measured on a real MongoDB posting:
+                this div grew to 66,441px tall and pushed the Apply button to
+                y=66,633 — completely unreachable by scrolling, which is
+                exactly the bug this was reported as ("scrolling 100 times").
+                min-h-0 is the one-line fix for that entire class of bug. */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
               <div className="flex flex-wrap items-center gap-2 text-xs text-(--color-ink-dim)">
                 <span
                   className={`rounded-full border px-2 py-1 font-medium ${MODE_STYLES[shown.workMode]}`}
@@ -276,7 +292,7 @@ export function JobDetailDrawer({
                   href={shown.applyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-primary flex w-full items-center justify-center gap-2"
+                  className="btn-apply flex w-full items-center justify-center gap-2"
                 >
                   Apply
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -328,13 +344,24 @@ export function JobDetailDrawer({
                 <Mail className="h-3.5 w-3.5" />
                 Write a cover letter
               </Link>
-              <Link
-                href={`/resume/tailor?job=${shown.id}`}
-                className="btn-secondary flex w-full items-center justify-center gap-2"
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-                Tailor my resume for this
-              </Link>
+              {onTailorResume ? (
+                <button
+                  type="button"
+                  onClick={() => onTailorResume(shown)}
+                  className="btn-secondary flex w-full items-center justify-center gap-2"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Tailor my resume for this
+                </button>
+              ) : (
+                <Link
+                  href={`/resume/tailor?job=${shown.id}`}
+                  className="btn-secondary flex w-full items-center justify-center gap-2"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Tailor my resume for this
+                </Link>
+              )}
               <p className="pt-1 text-center text-[11px] text-(--color-ink-faint)">
                 <Briefcase className="mr-1 inline h-3 w-3" />
                 Match sends this posting to the resume analyzer
@@ -346,4 +373,37 @@ export function JobDetailDrawer({
       }
     </Presence>
   )
+
+  // Portalled to document.body rather than returned inline.
+  //
+  // This is not stylistic — every protected route wraps its page content in
+  // a .route-enter div whose page-transition animation ends with
+  // `transform: none` in the authored CSS, but the animation engine freezes
+  // the FINISHED state as a computed `matrix(1, 0, 0, 1, 0, 0)`, not the
+  // literal keyword `none` (confirmed by reading getComputedStyle directly,
+  // not assumed from the source). Any transform value other than the literal
+  // `none` establishes a new containing block for `position: fixed`
+  // descendants — including an identity matrix — so this drawer's `fixed`
+  // positioning was silently computing relative to .route-enter's content
+  // box instead of the viewport. On a job with a long description that box
+  // was over 66,000px tall, which is where the footer — the Apply button —
+  // actually ended up: 66,000+ pixels down, unreachable by any amount of
+  // scrolling. That is the literal bug that was reported.
+  //
+  // The rest of this app never hits this: every other overlay is built on
+  // Radix's Dialog primitive (see ui/sheet.tsx), which already portals to
+  // document.body for its own reasons (stacking context, focus scope) and
+  // sidesteps the containing-block chain entirely as a side effect. This
+  // component predates that pattern and was hand-rolled inline. Portalling
+  // it is the fix that matches how every other overlay in the app already
+  // avoids this, rather than a one-off workaround.
+  //
+  // Guarded on `document` existing: this is a Client Component, but Next.js
+  // still renders it once on the server for the initial HTML, where
+  // `document` does not exist yet. Returning null for that one pass is
+  // correct — this drawer is never open on first paint (isOpen is always
+  // false until a user clicks a job card), so there is nothing to portal
+  // before the client takes over.
+  if (typeof document === 'undefined') return null
+  return createPortal(content, document.body)
 }
