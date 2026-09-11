@@ -33,6 +33,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { DangerZoneSection } from '@/components/settings/DangerZoneSection';
 import { PrivacySection } from '@/components/settings/PrivacySection';
+import { AppearanceSection } from '@/components/settings/AppearanceSection';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -333,23 +334,7 @@ export default function SettingsPage() {
 
             {activeSection === 'privacy' && <PrivacySection />}
 
-            {activeSection === 'appearance' && (
-              <div className="flex flex-col items-center justify-center py-14 text-center">
-                <div className="relative w-14 h-14 mb-4">
-                  <div className="absolute inset-0 rounded-full heartbeat-glow" style={{ boxShadow: '0 0 22px 6px rgba(var(--glow-rgb),0.12)' }} />
-                  <div className="relative w-14 h-14 rounded-full bg-(--color-accent)/10 border border-(--color-accent)/20 flex items-center justify-center">
-                    <Palette className="w-5 h-5 text-(--color-accent)" />
-                  </div>
-                </div>
-                <span className="eyebrow mb-3">Coming soon</span>
-                <div className="text-sm font-medium text-(--color-ink)">
-                  Custom appearance controls
-                </div>
-                <div className="text-xs text-(--color-ink-faint) mt-1 max-w-xs">
-                  We&apos;re building theme and density options. This section is under development.
-                </div>
-              </div>
-            )}
+            {activeSection === 'appearance' && <AppearanceSection />}
           </div>
       </div>
     </div>

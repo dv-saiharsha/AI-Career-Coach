@@ -1,6 +1,14 @@
+import re
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+# Strict on purpose: this string is later written into a CSS custom property
+# on the client (see Settings > Appearance). Anything looser than a plain
+# 6-digit hex — a named color, an rgb()/hsl() function, whitespace — is a
+# wider surface for the value to be misused as more than a color than a hex
+# code can be, and no legitimate picker input needs to be looser than this.
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 # The onboarding contract: enough roles to make a useful feed, few enough that
 # the selection stays deliberate. Enforced here as well as in the UI, because
@@ -24,6 +32,8 @@ class ProfileSchema(BaseModel):
     seniority: Optional[str] = None
     primary_target_role: Optional[str] = None
     avatar_url: Optional[str] = None
+    # NULL means "the default blue signal accent," not "no preference."
+    accent_color: Optional[str] = None
 
 
 class ProfileUpdateSchema(BaseModel):
@@ -41,6 +51,9 @@ class ProfileUpdateSchema(BaseModel):
     primary_target_role: Optional[str] = Field(default=None, max_length=120)
     avatar_url: Optional[str] = Field(default=None, max_length=2048)
     avatar_path: Optional[str] = Field(default=None, max_length=1024)
+    # Empty string clears it back to the default blue, same convention as
+    # avatar_url above — normalise() below turns "" into NULL.
+    accent_color: Optional[str] = Field(default=None, max_length=7)
     # Written by the dashboard's resume reminder, which lands after onboarding
     # for users who skipped upload. Onboarding itself still goes through
     # /onboarding — this is the same pointer, set later.
@@ -92,6 +105,18 @@ class ProfileUpdateSchema(BaseModel):
         if value is None:
             return None
         return value.strip()
+
+    @field_validator("accent_color")
+    @classmethod
+    def validate_accent_color(cls, value: Optional[str]) -> Optional[str]:
+        # Empty string is the clear-to-default signal (see the field's
+        # comment) and must pass through unchanged for normalise() to catch;
+        # only a non-empty value has to look like a real hex color.
+        if not value:
+            return value
+        if not _HEX_COLOR.match(value):
+            raise ValueError("accent_color must be a 6-digit hex color, e.g. #7c5cff")
+        return value.lower()
 
 
 class OnboardingRequestSchema(BaseModel):

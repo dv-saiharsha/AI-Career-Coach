@@ -243,6 +243,19 @@ class TestProfileUpdate:
         assert payload["seniority"] == "Senior"
         assert "avatar_url" in payload
 
+    def test_accent_color_round_trips(self, db):
+        services.update_profile(db, USER, {"accent_color": "#7c5cff"})
+        profile = services.get_or_create_profile(db, USER)
+        assert profile.accent_color == "#7c5cff"
+        assert services.profile_payload(profile)["accent_color"] == "#7c5cff"
+
+    def test_accent_color_empty_string_clears_to_the_default(self, db):
+        """NULL means "use the default blue" — same clear-to-null convention
+        avatar_url already uses, not a second color stored as a sentinel."""
+        services.update_profile(db, USER, {"accent_color": "#7c5cff"})
+        services.update_profile(db, USER, {"accent_color": ""})
+        assert services.get_or_create_profile(db, USER).accent_color is None
+
 
 class TestProfileUpdateSchema:
     def test_strips_whitespace(self):
@@ -261,3 +274,30 @@ class TestProfileUpdateSchema:
 
         sent = ProfileUpdateSchema(bio="hi").model_dump(exclude_unset=True)
         assert sent == {"bio": "hi"}
+
+    def test_accent_color_accepts_a_hex_code(self):
+        from app.schemas.profile import ProfileUpdateSchema
+
+        assert ProfileUpdateSchema(accent_color="#7C5CFF").accent_color == "#7c5cff"
+
+    def test_accent_color_clears_with_empty_string(self):
+        from app.schemas.profile import ProfileUpdateSchema
+
+        assert ProfileUpdateSchema(accent_color="").accent_color == ""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "purple",  # named color, not hex
+            "rgb(124, 92, 255)",  # a function, not a hex code
+            "#7c5cf",  # 5 digits
+            "#7c5cffff",  # 8 digits
+            "7c5cff",  # missing '#'
+            "#7c5cff; }body{display:none",  # the exact injection shape this guards against
+        ],
+    )
+    def test_accent_color_rejects_anything_that_is_not_a_plain_hex_code(self, value):
+        from app.schemas.profile import ProfileUpdateSchema
+
+        with pytest.raises(ValidationError):
+            ProfileUpdateSchema(accent_color=value)

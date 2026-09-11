@@ -102,9 +102,16 @@
      dark-theme success mint: a teal score next to a green success badge is
      two greens, and the number is the thing that must not be mistaken. */
   --signal: #1d4ed8; /* 5.88:1 */
-  --signal-strong: #1a3fa8;
-  --signal-bg: rgb(29 78 216 / 0.09);
-  --gradient-signal: linear-gradient(145deg, #2f63e0 0%, #1a3fa8 100%);
+  /* Derived from --signal rather than a second fixed hex, so a user-chosen
+     accent (see Settings > Appearance) recolors all three together — the
+     one thing that ever needed to change here was the hue itself. */
+  --signal-strong: color-mix(in srgb, var(--signal) 82%, black);
+  --signal-bg: color-mix(in srgb, var(--signal) 9%, transparent);
+  --gradient-signal: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--signal) 90%, white) 0%,
+    var(--signal-strong) 100%
+  );
 
   /* The 145° primary gradient. Stops chosen so white clears 4.5:1 at BOTH
      ends (4.74:1 at the light stop).
@@ -216,9 +223,11 @@
 
   /* Lightened for the dark ground; same hue, same job. */
   --signal: #7cb2ff; /* 7.41:1 */
-  --signal-strong: #a8ccff;
-  --signal-bg: rgb(124 178 255 / 0.14);
-  --gradient-signal: linear-gradient(145deg, #a8ccff 0%, #7cb2ff 100%);
+  /* Lighten, not darken, on this ground — see the light theme's own comment
+     on why these are derived from --signal rather than fixed a second time. */
+  --signal-strong: color-mix(in srgb, var(--signal) 82%, white);
+  --signal-bg: color-mix(in srgb, var(--signal) 14%, transparent);
+  --gradient-signal: linear-gradient(145deg, var(--signal-strong) 0%, var(--signal) 100%);
 
   /* Inverted, so --on-accent is near-black across both stops. */
   --gradient-accent: linear-gradient(145deg, #ffffff 0%, #d4d4d4 100%);

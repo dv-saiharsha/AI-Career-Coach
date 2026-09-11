@@ -90,6 +90,7 @@ def profile_payload(profile: Profile) -> dict:
         "seniority": profile.seniority,
         "primary_target_role": profile.primary_target_role,
         "avatar_url": profile.avatar_url,
+        "accent_color": profile.accent_color,
     }
 
 

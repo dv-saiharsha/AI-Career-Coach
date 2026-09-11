@@ -682,6 +682,9 @@ export interface UserProfile {
   /** Single aspirational role. Distinct from target_roles, which drives the job feed. */
   primary_target_role: string | null
   avatar_url: string | null
+  /** "#rrggbb", or null for the default blue. Recolors only the app's one
+   *  deliberate accent (--signal) — see Settings > Appearance. */
+  accent_color: string | null
 }
 
 /**
@@ -707,6 +710,8 @@ export interface ProfileUpdate {
    * fewer than three distinct roles is rejected with a 422.
    */
   target_roles?: string[]
+  /** "#rrggbb" to set, or "" to clear back to the default blue. */
+  accent_color?: string
 }
 
 export const updateUserProfile = async (patch: ProfileUpdate): Promise<UserProfile> => {

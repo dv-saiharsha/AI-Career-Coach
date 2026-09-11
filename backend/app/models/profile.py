@@ -70,6 +70,14 @@ class Profile(Base):
     # it by string-splitting the public URL.
     avatar_path = Column(Text, nullable=True)
 
+    # "#rrggbb", validated in ProfileUpdateSchema before it ever reaches here.
+    # Recolors only the app's one deliberate accent hue (--signal in
+    # globals.css — scores, chart series, active indicators); the monochrome
+    # structural palette (buttons, borders, focus) is not user-configurable.
+    # NULL means "the default blue", not "unset a color" — there is no
+    # separate has-a-preference flag to keep in sync.
+    accent_color = Column(String(7), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
