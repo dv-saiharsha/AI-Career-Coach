@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { InlineError } from '@/components/resume/InlineError'
 
 const PIPELINE_KEY = ['applications', 'pipeline'] as const
@@ -205,20 +206,22 @@ export function ApplicationDetailDrawer({ applicationId, onClose }: ApplicationD
                     <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-(--color-ink-faint)" htmlFor="detail-stage">
                       Stage
                     </label>
-                    <select
-                      id="detail-stage"
+                    <Select
                       value={application.status}
                       disabled={statusMutation.isPending}
-                      onChange={(e) => statusMutation.mutate(e.target.value as ApplicationStatus)}
-                      className="w-full rounded-lg px-3 py-2 text-sm font-medium text-(--color-ink) disabled:opacity-50"
-                      style={{ background: 'var(--color-canvas-raise)', border: '1px solid var(--color-canvas-line)' }}
+                      onValueChange={(value) => statusMutation.mutate(value as ApplicationStatus)}
                     >
-                      {APPLICATION_STAGES.map((stage) => (
-                        <option key={stage} value={stage}>
-                          {STAGE_LABELS[stage]}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger id="detail-stage" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {APPLICATION_STAGES.map((stage) => (
+                          <SelectItem key={stage} value={stage}>
+                            {STAGE_LABELS[stage]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Recruiter contact */}
