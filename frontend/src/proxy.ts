@@ -60,7 +60,6 @@ export const config = {
     '/jobs/:path*',
     '/analytics/:path*',
     '/history/:path*',
-    '/reports/:path*',
     '/profile/:path*',
     '/settings/:path*',
   ],

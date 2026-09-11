@@ -26,7 +26,7 @@ function buildPhases(palette: ReturnType<typeof useAccentPalette>) { return [
         num: '02',
         title: 'AI Parses Resume',
         desc: 'Our NLP pipeline extracts every section of your resume: contact info, summary, experience, education, skills, certifications, and projects.',
-        detail: 'Technology: Claude plus a trained scoring model. See the model card in Reports for its measured error.',
+        detail: 'Technology: Claude plus a trained scoring model. See the model card in History for its measured error.',
       },
       {
         num: '03',

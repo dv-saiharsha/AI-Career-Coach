@@ -46,7 +46,7 @@ const WORKSPACE = [
   { label: 'Cover Letter', href: '/cover-letter', icon: FileText },
   { label: 'Offers', href: '/offers', icon: Scale },
   { label: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { label: 'Reports', href: '/reports', icon: TrendingUp },
+  { label: 'History', href: '/history', icon: TrendingUp },
 ]
 
 const ACCOUNT = [

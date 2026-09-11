@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import * as Tabs from '@radix-ui/react-tabs'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { CountUp } from '@/components/ui/count-up'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/resume/InlineError'
 import { TrendChart } from '@/components/charts/TrendChart'
 import {
   FileSearch,
@@ -13,12 +15,13 @@ import {
   Target,
   TrendingUp,
   Download,
-  AlertCircle,
   Inbox,
   LineChart,
   Eye,
   Trash2,
-  Check,} from 'lucide-react'
+  Check,
+  MoreVertical,
+} from 'lucide-react'
 import {
   downloadResumeReport,
   viewOriginalResume,
@@ -157,14 +160,27 @@ export default function History() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [filter, setFilter] = useState<Filter>('All')
 
-  useEffect(() => {
-    Promise.all([getResumeHistory(), getInterviewHistory()])
+  // Reused for both the initial fetch and the retry button. The mount
+  // effect below doesn't set `status` to 'loading' itself — the useState
+  // default already is — so only the retry path (an event handler, not an
+  // effect) needs to reset it before re-fetching.
+  function fetchHistory() {
+    return Promise.all([getResumeHistory(), getInterviewHistory()])
       .then(([resumes, interviews]) => {
         setResumeHistory(resumes)
         setInterviewHistory(interviews)
         setStatus('ready')
       })
       .catch(() => setStatus('error'))
+  }
+
+  function retry() {
+    setStatus('loading')
+    fetchHistory()
+  }
+
+  useEffect(() => {
+    fetchHistory()
   }, [])
 
   const resumeTrend = useMemo(
@@ -237,14 +253,7 @@ export default function History() {
       />
 
       {status === 'error' && (
-        <div
-         
-         
-          className="flex items-center gap-3 bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-2xl px-5 py-4 panel-enter"
-        >
-          <AlertCircle className="w-4 h-4 text-[#EF4444] shrink-0" />
-          <p className="text-sm text-(--color-ink-dim)">Couldn&rsquo;t load your history. Try refreshing.</p>
-        </div>
+        <InlineError message="Couldn't load your history." onRetry={retry} />
       )}
 
       {status !== 'error' && (
@@ -388,65 +397,92 @@ export default function History() {
 
                         {item.kind === 'resume' ? (
                           <div className="flex shrink-0 items-center gap-0.5">
-                            {/* A failed view or delete must say so — silently
-                                doing nothing reads as a dead button. */}
+                            {/* A failed view, download, or delete must say so
+                                — silently doing nothing reads as a dead
+                                button. */}
                             {actionError === item.id && (
                               <span className="mr-1 text-[10px] text-(--color-signal-low)">
                                 Didn&apos;t work
                               </span>
                             )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => void runItemAction(item.id, 'view', () => viewOriginalResume(item.id))}
-                              loading={busyAction === `${item.id}:view`}
-                              loadingLabel="Opening your resume"
-                              disabled={busyAction !== null}
-                              aria-label="View original resume"
-                            >
-                              <Eye />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() =>
-                                void runItemAction(item.id, 'report', () =>
-                                  downloadResumeReport(item.id, `resume-report-${item.id}.pdf`),
-                                )
-                              }
-                              loading={busyAction === `${item.id}:report`}
-                              loadingLabel="Building your report"
-                              disabled={busyAction !== null}
-                              aria-label="Download feedback report"
-                            >
-                              <Download />
-                            </Button>
-                            {/* Two-step rather than a modal: one stray click
-                                should not destroy a scan, but a confirm dialog
-                                for a reversible-by-re-uploading action is
-                                heavier than it needs to be. */}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => {
-                                setActionError(null)
-                                if (confirmingId !== item.id) { setConfirmingId(item.id); return }
-                                setDeletingId(item.id)
-                                deleteResumeAnalysis(item.id)
-                                  .then(() => setResumeHistory((rows) => rows.filter((r) => r.id !== item.id)))
-                                  .catch(() => setActionError(item.id))
-                                  .finally(() => { setDeletingId(null); setConfirmingId(null) })
-                              }}
-                              onBlur={() => setConfirmingId((id) => (id === item.id ? null : id))}
-                              disabled={deletingId === item.id}
-                              aria-label={confirmingId === item.id ? 'Confirm delete' : 'Delete scan'}
-                              style={confirmingId === item.id ? { color: 'var(--color-signal-low)' } : undefined}
-                            >
-                              {confirmingId === item.id ? <Check /> : <Trash2 />}
-                            </Button>
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Actions for ${item.title}`}
+                                >
+                                  <MoreVertical />
+                                </Button>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.Content
+                                  align="end"
+                                  sideOffset={6}
+                                  className="bg-(--color-canvas-raise) border border-(--color-canvas-line) rounded-xl p-1.5 shadow-[0_16px_50px_rgba(0,0,0,0.6)] min-w-[160px] z-50"
+                                >
+                                  <DropdownMenu.Item
+                                    onSelect={() =>
+                                      void runItemAction(item.id, 'view', () => viewOriginalResume(item.id))
+                                    }
+                                    disabled={busyAction !== null}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-(--color-ink-dim) hover:text-(--color-ink) hover:bg-canvas-elevated transition-colors outline-none cursor-pointer data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    View original
+                                  </DropdownMenu.Item>
+                                  <DropdownMenu.Item
+                                    onSelect={() =>
+                                      void runItemAction(item.id, 'report', () =>
+                                        downloadResumeReport(item.id, `resume-report-${item.id}.pdf`),
+                                      )
+                                    }
+                                    disabled={busyAction !== null}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-(--color-ink-dim) hover:text-(--color-accent) hover:bg-(--color-accent)/10 transition-colors outline-none cursor-pointer data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download report
+                                  </DropdownMenu.Item>
+                                  <DropdownMenu.Separator className="h-px bg-(--color-canvas-line) my-1.5" />
+                                  {/* Two-step rather than a modal: one stray
+                                      click should not destroy a scan, but a
+                                      confirm dialog for a reversible-by-
+                                      re-uploading action is heavier than it
+                                      needs to be. preventDefault keeps the
+                                      menu open across both the arming click
+                                      and the confirming one — Radix closes it
+                                      on select by default. */}
+                                  <DropdownMenu.Item
+                                    onSelect={(e) => {
+                                      e.preventDefault()
+                                      setActionError(null)
+                                      if (confirmingId !== item.id) {
+                                        setConfirmingId(item.id)
+                                        return
+                                      }
+                                      setDeletingId(item.id)
+                                      deleteResumeAnalysis(item.id)
+                                        .then(() => setResumeHistory((rows) => rows.filter((r) => r.id !== item.id)))
+                                        .catch(() => setActionError(item.id))
+                                        .finally(() => {
+                                          setDeletingId(null)
+                                          setConfirmingId(null)
+                                        })
+                                    }}
+                                    disabled={deletingId === item.id}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-(--color-ink-dim) hover:text-(--color-error) hover:bg-(--color-error)/10 transition-colors outline-none cursor-pointer data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                  >
+                                    {confirmingId === item.id ? (
+                                      <Check className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    )}
+                                    {confirmingId === item.id ? 'Confirm delete' : 'Delete'}
+                                  </DropdownMenu.Item>
+                                </DropdownMenu.Content>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Root>
                           </div>
                         ) : (
                           <div className="w-8 shrink-0" />

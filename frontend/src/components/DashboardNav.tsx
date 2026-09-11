@@ -15,7 +15,6 @@ import {
   Briefcase,
   KanbanSquare,
   BarChart3,
-  FileText,
   Scale,
 } from 'lucide-react'
 import { useAuth } from '@/lib/AuthContext'
@@ -35,7 +34,14 @@ import { cn } from '@/lib/utils'
    the command palette — three finished pages with no inbound link anywhere
    in the product, reachable only by typing the URL. "Applications & Offers"
    also promised a destination it didn't lead to; Offers is its own entry
-   now, so every label matches where it actually goes. */
+   now, so every label matches where it actually goes.
+
+   Reports and History were later found to be the same feature built twice —
+   both read the identical two endpoints and rendered the same resume+
+   interview timeline, just with different button styles. Merged into
+   History (the more complete of the two: trend charts, every interview
+   session rather than completed-only) with Reports' nicer per-row action
+   menu carried over; Reports itself is deleted. */
 /* ── The shell's one horizontal grid ──────────────────────────────────────
  *
  * Three things have to start at the same x: the sidebar's own rows, the
@@ -67,7 +73,6 @@ const NAV_ITEMS = [
 
 const INSIGHT_ITEMS = [
   { icon: BarChart3, label: 'Analytics', href: '/analytics' },
-  { icon: FileText, label: 'Reports', href: '/reports' },
   { icon: TrendingUp, label: 'History', href: '/history' },
 ]
 
