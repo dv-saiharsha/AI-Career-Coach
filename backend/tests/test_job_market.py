@@ -81,7 +81,7 @@ class TestWarmFeedNeverEmpty:
     the page showed "no matching openings" on top of 140 usable listings.
     """
 
-    def _add(self, db, query_key, hours_old, title="Engineer", posted_hours=1):
+    def _add(self, db, query_key, hours_old, title="Engineer", posted_hours=1, location="Remote"):
         from datetime import datetime, timedelta, timezone
 
         from app.models.job import JobListing
@@ -91,7 +91,7 @@ class TestWarmFeedNeverEmpty:
             external_id=f"{query_key}-{hours_old}-{title}",
             title=title,
             company="Acme",
-            location="Remote",
+            location=location,
             work_mode="Remote",
             apply_url="https://example.com/job",
             fetched_at=datetime.now(timezone.utc) - timedelta(hours=hours_old),
@@ -209,3 +209,58 @@ class TestWarmFeedNeverEmpty:
         self._add(db_session, "software engineer", hours_old=1, title="Generic")
         rows, _ = _warm_feed(db_session, [])
         assert len(rows) == 1
+
+
+class TestWarmFeedCountryPriority:
+    """A free-text location field with no structured country made the
+    default grid exactly as likely to open on a Singapore posting as a
+    Seattle one for a US-based user. US-named listings must lead regardless
+    of recency or role match — see location.py.
+    """
+
+    def _add(self, db, query_key, title, location, posted_hours=1):
+        from datetime import datetime, timedelta, timezone
+
+        from app.models.job import JobListing
+
+        row = JobListing(
+            query_key=query_key,
+            external_id=f"{query_key}-{title}",
+            title=title,
+            company="Acme",
+            location=location,
+            work_mode="Remote",
+            apply_url="https://example.com/job",
+            fetched_at=datetime.now(timezone.utc),
+            posted_at=datetime.now(timezone.utc) - timedelta(hours=posted_hours),
+        )
+        db.add(row)
+        db.commit()
+        return row
+
+    def test_us_listings_lead_even_when_older(self, db_session):
+        from app.modules.job_market.services import _warm_feed
+
+        self._add(db_session, "software engineer", "Newer, Singapore", "Singapore", posted_hours=1)
+        self._add(db_session, "software engineer", "Older, US", "New York, NY", posted_hours=48)
+        rows, _ = _warm_feed(db_session, None)
+        assert [r.title for r in rows] == ["Older, US", "Newer, Singapore"]
+
+    def test_us_listings_lead_even_over_a_matched_target_role(self, db_session):
+        """Country is the outer key — see rank()'s docstring — so a
+        non-target-role US posting still leads a target-role foreign one."""
+        from app.modules.job_market.services import _warm_feed
+
+        self._add(db_session, "devops engineer", "Wanted role, London", "London, UK")
+        self._add(db_session, "software engineer", "Backfill, US", "Austin, TX")
+        rows, _ = _warm_feed(db_session, ["DevOps Engineer"])
+        assert rows[0].title == "Backfill, US"
+
+    def test_ambiguous_location_sorts_between_us_and_named_elsewhere(self, db_session):
+        from app.modules.job_market.services import _warm_feed
+
+        self._add(db_session, "software engineer", "Foreign", "Singapore")
+        self._add(db_session, "software engineer", "Ambiguous", "Remote")
+        self._add(db_session, "software engineer", "US", "Seattle, WA")
+        rows, _ = _warm_feed(db_session, None)
+        assert [r.title for r in rows] == ["US", "Ambiguous", "Foreign"]

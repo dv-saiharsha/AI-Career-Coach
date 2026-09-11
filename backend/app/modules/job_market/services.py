@@ -29,9 +29,22 @@ from app.models.job import JobListing
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
 from app.modules.job_market import jsearch
+from app.modules.job_market.location import location_priority
 from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
+
+
+def _sort_by_country_priority(rows: list[JobListing]) -> list[JobListing]:
+    """US-named listings first, then unclear, then named-elsewhere — each
+    group still ordered by recency, since Python's sort is stable and every
+    caller already queried in posted_at-descending order before this runs.
+
+    A free-text location field with no structured country is otherwise as
+    likely to open the default feed on a Singapore or Bengaluru posting as a
+    Seattle one — see location.py for how a listing gets sorted into a tier.
+    """
+    return sorted(rows, key=lambda row: location_priority(row.location))
 
 
 class SourceUnavailable(RuntimeError):
@@ -183,7 +196,7 @@ def _age_filter():
 
 
 def _fresh_rows(db: Session, query_key: str) -> list[JobListing]:
-    return (
+    rows = (
         db.query(JobListing)
         # description is NOT deferred. to_payload reads it, so deferring it
         # turned one query into one lazy load per row — 38 round-trips to
@@ -197,6 +210,7 @@ def _fresh_rows(db: Session, query_key: str) -> list[JobListing]:
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
     )
+    return _sort_by_country_priority(rows)
 
 
 def _any_rows(db: Session, query_key: str) -> list[JobListing]:
@@ -207,7 +221,7 @@ def _any_rows(db: Session, query_key: str) -> list[JobListing]:
     still applies, because an expired listing wastes an application however
     recently we indexed it.
     """
-    return (
+    rows = (
         db.query(JobListing)
         # description is NOT deferred. to_payload reads it, so deferring it
         # turned one query into one lazy load per row — 38 round-trips to
@@ -217,6 +231,7 @@ def _any_rows(db: Session, query_key: str) -> list[JobListing]:
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
     )
+    return _sort_by_country_priority(rows)
 
 
 def _replace_cache(db: Session, query_key: str, rows: list[dict]) -> list[JobListing]:
@@ -378,8 +393,14 @@ def _warm_feed(
 
     wanted_set = set(wanted)
 
-    def rank(row: JobListing) -> tuple[int, float]:
-        """Newest posting first, with the user's own roles ahead of backfill.
+    def rank(row: JobListing) -> tuple[int, int, float]:
+        """US-located first, then the user's own roles ahead of backfill,
+        newest within that.
+
+        Country is the outer key: a free-text location field with no
+        structured country made the default grid exactly as likely to open on
+        a Singapore or Bengaluru posting as a Seattle one for a US-based user.
+        See location.py for how a listing is sorted into a tier.
 
         Ordered on posted_at — when the employer listed the role — not
         fetched_at, which only records when we scraped. Sorting on the latter
@@ -387,13 +408,14 @@ def _warm_feed(
         shares a fetched_at, so the grid ends up in arbitrary order while
         appearing sorted.
 
-        Role priority stays as the outer key so a target role still leads, but
-        recency decides everything within that. Interleaving is gone: it
-        deliberately broke time order to mix roles, which is the opposite of
-        what "show them by time posted" asks for.
+        Role priority stays as the middle key so a target role still leads
+        within a country tier, but recency decides everything within that.
+        Interleaving is gone: it deliberately broke time order to mix roles,
+        which is the opposite of what "show them by time posted" asks for.
         """
         posted = _as_utc(row.posted_at)
         return (
+            location_priority(row.location),
             0 if row.query_key in wanted_set else 1,
             -posted.timestamp() if posted else 0.0,
         )
