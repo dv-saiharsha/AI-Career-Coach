@@ -9,6 +9,7 @@ import { consumeJobContext } from '@/lib/jobContext'
 import {
   analyzeResume,
   buildQuickTailoredResume,
+  deleteResumeAnalysis,
   getResumeOnFile,
   rescanResume,
   savePdfFromBase64,
@@ -193,6 +194,18 @@ export default function ResumeAnalyzer() {
     }
   }
 
+  /* Only the deletion itself is this page's concern — what appears
+     afterward (an empty dropzone, or an older scan underneath) is decided
+     by re-asking the server, the same as after a fresh upload above. A
+     second, older scan surfacing here rather than an empty state is a
+     known, accepted tradeoff: this deletes the one shown, not the account's
+     whole scan history, which the History page's score trends still need. */
+  const handleDeleteOnFile = async (analysisId: number) => {
+    await deleteResumeAnalysis(analysisId)
+    const next = await getResumeOnFile().catch(() => ({ has_resume: false, can_rescan: false }) as ResumeOnFile)
+    setOnFile(next)
+  }
+
   const toggleSkill = (skill: string) =>
     setSelectedSkills((prev) => {
       const next = new Set(prev)
@@ -294,6 +307,7 @@ export default function ResumeAnalyzer() {
             jobContextNotice={jobContextNotice}
             fileInputRef={fileInputRef}
             onFile={onFile}
+            onDeleteOnFile={handleDeleteOnFile}
             onDragOver={() => setDragOver(true)}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}

@@ -1,7 +1,7 @@
 'use client'
 
-import { type DragEvent, type FormEvent, type RefObject } from 'react'
-import { FileCheck2, FileText, Upload, X } from 'lucide-react'
+import { type DragEvent, type FormEvent, type RefObject, useState } from 'react'
+import { FileCheck2, FileText, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { bandLabel, type ScoreBand } from '@/lib/scoreBands'
 import type { ResumeOnFile } from '@/lib/apiClient'
@@ -30,6 +30,10 @@ interface ScanUploadFormProps {
   onSubmit: (e: FormEvent) => void
   /** What the account already has, so the form can offer to re-use it. */
   onFile?: ResumeOnFile | null
+  /** Deletes the resume shown in the "on file" card. Only offered when it
+   *  has an id to delete — a pre-file-retention row (`can_rescan: false`)
+   *  still has no stored bytes, but the row itself always has an id. */
+  onDeleteOnFile?: (analysisId: number) => Promise<void>
 }
 
 /**
@@ -58,7 +62,13 @@ export function ScanUploadForm({
   onDismissJobContextNotice,
   onSubmit,
   onFile,
+  onDeleteOnFile,
 }: ScanUploadFormProps) {
+  // Two-step: the first click arms it, the second commits — matching the
+  // same pattern this exact action already uses on the History page.
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   return (
     <div className="panel-enter">
       <div className="mb-8">
@@ -75,11 +85,10 @@ export function ScanUploadForm({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <form onSubmit={onSubmit} className="card p-6 flex flex-col gap-5">
-          {/* What is already on file.
-              Shown above the dropzone rather than inside it, because it is
-              not an alternative way to pick a file — it is the reason most
-              people do not need to. Uploading stays available and unchanged
-              underneath; this only removes the obligation. */}
+          {/* What is already on file. Only one resume is ever kept per
+              account, so this replaces the dropzone below rather than
+              sitting above it — deleting it is what brings the dropzone
+              back, not an "upload to replace" shortcut. */}
           {onFile?.has_resume && !file && (
             <div className="rounded-lg bg-canvas p-4 field-ring-soft">
               <div className="flex items-start gap-3">
@@ -110,81 +119,114 @@ export function ScanUploadForm({
                       ? 'Paste a job description below and scan — no need to upload it again.'
                       : 'Stored before files were kept, so this one has to be uploaded again to re-scan.'}
                   </p>
+                  {onDeleteOnFile && (
+                    <p className="mt-1 text-[12px] text-ink-faint">
+                      Delete it to upload a different resume.
+                    </p>
+                  )}
                 </div>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <span id="resumeDropzoneLabel" className="eyebrow mb-2 block">
-              {onFile?.has_resume && onFile.can_rescan
-                ? 'Replace it (optional)'
-                : 'Resume (PDF or DOCX)'}
-            </span>
-            <div
-              onDragOver={(e) => { e.preventDefault(); onDragOver() }}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              aria-labelledby="resumeDropzoneLabel"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  // Without this, Space activates *and* scrolls the page.
-                  e.preventDefault()
-                  fileInputRef.current?.click()
-                }
-              }}
-              className="cursor-pointer rounded-lg px-6 py-8 text-center transition-colors"
-              style={{
-                border: dragOver
-                  ? '1px solid var(--color-accent)'
-                  : `1px dashed var(--color-canvas-line)`,
-                background: dragOver ? 'var(--color-accent-tint)' : 'transparent',
-                boxShadow: dragOver ? 'var(--glow-signal)' : 'none',
-              }}
-            >
-              {/* Visually hidden — the styled dropzone above is the
-                  real affordance; this is what it delegates to. */}
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
-                className="hidden"
-                onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-              />
-              {file ? (
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-(--color-accent-tint) flex items-center justify-center shrink-0">
-                    <FileText strokeWidth={1.5} className="w-4 h-4 text-(--color-accent)" aria-hidden="true" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-medium text-(--color-ink) font-mono">{file.name}</div>
-                    <div className="text-xs text-(--color-ink-faint) font-mono">
-                      {(file.size / 1024).toFixed(0)} KB
-                    </div>
-                  </div>
+                {onDeleteOnFile && onFile.analysis_id != null && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={(e) => { e.stopPropagation(); onRemoveFile() }}
-                    aria-label={`Remove ${file.name}`}
-                    className="ml-1"
+                    disabled={deleting}
+                    onClick={() => {
+                      if (!confirmingDelete) {
+                        setConfirmingDelete(true)
+                        return
+                      }
+                      setDeleting(true)
+                      void onDeleteOnFile(onFile.analysis_id as number).finally(() => {
+                        setDeleting(false)
+                        setConfirmingDelete(false)
+                      })
+                    }}
+                    onBlur={() => setConfirmingDelete(false)}
+                    aria-label={confirmingDelete ? 'Confirm delete resume' : 'Delete resume on file'}
+                    className="shrink-0"
+                    style={confirmingDelete ? { color: 'var(--color-error)' } : undefined}
                   >
-                    <X strokeWidth={1.5} />
+                    <Trash2 strokeWidth={1.5} />
                   </Button>
-                </div>
-              ) : (
-                <>
-                  <Upload strokeWidth={1.5} className="w-6 h-6 text-(--color-ink-faint) mx-auto mb-2" aria-hidden="true" />
-                  <div className="text-sm text-(--color-ink-dim)">Drop your resume here</div>
-                  <div className="text-xs text-(--color-ink-faint) mt-1">or click to browse — PDF or Word (.docx), up to 10 MB</div>
-                </>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Hidden once a resume is on file — only one resume is kept per
+              account, so the way to upload a different one is to delete this
+              one first, not to drop a second file in alongside it. */}
+          {!(onFile?.has_resume && !file) && (
+            <div>
+              <span id="resumeDropzoneLabel" className="eyebrow mb-2 block">
+                Resume (PDF or DOCX)
+              </span>
+              <div
+                onDragOver={(e) => { e.preventDefault(); onDragOver() }}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                aria-labelledby="resumeDropzoneLabel"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    // Without this, Space activates *and* scrolls the page.
+                    e.preventDefault()
+                    fileInputRef.current?.click()
+                  }
+                }}
+                className="cursor-pointer rounded-lg px-6 py-8 text-center transition-colors"
+                style={{
+                  border: dragOver
+                    ? '1px solid var(--color-accent)'
+                    : `1px dashed var(--color-canvas-line)`,
+                  background: dragOver ? 'var(--color-accent-tint)' : 'transparent',
+                  boxShadow: dragOver ? 'var(--glow-signal)' : 'none',
+                }}
+              >
+                {/* Visually hidden — the styled dropzone above is the
+                    real affordance; this is what it delegates to. */}
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
+                  className="hidden"
+                  onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                />
+                {file ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-(--color-accent-tint) flex items-center justify-center shrink-0">
+                      <FileText strokeWidth={1.5} className="w-4 h-4 text-(--color-accent)" aria-hidden="true" />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-medium text-(--color-ink) font-mono">{file.name}</div>
+                      <div className="text-xs text-(--color-ink-faint) font-mono">
+                        {(file.size / 1024).toFixed(0)} KB
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={(e) => { e.stopPropagation(); onRemoveFile() }}
+                      aria-label={`Remove ${file.name}`}
+                      className="ml-1"
+                    >
+                      <X strokeWidth={1.5} />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload strokeWidth={1.5} className="w-6 h-6 text-(--color-ink-faint) mx-auto mb-2" aria-hidden="true" />
+                    <div className="text-sm text-(--color-ink-dim)">Drop your resume here</div>
+                    <div className="text-xs text-(--color-ink-faint) mt-1">or click to browse — PDF or Word (.docx), up to 10 MB</div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between mb-2">
