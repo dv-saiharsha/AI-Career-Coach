@@ -46,6 +46,10 @@ const MODE_STYLES: Record<WorkMode, string> = {
   'On-site': 'text-(--color-warn) border-(--color-warn)/25 bg-(--color-warn)/5',
 }
 
+// Below this, a description already fits within the clamp — a "Show more"
+// that reveals nothing new is worse than no toggle at all.
+const DESCRIPTION_CLAMP_CHARS = 480
+
 function postedLabel(days: number): string {
   if (days <= 0) return 'Posted today'
   if (days === 1) return 'Posted 1 day ago'
@@ -72,7 +76,15 @@ export function JobDetailDrawer({
      throughout the exit. Without this the panel blanks the instant it starts
      leaving, which looks like a bug rather than a dismissal. */
   const [shown, setShown] = useState(job)
-  if (job && job !== shown) setShown(job)
+  // Collapsed by default for every listing — a scraped board description can
+  // run to thousands of characters, and a wall of raw text is what "clean"
+  // is asking not to be. Reset alongside `shown` so switching listings never
+  // inherits the last one's "Show more".
+  const [descExpanded, setDescExpanded] = useState(false)
+  if (job && job !== shown) {
+    setShown(job)
+    setDescExpanded(false)
+  }
 
   // Escape to dismiss. Bound on the document rather than the panel so it
   // works regardless of where focus currently sits.
@@ -264,11 +276,26 @@ export function JobDetailDrawer({
                   Description
                 </h3>
                 {shown.description ? (
-                  // whitespace-pre-line preserves the source's paragraph breaks
-                  // without trusting it enough to render as HTML.
-                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-(--color-ink-subtle)">
-                    {shown.description}
-                  </p>
+                  <>
+                    {/* whitespace-pre-line preserves the source's paragraph
+                        breaks without trusting it enough to render as HTML. */}
+                    <p
+                      className={`mt-2 whitespace-pre-line text-sm leading-relaxed text-(--color-ink-subtle) ${
+                        descExpanded ? '' : 'line-clamp-6'
+                      }`}
+                    >
+                      {shown.description}
+                    </p>
+                    {shown.description.length > DESCRIPTION_CLAMP_CHARS && (
+                      <button
+                        type="button"
+                        onClick={() => setDescExpanded((v) => !v)}
+                        className="mt-1.5 text-xs font-medium text-(--color-accent) hover:underline"
+                      >
+                        {descExpanded ? 'Show less' : 'Show more'}
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <p className="mt-2 text-sm text-(--color-ink-faint)">
                     No description was published for this listing. Use Apply to read it at the

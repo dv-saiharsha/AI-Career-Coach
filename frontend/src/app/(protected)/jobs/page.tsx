@@ -18,6 +18,7 @@ import { hasAnyMatchScores, JOB_SORT_OPTIONS, sortJobs, type JobSortOption } fro
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Reveal, RevealGroup } from '@/lib/reveal'
+import { useCountdown, formatCountdown } from '@/hooks/useCountdown'
 
 const MODE_FILTERS = ['All', 'Remote', 'Hybrid', 'On-site'] as const
 type ModeFilter = (typeof MODE_FILTERS)[number]
@@ -112,6 +113,9 @@ export default function JobsPage() {
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved'>>({})
   const feedRef = useRef<JobFeed | null>(null)
   const loading = loadedTerm !== `${searchTerm}|${h1b ?? ''}|${experience ?? ''}`
+  // Ticks down live so "next sync" is a real countdown, not a clock time the
+  // reader has to compare against their own watch.
+  const nextSyncMs = useCountdown(feed?.next_sync_at ?? null)
 
   // Best Match becomes the default the first time a feed with any scored
   // listing arrives — then never again, so a later background refresh (or
@@ -165,6 +169,33 @@ export default function JobsPage() {
       cancelled = true
     }
   }, [searchTerm, h1b, experience, retryTick, toast])
+
+  // A search that misses the cache answers immediately with the fallback
+  // feed and queues a scrape for the real term in the background (see
+  // get_jobs's own docstring on why) — refreshing: true is the signal that
+  // a real result for this search is on its way. Without this, "on its
+  // way" never arrives on screen: nothing else re-triggers the fetch effect
+  // above until the searcher changes a filter or the hourly auto-refresh
+  // fires, so what's shown for a brand new search term stays the generic
+  // fallback (whatever the warm feed happens to contain) rather than the
+  // term actually searched for. Bounded to a handful of tries rather than
+  // polling forever, in case the source is quota-reserved and never clears.
+  const POLL_MS = 4000
+  const MAX_POLLS = 4
+  const pollCount = useRef(0)
+
+  useEffect(() => {
+    pollCount.current = 0
+  }, [searchTerm, h1b, experience])
+
+  useEffect(() => {
+    if (!feed?.refreshing || pollCount.current >= MAX_POLLS) return
+    const timer = setTimeout(() => {
+      pollCount.current += 1
+      setRetryTick((n) => n + 1)
+    }, POLL_MS)
+    return () => clearTimeout(timer)
+  }, [feed])
 
   useEffect(() => {
     if (defaultSortApplied.current || !feed) return
@@ -272,7 +303,12 @@ export default function JobsPage() {
                 which keeps the honest-by-construction property: the UI never
                 asserts a cadence nobody is keeping. */}
             Updated {refreshLabel(feed.lastUpdated)}
-            {feed.next_sync_at ? ` · next sync ${refreshLabel(feed.next_sync_at)}` : ''}
+            {nextSyncMs !== null && (
+              <span className="font-mono tabular-nums">
+                {' · next sync in '}
+                {formatCountdown(nextSyncMs)}
+              </span>
+            )}
           </span>
         )}
       </PageHeader>
@@ -460,6 +496,17 @@ export default function JobsPage() {
             </span>
           )}
         </Reveal>
+      )}
+
+      {/* What's on screen below is the fallback feed, not this search's own
+          results, until the queued scrape lands — said outright rather than
+          swapping the grid silently once it does, which reads as "my search
+          did nothing" in the meantime. */}
+      {feed?.refreshing && searchTerm && (
+        <div className="mb-4 flex items-center gap-2 text-xs text-(--color-ink-faint)">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-(--color-canvas-line) border-t-(--color-accent)" />
+          Searching for &ldquo;{searchTerm}&rdquo;&mdash;showing other openings until it&rsquo;s back.
+        </div>
       )}
 
       {/* Listings.
