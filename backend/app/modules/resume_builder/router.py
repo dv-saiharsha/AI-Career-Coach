@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.ratelimit import RateLimit
 from app.core.deps import AuthenticatedUser, get_current_user
+from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import autofill, faang, optimizer, services, tailor
+from app.modules.resume_builder import autofill, cache, faang, optimizer, services, tailor
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
     AutofillSchema,
@@ -253,7 +254,9 @@ def quick_tailor(
     there.
 
     Rate limited at 15/hour: no LLM call, but every attempt runs several
-    tectonic compiles, which is real CPU on a shared worker.
+    tectonic compiles, which is real CPU on a shared worker. When job_id is
+    given, an identical (user, analysis, job, target_pages) request is served
+    from resume_builder/cache.py instead — skipping every compile.
     """
     record = (
         db.query(ResumeAnalysis)
@@ -268,14 +271,35 @@ def quick_tailor(
             detail="The original resume text isn't available for this scan. Please re-scan your resume.",
         )
 
+    jd_text = payload.job_description
+    if payload.job_id is not None:
+        job = db.query(JobListing).filter(JobListing.id == payload.job_id).first()
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        jd_text = job.description or ""
+
+        cached = cache.get_cached(
+            db, current_user.id, analysis_id, payload.job_id, "quick_tailor", payload.target_pages
+        )
+        if cached is not None:
+            return {**cached, "from_cache": True}
+
     try:
-        return services.quick_tailor(
+        result = services.quick_tailor(
             record,
             payload.full_name,
-            payload.job_description,
+            jd_text,
             payload.target_pages,
+            accepted_skills=payload.accepted_skills,
+            bullet_overrides=[b.model_dump() for b in payload.bullet_overrides],
         )
     except LatexToolchainMissing as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except LatexCompileError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if payload.job_id is not None:
+        cache.put_cached(
+            db, current_user.id, analysis_id, payload.job_id, "quick_tailor", result, payload.target_pages
+        )
+    return result

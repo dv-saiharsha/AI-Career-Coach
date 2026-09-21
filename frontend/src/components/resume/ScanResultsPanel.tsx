@@ -383,7 +383,8 @@ export function ScanResultsPanel({
               <div className="flex items-center gap-2 text-(--color-accent)">
                 <CheckCircle2 strokeWidth={1.5} className="h-4 w-4" aria-hidden="true" />
                 Downloaded {genResult.filename} — {genResult.page_count} page
-                {genResult.page_count !== 1 ? 's' : ''}, scoring {genResult.ats_score}.
+                {genResult.page_count !== 1 ? 's' : ''}
+                {genResult.ats_score !== null ? `, scoring ${genResult.ats_score}.` : '.'}
               </div>
 
               {/* Said plainly rather than hidden: a candidate whose oldest

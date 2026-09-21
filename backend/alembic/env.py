@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings, warn_if_transaction_pooler  # noqa: E402
 from app.core.database import Base  # noqa: E402
-from app.models import interview, job, resume  # noqa: E402,F401 — registers models with Base
+from app.models import interview, job, resume, tailor_cache  # noqa: E402,F401 — registers models with Base
 
 config = context.config
 # %% not %: set_main_option writes into a configparser, which treats a lone

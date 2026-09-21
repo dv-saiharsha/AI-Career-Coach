@@ -295,3 +295,173 @@ class TestStoredScanLayoutDiagnostics:
             "parsing_readiness"
         ]
         assert all({"severity", "issue", "detail"} <= set(w) for w in readiness["formatting_warnings"])
+
+
+class TestQuickTailorAppliesAcceptedContent:
+    """accepted_skills and bullet_overrides are the caller's own prior
+    choices (typically a tailor-preview's state_explicitly/missing_keywords
+    and bullet_suggestions) — quick_tailor only places them, it never decides
+    them. fit.fit_to_pages and predict_score are monkeypatched: this class is
+    about what goes INTO the compile payload, not about real compilation or
+    real scoring — see this file's own docstring on why scoring tests use the
+    real model elsewhere and mocking it here would be the wrong thing there,
+    but is the right thing for a test that isn't about scoring at all.
+    """
+
+    def _record(self, matched_skills=None, extracted_skills=None):
+        import json
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            resume_text="irrelevant — build_autofill is monkeypatched below",
+            result_json=json.dumps(
+                {"matched_skills": matched_skills or [], "extracted_skills": extracted_skills or []}
+            ),
+        )
+
+    def _patch(self, monkeypatch, experiences):
+        captured = {}
+
+        monkeypatch.setattr(
+            services.autofill,
+            "build_autofill",
+            lambda text: {
+                "name": "Jane Doe", "email": "", "phone": "", "location": "", "linkedin": "",
+                "summary": "", "experiences": experiences, "education": [],
+            },
+        )
+
+        def fake_fit_to_pages(data, target_pages, jd_keywords=None, density=None):
+            captured["data"] = data
+            return {
+                "tex": "\\documentclass{article}", "pdf_bytes": b"%PDF-1.4 fake",
+                "page_count": 1, "fits": True, "adjustments": [], "content": data,
+            }
+
+        monkeypatch.setattr(services.fit, "fit_to_pages", fake_fit_to_pages)
+        monkeypatch.setattr(services, "predict_score", lambda text, jd: 70)
+        return captured
+
+    def test_accepted_skill_is_added(self, monkeypatch):
+        captured = self._patch(monkeypatch, experiences=[])
+        record = self._record(matched_skills=["Python"])
+
+        services.quick_tailor(record, "Jane Doe", "jd text", 1, accepted_skills=["Kubernetes"])
+
+        assert "Kubernetes" in captured["data"]["technical_skills"]
+
+    def test_accepted_skill_already_present_is_not_duplicated(self, monkeypatch):
+        captured = self._patch(monkeypatch, experiences=[])
+        record = self._record(matched_skills=["Python"])
+
+        services.quick_tailor(record, "Jane Doe", "jd text", 1, accepted_skills=["python"])
+
+        assert captured["data"]["technical_skills"].count("Python") == 1
+
+    def test_bullet_override_replaces_matching_text(self, monkeypatch):
+        experiences = [
+            {"title": "Engineer", "company": "Acme", "dates": "2020-2023",
+             "bullets": ["Built things.", "Fixed bugs."]},
+        ]
+        captured = self._patch(monkeypatch, experiences=experiences)
+        record = self._record()
+
+        services.quick_tailor(
+            record, "Jane Doe", "jd text", 1,
+            bullet_overrides=[
+                {"experience_index": 0, "original": "Built things.",
+                 "suggested": "Built distributed systems serving 1M requests/day."},
+            ],
+        )
+
+        bullets = captured["data"]["experiences"][0]["bullets"]
+        assert "Built distributed systems serving 1M requests/day." in bullets
+        assert "Built things." not in bullets
+
+    def test_bullet_override_skipped_when_text_no_longer_matches(self, monkeypatch):
+        """The source resume can change between when a suggestion was
+        generated and when it's applied. Applying it to the wrong line would
+        be worse than silently dropping a stale one."""
+        experiences = [
+            {"title": "Engineer", "company": "Acme", "dates": "2020-2023", "bullets": ["Built things."]},
+        ]
+        captured = self._patch(monkeypatch, experiences=experiences)
+        record = self._record()
+
+        services.quick_tailor(
+            record, "Jane Doe", "jd text", 1,
+            bullet_overrides=[
+                {"experience_index": 0, "original": "Some stale suggestion",
+                 "suggested": "Should never appear."},
+            ],
+        )
+
+        assert captured["data"]["experiences"][0]["bullets"] == ["Built things."]
+
+    def test_bullet_override_with_out_of_range_index_is_ignored(self, monkeypatch):
+        captured = self._patch(monkeypatch, experiences=[])
+        record = self._record()
+
+        services.quick_tailor(
+            record, "Jane Doe", "jd text", 1,
+            bullet_overrides=[
+                {"experience_index": 5, "original": "x", "suggested": "y"},
+            ],
+        )
+
+        assert captured["data"]["experiences"] == []
+
+
+class TestQuickTailorScoreWithoutATrainedModel:
+    """A fresh clone has no app/ml/models/ats_model.joblib — it's gitignored,
+    same as every other environment described in this file's docstring. Before
+    this test existed, quick_tailor called predict_score unconditionally and
+    crashed with an unhandled RuntimeError the first time someone actually
+    exercised this endpoint without a trained model on disk — every other
+    scoring call site in this module (faang.build_preview) already guards on
+    model_available() and reports None instead. This locks that fix in."""
+
+    def _record(self):
+        import json
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            resume_text="irrelevant — build_autofill is monkeypatched below",
+            result_json=json.dumps({"matched_skills": [], "extracted_skills": []}),
+        )
+
+    def _patch_autofill_and_fit(self, monkeypatch):
+        monkeypatch.setattr(
+            services.autofill, "build_autofill",
+            lambda text: {
+                "name": "Jane Doe", "email": "", "phone": "", "location": "", "linkedin": "",
+                "summary": "", "experiences": [], "education": [],
+            },
+        )
+        monkeypatch.setattr(
+            services.fit, "fit_to_pages",
+            lambda data, target_pages, jd_keywords=None, density=None: {
+                "tex": "\\documentclass{article}", "pdf_bytes": b"%PDF-1.4 fake",
+                "page_count": 1, "fits": True, "adjustments": [], "content": data,
+            },
+        )
+
+    def test_no_model_gives_none_rather_than_crashing(self, monkeypatch):
+        self._patch_autofill_and_fit(monkeypatch)
+        monkeypatch.setattr(services, "model_available", lambda: False)
+
+        def fail_if_called(*a, **k):
+            raise AssertionError("predict_score must not be called when no model is on disk")
+
+        monkeypatch.setattr(services, "predict_score", fail_if_called)
+
+        result = services.quick_tailor(self._record(), "Jane Doe", "jd text", 1)
+        assert result["ats_score"] is None
+
+    def test_model_available_still_scores(self, monkeypatch):
+        self._patch_autofill_and_fit(monkeypatch)
+        monkeypatch.setattr(services, "model_available", lambda: True)
+        monkeypatch.setattr(services, "predict_score", lambda text, jd: 77)
+
+        result = services.quick_tailor(self._record(), "Jane Doe", "jd text", 1)
+        assert result["ats_score"] == 77

@@ -27,7 +27,7 @@ from app.ml.features import extract_features
 from app.ml.inference import model_available, predict_score
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import services
+from app.modules.resume_builder import cache, services
 
 logger = logging.getLogger(__name__)
 
@@ -123,14 +123,36 @@ def build_preview(
         current_score = round(float(predict_score(resume_text, jd_text)), 1)
         semantic = round(extract_features(resume_text, jd_text)["tfidf_cosine"] * 100, 1)
 
-    staged = services.stage_fixes(
-        resume_text, jd_text, experiences=None if not include_rewrites else []
-    )
-    missing = staged["missing_keywords"][:MAX_KEYWORDS]
+    # Only the rewrite path spends a Claude call, so only it is worth
+    # caching — a plain preview is already cheap and should stay fresh.
+    cached = cache.get_cached(db, user_id, analysis_id, job.id, "preview") if include_rewrites else None
 
-    implied_pool = expand_skills(skill_candidates(resume_text))
-    state_explicitly = [kw for kw in missing if canonical(kw) in implied_pool]
-    genuine_gaps = [kw for kw in missing if kw not in state_explicitly]
+    if cached is not None:
+        genuine_gaps = cached["missing_keywords"]
+        state_explicitly = cached["state_explicitly"]
+        bullet_suggestions = cached["bullet_suggestions"]
+        from_cache = True
+    else:
+        staged = services.stage_fixes(
+            resume_text, jd_text, experiences=None if not include_rewrites else []
+        )
+        missing = staged["missing_keywords"][:MAX_KEYWORDS]
+
+        implied_pool = expand_skills(skill_candidates(resume_text))
+        state_explicitly = [kw for kw in missing if canonical(kw) in implied_pool]
+        genuine_gaps = [kw for kw in missing if kw not in state_explicitly]
+        bullet_suggestions = staged["bullet_suggestions"]
+        from_cache = False
+
+        if include_rewrites:
+            cache.put_cached(
+                db, user_id, analysis_id, job.id, "preview",
+                {
+                    "missing_keywords": genuine_gaps,
+                    "state_explicitly": state_explicitly,
+                    "bullet_suggestions": bullet_suggestions,
+                },
+            )
 
     return {
         "job_id": job.id,
@@ -149,6 +171,7 @@ def build_preview(
         # real once the tailored version is compiled.
         "missing_keywords": genuine_gaps,
         "state_explicitly": state_explicitly,
-        "bullet_suggestions": staged["bullet_suggestions"],
+        "bullet_suggestions": bullet_suggestions,
         "has_job_description": bool(jd_text),
+        "from_cache": from_cache,
     }

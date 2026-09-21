@@ -1,22 +1,25 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, FileText, Sparkles, Wand2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Download, FileCode2, FileText, ScrollText, Sparkles, Wand2 } from 'lucide-react'
 
 import {
-  generateImprovedResume,
+  buildQuickTailoredResume,
   getResumeHistory,
   getTailorPreview,
+  pdfBlobUrl,
+  savePdfFromBase64,
+  type QuickTailorResult,
   type ResumeHistoryItem,
   type TailorPreview,
 } from '@/lib/apiClient'
 import { useAuth } from '@/lib/AuthContext'
 import { useTailorProgress, type ProgressStep } from '@/hooks/useTailorProgress'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CopyButton } from '@/components/ui/copy-button'
 import { TailorProgressStepper } from '@/components/resume/TailorProgressStepper'
 
 /**
@@ -41,29 +44,25 @@ const STEPS: ProgressStep[] = [
   {
     key: 'build',
     label: 'Building your tailored PDF',
-    description: 'Adding what you confirmed, keeping your original layout',
+    description: 'Applying every skill and rewrite this posting supports',
   },
 ]
 
 /**
- * Split-view tailoring, behind an acceptance gate.
+ * Autonomous tailoring: the resume builds itself.
  *
- * The right pane is a proposal, not a rewrite that already happened. Nothing
- * is written until the user accepts — which is why the preview endpoint is
- * read-only and the selection lives in local state until then.
+ * Every skill this resume already implies or that the posting names, and
+ * every bullet rewrite Claude proposes, is applied automatically — nothing
+ * waits on a click. That is a deliberate departure from this page's earlier
+ * tick-box acceptance gate, which existed specifically so a candidate never
+ * had a skill or achievement stated on their behalf without confirming it.
  *
- * Two things this page will not render, both of which the brief asked for and
- * neither of which can be produced honestly:
- *
- *   A projected score. The API returns none. A "+24 points" figure for a
- *   document that does not exist yet is a promise dressed as a measurement,
- *   and a candidate will read it as one. The score is recomputed for real
- *   from the built file afterwards.
- *
- *   Invented achievements. Gaps are a checklist the candidate ticks for
- *   skills they actually have, never woven silently into the proposal. A
- *   resume claiming something its owner cannot defend in an interview is
- *   worse for them than an honest gap.
+ * What stays from that design, because it costs nothing to keep: every
+ * applied skill and rewrite is still shown, not hidden, labelled by whether
+ * it came from something the resume already demonstrates or from the
+ * posting alone — the second category is the one a candidate should be able
+ * to defend in an interview, and this page says so rather than presenting
+ * both the same way.
  */
 function TailorWorkspace() {
   const params = useSearchParams()
@@ -76,19 +75,16 @@ function TailorWorkspace() {
   const [preview, setPreview] = useState<TailorPreview | null>(null)
   const [scans, setScans] = useState<ResumeHistoryItem[] | null>(null)
   const [error, setError] = useState('')
-  const [accepted, setAccepted] = useState<Set<string>>(new Set())
-  // null means "the user hasn't typed anything", so the signed-in name shows
-  // through as soon as the session resolves. Seeding state from an effect
-  // instead would either clobber what they typed or need a guard flag.
-  const [typedName, setTypedName] = useState<string | null>(null)
   const [building, setBuilding] = useState(false)
-  const [built, setBuilt] = useState(false)
+  const [built, setBuilt] = useState<QuickTailorResult | null>(null)
+  const [view, setView] = useState<'pdf' | 'tex'>('pdf')
 
   const progress = useTailorProgress(STEPS)
   const { begin, finish, reset } = progress
   const loadedFor = useRef<string>('')
+  const buildStarted = useRef(false)
 
-  const fullName = typedName ?? user?.fullName ?? ''
+  const fullName = user?.fullName ?? ''
 
   const load = useCallback(async () => {
     if (!Number.isFinite(jobId) || jobId <= 0) {
@@ -98,6 +94,8 @@ function TailorWorkspace() {
     reset()
     setError('')
     setPreview(null)
+    setBuilt(null)
+    buildStarted.current = false
 
     let analysisId = analysisParam
     try {
@@ -123,13 +121,9 @@ function TailorWorkspace() {
 
     try {
       begin('score')
-      const data = await getTailorPreview({ job_id: jobId, analysis_id: analysisId })
+      const data = await getTailorPreview({ job_id: jobId, analysis_id: analysisId, include_rewrites: true })
       finish('score')
       setPreview(data)
-      // Implied-but-unwritten skills start ticked: the candidate demonstrably
-      // has them, so stating them costs nothing. Genuine gaps start unticked —
-      // those are claims only the candidate can make.
-      setAccepted(new Set(data.state_explicitly))
     } catch {
       finish('score', false)
       setError('Could not build a preview for this job. It may no longer be cached.')
@@ -143,36 +137,46 @@ function TailorWorkspace() {
     void load()
   }, [jobId, analysisParam, load])
 
-  const toggle = (skill: string) => {
-    setAccepted((prev) => {
-      const next = new Set(prev)
-      if (next.has(skill)) next.delete(skill)
-      else next.add(skill)
-      return next
-    })
-  }
+  // Fires once per preview, as soon as a name is available — which for a
+  // signed-in user is immediately (AuthContext always derives one, falling
+  // back to the email's local part). No click required.
+  useEffect(() => {
+    if (!preview || buildStarted.current || !fullName.trim()) return
+    buildStarted.current = true
 
-  const handleAccept = async () => {
-    if (!preview || !fullName.trim()) return
-    setBuilding(true)
-    setError('')
-    try {
-      begin('build')
-      await generateImprovedResume(
-        preview.analysis_id,
-        fullName.trim(),
-        Array.from(accepted),
-        preview.download_filename,
-      )
-      finish('build')
-      setBuilt(true)
-    } catch {
-      finish('build', false)
-      setError('The resume failed to build. Your original is unchanged.')
-    } finally {
-      setBuilding(false)
+    const run = async () => {
+      setBuilding(true)
+      setError('')
+      try {
+        begin('build')
+        const result = await buildQuickTailoredResume(preview.analysis_id, {
+          full_name: fullName.trim(),
+          target_pages: 1,
+          job_id: preview.job_id,
+          accepted_skills: [...preview.state_explicitly, ...preview.missing_keywords],
+          bullet_overrides: preview.bullet_suggestions,
+        })
+        setBuilt(result)
+        finish('build')
+      } catch {
+        finish('build', false)
+        buildStarted.current = false
+        setError('The resume failed to build. Your original is unchanged.')
+      } finally {
+        setBuilding(false)
+      }
     }
-  }
+    void run()
+  }, [preview, fullName, begin, finish])
+
+  // A blob URL, not state derived from one — revoked whenever it changes or
+  // this unmounts, which is the only side effect involved.
+  const pdfUrl = useMemo(() => (built ? pdfBlobUrl(built.pdf_base64) : null), [built])
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+    }
+  }, [pdfUrl])
 
   const loading = !preview && !error
 
@@ -196,8 +200,9 @@ function TailorWorkspace() {
           {preview ? `${preview.job_title} at ${preview.company}.` : 'Tailoring your resume.'}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--color-ink-dim)]">
-          Your resume on the left, what we propose changing on the right. Nothing is saved or
-          downloaded until you accept.
+          Every skill your resume supports and every rewrite Claude proposes is applied
+          automatically. Nothing is downloaded until it&apos;s built, and everything applied is
+          listed below so you can see exactly what changed.
         </p>
       </div>
 
@@ -238,7 +243,7 @@ function TailorWorkspace() {
 
       {preview && (
         <>
-          <ScoreStrip preview={preview} />
+          <ScoreStrip preview={preview} built={built} />
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <section className="card flex flex-col p-6">
@@ -257,11 +262,10 @@ function TailorWorkspace() {
             <section className="card flex flex-col p-6">
               <div className="eyebrow mb-1 inline-flex items-center gap-1.5">
                 <Sparkles strokeWidth={1.5} className="h-3 w-3" />
-                Proposed
+                Applied automatically
               </div>
               <p className="mb-4 text-xs text-[var(--color-ink-faint)]">
-                Tick only what you can defend in an interview. We add nothing you have not
-                confirmed.
+                Nothing here waits for a tick — every item below is already in the build.
               </p>
 
               {!preview.has_job_description && (
@@ -273,26 +277,22 @@ function TailorWorkspace() {
               )}
 
               <SkillGroup
-                title="Say these out loud"
-                hint="Your resume implies these but never writes them down. A keyword search still misses them, so stating them is free."
+                title="Stated explicitly"
+                hint="Your resume already demonstrates these — writing them down costs nothing."
                 skills={preview.state_explicitly}
-                accepted={accepted}
-                onToggle={toggle}
               />
 
               <SkillGroup
-                title="Named by the posting, missing from your resume"
-                hint="Neither stated nor implied. Tick only the ones you genuinely have — an untrue line costs more than a gap."
+                title="Added because the posting named it"
+                hint="Not previously stated or implied. Make sure you can defend each of these in an interview — remove any you can't."
                 skills={preview.missing_keywords}
-                accepted={accepted}
-                onToggle={toggle}
                 muted
               />
 
               {preview.bullet_suggestions.length > 0 && (
                 <div className="mt-5 space-y-3">
                   <div className="text-xs font-medium text-[var(--color-ink)]">
-                    Stronger wording for your own bullets
+                    Rewritten bullets
                   </div>
                   {preview.bullet_suggestions.map((s, i) => (
                     <div key={i} className="rounded-md bg-[var(--color-canvas-deep)] p-3">
@@ -308,83 +308,122 @@ function TailorWorkspace() {
             </section>
           </div>
 
-          <div className="card mt-4 p-6">
-            <div className="eyebrow mb-1">Accept and build</div>
-            <p className="mb-4 text-sm text-[var(--color-ink-dim)]">
-              {accepted.size > 0 ? (
-                <>
-                  {accepted.size} skill{accepted.size !== 1 ? 's' : ''} will be added to your
-                  existing skills section — same layout, same formatting, no rebuild from scratch.
-                  Your score is recomputed from the real file afterwards; we do not estimate it
-                  beforehand.
-                </>
-              ) : (
-                <>Tick at least one skill on the right to build a tailored version.</>
-              )}
-            </p>
-
-            <div className="flex flex-col items-start gap-3 sm:flex-row">
-              <label htmlFor="tailorName" className="sr-only">
-                Your full name
-              </label>
-              <Input
-                id="tailorName"
-                autoComplete="name"
-                value={fullName}
-                onChange={(e) => setTypedName(e.target.value)}
-                placeholder="Your full name (e.g. John Doe)"
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                onClick={handleAccept}
-                disabled={building || accepted.size === 0 || !fullName.trim()}
-                className="whitespace-nowrap"
-              >
-                {building ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)]" />
-                    Building…
-                  </>
-                ) : (
-                  <>
-                    <Check strokeWidth={1.5} className="h-4 w-4" />
-                    Accept changes
-                  </>
-                )}
-              </Button>
+          {building && !built && (
+            <div className="card mt-4 flex items-center gap-3 p-6 text-sm text-[var(--color-ink-dim)]">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-accent)]/30 border-t-[var(--color-accent)]" />
+              Building your tailored PDF…
             </div>
+          )}
 
-            <p className="mt-3 font-mono text-[11px] text-[var(--color-ink-faint)]">
-              {preview.download_filename}
-            </p>
+          {built && (
+            <div className="card mt-4 flex flex-col p-6 panel-enter">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="eyebrow mb-1">
+                    {built.fits
+                      ? `Fits on ${built.page_count} page${built.page_count !== 1 ? 's' : ''}`
+                      : `Came out to ${built.page_count} pages — nothing left to trim without cutting a role`}
+                  </div>
+                  <p className="font-mono text-[11px] text-[var(--color-ink-faint)]">
+                    {built.filename}
+                    {built.from_cache && ' · instant (cached)'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex rounded-md border border-[var(--color-canvas-line)] p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setView('pdf')}
+                      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+                        view === 'pdf'
+                          ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                          : 'text-[var(--color-ink-dim)]'
+                      }`}
+                    >
+                      <FileText strokeWidth={1.5} className="h-3 w-3" />
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setView('tex')}
+                      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+                        view === 'tex'
+                          ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                          : 'text-[var(--color-ink-dim)]'
+                      }`}
+                    >
+                      <FileCode2 strokeWidth={1.5} className="h-3 w-3" />
+                      LaTeX source
+                    </button>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => savePdfFromBase64(built.pdf_base64, built.filename)}
+                    className="whitespace-nowrap"
+                  >
+                    <Download strokeWidth={1.5} className="h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
+              </div>
 
-              {built && (
-                <div
-                 
-                 
-                  className="mt-3 flex items-center gap-2 text-sm text-[var(--color-accent)] panel-enter"
-                >
-                  <CheckCircle2 strokeWidth={1.5} className="h-4 w-4" />
-                  Downloaded. Your original scan is untouched.
+              {view === 'pdf' ? (
+                pdfUrl && (
+                  <iframe
+                    src={pdfUrl}
+                    title="Tailored resume preview"
+                    className="h-[36rem] w-full rounded-md border border-[var(--color-canvas-line)]"
+                  />
+                )
+              ) : (
+                <div className="relative">
+                  <CopyButton
+                    value={built.tex_source}
+                    label="LaTeX source"
+                    className="absolute right-2 top-2 bg-[var(--color-canvas)]"
+                  />
+                  <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap rounded-md bg-[var(--color-canvas-deep)] p-4 font-mono text-[11px] leading-relaxed text-[var(--color-ink-dim)]">
+                    {built.tex_source}
+                  </pre>
                 </div>
               )}
-          </div>
+
+              {built.adjustments.length > 0 && (
+                <div className="mt-4">
+                  <div className="mb-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-ink)]">
+                    <ScrollText strokeWidth={1.5} className="h-3 w-3" />
+                    What we changed to fit one page
+                  </div>
+                  <ul className="space-y-1 text-xs text-[var(--color-ink-dim)]">
+                    {built.adjustments.map((note, i) => (
+                      <li key={i}>· {note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
   )
 }
 
-function ScoreStrip({ preview }: { preview: TailorPreview }) {
+function ScoreStrip({ preview, built }: { preview: TailorPreview; built: QuickTailorResult | null }) {
   return (
     <div className="card mt-4 flex flex-wrap items-center gap-x-8 gap-y-3 p-5">
       <div>
-        <div className="eyebrow mb-1">Match, this posting</div>
+        <div className="eyebrow mb-1">Match, before</div>
         <div className="font-display text-2xl text-[var(--color-ink)]">
           {preview.current_score !== null ? `${preview.current_score}%` : '—'}
         </div>
       </div>
+      {built && built.ats_score !== null && (
+        <div>
+          <div className="eyebrow mb-1">Match, after</div>
+          <div className="font-display text-2xl text-[var(--color-accent)]">{built.ats_score}%</div>
+        </div>
+      )}
       {preview.semantic_match !== null && (
         <div>
           <div className="eyebrow mb-1">Text similarity</div>
@@ -393,12 +432,12 @@ function ScoreStrip({ preview }: { preview: TailorPreview }) {
           </div>
         </div>
       )}
-      {/* No "after" figure sits beside these on purpose. See the component
-          docstring: the API returns none, because none has been measured. */}
       <p className="max-w-md text-xs leading-relaxed text-[var(--color-ink-faint)]">
         {preview.current_score === null
           ? 'No trained model is loaded, so this resume has not been scored against this posting.'
-          : 'Measured against this posting, not the one you originally scanned against. There is deliberately no projected score — a number for a resume that does not exist yet cannot be measured.'}
+          : built
+            ? 'The "after" figure is measured on the file that was actually built, not projected in advance.'
+            : 'Measured against this posting. The tailored version is being built now — its real score follows once compiled.'}
       </p>
     </div>
   )
@@ -408,15 +447,11 @@ function SkillGroup({
   title,
   hint,
   skills,
-  accepted,
-  onToggle,
   muted = false,
 }: {
   title: string
   hint: string
   skills: string[]
-  accepted: Set<string>
-  onToggle: (s: string) => void
   muted?: boolean
 }) {
   if (!skills.length) return null
@@ -425,27 +460,18 @@ function SkillGroup({
       <div className="text-xs font-medium text-[var(--color-ink)]">{title}</div>
       <p className="mb-2.5 mt-1 text-[11px] leading-relaxed text-[var(--color-ink-faint)]">{hint}</p>
       <div className="flex flex-wrap gap-2">
-        {skills.map((skill) => {
-          const on = accepted.has(skill)
-          return (
-            <button
-              key={skill}
-              type="button"
-              onClick={() => onToggle(skill)}
-              aria-pressed={on}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
-                on
-                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                  : `border-[var(--color-canvas-line)] text-[var(--color-ink-dim)] hover:border-[var(--color-accent)] ${
-                      muted ? 'bg-transparent' : 'bg-[var(--color-canvas-deep)]'
-                    }`
-              }`}
-            >
-              {on && <Check strokeWidth={2} className="h-3 w-3" />}
-              {skill}
-            </button>
-          )
-        })}
+        {skills.map((skill) => (
+          <span
+            key={skill}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
+              muted
+                ? 'border-[var(--color-canvas-line)] text-[var(--color-ink-dim)]'
+                : 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+            }`}
+          >
+            {skill}
+          </span>
+        ))}
       </div>
     </div>
   )

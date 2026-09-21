@@ -19,10 +19,10 @@ import logging
 
 from app.core.keywords import keyword_candidates
 from app.core.llm import llm_client
-from app.core.taxonomy import expand_skills, group_by_domain, skill_candidates
+from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import layout_check, quality
 from app.ml.features import extract_features
-from app.ml.inference import predict_score
+from app.ml.inference import model_available, predict_score
 from app.modules.resume_builder import autofill, fit, guards, latex
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing  # noqa: F401 (re-exported)
 
@@ -220,7 +220,14 @@ def quality_report(
     }
 
 
-def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dict:
+def quick_tailor(
+    record,
+    full_name: str,
+    jd_text: str,
+    target_pages: int,
+    accepted_skills: list[str] | None = None,
+    bullet_overrides: list[dict] | None = None,
+) -> dict:
     """A finished, page-fitted FAANG-format resume from a stored scan.
 
     Everything here comes out of the candidate's own uploaded resume:
@@ -228,6 +235,12 @@ def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dic
     their bullets lead, and fit.py compiles-and-measures until it is the
     requested length. Nothing is written for them — see fit.py's docstring
     for why there is no expansion ladder to match the trim ladder.
+
+    accepted_skills and bullet_overrides are the caller's own prior choices —
+    typically a tailor-preview's state_explicitly/missing_keywords and
+    bullet_suggestions — applied here rather than computed here. This
+    function never decides what counts as a gap or how to reword a bullet;
+    it only places content it was explicitly handed.
 
     The score is the trained model's, computed on the resulting text, so a
     candidate is told what their new resume actually scores rather than what
@@ -242,6 +255,34 @@ def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dic
     technical = [s for s in (stored.get("matched_skills") or []) if s][:18]
     tools = [s for s in (stored.get("extracted_skills") or []) if s and s not in technical][:12]
 
+    # Skills the caller explicitly accepted get added too — de-duped against
+    # what's already listed above rather than appended blindly, since the
+    # accepted set can legitimately overlap with matched_skills.
+    if accepted_skills:
+        seen = {canonical(s) for s in (*technical, *tools)}
+        for skill in accepted_skills:
+            key = canonical(skill)
+            if key and key not in seen:
+                technical.append(skill)
+                seen.add(key)
+
+    experiences = parsed.get("experiences") or []
+    # Bullet rewrites, matched by (experience_index, original) against the
+    # resume actually on file. A suggestion that no longer matches — the
+    # source text changed since it was generated — is skipped rather than
+    # applied to the wrong line.
+    for override in bullet_overrides or []:
+        idx = override.get("experience_index")
+        original = override.get("original")
+        suggested = override.get("suggested")
+        if idx is None or not (0 <= idx < len(experiences)) or not original or not suggested:
+            continue
+        bullets = experiences[idx].get("bullets") or []
+        for i, bullet in enumerate(bullets):
+            if bullet == original:
+                bullets[i] = suggested
+                break
+
     keywords = {k.lower() for k in expand_skills(skill_candidates(jd_text))} if jd_text else set()
 
     payload = {
@@ -253,7 +294,7 @@ def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dic
         "summary": parsed.get("summary") or "",
         "technical_skills": technical,
         "tools_skills": tools,
-        "experiences": parsed.get("experiences") or [],
+        "experiences": experiences,
         "education": parsed.get("education") or [],
     }
 
@@ -267,7 +308,9 @@ def quick_tailor(record, full_name: str, jd_text: str, target_pages: int) -> dic
         "target_pages": target_pages,
         "fits": fitted["fits"],
         "adjustments": fitted["adjustments"],
-        "ats_score": predict_score(resume_text, jd_text),
+        # None when no model is on disk — never a placeholder figure, same
+        # rule faang.build_preview already follows for current_score.
+        "ats_score": predict_score(resume_text, jd_text) if model_available() else None,
         # Imported here, not at module scope: faang imports this module, and
         # at the top level that is a cycle.
         "filename": _faang_filename(payload["candidate_name"]),

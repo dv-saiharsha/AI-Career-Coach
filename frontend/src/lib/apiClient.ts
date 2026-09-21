@@ -1479,6 +1479,9 @@ export interface TailorPreview {
   state_explicitly: string[]
   bullet_suggestions: TailorBulletSuggestion[]
   has_job_description: boolean
+  /** True when this skipped the Claude rewrite call because an identical
+   *  preview was already cached. */
+  from_cache?: boolean
 }
 
 /**
@@ -1661,8 +1664,12 @@ export interface QuickTailorResult {
   target_pages: number
   fits: boolean
   adjustments: string[]
-  ats_score: number
+  /** Null when no trained model is on disk — never a placeholder figure. */
+  ats_score: number | null
   filename: string
+  /** True when this skipped every tectonic compile because an identical
+   *  (user, analysis, job, target_pages) build was already cached. */
+  from_cache?: boolean
 }
 
 /**
@@ -1671,10 +1678,24 @@ export interface QuickTailorResult {
  * assuming the template does — so `page_count` is what came out, which is
  * not always `target_pages`, and `adjustments` says what was cut to get
  * there.
+ *
+ * `job_id`, given, resolves the job description server-side and doubles as
+ * the cache key alongside the analysis — a repeat call with the same
+ * arguments comes back instantly instead of recompiling. `accepted_skills`
+ * and `bullet_overrides` are usually a tailor-preview's own
+ * state_explicitly/missing_keywords and bullet_suggestions, passed straight
+ * through: this endpoint places them, it does not decide them.
  */
 export const buildQuickTailoredResume = async (
   analysisId: number,
-  payload: { full_name: string; job_description: string; target_pages: 1 | 2 },
+  payload: {
+    full_name: string
+    job_description?: string
+    target_pages: 1 | 2
+    job_id?: number
+    accepted_skills?: string[]
+    bullet_overrides?: TailorBulletSuggestion[]
+  },
 ): Promise<QuickTailorResult> => {
   const response = await apiClient.post<QuickTailorResult>(
     `/resume-builder/quick-tailor/${analysisId}`,

@@ -200,6 +200,9 @@ class TailorPreviewSchema(BaseModel):
     state_explicitly: List[str] = []
     bullet_suggestions: List[BulletSuggestionSchema] = []
     has_job_description: bool = True
+    # True when this skipped the Claude rewrite call because an identical
+    # (user, analysis, job) preview was already cached — see resume_builder/cache.py.
+    from_cache: bool = False
 
 
 class StageFixesRequestSchema(BaseModel):
@@ -305,8 +308,24 @@ class QuickTailorRequestSchema(BaseModel):
     """
 
     full_name: str = Field(default="", max_length=120)
+    # Free text, for callers with no job_id (e.g. a pasted JD). Ignored when
+    # job_id is given — the listing's own description is used instead, so the
+    # two can never silently disagree.
     job_description: str = Field(default="", max_length=20000)
     target_pages: int = Field(default=1, ge=1, le=2)
+    # Optional: when given, the job's own description is resolved server-side
+    # (same lookup tailor_preview already does) and this doubles as the cache
+    # key alongside analysis_id — see resume_builder/cache.py.
+    job_id: Optional[int] = None
+    # Skills to add to the built resume — the caller's own accepted subset of
+    # a tailor-preview's state_explicitly/missing_keywords. Never invented
+    # here: this endpoint only places skills it was explicitly handed.
+    accepted_skills: List[str] = Field(default_factory=list, max_length=40)
+    # Bullet rewrites to apply, verbatim, from a prior tailor-preview's
+    # bullet_suggestions. Matched by (experience_index, original) against the
+    # resume on file; a suggestion that no longer matches is skipped rather
+    # than applied to the wrong line.
+    bullet_overrides: List[BulletSuggestionSchema] = Field(default_factory=list)
 
 
 class QuickTailorResponseSchema(BaseModel):
@@ -322,5 +341,9 @@ class QuickTailorResponseSchema(BaseModel):
     # Every trim, in the order applied, so a candidate whose oldest role was
     # dropped is told rather than left to notice.
     adjustments: List[str] = Field(default_factory=list)
-    ats_score: int
+    # None when no trained model is on disk — never a placeholder figure.
+    ats_score: Optional[int] = None
     filename: str
+    # True when this skipped every tectonic compile because an identical
+    # (user, analysis, job, target_pages) build was already cached.
+    from_cache: bool = False
