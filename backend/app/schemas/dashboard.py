@@ -65,6 +65,8 @@ class DashboardResumeSchema(BaseModel):
     resumes_analyzed: int
     avg_ats_score: Optional[float] = None
     latest_ats_score: Optional[float] = None
+    # Highest score across every scan — same figure /analytics shows.
+    best_ats_score: Optional[float] = None
     latest_band: str
     latest_filename: Optional[str] = None
     #: The latest scan's own stored missing_skills, capped — not recomputed.

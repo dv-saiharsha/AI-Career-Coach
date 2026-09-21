@@ -87,7 +87,16 @@ function DashboardContent({ home }: { home: DashboardHome }) {
       icon: FileSearch,
       label: 'Resume Health',
       value: show(home.resume.latest_ats_score, '%'),
-      change: home.resume.latest_filename ? bandLabel(home.resume.latest_band) : 'No scans yet',
+      change: home.resume.latest_filename
+        ? bandLabel(home.resume.latest_band) +
+          // Omitted when the latest scan already is the best one — repeating
+          // the same figure under two labels reads as a second, different
+          // claim.
+          (home.resume.best_ats_score != null &&
+          home.resume.best_ats_score !== home.resume.latest_ats_score
+            ? ` · Best ${home.resume.best_ats_score}%`
+            : '')
+        : 'No scans yet',
       // The API's own band, not one re-derived here — the same score must
       // never read two ways in the same product.
       color: bandColor(home.resume.latest_band ?? bandForScore(home.resume.latest_ats_score)),

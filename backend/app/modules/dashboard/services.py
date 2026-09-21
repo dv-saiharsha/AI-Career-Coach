@@ -255,6 +255,7 @@ def _resume_section(db: Session, user_id: str) -> dict:
         "resumes_analyzed": stats["resumes_analyzed"],
         "avg_ats_score": stats["avg_ats_score"],
         "latest_ats_score": stats["latest_ats_score"],
+        "best_ats_score": stats["best_ats_score"],
         "latest_band": band(latest.ats_score) if latest else "NOT CHECKED",
         "latest_filename": latest.resume_filename if latest else None,
         "suggested_improvements": missing_skills[:5],

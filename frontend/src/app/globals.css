@@ -1085,7 +1085,12 @@
 @property --count-value {
   syntax: '<integer>';
   initial-value: 0;
-  inherits: false;
+  /* true, not false: the animation runs on .count-up itself, but the digits
+     render via counter() on .count-up::after. A non-inherited property gives
+     the pseudo-element its own independent value — frozen at initial-value —
+     instead of the one the keyframes are actually animating on its parent,
+     so every whole-number CountUp rendered "0" regardless of its target. */
+  inherits: true;
 }
 
 @supports (background: paint(x)) or (color: color-mix(in srgb, red, blue)) {

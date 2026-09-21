@@ -1311,6 +1311,8 @@ export interface DashboardResume {
   resumes_analyzed: number
   avg_ats_score: number | null
   latest_ats_score: number | null
+  /** Highest score across every scan — same figure /analytics shows. */
+  best_ats_score: number | null
   latest_band: ScoreBand
   latest_filename: string | null
   suggested_improvements: string[]

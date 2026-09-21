@@ -167,12 +167,18 @@ def dashboard_stats(db: Session, user_id: str) -> dict:
         .limit(1)
         .scalar()
     )
+    best_ats = (
+        db.query(func.max(ResumeAnalysis.ats_score)).filter(ResumeAnalysis.user_id == user_id).scalar()
+    )
 
     return {
         "resumes_analyzed": int(resumes_analyzed),
         "interview_sessions": int(sessions),
         "avg_ats_score": round(float(avg_ats), 1) if avg_ats is not None else None,
         "latest_ats_score": round(float(latest_ats), 1) if latest_ats is not None else None,
+        # The highest score across every scan, not just the latest — the
+        # figure /analytics already shows as "Best ATS score".
+        "best_ats_score": round(float(best_ats), 1) if best_ats is not None else None,
         "latest_interview_score": latest_interview_score(db, user_id),
     }
 
