@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.models.job import JobListing
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.job_market import geo, jsearch
+from app.modules.job_market import active_jobs, geo, jsearch
 from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
@@ -64,12 +64,26 @@ def _fetch(query_key: str, limit: int) -> tuple[list[dict], float]:
         # Cost is zero per call: this key is quota-limited, not usage-billed.
         return rows, 0.0
 
-    raise SourceUnavailable(f"unknown JOB_SOURCE {source!r} (expected 'jsearch')")
+    if source == "active_jobs":
+        if not active_jobs.is_configured():
+            raise SourceUnavailable("RAPIDAPI_KEY is not configured")
+        rows = active_jobs.search(query_key)
+        if not rows and active_jobs.remaining_requests() is not None:
+            if active_jobs.remaining_requests() <= active_jobs.RESERVE_REQUESTS:
+                raise SourceUnavailable("request budget reserved — try again next cycle")
+        return rows, 0.0
+
+    raise SourceUnavailable(f"unknown JOB_SOURCE {source!r} (expected 'jsearch' or 'active_jobs')")
 
 
 def source_configured() -> bool:
     """Whether the active source has credentials. Gates every outbound call."""
-    return jsearch.is_configured() if (settings.JOB_SOURCE or "jsearch").lower() == "jsearch" else False
+    source = (settings.JOB_SOURCE or "jsearch").lower()
+    if source == "jsearch":
+        return jsearch.is_configured()
+    if source == "active_jobs":
+        return active_jobs.is_configured()
+    return False
 
 
 # Grouped by domain so a sweep covers the whole product rather than the
@@ -243,7 +257,15 @@ def _replace_cache(db: Session, query_key: str, rows: list[dict]) -> list[JobLis
     db.query(JobListing).filter(JobListing.query_key == query_key).delete(
         synchronize_session=False
     )
-    saved = [JobListing(**row) for row in rows]
+    # query_key is forced to the caller's canonical key rather than trusted
+    # from the row dict. jsearch.normalise() stamps its own "jsearch:<query>"
+    # on every row it returns — a *different* string from the plain key
+    # _fresh_rows/_any_rows filter on — so every JSearch-sourced search
+    # result was being saved under a key its own read path could never find:
+    # cached, but permanently invisible, and re-scraped (and re-billed
+    # against the monthly quota) on every single repeat search for the
+    # same term, since the miss never stopped looking like a miss.
+    saved = [JobListing(**{**row, "query_key": query_key}) for row in rows]
     db.add_all(saved)
     db.commit()
     # New rows make the cached feed wrong, and a stale feed after a paid
@@ -346,6 +368,17 @@ def _interleave_by_role(rows: list[JobListing]) -> list[JobListing]:
     return interleaved
 
 
+# Standing content worth showing regardless of which query_key it's under —
+# an employer's own board, swept hourly independent of anyone searching for
+# it. jsearch/active_jobs rows also carry a non-null source, but they are the
+# *opposite* of standing: each one exists only because somebody searched that
+# exact term, and showing it in every other search's fallback grid means a
+# handful of rows from one old "java" search silently outlive that search and
+# turn up under an unrelated one, which is indistinguishable from the feed
+# being wrong.
+_STANDING_BOARD_SOURCES = ("greenhouse", "lever", "ashby")
+
+
 def _warm_feed(
     db: Session, target_roles: list[str] | None = None
 ) -> tuple[list[JobListing], datetime | None]:
@@ -377,9 +410,10 @@ def _warm_feed(
         # have no such search behind them — they are a standing source, keyed
         # by which company board they came from ("greenhouse:stripe"), so
         # filtering on query_key alone made all 7,836 of them invisible to
-        # the feed the moment they landed.
+        # the feed the moment they landed. See _STANDING_BOARD_SOURCES for
+        # why this checks specific sources rather than "any source at all".
         .filter(
-            or_(JobListing.query_key.in_(keys), JobListing.source.isnot(None)),
+            or_(JobListing.query_key.in_(keys), JobListing.source.in_(_STANDING_BOARD_SOURCES)),
             _age_filter(),
         )
         .order_by(JobListing.posted_at.desc().nullslast())

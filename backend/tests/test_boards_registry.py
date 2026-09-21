@@ -27,7 +27,7 @@ class TestRegistry:
 
     def test_every_entry_is_a_provider_the_fetcher_understands(self):
         for provider, token in boards_registry.all_boards():
-            assert provider in {"greenhouse", "lever"}
+            assert provider in {"greenhouse", "lever", "ashby"}
             assert token and token == token.strip().lower()
 
     def test_there_are_no_duplicates(self):

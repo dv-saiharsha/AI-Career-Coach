@@ -50,6 +50,18 @@ ARCHIVE_AFTER_HOURS = 72
 # bills per unit. The scraper this once bounded is gone.
 MAX_SWEEP_COST_USD = 3.00
 
+# _upsert commits every this many candidates rather than once for the whole
+# sweep. At the board count boards_registry.py holds now, most of a sweep's
+# candidates are already-known rows, so one UPDATE touching every row's
+# fetched_at was 1,000+ parameter sets in a single executemany — comfortably
+# past Supabase's pooled-connection statement timeout, which cancels the
+# whole statement and rolls the entire sweep back to zero rows upserted
+# rather than partially succeeding. A chunk this size finishes well inside
+# that limit, and content_hash makes every row idempotent, so committing
+# partial progress before a later failure is strictly better than an
+# all-or-nothing sweep losing all of it.
+CHUNK_SIZE = 250
+
 
 def content_hash(company: str, title: str, location: str) -> str:
     """Stable identity for a posting across sweeps.
@@ -273,6 +285,10 @@ def _upsert(db: Session, candidates: dict[str, dict], facts: dict[str, dict], re
         for row in db.query(JobListing).filter(JobListing.content_hash.in_(list(candidates))).all()
     }
 
+    # Committed in chunks rather than as one transaction for the whole
+    # sweep — see CHUNK_SIZE's own comment for why.
+    since_commit = 0
+
     for digest, item in candidates.items():
         row = existing.get(digest)
         if row is None:
@@ -310,6 +326,11 @@ def _upsert(db: Session, candidates: dict[str, dict], facts: dict[str, dict], re
             if enriched["core_skills"]:
                 row.skills = json.dumps(enriched["core_skills"])
         report.rows_upserted += 1
+        since_commit += 1
+
+        if since_commit >= CHUNK_SIZE:
+            db.commit()
+            since_commit = 0
 
     db.commit()
 

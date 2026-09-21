@@ -76,26 +76,29 @@ class TestChoosingCandidates:
     def test_known_dead_is_matched_per_provider_not_per_token(self):
         """The finding that made this whole thing worth building.
 
-        OpenAI is in KNOWN_DEAD for Greenhouse and has 768 live roles on
-        Ashby. Skipping on the token alone would hide exactly the boards this
-        script exists to surface.
+        notion is in KNOWN_DEAD for Greenhouse (and, unlike this synthetic
+        example, has no Ashby board of its own in reality — this token is
+        chosen only for being dead-on-greenhouse and absent from
+        ASHBY_BOARDS, not because Notion actually publishes one). Skipping
+        on the token alone would hide exactly the boards this script exists
+        to surface.
         """
-        assert ("greenhouse", "openai") in boards_registry.KNOWN_DEAD
+        assert ("greenhouse", "notion") in boards_registry.KNOWN_DEAD
 
         found = board_discovery.find_candidates(
             self._rows(
-                "https://boards.greenhouse.io/openai/jobs/1",
-                "https://jobs.ashbyhq.com/openai/2",
+                "https://boards.greenhouse.io/notion/jobs/1",
+                "https://jobs.ashbyhq.com/notion/2",
             )
         )
 
-        assert [(c.provider, c.token) for c in found] == [("ashby", "openai")]
+        assert [(c.provider, c.token) for c in found] == [("ashby", "notion")]
 
     def test_the_company_name_is_carried_over_from_the_feed(self):
         """Ashby's own API returns no company name, so this is the only place
         the real one is available."""
-        rows = [{"apply_url": "https://jobs.ashbyhq.com/mistral.ai/1", "company": "Mistral AI"}]
-        assert board_discovery.find_candidates(rows)[0].company == "Mistral AI"
+        rows = [{"apply_url": "https://jobs.ashbyhq.com/examplecorp/1", "company": "Example Corp"}]
+        assert board_discovery.find_candidates(rows)[0].company == "Example Corp"
 
 
 class TestProbingBeforeProposing:

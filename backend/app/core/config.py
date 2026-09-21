@@ -95,9 +95,11 @@ class Settings(BaseSettings):
     # silent for anything but the default rather than quoting a stale rate.
     JOB_ENRICHMENT_MODEL: str = ""
 
-    # Which backend the job feed reads from. One branch today, kept as a seam
-    # so adding a provider is an elif in job_market/services._fetch rather
-    # than re-plumbing every caller.
+    # Which backend the job feed reads from: "jsearch" or "active_jobs" (see
+    # job_market/active_jobs.py — same RapidAPI account/key, a different
+    # product, for accounts whose JSearch plan doesn't expose /search).
+    # Kept as a seam in job_market/services._fetch, so adding a provider is
+    # one more elif there rather than re-plumbing every caller.
     #
     # Was "apify" — stale ever since Apify was dropped in favour of free
     # employer-board reads plus this budgeted aggregator. Left at that value,

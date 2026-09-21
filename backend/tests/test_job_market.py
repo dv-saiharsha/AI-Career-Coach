@@ -275,3 +275,113 @@ class TestFeedExcludesNonUsPostings:
         rows, _, refresh_needed = get_jobs(db_session, "DevOps Engineer", target_roles=None)
         assert refresh_needed is True
         assert all(r.title != "BR role" for r in rows)
+
+
+class TestSearchResultsAreFindableAfterCaching:
+    """Regression: jsearch.normalise() stamps every row with its own
+    "jsearch:<query>" query_key, a different string from the plain
+    normalised key _fresh_rows/_any_rows filter on (and that refresh_query's
+    caller passes to _replace_cache). A search result was being cached under
+    a key its own read path could never match — so every on-demand search
+    silently "succeeded" (a real, billed jsearch call, a real commit) while
+    remaining permanently invisible, and got re-scraped, and re-billed, on
+    every subsequent identical search since the miss never stopped looking
+    like one.
+    """
+
+    def test_a_refreshed_query_is_readable_by_its_own_key(self, db_session, monkeypatch):
+        from app.modules.job_market import services
+
+        monkeypatch.setattr(services, "_fetch", lambda query_key, limit: (
+            [
+                {
+                    # The shape jsearch.normalise() actually returns: its own
+                    # "jsearch:" - prefixed key, deliberately NOT matching
+                    # the canonical query_key argument below.
+                    "query_key": f"jsearch:{query_key}",
+                    "external_id": "jsearch:1",
+                    "title": "Risk Analyst",
+                    "company": "Acme",
+                    "location": "Remote",
+                    "work_mode": "Remote",
+                    "apply_url": "https://example.com/j",
+                    "description": "d",
+                    "skills": "[]",
+                    "posted_at": None,
+                    "source": "jsearch",
+                }
+            ],
+            0.0,
+        ))
+
+        rows, cost = services.refresh_query(db_session, "risk analyst")
+        assert len(rows) == 1
+
+        # The whole point: a caller reading back by the same key it just
+        # refreshed must find what was just stored, not a cache that looks
+        # empty forever.
+        refetched = services._fresh_rows(db_session, "risk analyst")
+        assert [r.title for r in refetched] == ["Risk Analyst"]
+
+
+class TestWarmFeedDoesNotLeakOldSearchResults:
+    """Regression: _warm_feed's fallback used to match on "source is not
+    null", which was written back when the only non-null sources were
+    standing employer boards (greenhouse/lever/ashby) — a query_key-less
+    source worth showing regardless of who's searching. jsearch and
+    active_jobs rows *also* carry a non-null source, but for the opposite
+    reason: each one exists only because somebody searched that exact term.
+    Once real active_jobs rows started landing, every past search's leftover
+    rows — "java", "java developer", whatever was searched last — quietly
+    joined the fallback grid shown to anyone whose *own* new search hadn't
+    been scraped yet, which looks exactly like "the search results are
+    wrong" from the user's side.
+    """
+
+    def _add(self, db, query_key, title, source=None):
+        from app.models.job import JobListing
+
+        row = JobListing(
+            query_key=query_key,
+            external_id=f"{query_key}-{title}",
+            title=title,
+            company="Acme",
+            location="United States",
+            work_mode="Remote",
+            apply_url="https://example.com/job",
+            source=source,
+        )
+        db.add(row)
+        db.commit()
+        return row
+
+    def test_a_stale_active_jobs_search_result_is_excluded_from_the_fallback(self, db_session):
+        from app.modules.job_market.services import _warm_feed
+
+        self._add(db_session, "java", "Java Developer", source="active_jobs")
+        self._add(db_session, "greenhouse:acme", "Real Board Role", source="greenhouse")
+
+        rows, _ = _warm_feed(db_session, None)
+
+        assert [r.title for r in rows] == ["Real Board Role"]
+
+    def test_a_stale_jsearch_search_result_is_also_excluded(self, db_session):
+        from app.modules.job_market.services import _warm_feed
+
+        self._add(db_session, "risk analyst", "Risk Analyst", source="jsearch")
+
+        rows, _ = _warm_feed(db_session, None)
+
+        assert rows == []
+
+    def test_the_same_source_still_shows_for_its_own_search(self, db_session):
+        """The fix must not make on-demand results invisible outright — only
+        outside the search that actually produced them."""
+        from app.modules.job_market.services import get_jobs
+
+        self._add(db_session, "java", "Java Developer", source="active_jobs")
+
+        rows, _, refresh_needed = get_jobs(db_session, "Java", target_roles=None)
+
+        assert [r.title for r in rows] == ["Java Developer"]
+        assert refresh_needed is False

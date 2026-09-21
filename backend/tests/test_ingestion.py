@@ -386,3 +386,58 @@ class TestEvidenceOnlyAccompaniesAVerdict:
             })
         )
         assert result["h1b_evidence"] == "We are unable to sponsor visas."
+
+
+class TestUpsertCommitsInChunks:
+    """Regression: a full sweep's final commit was one UPDATE touching every
+    already-known row in a single executemany. At the board count
+    boards_registry.py holds now that batch runs past Supabase's pooled-
+    connection statement timeout and cancels the whole sweep — rolled back
+    to zero rows upserted rather than partially succeeding. _upsert commits
+    every CHUNK_SIZE rows instead, so this failure mode shrinks the amount
+    at risk per commit rather than growing with the registry forever.
+    """
+
+    def test_commits_more_than_once_past_chunk_size(self, db, monkeypatch):
+        real_commit = db.commit
+        calls = {"n": 0}
+
+        def counting_commit():
+            calls["n"] += 1
+            real_commit()
+
+        monkeypatch.setattr(db, "commit", counting_commit)
+        monkeypatch.setattr(ingestion, "CHUNK_SIZE", 10)
+
+        candidates = {
+            f"hash-{i}": {
+                "query_key": "greenhouse:acme", "external_id": f"e{i}", "title": f"Role {i}",
+                "company": "Acme", "location": "United States", "work_mode": "Remote",
+                "apply_url": f"https://e.com/{i}", "description": "d", "skills": "[]",
+                "posted_at": None, "source": "greenhouse",
+            }
+            for i in range(25)
+        }
+        report = ingestion.SweepReport(dry_run=False)
+        ingestion._upsert(db, candidates, {}, report)
+
+        assert report.rows_upserted == 25
+        assert db.query(JobListing).count() == 25
+        assert calls["n"] > 1
+
+    def test_all_rows_persist_even_when_chunked(self, db):
+        """The chunking itself must not drop or duplicate a row."""
+        candidates = {
+            f"hash-{i}": {
+                "query_key": "greenhouse:acme", "external_id": f"e{i}", "title": f"Role {i}",
+                "company": "Acme", "location": "United States", "work_mode": "Remote",
+                "apply_url": f"https://e.com/{i}", "description": "d", "skills": "[]",
+                "posted_at": None, "source": "greenhouse",
+            }
+            for i in range(600)
+        }
+        report = ingestion.SweepReport(dry_run=False)
+        ingestion._upsert(db, candidates, {}, report)
+
+        assert db.query(JobListing).count() == 600
+        assert {row.content_hash for row in db.query(JobListing).all()} == set(candidates)
