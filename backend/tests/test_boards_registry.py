@@ -79,7 +79,7 @@ class TestSweepIntegration:
         row = {
             "company": "Stripe",
             "title": "Backend Engineer",
-            "location": "Dublin",
+            "location": "Remote",
             "apply_url": "https://stripe.com/jobs/1",
             "source": "greenhouse",
             "skills": json.dumps([]),
@@ -105,7 +105,7 @@ class TestSweepIntegration:
                 {
                     "company": "Stripe",
                     "title": "Backend Engineer",
-                    "location": "Dublin",
+                    "location": "Remote",
                     "apply_url": "https://stripe.com/jobs/1",
                     "source": "greenhouse",
                     "skills": json.dumps([]),

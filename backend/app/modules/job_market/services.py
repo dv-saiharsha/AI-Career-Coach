@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.models.job import JobListing
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.job_market import jsearch
+from app.modules.job_market import geo, jsearch
 from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
@@ -182,8 +182,19 @@ def _age_filter():
     return or_(JobListing.posted_at.is_(None), JobListing.posted_at >= floor)
 
 
+def _us_only(rows: list[JobListing]) -> list[JobListing]:
+    """Drop postings whose location names a country other than the US.
+
+    Applied to every read path (see geo.py for what counts as a signal),
+    same "suppress everywhere or nowhere" rule _age_filter follows — a filter
+    that only caught the default grid would let a search return the Brazil
+    and India roles the grid was hiding.
+    """
+    return [row for row in rows if not geo.is_non_us_location(row.location)]
+
+
 def _fresh_rows(db: Session, query_key: str) -> list[JobListing]:
-    return (
+    rows = (
         db.query(JobListing)
         # description is NOT deferred. to_payload reads it, so deferring it
         # turned one query into one lazy load per row — 38 round-trips to
@@ -197,6 +208,7 @@ def _fresh_rows(db: Session, query_key: str) -> list[JobListing]:
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
     )
+    return _us_only(rows)
 
 
 def _any_rows(db: Session, query_key: str) -> list[JobListing]:
@@ -207,7 +219,7 @@ def _any_rows(db: Session, query_key: str) -> list[JobListing]:
     still applies, because an expired listing wastes an application however
     recently we indexed it.
     """
-    return (
+    rows = (
         db.query(JobListing)
         # description is NOT deferred. to_payload reads it, so deferring it
         # turned one query into one lazy load per row — 38 round-trips to
@@ -217,6 +229,7 @@ def _any_rows(db: Session, query_key: str) -> list[JobListing]:
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
     )
+    return _us_only(rows)
 
 
 def _replace_cache(db: Session, query_key: str, rows: list[dict]) -> list[JobListing]:
@@ -372,6 +385,7 @@ def _warm_feed(
         .order_by(JobListing.posted_at.desc().nullslast())
         .all()
     )
+    rows = _us_only(rows)
     if not rows:
         _FEED_CACHE[cache_key] = (time.monotonic(), [], None)
         return [], None

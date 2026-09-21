@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.core.llm import llm_client
 from app.models.job import JobListing
-from app.modules.job_market import ats_boards, boards_registry, enrichment, jsearch, services
+from app.modules.job_market import ats_boards, boards_registry, enrichment, geo, jsearch, services
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,10 @@ class SweepReport:
     # to do it, and collapsing the two would hide that.
     board_postings: int = 0
     boards_swept: int = 0
+    # Rows a board returned that geo.is_non_us_location flagged — this app is
+    # US-focused, and a multinational's Greenhouse/Lever board lists every
+    # office's openings with no country filter of its own.
+    postings_excluded_non_us: int = 0
     already_known: int = 0
     newly_enriched: int = 0
     enrichment_failures: int = 0
@@ -143,6 +147,9 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
     for provider, token in boards:
         rows = ats_boards.fetch_board(provider, token, query_key=f"{provider}:{token}")
         for row in rows:
+            if geo.is_non_us_location(row["location"]):
+                report.postings_excluded_non_us += 1
+                continue
             key = content_hash(row["company"], row["title"], row["location"])
             # Same de-dup key the Apify path uses, so a role posted to both a
             # company board and LinkedIn is stored once — and because boards
@@ -152,7 +159,10 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
 
     report.boards_swept = len(boards)
     report.board_postings = len(candidates)
-    logger.info("sweep: %d boards -> %d distinct postings (free)", len(boards), len(candidates))
+    logger.info(
+        "sweep: %d boards -> %d distinct postings (free), %d excluded as non-US",
+        len(boards), len(candidates), report.postings_excluded_non_us,
+    )
     return candidates
 
 
@@ -181,6 +191,12 @@ def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, di
 
     for row in jsearch.search_many(list(roles)):
         report.postings_seen += 1
+        # Belt-and-braces: the request itself already asks for country=us
+        # (jsearch.py), but this still catches a stray non-US row the API
+        # returns anyway — a remote role headquartered abroad, say.
+        if geo.is_non_us_location(row.get("location", "")):
+            report.postings_excluded_non_us += 1
+            continue
         digest = content_hash(row.get("company", ""), row.get("title", ""), row.get("location", ""))
         # First occurrence wins: the same posting surfacing under two roles is
         # one job. Board rows are collected before this and keep priority,

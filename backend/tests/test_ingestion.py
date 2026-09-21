@@ -301,6 +301,56 @@ class TestSweepFlow:
         assert candidates == {}
         assert any("RAPIDAPI_KEY" in e for e in report.errors)
 
+    def test_jsearch_row_with_a_non_us_location_is_excluded(self, db, monkeypatch):
+        """Belt-and-braces: jsearch.py already requests country=us, but a
+        stray non-US row from the API must not reach the feed either."""
+        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
+        monkeypatch.setattr(
+            ingestion.jsearch,
+            "search_many",
+            lambda roles, fetch=None: [
+                {"title": "Engineer", "company": "Acme", "location": "Dublin, Ireland"},
+                {"title": "Engineer", "company": "Acme US", "location": "Austin, TX"},
+            ],
+        )
+        report = ingestion.SweepReport(dry_run=False)
+        candidates = ingestion._collect(db, ["ai engineer"], report)
+        assert [c["company"] for c in candidates.values()] == ["Acme US"]
+        assert report.postings_excluded_non_us == 1
+        # Still counted as seen — the request was already spent on it.
+        assert report.postings_seen == 2
+
+
+class TestBoardSweepExcludesNonUsPostings:
+    """Regression: Greenhouse/Lever/Ashby list every office's openings with
+    no country filter of their own, so a multinational board handed the feed
+    Brazil and India roles alongside its US ones."""
+
+    def _board_row(self, location: str, title: str = "Engineer") -> dict:
+        return {
+            "query_key": "greenhouse:acme", "external_id": f"greenhouse:acme:{title}",
+            "title": title, "company": "Acme", "location": location,
+            "work_mode": "On-site", "salary_range": None, "description": None,
+            "skills": "[]", "apply_url": "https://acme.com/j", "posted_at": None,
+            "source": "greenhouse",
+        }
+
+    def test_non_us_board_rows_are_skipped_and_counted(self, monkeypatch):
+        monkeypatch.setattr(ingestion.boards_registry, "all_boards", lambda: [("greenhouse", "acme")])
+        monkeypatch.setattr(
+            ingestion.ats_boards,
+            "fetch_board",
+            lambda provider, board, query_key=None: [
+                self._board_row("São Paulo, Brazil", title="BR role"),
+                self._board_row("New York, NY", title="US role"),
+            ],
+        )
+        report = ingestion.SweepReport(dry_run=False)
+        candidates = ingestion._collect_boards(report)
+        assert [c["title"] for c in candidates.values()] == ["US role"]
+        assert report.postings_excluded_non_us == 1
+        assert report.board_postings == 1
+
 
 class TestEvidenceOnlyAccompaniesAVerdict:
     """Regression: two live rows came back `unmentioned` carrying a quote.

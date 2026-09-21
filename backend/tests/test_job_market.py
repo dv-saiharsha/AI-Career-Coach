@@ -209,3 +209,69 @@ class TestWarmFeedNeverEmpty:
         self._add(db_session, "software engineer", hours_old=1, title="Generic")
         rows, _ = _warm_feed(db_session, [])
         assert len(rows) == 1
+
+
+class TestFeedExcludesNonUsPostings:
+    """Regression: Greenhouse/Lever/Ashby boards list every office's
+    openings with no country filter of their own, so a multinational
+    company's board handed the feed Brazil and India rows alongside its US
+    ones. geo.is_non_us_location is applied on every read path here, same
+    as the age cap above — a filter that only caught the default grid would
+    let a search return what the grid was hiding.
+    """
+
+    def _add(self, db, query_key, title, location, fetched_hours_old=1):
+        from datetime import datetime, timedelta, timezone
+
+        from app.models.job import JobListing
+
+        row = JobListing(
+            query_key=query_key,
+            external_id=f"{query_key}-{title}",
+            title=title,
+            company="Acme",
+            location=location,
+            work_mode="On-site",
+            apply_url="https://example.com/job",
+            fetched_at=datetime.now(timezone.utc) - timedelta(hours=fetched_hours_old),
+            posted_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        db.add(row)
+        db.commit()
+        return row
+
+    def test_warm_feed_excludes_a_non_us_row(self, db_session):
+        from app.modules.job_market.services import _warm_feed
+
+        self._add(db_session, "software engineer", "BR role", "São Paulo, Brazil")
+        self._add(db_session, "software engineer", "US role", "Austin, TX")
+        rows, _ = _warm_feed(db_session, None)
+        assert [r.title for r in rows] == ["US role"]
+
+    def test_fresh_rows_excludes_a_non_us_row(self, db_session):
+        from app.modules.job_market.services import _fresh_rows
+
+        self._add(db_session, "software engineer", "IN role", "Bangalore")
+        self._add(db_session, "software engineer", "US role", "Austin, TX")
+        rows = _fresh_rows(db_session, "software engineer")
+        assert [r.title for r in rows] == ["US role"]
+
+    def test_any_rows_excludes_a_non_us_row_even_when_stale(self, db_session):
+        from app.modules.job_market.services import _any_rows
+
+        self._add(db_session, "software engineer", "UK role", "London, UK", fetched_hours_old=500)
+        self._add(db_session, "software engineer", "US role", "Austin, TX", fetched_hours_old=500)
+        rows = _any_rows(db_session, "software engineer")
+        assert [r.title for r in rows] == ["US role"]
+
+    def test_a_query_returning_only_non_us_rows_falls_through_to_the_warm_feed(self, db_session):
+        """If every fresh row for a query is foreign, that must read as a
+        cache miss (fall through to the warm feed / a queued refresh), not
+        as "here are zero jobs for this role."""
+        from app.modules.job_market.services import get_jobs
+
+        self._add(db_session, "devops engineer", "BR role", "São Paulo, Brazil")
+        self._add(db_session, "software engineer", "Backfill", "Austin, TX")
+        rows, _, refresh_needed = get_jobs(db_session, "DevOps Engineer", target_roles=None)
+        assert refresh_needed is True
+        assert all(r.title != "BR role" for r in rows)
