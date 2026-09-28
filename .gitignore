@@ -44,6 +44,7 @@ frontend/next-env.d.ts
 # pinned in next.config.ts for the same reason.
 /node_modules/
 /package-lock.json
+/pnpm-lock.yaml
 
 # OS / editor
 .DS_Store
@@ -66,3 +67,10 @@ skills-lock.json
 # A SQLite file was committed at the repo root once; keep it from happening
 # again. The real database is Postgres — see backend/app/core/config.py.
 *.db
+
+# Figma Make export snapshots and design screenshots — pixel/code reference
+# material only, ported into frontend/ by hand (see MIGRATION_PLAN.md). Not
+# part of the shipped app.
+figma-export/
+figma-landing/
+design-refs/

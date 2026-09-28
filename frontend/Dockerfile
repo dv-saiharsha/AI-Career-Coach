@@ -1,6 +1,5 @@
-# Multi-stage: only the traced standalone output (see next.config.ts's
-# `output: "standalone"`) reaches the final image, not the full node_modules
-# install or the build toolchain.
+# Multi-stage: the build toolchain (vite, typescript, tailwind) only runs in
+# the `builder` stage; the final image just serves the built dist/ output.
 
 FROM node:24-slim AS deps
 WORKDIR /app
@@ -16,30 +15,34 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# NEXT_PUBLIC_* vars are inlined into the client bundle at build time, not
-# read at container startup — they have to be real here, as build args, not
-# supplied later at `docker run`. next.config.ts's own production-phase
-# check refuses to build at all without NEXT_PUBLIC_API_BASE_URL set.
-ARG NEXT_PUBLIC_API_BASE_URL
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# VITE_* vars are inlined into the client bundle at build time, not read at
+# container startup — they have to be real here, as build args, not supplied
+# later at `docker run`. See README.md's Production Deployment section.
+ARG VITE_API_BASE_URL
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 
 RUN npm run build
 
 FROM node:24-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=3000
 
-# Standalone output already contains a minimal server.js plus only the
-# node_modules it actually needs — static assets and public/ are copied in
-# separately since standalone deliberately excludes them.
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# node_modules here still includes devDependencies (vite itself, needed
+# below) — `npm ci` was never run with --omit=dev. Only dist/ is the actual
+# app; everything else is the static-file server.
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY package.json ./
 
+# `vite preview` serves the built dist/ output with SPA fallback (unknown
+# paths resolve to index.html, required for react-router's client-side
+# routes). It is a preview server, not a hardened production web server —
+# no compression tuning, limited concurrency. Fine for now since this repo
+# has no configured deploy target yet (see README.md); swap in nginx or
+# another static server before real production traffic depends on this image.
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["npx", "vite", "preview", "--host", "--port", "3000"]

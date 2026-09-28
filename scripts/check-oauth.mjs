@@ -32,10 +32,10 @@ const env = Object.fromEntries(
     })
 )
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
-const key = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+const url = env.VITE_SUPABASE_URL
+const key = env.VITE_SUPABASE_PUBLISHABLE_KEY
 if (!url || !key) {
-  console.error('\nNEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE_KEY missing from frontend/.env.local\n')
+  console.error('\nVITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY missing from frontend/.env.local\n')
   process.exit(1)
 }
 

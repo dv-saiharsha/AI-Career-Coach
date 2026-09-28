@@ -1,0 +1,160 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Values are remapped 1:1 from figma-export/src/index.css (the
+       "HireLoom" design) onto shadcn's existing HSL variable names, so
+       component code never references a color literal directly. */
+    --background: 210 40% 98%; /* --app-bg #f8fafc */
+    --foreground: 222 47% 11%; /* --text #0f172a */
+
+    /* Cards & Popovers */
+    --card: 0 0% 100%; /* --card #ffffff */
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary: "Loom indigo" */
+    --primary: 245 58% 51%; /* --loom-indigo #4338ca */
+    --primary-hover: 244 55% 41%; /* --loom-indigo-hover #3730a3 */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: the soft indigo tint used for secondary buttons/badges */
+    --secondary: 226 100% 97%; /* --loom-indigo-tint #eef2ff */
+    --secondary-foreground: 245 58% 51%; /* --loom-indigo */
+
+    /* Muted — a surface distinct from --background/--card (Figma has no
+       dedicated third surface tier, so this borrows --border's tone, same as
+       Figma's own `.skeleton-lines` placeholder color) */
+    --muted: 214 32% 91%; /* --border #e2e8f0 */
+    --muted-foreground: 215 20% 65%; /* --text-muted #94a3b8 */
+
+    /* Accent: hover/active surface for nav items, menu items, ghost buttons */
+    --accent: 226 100% 97%; /* --loom-indigo-tint */
+    --accent-foreground: 245 58% 51%; /* --loom-indigo */
+
+    /* Destructive */
+    --destructive: 0 72% 51%; /* --danger #dc2626 */
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 214 32% 91%; /* --border #e2e8f0 */
+    --input: 214 32% 91%;
+    --ring: 245 58% 51%; /* --loom-indigo */
+
+    /* Tone accents — Figma's "thread coral" (AI badge, unread dot, KPI tiles)
+       plus success/warning for status pills and score rings */
+    /* Chart-only accents (funnel bars) — figma-export doesn't redefine these
+       in .dark either, so they stay the same in both themes */
+    --chart-indigo-tint-strong: 228 96% 89%; /* --loom-indigo-tint-strong #c7d2fe */
+    --chart-indigo-soft: 234 89% 74%; /* --loom-indigo-soft #818cf8 */
+
+    --coral: 10 86% 63%; /* --thread-coral #f26b4f */
+    --coral-tint: 13 100% 96%; /* --coral-tint #fff1ed */
+    --coral-foreground: 8 62% 47%; /* #c2412d, text-on-tint */
+    --success: 142 76% 36%; /* #16a34a */
+    --success-tint: 145 81% 96%; /* #ecfdf3 */
+    --warning: 32 95% 44%; /* #d97706 */
+    --warning-tint: 48 100% 96%; /* #fffbeb */
+
+    /* Radius — Figma uses two distinct radii, not a derived scale */
+    --radius: 0.75rem;
+    --radius-card: 12px; /* --radius-card */
+    --radius-control: 8px; /* --radius-control */
+    --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.04);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 245 58% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 226 100% 97%;
+    --sidebar-accent-foreground: 245 58% 51%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 245 58% 51%;
+  }
+
+  .dark {
+    --background: 220 49% 8%; /* --app-bg #0b1220 */
+    --foreground: 210 40% 98%; /* --text #f8fafc */
+
+    --card: 219 46% 12%; /* --card #111b2e */
+    --card-foreground: 210 40% 98%;
+    --popover: 219 46% 12%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 245 58% 51%;
+    --primary-hover: 234 89% 74%; /* --loom-indigo-soft, lighter for dark-surface hover */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 232 47% 21%; /* --loom-indigo-tint (dark) #1d2450 */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 216 32% 22%; /* dark --border #263449 */
+    --muted-foreground: 215 16% 47%; /* dark --text-muted #64748b */
+
+    --accent: 232 47% 21%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 216 32% 22%; /* dark --border #263449 */
+    --input: 216 32% 22%;
+    --ring: 245 58% 51%;
+
+    --coral: 10 86% 63%;
+    --coral-tint: 0 30% 15%; /* dark --coral-tint #321b1b */
+    --coral-foreground: 10 86% 80%;
+    --success: 142 76% 36%;
+    --success-tint: 156 46% 12%; /* dark --success-tint #102b20 */
+    --warning: 32 95% 44%;
+    --warning-tint: 35 48% 12%; /* dark --warning-tint #2d2110 */
+
+    color-scheme: dark;
+
+    --sidebar-background: 219 46% 12%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 245 58% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 232 47% 21%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 216 32% 22%;
+    --sidebar-ring: 245 58% 51%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-synthesis: none;
+  }
+  h1, h2, h3, h4 {
+    @apply font-heading;
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}

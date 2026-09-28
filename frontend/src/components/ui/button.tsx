@@ -1,125 +1,54 @@
-'use client'
-
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
-import { Spinner } from '@/components/ui/spinner'
 
-/* ────────────────────────────────────────────────────────────────────────
-   The interaction language in one component: raised at rest, a pixel higher
-   on hover, flush with a ring on press. Hover deepens the shadow and sharpens
-   the border rather than recolouring the surface — recolouring reads as a
-   state change, and this system spends colour on state elsewhere.
-
-   Press feedback is a compositor-only CSS transform with no transition, so
-   depression is instant. It used to be a Framer whileTap, which built a
-   VisualElement per button and drove every press through JS animation
-   frames; that was the single worst INP contributor in the app.
-   ──────────────────────────────────────────────────────────────────────── */
 const buttonVariants = cva(
-  [
-    'relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg',
-    'text-sm font-medium tracking-[-0.005em] cursor-pointer select-none',
-    'outline-none',
-    'disabled:pointer-events-none',
-    '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4',
-  ],
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-bold transition-[background-color,transform,box-shadow] duration-[180ms] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-[0.42]',
   {
     variants: {
       variant: {
-        /* The one accent surface on the page: 145deg gradient, white label,
-           accent glow. White clears 4.74:1 at the lightest gradient stop —
-           see scripts/check-contrast.mjs. */
-        default: 'elev-accent',
-        /* Raised neutral surface. The default for everything that is not the
-           single primary action in view. */
-        secondary: 'elev-interactive bg-canvas-raise text-ink',
-        outline: 'elev-interactive-sm bg-canvas-raise text-ink',
-        /* Flush at rest — no shadow to lift from, so it insets on press and
-           brightens its label on hover. */
-        ghost: [
-          'bg-transparent text-ink-dim',
-          'transition-colors duration-200 ease-(--ease-enter) hover:text-ink',
-          'active:shadow-(--ring-field-soft) active:transition-none',
-          'disabled:text-ink-faint',
-        ],
-        /* State is carried by the label colour and the tint, never by the
-           shadow alone — shadow cannot be read by anyone relying on
-           contrast rather than depth. */
-        destructive: 'elev-interactive bg-danger-bg text-danger',
-        link: 'text-accent-text underline-offset-4 hover:underline p-0 h-auto rounded-none min-h-0',
+        default:
+          'bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(67,56,202,0.18)] hover:bg-primary-hover hover:-translate-y-px',
+        destructive:
+          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        outline:
+          'border border-border bg-card text-foreground hover:border-secondary-foreground/30 hover:bg-secondary',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost: 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+        link: 'font-semibold text-primary underline-offset-4 hover:underline',
+        subtle: 'bg-primary/10 text-primary hover:bg-primary/20',
+        coral: 'bg-coral text-white hover:bg-coral/90',
       },
       size: {
-        /* 44px floor on every interactive size — touch target minimum. */
-        default: 'h-11 px-6',
-        sm: 'h-11 px-4 text-[13px]',
-        lg: 'h-12 px-8 text-[15px]',
-        icon: 'size-11 rounded-lg',
-        'icon-sm': 'size-11 rounded-lg',
+        default: 'h-[42px] px-[17px] text-sm',
+        sm: 'h-[34px] px-3 text-xs',
+        lg: 'h-12 px-7 text-base',
+        icon: 'h-[38px] w-[38px] p-0',
       },
     },
-    defaultVariants: { variant: 'default', size: 'default' },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
   }
 )
 
 export interface ButtonProps
-  extends React.ComponentPropsWithoutRef<'button'>,
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
-  /**
-   * Swaps the leading content for a spinner and blocks interaction, without
-   * changing the button's box — a button that resizes as it loads moves
-   * whatever sits beside it.
-   */
-  loading?: boolean
-  /** Announced while `loading`. Defaults to the button's own label. */
-  loadingLabel?: string
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      className,
-      variant,
-      size,
-      asChild = false,
-      loading = false,
-      loadingLabel,
-      children,
-      disabled,
-      ...props
-    },
-    ref
-  ) => {
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button'
-
-    /* asChild renders someone else's element, which may not accept the extra
-       spinner child — Slot requires exactly one. Loading is ignored there by
-       design rather than crashing at runtime. */
-    if (asChild) {
-      return (
-        <Comp
-          ref={ref}
-          className={cn(buttonVariants({ variant, size, className }))}
-          {...props}
-        >
-          {children}
-        </Comp>
-      )
-    }
-
     return (
-      <button
-        ref={ref}
+      <Comp
         className={cn(buttonVariants({ variant, size, className }))}
-        disabled={disabled || loading}
-        aria-busy={loading || undefined}
+        ref={ref}
         {...props}
-      >
-        {loading && <Spinner className="size-4" label={loadingLabel ?? 'Working'} />}
-        {children}
-      </button>
+      />
     )
   }
 )
