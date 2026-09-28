@@ -48,12 +48,12 @@ services:
     build:
       context: ./frontend
       args:
-        # Build-time only (see frontend/next.config.ts) — these are baked
+        # Build-time only (see frontend/vite.config.ts) — these are baked
         # into the client bundle, not read at container startup, which is
         # why they're build args here rather than the environment: block.
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
     ports:
       - "3000:3000"
     depends_on:

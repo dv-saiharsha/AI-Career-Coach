@@ -83,19 +83,18 @@ jobs:
             type=raw,value=latest
             type=sha,format=short
 
-      # NEXT_PUBLIC_* is inlined into the client bundle at THIS build step,
-      # not read when the container later starts — see README.md's
-      # Production Deployment section and next.config.ts's own build-time
-      # guard. The placeholder fallbacks exist so this workflow doesn't hard
-      # fail before the three repo secrets below are set, but an image built
-      # from the placeholders is not a working production image — it will
-      # point at localhost and a Supabase project that doesn't exist. Set
-      # these under Settings -> Secrets and variables -> Actions before
-      # treating anything this workflow publishes as deployable:
+      # VITE_* is inlined into the client bundle at THIS build step, not read
+      # when the container later starts — see README.md's Production
+      # Deployment section. The placeholder fallbacks exist so this workflow
+      # doesn't hard fail before the three repo secrets below are set, but an
+      # image built from the placeholders is not a working production image
+      # — it will point at localhost and a Supabase project that doesn't
+      # exist. Set these under Settings -> Secrets and variables -> Actions
+      # before treating anything this workflow publishes as deployable:
       #
-      #   PROD_NEXT_PUBLIC_API_BASE_URL
-      #   PROD_NEXT_PUBLIC_SUPABASE_URL
-      #   PROD_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      #   PROD_VITE_API_BASE_URL
+      #   PROD_VITE_SUPABASE_URL
+      #   PROD_VITE_SUPABASE_PUBLISHABLE_KEY
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
@@ -106,6 +105,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            NEXT_PUBLIC_API_BASE_URL=${{ secrets.PROD_NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api' }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.PROD_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder' }}
+            VITE_API_BASE_URL=${{ secrets.PROD_VITE_API_BASE_URL || 'http://localhost:8000/api' }}
+            VITE_SUPABASE_URL=${{ secrets.PROD_VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+            VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_placeholder' }}

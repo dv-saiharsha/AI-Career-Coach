@@ -39,13 +39,14 @@ def get_activity(
 @router.post("", response_model=ApplicationSchema, status_code=201)
 def create_application(
     payload: ApplicationCreateSchema,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     # user_id comes from the verified token, never the payload — the schema
     # has no user_id field at all, so a caller cannot file an application
     # against someone else's account.
-    return services.create_application(db, current_user.id, payload.model_dump())
+    return services.create_application(db, current_user.id, payload.model_dump(), background_tasks)
 
 
 @router.get("/{application_id}", response_model=ApplicationDetailSchema)

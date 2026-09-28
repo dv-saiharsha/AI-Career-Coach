@@ -1,5 +1,8 @@
 """Job feed tests — no network, no spend."""
 
+import json
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -385,3 +388,120 @@ class TestWarmFeedDoesNotLeakOldSearchResults:
 
         assert [r.title for r in rows] == ["Java Developer"]
         assert refresh_needed is False
+
+
+class TestOnDemandRowsGetEnriched:
+    """Regression: only the nightly board sweep (ingestion.py) ever ran
+    Claude enrichment. Rows landing through the on-demand source
+    (services.refresh_query, i.e. JSearch/Active Jobs) never did — the card
+    template is identical either way, but a row from this path could never
+    carry an h1b_sponsorship or experience_level, so it could never show the
+    badge a board-sourced card can earn once enriched. Same template,
+    permanently different badges depending on which API answered.
+    """
+
+    def _row(self, external_id="jsearch:1", **overrides):
+        row = {
+            "query_key": "risk analyst",
+            "external_id": external_id,
+            "title": "Risk Analyst",
+            "company": "Acme",
+            "location": "Remote",
+            "work_mode": "Remote",
+            "apply_url": "https://example.com/j",
+            "description": "Some description text.",
+            "skills": "[]",
+            "posted_at": None,
+            "source": "jsearch",
+        }
+        row.update(overrides)
+        return row
+
+    def _message(self, **payload):
+        base = {
+            "h1b_sponsorship": "explicitly_sponsored",
+            "h1b_evidence": "We sponsor H-1B visas.",
+            "experience_level": "senior",
+            "employment_type": "full_time",
+            "core_skills": ["Python"],
+            "summary": "A role.",
+        }
+        base.update(payload)
+        return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input=base)])
+
+    def test_a_new_row_is_enriched_before_caching(self, db_session, monkeypatch):
+        from app.modules.job_market import services
+
+        monkeypatch.setattr(
+            services.llm_client,
+            "_client",
+            SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: self._message())),
+        )
+
+        rows = services._enrich_rows(db_session, [self._row()])
+
+        assert rows[0]["h1b_sponsorship"] == "explicitly_sponsored"
+        assert rows[0]["experience_level"] == "senior"
+        assert json.loads(rows[0]["skills"]) == ["Python"]
+
+    def test_llm_unavailable_leaves_rows_unenriched_but_intact(self, db_session, monkeypatch):
+        """No ANTHROPIC_API_KEY configured must degrade to the old
+        behaviour — rows still cache, they just carry no badges — not raise
+        and lose the search results entirely."""
+        from app.modules.job_market import services
+
+        monkeypatch.setattr(services.llm_client, "_client", None)
+        row = self._row()
+
+        rows = services._enrich_rows(db_session, [row])
+
+        assert rows == [row]
+
+    def test_a_previously_enriched_external_id_is_reused_not_rebilled(self, db_session, monkeypatch):
+        """The dedup check: refresh_query replaces its whole cache entry on
+        every refresh (see _replace_cache), so without this a query that
+        gets refreshed hourly would re-pay Claude for the same unchanged
+        posting every single time."""
+        from app.models.job import JobListing
+        from app.modules.job_market import services
+
+        existing = JobListing(
+            query_key="risk analyst", external_id="jsearch:1", title="Risk Analyst",
+            company="Acme", location="Remote", work_mode="Remote",
+            apply_url="https://example.com/j", skills="[]",
+            h1b_sponsorship="no_sponsorship", h1b_evidence="",
+            experience_level="mid", employment_type="full_time",
+            enriched_at=datetime.now(timezone.utc),
+        )
+        db_session.add(existing)
+        db_session.commit()
+
+        calls = []
+        monkeypatch.setattr(
+            services.llm_client,
+            "_client",
+            SimpleNamespace(
+                messages=SimpleNamespace(create=lambda **kw: calls.append(kw) or self._message())
+            ),
+        )
+
+        rows = services._enrich_rows(db_session, [self._row()])
+
+        assert calls == []
+        assert rows[0]["h1b_sponsorship"] == "no_sponsorship"
+        assert rows[0]["experience_level"] == "mid"
+
+    def test_rows_with_no_external_id_still_get_enriched(self, db_session, monkeypatch):
+        """external_id is nullable on the model; the dedup lookup must not
+        choke on a row that has none to look up by."""
+        from app.modules.job_market import services
+
+        monkeypatch.setattr(
+            services.llm_client,
+            "_client",
+            SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: self._message())),
+        )
+
+        rows = services._enrich_rows(db_session, [self._row(external_id=None)])
+
+        assert rows[0]["h1b_sponsorship"] == "explicitly_sponsored"

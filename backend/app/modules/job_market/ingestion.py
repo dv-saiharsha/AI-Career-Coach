@@ -178,6 +178,28 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
     return candidates
 
 
+# Process-local rotation cursor: which offset into `roles` the next manual
+# sweep starts from. Without it, _collect always queried roles[:N] — the same
+# handful every single invocation, however many roles JOB_DOMAINS grew to,
+# since jsearch.search_many's own budget slice always took the *first* N of
+# whatever list it was handed. Resets on process restart, which is fine: the
+# cost of re-covering an already-swept role is one query, not a correctness
+# problem.
+_role_cursor = 0
+
+
+def _next_role_slice(roles: list[str], count: int) -> list[str]:
+    """The next `count` roles, wrapping around, advancing the module cursor."""
+    global _role_cursor
+    if not roles:
+        return []
+    n = len(roles)
+    start = _role_cursor % n
+    selected = [roles[(start + i) % n] for i in range(min(count, n))]
+    _role_cursor = (start + len(selected)) % n
+    return selected
+
+
 def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, dict]:
     """One JSearch query per role, within that API's request budget.
 
@@ -194,6 +216,12 @@ def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, di
     charge. The constraint is requests: 200 a month on this key, enforced in
     jsearch.py from the API's own remaining-request header, with a reserve
     held back so an automated sweep can never take the last of the quota.
+
+    Rotates through `roles` across invocations (see _next_role_slice) rather
+    than always querying its first MAX_QUERIES_PER_SWEEP entries — otherwise
+    growing JOB_DOMAINS with more industries would never actually get this
+    path's jsearch coverage, since the same handful at the front of the list
+    would keep winning every sweep forever.
     """
     candidates: dict[str, dict] = {}
 
@@ -201,7 +229,8 @@ def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, di
         report.errors.append("RAPIDAPI_KEY not configured — aggregator search skipped")
         return candidates
 
-    for row in jsearch.search_many(list(roles)):
+    targets = _next_role_slice(list(roles), jsearch.MAX_QUERIES_PER_SWEEP)
+    for row in jsearch.search_many(targets):
         report.postings_seen += 1
         # Belt-and-braces: the request itself already asks for country=us
         # (jsearch.py), but this still catches a stray non-US row the API
@@ -215,7 +244,7 @@ def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, di
         # because an employer's own posting beats an aggregator's copy of it.
         candidates.setdefault(digest, {**row, "content_hash": digest})
 
-    report.roles_searched = list(roles)[: jsearch.MAX_QUERIES_PER_SWEEP]
+    report.roles_searched = targets
     report.runs_completed = len(report.roles_searched)
     report.jsearch_requests_left = jsearch.remaining_requests()
     return candidates

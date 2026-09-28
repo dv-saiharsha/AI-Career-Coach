@@ -179,7 +179,7 @@ class TestFunnel:
     def test_all_stage_keys_present_when_empty(self, client):
         funnel = client.get("/api/analytics/summary").json()["funnel"]
         assert set(funnel["by_stage"]) == {
-            "saved", "applied", "recruiter_contacted", "recruiter_screening",
+            "viewed", "saved", "applied", "recruiter_contacted", "recruiter_screening",
             "online_assessment", "technical_interview", "manager_interview",
             "final_interview", "offer", "accepted", "rejected", "withdrawn",
         }

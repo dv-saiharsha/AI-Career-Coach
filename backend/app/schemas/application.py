@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 # with the allowed values listed, instead of reaching the database and failing
 # on the CHECK constraint as an opaque 500.
 ApplicationStatus = Literal[
+    "viewed",
     "saved",
     "applied",
     "recruiter_contacted",

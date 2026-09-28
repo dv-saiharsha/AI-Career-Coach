@@ -25,10 +25,11 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.llm import llm_client
 from app.models.job import JobListing
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.job_market import active_jobs, geo, jsearch
+from app.modules.job_market import active_jobs, enrichment, geo, jsearch
 from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,52 @@ JOB_DOMAINS: dict[str, tuple[str, ...]] = {
         "mechanical engineer",
         "civil engineer",
         "industrial engineer",
+    ),
+    # Added so the warm feed and domain grouping aren't tech-only. Job Market
+    # already personalises to any free-text role a user's own profile names
+    # (target_roles is a tag input, not a fixed list) via jsearch/active_jobs
+    # on demand — these are what widen the *default* grid and the manual
+    # paid sweep's coverage to match.
+    "Healthcare & Medical": (
+        "registered nurse",
+        "physician assistant",
+        "medical assistant",
+        "pharmacist",
+        "physical therapist",
+    ),
+    "Finance & Accounting": (
+        "financial analyst",
+        "accountant",
+        "auditor",
+        "investment analyst",
+    ),
+    "Marketing & Communications": (
+        "marketing manager",
+        "digital marketing specialist",
+        "content strategist",
+        "social media manager",
+    ),
+    "Operations & Administration": (
+        "operations manager",
+        "project manager",
+        "administrative assistant",
+        "executive assistant",
+    ),
+    "Creative & Design": (
+        "graphic designer",
+        "ux designer",
+        "content writer",
+    ),
+    "Hospitality & Food Service": (
+        "hotel manager",
+        "restaurant manager",
+        "event coordinator",
+    ),
+    "Skilled Trades": (
+        "electrician",
+        "plumber",
+        "hvac technician",
+        "welder",
     ),
 }
 
@@ -274,6 +321,87 @@ def _replace_cache(db: Session, query_key: str, rows: list[dict]) -> list[JobLis
     return saved
 
 
+def _enrich_rows(db: Session, rows: list[dict]) -> list[dict]:
+    """Classify H-1B sponsorship, seniority and employment type for rows the
+    on-demand source (JSearch/Active Jobs) just returned.
+
+    The nightly board sweep enriches through the Batch API (ingestion.py),
+    which can legitimately take up to an hour to come back — fine for a
+    background sweep of thousands, unusable for the dozen rows one search
+    just fetched. This calls the same model and schema one posting at a
+    time instead, so results land in seconds: without it, a card sourced
+    from this path could never show the sponsorship or seniority badge a
+    board-sourced card can earn, which is the exact inconsistency this
+    exists to close.
+
+    Rows already enriched under this external_id (from a previous refresh of
+    the same query) are reused rather than re-classified — this path
+    replaces its whole cache entry on every refresh, and re-paying Claude for
+    postings that haven't changed would turn one classification into one per
+    refresh, forever.
+    """
+    if not rows or not llm_client.available:
+        return rows
+
+    external_ids = [row["external_id"] for row in rows if row.get("external_id")]
+    known: dict[str, JobListing] = {}
+    if external_ids:
+        known = {
+            row.external_id: row
+            for row in db.query(JobListing)
+            .filter(JobListing.external_id.in_(external_ids), JobListing.enriched_at.isnot(None))
+            .all()
+        }
+
+    enriched_rows = []
+    for row in rows:
+        existing = known.get(row.get("external_id") or "")
+        if existing is not None:
+            row = {
+                **row,
+                "h1b_sponsorship": existing.h1b_sponsorship,
+                "h1b_evidence": existing.h1b_evidence,
+                "experience_level": existing.experience_level,
+                "employment_type": existing.employment_type,
+                "enriched_at": existing.enriched_at,
+            }
+            if existing.skills and existing.skills != "[]":
+                row["skills"] = existing.skills
+            enriched_rows.append(row)
+            continue
+
+        try:
+            response = llm_client._client.messages.create(
+                **enrichment.build_request_params(
+                    row.get("title", ""), row.get("company", ""), row.get("description") or ""
+                )
+            )
+            facts = enrichment.parse_enrichment(response)
+        except Exception:
+            logger.warning(
+                "on-demand enrichment failed for %r, storing unenriched", row.get("title"), exc_info=True
+            )
+            enriched_rows.append(row)
+            continue
+
+        row = {
+            **row,
+            "h1b_sponsorship": facts["h1b_sponsorship"],
+            "h1b_evidence": facts["h1b_evidence"] or None,
+            "experience_level": facts["experience_level"],
+            "employment_type": facts["employment_type"],
+            "enriched_at": datetime.now(timezone.utc),
+        }
+        # Claude's skills replace the source's own only when it actually
+        # found some — an empty list means it found nothing, not that
+        # ai_key_skills (or the empty default) was wrong.
+        if facts["core_skills"]:
+            row["skills"] = json.dumps(facts["core_skills"])
+        enriched_rows.append(row)
+
+    return enriched_rows
+
+
 def refresh_query(
     db: Session, query_key: str, max_results: int | None = None
 ) -> tuple[list[JobListing], float]:
@@ -290,6 +418,7 @@ def refresh_query(
         # empty grid until the next refresh.
         logger.warning("job feed: source returned no usable rows for %r", query_key)
         return [], cost
+    rows = _enrich_rows(db, rows)
     return _replace_cache(db, query_key, rows), cost
 
 
@@ -379,6 +508,12 @@ def _interleave_by_role(rows: list[JobListing]) -> list[JobListing]:
 _STANDING_BOARD_SOURCES = ("greenhouse", "lever", "ashby")
 
 
+# Below this many role-matching rows, filtering down to just them would
+# leave the grid feeling broken rather than personalised — see the comment
+# at its one call site in _warm_feed.
+MIN_PERSONALIZED_MATCHES = 6
+
+
 def _warm_feed(
     db: Session, target_roles: list[str] | None = None
 ) -> tuple[list[JobListing], datetime | None]:
@@ -447,6 +582,23 @@ def _warm_feed(
         )
 
     rows.sort(key=rank)
+
+    # Interest-based filtering, not just a rank boost: when the caller has
+    # target roles and enough of the feed actually matches them, backfill
+    # rows are dropped entirely rather than merely sorted behind — "your
+    # feed" should mean your roles, not everyone's roles with yours first.
+    #
+    # The floor exists because a narrow or unusual target-role set can match
+    # very little of what happens to be cached right now, and an
+    # almost-empty grid reads as broken, not as personalised. Below it, the
+    # full ranked set (still role-first) is shown instead — matching the
+    # existing "staleness demotes rather than excludes" philosophy above:
+    # showing something plausible beats showing next to nothing.
+    if wanted_set:
+        matched = [row for row in rows if row.query_key in wanted_set]
+        if len(matched) >= MIN_PERSONALIZED_MATCHES:
+            rows = matched
+
     newest = max(_as_utc(row.fetched_at) for row in rows)
     _FEED_CACHE[cache_key] = (time.monotonic(), rows, newest)
     return rows, newest
@@ -609,11 +761,43 @@ EXPERIENCE_FILTERS = ("entry", "mid", "senior", "lead")
 EMPLOYMENT_FILTERS = ("full_time", "part_time", "contract", "internship")
 
 
+
+# Top-employer quick-filter chips. Matching is alias-aware rather than a
+# literal match on the chip label: a jsearch/active_jobs row's `company` is
+# whatever the aggregator returned verbatim — "Amazon.com Services LLC",
+# "Microsoft Corporation", "Apple Inc." — and none of the curated
+# Greenhouse/Lever/Ashby boards carry most of these seven at all (they don't
+# publish on those platforms), so an exact-string match would show "no jobs"
+# for nearly every chip nearly all the time. Same idea as _KNOWN_DOMAINS
+# above: the chip is a human label, the match is against real-world variance.
+#
+# "amazon" alone (for AWS) is deliberately broad — the aggregator has no
+# reliable way to separate an AWS posting from another Amazon org's, and a
+# false positive here (a non-AWS Amazon role under an "AWS" chip) is a far
+# smaller harm than the chip matching nothing.
+EMPLOYER_CHIPS: dict[str, tuple[str, ...]] = {
+    "AWS": ("aws", "amazon web services", "amazon"),
+    "Google": ("google", "alphabet"),
+    "American Express": ("american express", "amex"),
+    "NVIDIA": ("nvidia",),
+    "Microsoft": ("microsoft",),
+    "Stripe": ("stripe",),
+    "Apple": ("apple",),
+}
+
+
+def _company_matches(company: str, chip: str) -> bool:
+    aliases = EMPLOYER_CHIPS.get(chip, (chip,))
+    lowered = company.lower()
+    return any(alias in lowered for alias in aliases)
+
+
 def apply_filters(
     rows: list[JobListing],
     h1b: str | None = None,
     experience: str | None = None,
     employment: str | None = None,
+    company: str | None = None,
 ) -> list[JobListing]:
     """Narrow a feed by enrichment attributes.
 
@@ -634,6 +818,8 @@ def apply_filters(
         filtered = [r for r in filtered if r.experience_level == experience]
     if employment in EMPLOYMENT_FILTERS:
         filtered = [r for r in filtered if r.employment_type == employment]
+    if company:
+        filtered = [r for r in filtered if _company_matches(r.company, company)]
     return filtered
 
 
@@ -655,6 +841,9 @@ def filter_counts(rows: list[JobListing]) -> dict[str, dict[str, int]]:
         "h1b": tally("h1b_sponsorship", H1B_FILTERS),
         "experience": tally("experience_level", EXPERIENCE_FILTERS),
         "employment": tally("employment_type", EMPLOYMENT_FILTERS),
+        "employer": {
+            chip: sum(1 for r in rows if _company_matches(r.company, chip)) for chip in EMPLOYER_CHIPS
+        },
         # Explicitly surfaced so the UI can say how much of the feed has not
         # been classified, instead of implying the filters cover everything.
         "unenriched": sum(1 for r in rows if r.h1b_sponsorship is None),
