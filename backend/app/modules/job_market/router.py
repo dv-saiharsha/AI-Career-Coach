@@ -25,6 +25,7 @@ def list_jobs(
     h1b: str | None = Query(default=None, description="explicitly_sponsored | no_sponsorship | unmentioned"),
     experience: str | None = Query(default=None, description="entry | mid | senior | lead"),
     employment: str | None = Query(default=None, description="full_time | part_time | contract | internship"),
+    company: str | None = Query(default=None, description="Employer quick-filter chip, e.g. AWS | Google | Stripe"),
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
@@ -78,7 +79,7 @@ def list_jobs(
     # Counts come from the unfiltered feed so a pill still shows how many it
     # would match after another pill has already narrowed the grid.
     counts = services.filter_counts(rows)
-    rows = services.apply_filters(rows, h1b=h1b, experience=experience, employment=employment)
+    rows = services.apply_filters(rows, h1b=h1b, experience=experience, employment=employment, company=company)
     jobs_payload = [services.to_payload(row) for row in rows]
 
     # Resume matching, only when there's a primary resume to match against.

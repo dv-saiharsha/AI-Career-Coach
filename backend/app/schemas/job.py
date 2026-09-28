@@ -95,6 +95,9 @@ class FilterCountsSchema(BaseModel):
     h1b: dict[str, int] = {}
     experience: dict[str, int] = {}
     employment: dict[str, int] = {}
+    # Keyed by chip label ("AWS", "Google", ...), not a raw company string —
+    # see job_market.services.EMPLOYER_CHIPS.
+    employer: dict[str, int] = {}
     # How much of the feed has never been classified. Surfaced so the UI can
     # say so outright instead of implying the filters cover everything.
     unenriched: int = 0

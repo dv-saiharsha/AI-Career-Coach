@@ -180,6 +180,17 @@ def test_get_active_session_ignores_legacy_sessions_without_category(db):
     assert engine.get_active_session(db, ALICE) is None
 
 
+def test_start_session_falls_back_to_generic_questions_when_llm_unavailable(monkeypatch, db):
+    monkeypatch.setattr(prep.llm_client, "_client", None)
+    session = engine.start_session(db, ALICE, "Backend Engineer", "Mid-level", "technical")
+    questions = engine.session_questions(db, session.id)
+
+    assert session.status == "in_progress"
+    assert len(questions) == len(engine._FALLBACK_QUESTIONS["technical"])
+    assert all(q.prep_question_id is None for q in questions)
+    assert any("Backend Engineer" in q.text for q in questions)
+
+
 def test_abandon_session_marks_status_and_is_idempotent(db, mock_prep_llm):
     session = engine.start_session(db, ALICE, "Backend Engineer", "Mid-level", "technical")
     assert engine.abandon_session(db, ALICE, session.id) is True

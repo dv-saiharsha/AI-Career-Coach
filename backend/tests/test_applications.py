@@ -92,7 +92,7 @@ class TestPipeline:
         make the column disappear from the board entirely."""
         pipeline = client.get("/api/applications/pipeline").json()["pipeline"]
         assert set(pipeline) == {
-            "saved", "applied", "recruiter_contacted", "recruiter_screening",
+            "viewed", "saved", "applied", "recruiter_contacted", "recruiter_screening",
             "online_assessment", "technical_interview", "manager_interview",
             "final_interview", "offer", "accepted", "rejected", "withdrawn",
         }

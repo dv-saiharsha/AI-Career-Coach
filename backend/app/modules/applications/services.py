@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
+from app.core.events import event_manager
 from app.core.taxonomy import expand_skills, skill_candidates
 from app.models.application import APPLICATION_STATUSES, ApplicationStatusHistory, JobApplication
 from app.models.interview import InterviewSession
@@ -26,6 +27,31 @@ from app.modules.notifications.service import notify_application_status_changed
 from app.modules.resume_analyzer.rubric import band
 
 ACTIVITY_FEED_LIMIT = 50
+
+# Passive, automatic stages — recorded without the user taking an action a
+# notification should interrupt them for. 'viewed' fires on opening a job's
+# detail pane; 'saved' fires on an Apply click (see useApplyTracker.ts) before
+# the user has confirmed they actually applied. Every later stage is a real
+# pipeline event and still notifies.
+_SILENT_STATUSES = frozenset({"viewed", "saved"})
+
+
+def _publish_pipeline_update(
+    background_tasks: BackgroundTasks | None, user_id: str, application_id: int, status: str
+) -> None:
+    """Live push for the Kanban board and dashboard counters — see
+    frontend/src/lib/hooks/useRealtimeStream.ts's INVALIDATIONS map, keyed on
+    this event's type. Best-effort like every SSE publish: skipped outright
+    with no background_tasks (a caller outside a request), never the source
+    of truth for the counts themselves."""
+    if background_tasks is None:
+        return
+    background_tasks.add_task(
+        event_manager.publish,
+        user_id,
+        "pipeline_update",
+        {"application_id": application_id, "status": status},
+    )
 
 
 def _serialize(record: JobApplication) -> dict:
@@ -78,7 +104,12 @@ def _record_status_history(db: Session, application_id: int, from_status: str | 
     db.add(ApplicationStatusHistory(application_id=application_id, from_status=from_status, to_status=to_status))
 
 
-def create_application(db: Session, user_id: str, payload: dict) -> dict:
+def create_application(
+    db: Session,
+    user_id: str,
+    payload: dict,
+    background_tasks: BackgroundTasks | None = None,
+) -> dict:
     record = JobApplication(user_id=user_id, **payload)
     # Saving something straight into 'applied' should still date-stamp it.
     if record.status == "applied":
@@ -90,6 +121,8 @@ def create_application(db: Session, user_id: str, payload: dict) -> dict:
 
     _record_status_history(db, record.id, None, record.status)
     db.commit()
+
+    _publish_pipeline_update(background_tasks, user_id, record.id, record.status)
     return _serialize(record)
 
 
@@ -133,15 +166,21 @@ def update_application(
     db.refresh(record)
 
     if new_status and new_status != previous_status:
-        notify_application_status_changed(
-            db, user_id,
-            application_id=record.id,
-            company=record.company,
-            job_title=record.job_title,
-            from_status=previous_status,
-            to_status=new_status,
-            background_tasks=background_tasks,
-        )
+        _publish_pipeline_update(background_tasks, user_id, record.id, new_status)
+        # 'viewed'/'saved' are automatic tracking, not something the user did —
+        # a notification bell for every job someone merely opens or clicks
+        # Apply on would be noise, not signal. Real pipeline movement (a
+        # recruiter reply, an interview stage, an offer) still notifies.
+        if new_status not in _SILENT_STATUSES:
+            notify_application_status_changed(
+                db, user_id,
+                application_id=record.id,
+                company=record.company,
+                job_title=record.job_title,
+                from_status=previous_status,
+                to_status=new_status,
+                background_tasks=background_tasks,
+            )
 
     return _serialize(record)
 

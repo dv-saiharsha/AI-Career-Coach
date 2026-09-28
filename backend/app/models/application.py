@@ -16,7 +16,15 @@ from app.core.database import Base
 # one-time remap of existing 'interviewing' rows to 'recruiter_screening' —
 # the least presumptuous read of "somewhere in the interview process" when
 # the exact round reached was never recorded under the old scheme.
+#
+# 'viewed' added afterwards: a passive, automatic signal (the job detail pane
+# was opened) distinct from 'saved' (an explicit bookmark action). It sits
+# before 'saved' in the lifecycle but is never itself a manual drag-drop
+# target on the Kanban board — see STAGE_GROUPS in
+# frontend/src/lib/domain/applicationStages.ts, whose 'wishlist' column entry
+# stays 'saved'.
 APPLICATION_STATUSES = (
+    "viewed",
     "saved",
     "applied",
     "recruiter_contacted",
