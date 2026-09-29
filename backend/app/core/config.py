@@ -47,24 +47,18 @@ class Settings(BaseSettings):
     # Left optional so local dev and CI need no Redis to boot.
     REDIS_URL: str = ""
 
-    # Whether this process runs the hourly ATS board sweep.
+    # Whether this process runs the hourly ATS board sweep
+    # (job_market/ingestion.py + scheduler.py — the older Greenhouse/Lever/
+    # Ashby sweep, not job_market/crawler.py's companies-table crawl, which
+    # the separate `worker` service runs unconditionally).
     #
-    # Free — Greenhouse and Lever board reads only, never Apify or Claude — so
-    # leaving it on costs nothing but requests. Turn it off for a process that
-    # should not sweep: a one-off script, or a second replica where one worker
-    # already covers it. Upserts are idempotent on content_hash, so two
-    # workers sweeping is wasteful rather than wrong.
-    # JSearch on RapidAPI. Aggregates LinkedIn, Indeed and career sites, so it
-    # reaches employers who publish no Greenhouse or Lever board — which is
-    # most of the market outside well-known tech.
-    #
-    # Both blank means the source is simply skipped. The plan on this key
-    # allows 200 requests a month, so app/modules/job_market/jsearch.py
-    # enforces a budget from the API's own remaining-request header rather
-    # than polling it like a free source.
-    RAPIDAPI_KEY: str = ""
-    RAPIDAPI_HOST: str = "jsearch.p.rapidapi.com"
-
+    # Free — board reads only, never Claude — so leaving it on costs nothing
+    # but requests. Turn it off for a process that should not sweep: a
+    # one-off script, or a second replica where one worker already covers it,
+    # or (the production default, set in docker-compose.prod.yml) the API
+    # service once the `worker` service covers the same ground and more.
+    # Upserts are idempotent on content_hash, so two workers sweeping is
+    # wasteful rather than wrong.
     JOB_SWEEP_ENABLED: bool = True
 
     DB_POOL_SIZE: int = 5
@@ -85,62 +79,19 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str = ""
     DEEPGRAM_TIMEOUT_SECONDS: float = 30.0
 
-    # Keyword search returns nothing without a location — the actor exits
-    # SUCCEEDED with an empty dataset and still bills the start fee. Comma
-    # separated.
-    JOB_LOCATIONS: str = "United States"
-
     # Enrichment runs on Haiku via the Batch API. Overridable so a sweep can
     # be re-run on a stronger model without a code change; cost reporting goes
     # silent for anything but the default rather than quoting a stale rate.
     JOB_ENRICHMENT_MODEL: str = ""
 
-    # Which backend the job feed reads from: "jsearch" or "active_jobs" (see
-    # job_market/active_jobs.py — same RapidAPI account/key, a different
-    # product, for accounts whose JSearch plan doesn't expose /search).
-    # Kept as a seam in job_market/services._fetch, so adding a provider is
-    # one more elif there rather than re-plumbing every caller.
-    #
-    # Was "apify" — stale ever since Apify was dropped in favour of free
-    # employer-board reads plus this budgeted aggregator. Left at that value,
-    # every on-demand search (any role not in the pre-warmed set) raised
-    # SourceUnavailable("unknown JOB_SOURCE 'apify'") on this exact default,
-    # in any environment that never explicitly overrode it — which is
-    # whichever one this is, since nothing in .env sets JOB_SOURCE. A stale
-    # default from a removed provider, silently breaking the provider that
-    # replaced it.
-    JOB_SOURCE: str = "jsearch"
-
-    # How long a cached query stays fresh, and therefore the hard floor on
-    # spend: a query costs at most one actor run per window.
-    #
-    # 72h is set by arithmetic, not taste. Each run is ~$0.13 and the warm set
-    # is 9 roles:
-    #     daily   -> 9 x 30 x $0.13 = ~$35/month
-    #     3-daily -> 9 x 10 x $0.13 = ~$12/month
-    # Shortening this scales the bill linearly, and superlinearly once
-    # on-demand user searches are in the mix. Check the arithmetic first.
-    JOB_CACHE_TTL_HOURS: int = 72
-    # Hard age boundary for anything shown to a user. Distinct from the cache
-    # TTL above, which decides when to re-scrape: a listing can be served from
-    # a stale cache and still be recent enough to apply to, but past this it is
-    # suppressed outright — an expired posting wastes an application.
-    # Seven days. Widened from four: four kept the grid very fresh but thin,
-    # and a five-day-old posting is still open far more often than not. The
-    # cost of the trade is asymmetric in the other direction too — a candidate
-    # who never sees a role loses more than one who applies to a filled one.
+    # Hard age boundary for anything shown to a user, on every read path
+    # (job_market/services.py). A listing past this is suppressed outright —
+    # an expired posting wastes an application. Seven days: four kept the
+    # grid very fresh but thin, and a five-day-old posting is still open far
+    # more often than not. The cost of the trade is asymmetric in the other
+    # direction too — a candidate who never sees a role loses more than one
+    # who applies to a filled one.
     JOB_MAX_AGE_DAYS: int = 7
-    # The actor enforces a 150-result floor regardless of this value; it
-    # only bounds how many we keep. Apify bills per result, where it matters.
-    JOB_RESULTS_PER_QUERY: int = 40
-    # Hard ceiling on a single actor run, enforced before the call is made.
-    # Guards against a malformed query fanning out into a large paid run.
-    JOB_MAX_RESULTS_PER_RUN: int = 100
-    # Backstop enforced by Apify itself, independent of our per-result price
-    # assumption: the run is aborted server-side if it would bill past this.
-    # Belt-and-braces with JOB_MAX_RESULTS_PER_RUN — that one trusts our own
-    # arithmetic, this one does not.
-    JOB_MAX_SPEND_PER_RUN_USD: float = 0.50
 
     # Crawler contact — every request the crawler makes (ATS boards and
     # JSON-LD careers pages alike) identifies itself with a User-Agent that
@@ -160,10 +111,8 @@ class Settings(BaseSettings):
     # concurrency above is what's bounded per company, not per host.
     CRAWLER_PER_DOMAIN_MIN_INTERVAL_MS: int = 250
 
-    # How long a closed job_listings row is kept before the crawler hard-
-    # deletes it. Only applies to standing crawler-sourced rows (status
-    # transitions through job_market/crawler.py) — the JSearch on-demand
-    # cache has its own, separate TTL/replace lifecycle.
+    # How long a closed job_listings row is kept before the crawler
+    # hard-deletes it (status transitions through job_market/crawler.py).
     JOB_CLOSED_RETENTION_DAYS: int = 90
 
     # Comma-separated allowlist gating the admin crawl API
@@ -248,10 +197,10 @@ def validate_startup() -> None:
 
     Only enforced when ENVIRONMENT=production — every other required-looking
     setting below has a permissive default specifically so local dev and CI
-    need no .env to boot (DEEPGRAM_API_KEY/RAPIDAPI_KEY degrade features
-    gracefully when unset, by design; the ones checked here don't have a
-    degraded mode, so silently booting without them just moves the failure
-    from "won't start" to "500s on the first real request").
+    need no .env to boot (DEEPGRAM_API_KEY degrades that feature gracefully
+    when unset, by design; the ones checked here don't have a degraded mode,
+    so silently booting without them just moves the failure from "won't
+    start" to "500s on the first real request").
     """
     if not settings.is_production:
         return

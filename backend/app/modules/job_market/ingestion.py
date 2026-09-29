@@ -1,22 +1,29 @@
-"""Background sweep: fetch postings, enrich the new ones, upsert, archive.
+"""Older board sweep: fetch Greenhouse/Lever/Ashby postings, enrich the new
+ones, upsert, archive.
 
-Cost shape. Only one half spends money now:
+STILL HERE, NO LONGER THE PRIMARY PIPELINE
+
+job_market/crawler.py — reading the `companies` table, covering all six ATS
+adapters plus the JSON-LD fallback, with the close-after-2-misses lifecycle —
+is what backend/scripts/run_crawl.py and the worker process
+(app/worker.py) actually run in production. This module is what
+job_market/scheduler.py's older in-process sweep still calls locally
+(JOB_SWEEP_ENABLED, default on for a single dev process); production disables
+it (docker-compose.prod.yml) since `worker` now covers the same ground and
+more. It is kept working rather than deleted because retiring it outright is
+a separate, later decision — not a rider on removing JSearch.
+
+Cost shape. Only one half spends money:
 
     Boards   — free. Employers' own Greenhouse and Lever boards, no key and
-               no per-call charge. ~7,800 roles a sweep, which is why the
-               paid scraper this replaced was worth removing rather than
-               keeping alongside.
-    JSearch  — no per-call charge, but a hard monthly request quota (200 on
-               the current key). Budgeted in jsearch.py against the API's own
-               remaining-request header, with a reserve held back.
+               no per-call charge.
     Claude   — one batch request per *new* posting. Postings already enriched
                are skipped entirely (see `_unenriched`), so a re-run costs
-               nothing for jobs already held. Without that filter a daily sweep
-               re-pays for roughly everything inside the 72h TTL.
+               nothing for jobs already held.
 
-    Experience level and employment type are NOT sent to Claude: the actor
-    already reports both, and paying a model to infer what the source states
-    is slower and less accurate than reading it.
+    Experience level and employment type are NOT sent to Claude when a board
+    states them: paying a model to infer what the source already says is
+    slower and less accurate than reading it.
 
 Nothing here runs on a web request. `dry_run` defaults to True so importing or
 invoking this by mistake cannot spend anything.
@@ -33,7 +40,7 @@ from sqlalchemy.orm import Session
 
 from app.core.llm import llm_client
 from app.models.job import JobListing
-from app.modules.job_market import ats_boards, boards_registry, enrichment, geo, jsearch, services
+from app.modules.job_market import ats_boards, boards_registry, enrichment, geo
 
 logger = logging.getLogger(__name__)
 
@@ -79,16 +86,6 @@ def content_hash(company: str, title: str, location: str) -> str:
 class SweepReport:
     """What a sweep actually did. Every figure is measured, not projected."""
 
-    roles_searched: list[str] = field(default_factory=list)
-    # Requests left on the aggregator's monthly quota, as the API last
-    # reported it. None when that source was never called.
-    jsearch_requests_left: int | None = None
-    runs_completed: int = 0
-    stopped_on_budget: bool = False
-    postings_seen: int = 0
-    # Rows from employers' own ATS boards. Free, so tracked separately from
-    # the Apify count — a sweep that got most of its roles here spent nothing
-    # to do it, and collapsing the two would hide that.
     board_postings: int = 0
     boards_swept: int = 0
     # Rows a board returned that geo.is_non_us_location flagged — this app is
@@ -117,8 +114,8 @@ class SweepReport:
         return round(self.input_tokens / 1e6 * 0.50 + self.output_tokens / 1e6 * 2.50, 4)
 
     def total_cost_usd(self) -> float:
-        """Apify's own billed figure plus computed Claude spend. The Apify half
-        is what the API reported, not a projection."""
+        """Computed Claude spend — the only part of this sweep that still
+        bills per unit."""
         return round(self.claude_cost_usd(), 4)
 
 
@@ -141,12 +138,7 @@ def _unenriched(db: Session, candidates: dict[str, dict]) -> dict[str, dict]:
 
 
 def _collect_boards(report: SweepReport) -> dict[str, dict]:
-    """Employers' own Greenhouse and Lever boards. Free, so it runs first.
-
-    Ordering is the point: these cost nothing, so anything they supply is a
-    role the paid Apify pass below never has to search for. Running them
-    afterwards would spend the budget first and then discover it was not
-    needed.
+    """Employers' own Greenhouse and Lever boards. Free.
 
     Errors are already swallowed per board inside ats_boards.fetch_board — a
     404 there means "this company is not on this ATS", which is ordinary
@@ -163,10 +155,6 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
                 report.postings_excluded_non_us += 1
                 continue
             key = content_hash(row["company"], row["title"], row["location"])
-            # Same de-dup key the Apify path uses, so a role posted to both a
-            # company board and LinkedIn is stored once — and because boards
-            # run first, the copy that survives is the employer's own, whose
-            # apply URL goes to the real form rather than an interstitial.
             candidates.setdefault(key, row)
 
     report.boards_swept = len(boards)
@@ -175,78 +163,6 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
         "sweep: %d boards -> %d distinct postings (free), %d excluded as non-US",
         len(boards), len(candidates), report.postings_excluded_non_us,
     )
-    return candidates
-
-
-# Process-local rotation cursor: which offset into `roles` the next manual
-# sweep starts from. Without it, _collect always queried roles[:N] — the same
-# handful every single invocation, however many roles JOB_DOMAINS grew to,
-# since jsearch.search_many's own budget slice always took the *first* N of
-# whatever list it was handed. Resets on process restart, which is fine: the
-# cost of re-covering an already-swept role is one query, not a correctness
-# problem.
-_role_cursor = 0
-
-
-def _next_role_slice(roles: list[str], count: int) -> list[str]:
-    """The next `count` roles, wrapping around, advancing the module cursor."""
-    global _role_cursor
-    if not roles:
-        return []
-    n = len(roles)
-    start = _role_cursor % n
-    selected = [roles[(start + i) % n] for i in range(min(count, n))]
-    _role_cursor = (start + len(selected)) % n
-    return selected
-
-
-def _collect(db: Session, roles: list[str], report: SweepReport) -> dict[str, dict]:
-    """One JSearch query per role, within that API's request budget.
-
-    Replaced Apify, which billed per actor run. Apify contributed 2,578 rows
-    accumulated over months; the free ATS boards return ~7,800 in a single
-    35-second sweep and now do so hourly at no cost, so the paid scraper was
-    the smallest and most expensive source in the feed.
-
-    JSearch is the breadth that replaces it — it aggregates LinkedIn, Indeed
-    and company career sites, reaching employers who publish no Greenhouse or
-    Lever board, which is most of the market outside well-known tech.
-
-    There is no cost ceiling here any more because there is no per-call
-    charge. The constraint is requests: 200 a month on this key, enforced in
-    jsearch.py from the API's own remaining-request header, with a reserve
-    held back so an automated sweep can never take the last of the quota.
-
-    Rotates through `roles` across invocations (see _next_role_slice) rather
-    than always querying its first MAX_QUERIES_PER_SWEEP entries — otherwise
-    growing JOB_DOMAINS with more industries would never actually get this
-    path's jsearch coverage, since the same handful at the front of the list
-    would keep winning every sweep forever.
-    """
-    candidates: dict[str, dict] = {}
-
-    if not jsearch.is_configured():
-        report.errors.append("RAPIDAPI_KEY not configured — aggregator search skipped")
-        return candidates
-
-    targets = _next_role_slice(list(roles), jsearch.MAX_QUERIES_PER_SWEEP)
-    for row in jsearch.search_many(targets):
-        report.postings_seen += 1
-        # Belt-and-braces: the request itself already asks for country=us
-        # (jsearch.py), but this still catches a stray non-US row the API
-        # returns anyway — a remote role headquartered abroad, say.
-        if geo.is_non_us_location(row.get("location", "")):
-            report.postings_excluded_non_us += 1
-            continue
-        digest = content_hash(row.get("company", ""), row.get("title", ""), row.get("location", ""))
-        # First occurrence wins: the same posting surfacing under two roles is
-        # one job. Board rows are collected before this and keep priority,
-        # because an employer's own posting beats an aggregator's copy of it.
-        candidates.setdefault(digest, {**row, "content_hash": digest})
-
-    report.roles_searched = targets
-    report.runs_completed = len(report.roles_searched)
-    report.jsearch_requests_left = jsearch.remaining_requests()
     return candidates
 
 
@@ -326,14 +242,8 @@ def _upsert(db: Session, candidates: dict[str, dict], facts: dict[str, dict], re
 
         for column in ("query_key", "external_id", "title", "company", "location", "work_mode",
                        "salary_range", "description", "skills", "apply_url", "posted_at",
-                       # Straight from the actor — not inferred, not paid for.
-                       "experience_level", "employment_type",
-                       # Which ATS the row came from. Only board rows carry it;
-                       # the Apify path omits the key entirely and the `in item`
-                       # guard below leaves any existing value alone, so a row
-                       # that was first seen on a company board keeps its
-                       # provenance if it is later re-seen via the scraper.
-                       "source"):
+                       # Straight from the board — not inferred, not paid for.
+                       "experience_level", "employment_type", "source"):
             if column in item:
                 setattr(row, column, item[column])
         row.fetched_at = now
@@ -372,45 +282,34 @@ def _archive(db: Session, report: SweepReport) -> None:
     db.commit()
 
 
-def refresh_global_jobs(
-    db: Session, roles: list[str] | None = None, dry_run: bool = True
-) -> SweepReport:
-    """Fetch, enrich, and upsert postings for each warm role.
+def refresh_global_jobs(db: Session, dry_run: bool = True) -> SweepReport:
+    """Fetch, enrich, and upsert Greenhouse/Lever/Ashby board postings.
 
     dry_run defaults to True and is the only thing standing between an
     accidental call and real spend: it reports what a sweep *would* cost
-    without issuing a single Apify or Anthropic request.
+    without issuing a single Anthropic request.
     """
-    targets = list(roles or services.WARM_ROLES)
     report = SweepReport(dry_run=dry_run)
 
     if dry_run:
-        report.roles_searched = targets[: jsearch.MAX_QUERIES_PER_SWEEP]
         report.boards_swept = boards_registry.board_count()
         report.errors.append(
             f"DRY RUN — no requests issued. A live sweep would read "
-            f"{boards_registry.board_count()} employer ATS boards at no cost, then spend up "
-            f"to {jsearch.MAX_QUERIES_PER_SWEEP} of the aggregator's monthly request quota, "
-            f"plus Claude enrichment for postings not already stored — capped at "
-            f"${MAX_SWEEP_COST_USD:.2f}."
+            f"{boards_registry.board_count()} employer ATS boards at no cost, plus Claude "
+            f"enrichment for postings not already stored — capped at ${MAX_SWEEP_COST_USD:.2f}."
         )
         return report
 
-    # Boards first. They are free and they are the employer's own posting, so
-    # when the same role also appears in the aggregator the board copy is the
-    # one that survives the content-hash de-dup — its apply URL goes to the
-    # real form rather than an aggregator's interstitial.
     candidates = _collect_boards(report)
-    candidates.update(_collect(db, targets, report))
     pending = _unenriched(db, candidates)
     report.already_known = len(candidates) - len(pending)
 
     # Persisted BEFORE enrichment, not after. Enrichment is a Claude batch
     # that can legitimately poll for an hour; holding the scraped rows in
-    # memory across that window meant a process restart threw away Apify spend
-    # that was already billed. Rows land unenriched (enriched_at NULL) and the
-    # second pass fills them in — which is also exactly the state a later
-    # sweep knows how to resume from.
+    # memory across that window would mean a process restart loses the sweep
+    # entirely. Rows land unenriched (enriched_at NULL) and the second pass
+    # fills them in — which is also exactly the state a later sweep knows how
+    # to resume from.
     _upsert(db, candidates, {}, report)
 
     facts = _enrich(pending, report) if pending else {}
@@ -419,8 +318,8 @@ def refresh_global_jobs(
     _archive(db, report)
 
     logger.info(
-        "sweep: %d boards + %d queries, %d postings (%d known), %d enriched — claude $%.4f",
-        report.boards_swept, len(report.roles_searched), report.postings_seen, report.already_known,
+        "sweep: %d boards, %d postings (%d known), %d enriched — claude $%.4f",
+        report.boards_swept, report.board_postings, report.already_known,
         report.newly_enriched, report.claude_cost_usd(),
     )
     return report

@@ -1,100 +1,44 @@
-"""Cache-first job feed.
+"""The Job Portal's read path — direct database reads only.
 
-The hybrid strategy: a small set of core roles is kept warm so the grid paints
-instantly, and any other role a user searches is fetched on demand and cached
-under the same TTL. That combination is what lets /jobs cover every role the
-interview coach accepts (it takes free-text roles) without paying to
-pre-scrape a catalog nobody searches.
+Every row in job_listings now comes from job_market/crawler.py's hourly
+crawl (or, locally, ingestion.py's older board sweep) — there is no more
+on-demand external fetch triggered by a user's search. A query the crawler
+has never seen returns whatever the full-text search actually matches, not
+a queued scrape: the table is kept fresh by the crawler's own schedule, not
+by request traffic.
 
-Cost model, since every miss is a billed actor run:
-    spend per window = JOB_RESULTS_PER_QUERY
-                       x (warm roles + distinct on-demand queries)
-A hit costs nothing. So normalising queries aggressively is not tidiness —
-"Senior ML Engineer" and "ml engineer " collapsing to one key is the
-difference between one charge and two for identical listings.
+This replaces an earlier design built around JSearch/RapidAPI, where a
+search miss triggered a billed, minutes-long actor run cached under a
+query-specific key with its own TTL. That entire mechanism — the cache,
+the background-thread scrape, the request quota, the on-demand enrichment
+call — is gone along with the provider. See CRAWLER_PLAN.md and this
+change's own PR description for why.
 """
 
 import json
 import logging
 import re
-import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.llm import llm_client
 from app.models.job import JobListing
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-from app.modules.job_market import active_jobs, enrichment, geo, jsearch
+from app.modules.job_market import geo
 from app.modules.job_market.matching import attach_matches
 
 logger = logging.getLogger(__name__)
 
 
-class SourceUnavailable(RuntimeError):
-    """The configured job source could not serve a query.
-
-    Wraps whichever provider-specific error was raised so callers don't have
-    to know which backend is active.
-    """
-
-
-def _fetch(query_key: str, limit: int) -> tuple[list[dict], float]:
-    """Fetch and normalise from the configured source.
-
-    The JOB_SOURCE switch is kept with a single branch on purpose: adding or
-    swapping a provider should be one more elif here, not re-plumbing every
-    caller. Returns rows plus the run's real billed cost in USD.
-    """
-    source = (settings.JOB_SOURCE or "jsearch").lower()
-
-    if source == "jsearch":
-        if not jsearch.is_configured():
-            raise SourceUnavailable("RAPIDAPI_KEY is not configured")
-        rows = jsearch.search(query_key)
-        if not rows and jsearch.remaining_requests() is not None:
-            # Distinguishes "budget exhausted" from "no matches", which the
-            # caller renders very differently: one is a temporary limit, the
-            # other is a genuine empty result.
-            if jsearch.remaining_requests() <= jsearch.RESERVE_REQUESTS:
-                raise SourceUnavailable("monthly search quota reserved — try again next cycle")
-        # Cost is zero per call: this key is quota-limited, not usage-billed.
-        return rows, 0.0
-
-    if source == "active_jobs":
-        if not active_jobs.is_configured():
-            raise SourceUnavailable("RAPIDAPI_KEY is not configured")
-        rows = active_jobs.search(query_key)
-        if not rows and active_jobs.remaining_requests() is not None:
-            if active_jobs.remaining_requests() <= active_jobs.RESERVE_REQUESTS:
-                raise SourceUnavailable("request budget reserved — try again next cycle")
-        return rows, 0.0
-
-    raise SourceUnavailable(f"unknown JOB_SOURCE {source!r} (expected 'jsearch' or 'active_jobs')")
-
-
-def source_configured() -> bool:
-    """Whether the active source has credentials. Gates every outbound call."""
-    source = (settings.JOB_SOURCE or "jsearch").lower()
-    if source == "jsearch":
-        return jsearch.is_configured()
-    if source == "active_jobs":
-        return active_jobs.is_configured()
-    return False
-
-
-# Grouped by domain so a sweep covers the whole product rather than the
-# software corner of it. Every entry is a normalise_query() key — compared
-# directly against JobListing.query_key, so "Electrical Engineer" would never
-# match the stored "electrical engineer".
-#
-# Each role added here is a recurring cost on every sweep (one Apify run plus
-# its results), so this list is the sweep's price tag. Prefer letting on-demand
-# caching handle the long tail over growing it.
+# Domain vocabulary for classifying a posting's *title* into a grouping the
+# UI can label — "Software & AI", "Healthcare & Medical", and so on. This
+# used to double as the warm-role list a paid aggregator was searched for on
+# a schedule; that half is gone with the provider. What is left is exactly
+# what the name says: a keyword taxonomy for domain_for() below.
 JOB_DOMAINS: dict[str, tuple[str, ...]] = {
     "Software & AI": (
         "software engineer",
@@ -122,11 +66,6 @@ JOB_DOMAINS: dict[str, tuple[str, ...]] = {
         "civil engineer",
         "industrial engineer",
     ),
-    # Added so the warm feed and domain grouping aren't tech-only. Job Market
-    # already personalises to any free-text role a user's own profile names
-    # (target_roles is a tag input, not a fixed list) via jsearch/active_jobs
-    # on demand — these are what widen the *default* grid and the manual
-    # paid sweep's coverage to match.
     "Healthcare & Medical": (
         "registered nurse",
         "physician assistant",
@@ -170,20 +109,29 @@ JOB_DOMAINS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-WARM_ROLES = tuple(role for roles in JOB_DOMAINS.values() for role in roles)
 
+def domain_for(title: str) -> str | None:
+    """Which domain a posting's title suggests, for grouping in the UI.
 
-def domain_for(query_key: str) -> str | None:
-    """Which domain a cached role belongs to, for grouping in the UI."""
+    Previously matched a row's query_key against this same vocabulary
+    exactly — meaningful when query_key WAS the search term a paid aggregator
+    was asked for. Every row is crawler-sourced now, and query_key is a board
+    identifier ("greenhouse:stripe"), not a role, so this reads the title's
+    own text against the vocabulary instead. Best-effort: an unusual title
+    that names no listed role classifies as None, same as before.
+    """
+    lowered = (title or "").lower()
     for domain, roles in JOB_DOMAINS.items():
-        if query_key in roles:
+        if any(role in lowered for role in roles):
             return domain
     return None
 
 
-# Seniority words and punctuation are stripped from the cache key: Google Jobs
-# returns broadly the same posting set for "senior x" and "x", so keying on
-# them separately would double the spend for near-identical results.
+# Seniority words and punctuation are stripped so two ways of writing the same
+# role — "Senior ML Engineer" and "ml engineer" — compare equal. Still used by
+# interview_coach/prep.py and applications/services.py to match a role name
+# against a stored one; kept here as a shared text-normalisation utility
+# rather than duplicated in both.
 _SENIORITY_WORDS = {
     "junior", "jr", "senior", "sr", "staff", "principal", "lead", "entry",
     "level", "mid", "associate", "head", "of", "chief",
@@ -191,23 +139,18 @@ _SENIORITY_WORDS = {
 
 
 def normalise_query(raw: str) -> str:
-    """Collapse a user's search text into a stable, billable cache key."""
+    """Collapse role text into a stable comparison key."""
     lowered = re.sub(r"[^a-z0-9\s]", " ", raw.lower())
     words = [w for w in lowered.split() if w and w not in _SENIORITY_WORDS]
     return " ".join(words).strip()
 
 
-def _cutoff() -> datetime:
-    return datetime.now(timezone.utc) - timedelta(hours=settings.JOB_CACHE_TTL_HOURS)
-
-
 def _max_age_floor() -> datetime:
-    """Hard boundary: nothing older is shown, however stale the cache is.
+    """Hard boundary: nothing older is shown, however fresh the crawl is.
 
-    Separate from _cutoff, which only decides freshness for ranking and
-    re-scraping. A listing past this is suppressed rather than demoted —
-    surfacing a three-week-old posting costs the candidate an application,
-    which is worse than showing a thinner grid.
+    A listing past this is suppressed rather than demoted — surfacing a
+    three-week-old posting costs the candidate an application, which is
+    worse than showing a thinner grid.
     """
     return datetime.now(timezone.utc) - timedelta(days=settings.JOB_MAX_AGE_DAYS)
 
@@ -222,19 +165,13 @@ def _as_utc(value: datetime | None) -> datetime | None:
     way, so attaching the timezone is a relabel, not a conversion.
     """
     if value is None:
-        # posted_at is nullable — rows whose source omitted a date are kept
-        # (unknown age, not old age), so every caller must tolerate None.
         return None
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _age_filter():
-    """Suppress postings older than JOB_MAX_AGE_DAYS.
-
-    Applied to every read path. It previously lived only in _warm_feed, so a
-    search returned listings of unbounded age while the default grid was
-    bounded — the same feed contradicting itself depending on how you got
-    there.
+    """Suppress postings older than JOB_MAX_AGE_DAYS. Applied to every read
+    path — search and the default grid alike.
 
     Rows with no posted_at are kept: a missing date is unknown age, and
     dropping them would silently hide every posting whose source omitted one.
@@ -246,318 +183,149 @@ def _age_filter():
 def _us_only(rows: list[JobListing]) -> list[JobListing]:
     """Drop postings whose location names a country other than the US.
 
-    Applied to every read path (see geo.py for what counts as a signal),
-    same "suppress everywhere or nowhere" rule _age_filter follows — a filter
-    that only caught the default grid would let a search return the Brazil
-    and India roles the grid was hiding.
+    Applied to every read path (see geo.py for what counts as a signal).
+    job_market/crawler.py already filters this at collection time now, so
+    this is a second, cheap backstop against anything that slipped through
+    (or was written by the older ingestion.py board sweep, which filters the
+    same way at its own collection point) rather than the primary defence.
     """
     return [row for row in rows if not geo.is_non_us_location(row.location)]
 
 
-def _fresh_rows(db: Session, query_key: str) -> list[JobListing]:
-    rows = (
-        db.query(JobListing)
-        # description is NOT deferred. to_payload reads it, so deferring it
-        # turned one query into one lazy load per row — 38 round-trips to
-        # us-east-1 at ~85ms each, which was the entire cold-start cost.
-        # Fetching the column up front costs bytes; deferring it cost seconds.
-        .filter(
-            JobListing.query_key == query_key,
-            JobListing.fetched_at >= _cutoff(),
-            _age_filter(),
+# How many rows a search or the default grid will ever load into Python and
+# rank there. Not a page size — the UI's own limit/pagination is separate —
+# but a floor under "don't pull every open row in the table into memory for
+# one request," which stopped being a theoretical concern once a single
+# crawl started producing tens of thousands of rows in one pass.
+CANDIDATE_ROW_LIMIT = 1000
+
+
+def search_jobs(db: Session, query: str) -> list[JobListing]:
+    """Full-text search directly against crawled job_listings. No cache, no
+    external call — a search this table has never seen for this term simply
+    returns nothing until the crawler adds something that matches, which it
+    does on its own hourly schedule rather than in response to a request.
+
+    Postgres uses a real to_tsvector/plainto_tsquery match against title,
+    company, skills and description, backed by ix_job_listings_fts (see the
+    migration that adds it). SQLite — local dev and every test here — has no
+    equivalent without a separate FTS5 virtual table, so it falls back to a
+    case-insensitive substring match across the same columns: adequate for a
+    small local dataset, and this branch never runs in production.
+    """
+    terms = (query or "").strip()
+    if not terms:
+        return []
+
+    base = db.query(JobListing).filter(JobListing.status == "open", _age_filter())
+
+    if db.bind.dialect.name == "postgresql":
+        vector = func.to_tsvector(
+            "english",
+            func.concat_ws(
+                " ", JobListing.title, JobListing.company, JobListing.skills, JobListing.description
+            ),
         )
-        .order_by(JobListing.posted_at.desc().nullslast())
-        .all()
-    )
-    return _us_only(rows)
-
-
-def _any_rows(db: Session, query_key: str) -> list[JobListing]:
-    """Rows for a query regardless of cache freshness.
-
-    "Stale cache" means the row was scraped a while ago, which is fine to
-    show. It does NOT mean the posting itself may be ancient — the age filter
-    still applies, because an expired listing wastes an application however
-    recently we indexed it.
-    """
-    rows = (
-        db.query(JobListing)
-        # description is NOT deferred. to_payload reads it, so deferring it
-        # turned one query into one lazy load per row — 38 round-trips to
-        # us-east-1 at ~85ms each, which was the entire cold-start cost.
-        # Fetching the column up front costs bytes; deferring it cost seconds.
-        .filter(JobListing.query_key == query_key, _age_filter())
-        .order_by(JobListing.posted_at.desc().nullslast())
-        .all()
-    )
-    return _us_only(rows)
-
-
-def _replace_cache(db: Session, query_key: str, rows: list[dict]) -> list[JobListing]:
-    """Swap a query's cached rows for a fresh set, atomically.
-
-    Delete-then-insert rather than upsert: a listing that disappeared from
-    Google Jobs is a filled or withdrawn role, and continuing to show it is
-    worse than showing fewer jobs. The whole thing runs in one transaction so
-    a failed insert can't leave the cache empty after the delete.
-    """
-    db.query(JobListing).filter(JobListing.query_key == query_key).delete(
-        synchronize_session=False
-    )
-    # query_key is forced to the caller's canonical key rather than trusted
-    # from the row dict. jsearch.normalise() stamps its own "jsearch:<query>"
-    # on every row it returns — a *different* string from the plain key
-    # _fresh_rows/_any_rows filter on — so every JSearch-sourced search
-    # result was being saved under a key its own read path could never find:
-    # cached, but permanently invisible, and re-scraped (and re-billed
-    # against the monthly quota) on every single repeat search for the
-    # same term, since the miss never stopped looking like a miss.
-    saved = [JobListing(**{**row, "query_key": query_key}) for row in rows]
-    db.add_all(saved)
-    db.commit()
-    # New rows make the cached feed wrong, and a stale feed after a paid
-    # refresh is the one case where the cache actively costs money.
-    clear_feed_cache()
-    return saved
-
-
-def _enrich_rows(db: Session, rows: list[dict]) -> list[dict]:
-    """Classify H-1B sponsorship, seniority and employment type for rows the
-    on-demand source (JSearch/Active Jobs) just returned.
-
-    The nightly board sweep enriches through the Batch API (ingestion.py),
-    which can legitimately take up to an hour to come back — fine for a
-    background sweep of thousands, unusable for the dozen rows one search
-    just fetched. This calls the same model and schema one posting at a
-    time instead, so results land in seconds: without it, a card sourced
-    from this path could never show the sponsorship or seniority badge a
-    board-sourced card can earn, which is the exact inconsistency this
-    exists to close.
-
-    Rows already enriched under this external_id (from a previous refresh of
-    the same query) are reused rather than re-classified — this path
-    replaces its whole cache entry on every refresh, and re-paying Claude for
-    postings that haven't changed would turn one classification into one per
-    refresh, forever.
-    """
-    if not rows or not llm_client.available:
-        return rows
-
-    external_ids = [row["external_id"] for row in rows if row.get("external_id")]
-    known: dict[str, JobListing] = {}
-    if external_ids:
-        known = {
-            row.external_id: row
-            for row in db.query(JobListing)
-            .filter(JobListing.external_id.in_(external_ids), JobListing.enriched_at.isnot(None))
+        rows = (
+            base.filter(vector.op("@@")(func.plainto_tsquery("english", terms)))
+            .order_by(JobListing.posted_at.desc().nullslast())
+            .limit(CANDIDATE_ROW_LIMIT)
             .all()
-        }
-
-    enriched_rows = []
-    for row in rows:
-        existing = known.get(row.get("external_id") or "")
-        if existing is not None:
-            row = {
-                **row,
-                "h1b_sponsorship": existing.h1b_sponsorship,
-                "h1b_evidence": existing.h1b_evidence,
-                "experience_level": existing.experience_level,
-                "employment_type": existing.employment_type,
-                "enriched_at": existing.enriched_at,
-            }
-            if existing.skills and existing.skills != "[]":
-                row["skills"] = existing.skills
-            enriched_rows.append(row)
-            continue
-
-        try:
-            response = llm_client._client.messages.create(
-                **enrichment.build_request_params(
-                    row.get("title", ""), row.get("company", ""), row.get("description") or ""
+        )
+    else:
+        pattern = f"%{terms.lower()}%"
+        rows = (
+            base.filter(
+                or_(
+                    func.lower(JobListing.title).like(pattern),
+                    func.lower(JobListing.company).like(pattern),
+                    func.lower(JobListing.skills).like(pattern),
                 )
             )
-            facts = enrichment.parse_enrichment(response)
-        except Exception:
-            logger.warning(
-                "on-demand enrichment failed for %r, storing unenriched", row.get("title"), exc_info=True
-            )
-            enriched_rows.append(row)
-            continue
-
-        row = {
-            **row,
-            "h1b_sponsorship": facts["h1b_sponsorship"],
-            "h1b_evidence": facts["h1b_evidence"] or None,
-            "experience_level": facts["experience_level"],
-            "employment_type": facts["employment_type"],
-            "enriched_at": datetime.now(timezone.utc),
-        }
-        # Claude's skills replace the source's own only when it actually
-        # found some — an empty list means it found nothing, not that
-        # ai_key_skills (or the empty default) was wrong.
-        if facts["core_skills"]:
-            row["skills"] = json.dumps(facts["core_skills"])
-        enriched_rows.append(row)
-
-    return enriched_rows
-
-
-def refresh_query(
-    db: Session, query_key: str, max_results: int | None = None
-) -> tuple[list[JobListing], float]:
-    """Force a billed actor run for one query and replace its cache entry.
-
-    Returns the cached rows and what the run actually cost, so callers report
-    real spend rather than a projection.
-    """
-    limit = max_results or settings.JOB_RESULTS_PER_QUERY
-    rows, cost = _fetch(query_key, limit)
-    if not rows:
-        # Cache is deliberately left intact: the request is already spent, and
-        # replacing good rows with nothing would turn one bad response into an
-        # empty grid until the next refresh.
-        logger.warning("job feed: source returned no usable rows for %r", query_key)
-        return [], cost
-    rows = _enrich_rows(db, rows)
-    return _replace_cache(db, query_key, rows), cost
+            .order_by(JobListing.posted_at.desc().nullslast())
+            .limit(CANDIDATE_ROW_LIMIT)
+            .all()
+        )
+    return _us_only(rows)
 
 
 def get_jobs(
     db: Session, query: str | None = None, target_roles: list[str] | None = None
 ) -> tuple[list[JobListing], datetime | None, bool]:
-    """Listings for a query. Reads cache only — never runs the scraper.
+    """Listings for a query, or the personalised default grid with none.
 
-    Returns (rows, last_updated, refresh_needed).
-
-    This used to trigger a live provider fetch on a cache miss, which was
-    tolerable when the source was a ~1s HTTP call. It is not tolerable now:
-    an Apify actor run takes minutes and bills per run, so a synchronous
-    refresh meant a user typing an uncached role waited several minutes on a
-    blocked request *and* was charged for it. Every keystroke that survived
-    the debounce was a paid, multi-minute page load.
-
-    So the read path is now pure cache. `refresh_needed` tells the caller a
-    scrape would help; the router queues that in the background and answers
-    immediately with whatever is already stored.
+    Returns (rows, last_updated, refreshing). refreshing is always False —
+    kept in the return shape because the router and JobFeedSchema still
+    expose it — since there is nothing left to queue a refresh for; the
+    crawler keeps the table current on its own schedule, not in response to
+    a request.
     """
-    query_key = normalise_query(query) if query else ""
-
-    if not query_key:
+    query = (query or "").strip()
+    if not query:
         rows, updated = _warm_feed(db, target_roles)
         return rows, updated, False
 
-    fresh = _fresh_rows(db, query_key)
-    if fresh:
-        return fresh, max(_as_utc(row.fetched_at) for row in fresh), False
-
-    # Stale beats empty, and stale-plus-a-queued-refresh beats a spinner.
-    stale = _any_rows(db, query_key)
-    if stale:
-        return stale, max(_as_utc(row.fetched_at) for row in stale), True
-
-    # Nothing at all for this query. Fall back to the warm feed so the grid
-    # still paints something relevant while the scrape runs.
-    rows, updated = _warm_feed(db, target_roles)
-    return rows, updated, True
+    rows = search_jobs(db, query)
+    updated = max((_as_utc(row.fetched_at) for row in rows), default=None)
+    return rows, updated, False
 
 
 # Process-local cache for the default feed, keyed by the caller's role set.
 #
 # The default grid is identical for everyone sharing a target-role list and
-# changes only when a sweep runs, so re-querying it per request is pure waste:
-# under load this is the difference between one query and one per reader.
+# changes only when the crawler writes new rows, so re-querying it per
+# request is pure waste: under load this is the difference between one query
+# and one per reader. Unrelated to the search cache the old on-demand
+# provider needed — this is a plain performance cache, not a cost control.
 _FEED_CACHE: dict[str, tuple[float, list[JobListing], datetime | None]] = {}
 
 
 def clear_feed_cache() -> None:
-    """Drop the cached feed. Called after a sweep writes new rows, and by
+    """Drop the cached feed. Called by the crawler after it writes new rows
+    (so the grid doesn't serve a stale cache after a fresh crawl), and by
     tests that would otherwise see a previous test's feed."""
     _FEED_CACHE.clear()
 
 
-def _interleave_by_role(rows: list[JobListing]) -> list[JobListing]:
-    """Round-robin the sorted rows across their query_key.
-
-    Straight sorting groups every listing for one role together, so the first
-    screenful of a three-role profile is ten "AI Engineer" cards and nothing
-    else — which reads as a feed that ignored the other two roles.
-    """
-    by_role: dict[str, list[JobListing]] = {}
-    for row in rows:
-        by_role.setdefault(row.query_key, []).append(row)
-
-    queues = list(by_role.values())
-    interleaved: list[JobListing] = []
-    index = 0
-    while len(interleaved) < len(rows):
-        for queue in queues:
-            if index < len(queue):
-                interleaved.append(queue[index])
-        index += 1
-    return interleaved
-
-
-# Standing content worth showing regardless of which query_key it's under —
-# an employer's own board, swept hourly independent of anyone searching for
-# it. jsearch/active_jobs rows also carry a non-null source, but they are the
-# *opposite* of standing: each one exists only because somebody searched that
-# exact term, and showing it in every other search's fallback grid means a
-# handful of rows from one old "java" search silently outlive that search and
-# turn up under an unrelated one, which is indistinguishable from the feed
-# being wrong.
-#
-# All six job_market/crawler.py ATS adapters plus the JSON-LD fallback are
-# standing in exactly the same sense — missing workable/smartrecruiters/
-# recruitee/jsonld here would silently hide every row those adapters find
-# from the default grid, the same invisible-cache bug _replace_cache's own
-# comment describes for a mismatched query_key.
-_STANDING_BOARD_SOURCES = ("greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee", "jsonld")
-
-
-# Below this many role-matching rows, filtering down to just them would
-# leave the grid feeling broken rather than personalised — see the comment
-# at its one call site in _warm_feed.
+# Below this many role-matching rows, filtering down to just them would leave
+# the grid feeling broken rather than personalised — see the comment at its
+# one call site in _warm_feed.
 MIN_PERSONALIZED_MATCHES = 6
+
+
+def _title_matches_any(title: str, roles: set[str]) -> bool:
+    lowered = (title or "").lower()
+    return any(role in lowered for role in roles)
 
 
 def _warm_feed(
     db: Session, target_roles: list[str] | None = None
 ) -> tuple[list[JobListing], datetime | None]:
-    """Default grid: cached listings, preferring the user's own target roles.
+    """Default grid: the most recent open listings, preferring the user's
+    own target roles.
 
-    Never triggers a scrape. Staleness demotes rather than excludes, so an
-    overdue sweep shows an old feed instead of an empty one — but the age
-    filter still applies, so nothing expired is shown at all.
+    Role matching is against each row's own title text now, not query_key —
+    every row is crawler-sourced, and query_key is a board identifier
+    ("greenhouse:stripe"), not the role that was searched for, so it can no
+    longer serve as the match key the way it did when a paid aggregator
+    fetched rows per role.
     """
     wanted = [normalise_query(role) for role in (target_roles or [])]
     wanted = [role for role in wanted if role]
+    wanted_set = set(wanted)
 
     cache_key = "|".join(wanted)
     cached = _FEED_CACHE.get(cache_key)
     if cached and (time.monotonic() - cached[0]) < settings.JOB_FEED_CACHE_SECONDS:
         return cached[1], cached[2]
 
-    keys = list(dict.fromkeys([*wanted, *WARM_ROLES]))
     rows = (
         db.query(JobListing)
         # description is NOT deferred. to_payload reads it, so deferring it
-        # turned one query into one lazy load per row — 38 round-trips to
-        # us-east-1 at ~85ms each, which was the entire cold-start cost.
-        # Fetching the column up front costs bytes; deferring it cost seconds.
-        # Warm-role rows OR anything from a curated employer board.
-        #
-        # query_key exists to tie a scraped row to the search that produced
-        # it, which is how the warm feed knows a row is relevant. Board rows
-        # have no such search behind them — they are a standing source, keyed
-        # by which company board they came from ("greenhouse:stripe"), so
-        # filtering on query_key alone made all 7,836 of them invisible to
-        # the feed the moment they landed. See _STANDING_BOARD_SOURCES for
-        # why this checks specific sources rather than "any source at all".
-        .filter(
-            or_(JobListing.query_key.in_(keys), JobListing.source.in_(_STANDING_BOARD_SOURCES)),
-            _age_filter(),
-        )
+        # turns one query into one lazy load per row.
+        .filter(JobListing.status == "open", _age_filter())
         .order_by(JobListing.posted_at.desc().nullslast())
+        .limit(CANDIDATE_ROW_LIMIT)
         .all()
     )
     rows = _us_only(rows)
@@ -565,50 +333,34 @@ def _warm_feed(
         _FEED_CACHE[cache_key] = (time.monotonic(), [], None)
         return [], None
 
-    wanted_set = set(wanted)
-
     def rank(row: JobListing) -> tuple[int, float]:
-        """Newest posting first, with the user's own roles ahead of backfill.
-
-        Ordered on posted_at — when the employer listed the role — not
-        fetched_at, which only records when we scraped. Sorting on the latter
-        makes ordering an artefact of sweep timing: every row from one sweep
-        shares a fetched_at, so the grid ends up in arbitrary order while
-        appearing sorted.
-
-        Role priority stays as the outer key so a target role still leads, but
-        recency decides everything within that. Interleaving is gone: it
-        deliberately broke time order to mix roles, which is the opposite of
-        what "show them by time posted" asks for.
-        """
+        """Newest posting first, with the user's own roles ahead of backfill."""
         posted = _as_utc(row.posted_at)
         return (
-            0 if row.query_key in wanted_set else 1,
+            0 if _title_matches_any(row.title, wanted_set) else 1,
             -posted.timestamp() if posted else 0.0,
         )
 
     rows.sort(key=rank)
 
     # Interest-based filtering, not just a rank boost: when the caller has
-    # target roles and enough of the feed actually matches them, backfill
-    # rows are dropped entirely rather than merely sorted behind — "your
-    # feed" should mean your roles, not everyone's roles with yours first.
+    # target roles and enough of the bounded candidate set actually matches
+    # them, backfill rows are dropped entirely rather than merely sorted
+    # behind — "your feed" should mean your roles, not everyone's roles with
+    # yours first.
     #
     # The floor exists because a narrow or unusual target-role set can match
-    # very little of what happens to be cached right now, and an
-    # almost-empty grid reads as broken, not as personalised. Below it, the
-    # full ranked set (still role-first) is shown instead — matching the
-    # existing "staleness demotes rather than excludes" philosophy above:
-    # showing something plausible beats showing next to nothing.
+    # very little of what happens to be in the candidate window right now,
+    # and an almost-empty grid reads as broken, not as personalised. Below
+    # it, the full ranked set (still role-first) is shown instead.
     if wanted_set:
-        matched = [row for row in rows if row.query_key in wanted_set]
+        matched = [row for row in rows if _title_matches_any(row.title, wanted_set)]
         if len(matched) >= MIN_PERSONALIZED_MATCHES:
             rows = matched
 
     newest = max(_as_utc(row.fetched_at) for row in rows)
     _FEED_CACHE[cache_key] = (time.monotonic(), rows, newest)
     return rows, newest
-
 
 
 # Employers whose brand name does not slugify to their real domain. A guessed
@@ -666,7 +418,7 @@ def company_logo_url(company: str) -> str | None:
 
 
 def to_payload(row: JobListing) -> dict:
-    """Shape a row into the JobListing contract the Next.js grid already expects."""
+    """Shape a row into the JobListing contract the frontend expects."""
     try:
         skills = json.loads(row.skills) if row.skills else []
     except json.JSONDecodeError:
@@ -689,7 +441,7 @@ def to_payload(row: JobListing) -> dict:
         "postedDaysAgo": posted_days_ago,
         "applyUrl": row.apply_url,
         "companyLogo": company_logo_url(row.company),
-        "domain": domain_for(row.query_key),
+        "domain": domain_for(row.title),
         "h1bSponsorship": row.h1b_sponsorship,
         "h1bEvidence": row.h1b_evidence,
         "experienceLevel": row.experience_level,
@@ -713,14 +465,8 @@ def resolve_primary_resume_text(db: Session, user_id: str) -> str | None:
     return analysis.resume_text if analysis and analysis.resume_text else None
 
 
-#  attach_matches's own docstring reasoned that scoring is cheap enough to
-# run uncached "over a feed of a few dozen listings" — true when that was
-# written, not true now that JOB_DOMAINS spans 18 warm roles at
-# JOB_RESULTS_PER_QUERY=40 each: up to 720 rows, each a real ~127ms model
-# call (see dashboard/services.py's own comment quantifying that cost).
 # top_matches only ever keeps the top `limit`, so scoring the full feed just
-# to throw away everything past the top 5 is exactly the "duplicate,
-# discarded work" this cap exists to stop.
+# to throw away everything past the top 5 would be duplicate, discarded work.
 _TOP_MATCHES_CANDIDATE_CAP = 80
 
 
@@ -767,20 +513,16 @@ EXPERIENCE_FILTERS = ("entry", "mid", "senior", "lead")
 EMPLOYMENT_FILTERS = ("full_time", "part_time", "contract", "internship")
 
 
-
 # Top-employer quick-filter chips. Matching is alias-aware rather than a
-# literal match on the chip label: a jsearch/active_jobs row's `company` is
-# whatever the aggregator returned verbatim — "Amazon.com Services LLC",
-# "Microsoft Corporation", "Apple Inc." — and none of the curated
-# Greenhouse/Lever/Ashby boards carry most of these seven at all (they don't
-# publish on those platforms), so an exact-string match would show "no jobs"
-# for nearly every chip nearly all the time. Same idea as _KNOWN_DOMAINS
-# above: the chip is a human label, the match is against real-world variance.
+# literal match on the chip label: a crawler row's `company` is whatever the
+# source's own API returned verbatim ("Amazon.com Services LLC", "Microsoft
+# Corporation", "Apple Inc."), so an exact-string match would show "no jobs"
+# for nearly every chip nearly all the time.
 #
-# "amazon" alone (for AWS) is deliberately broad — the aggregator has no
-# reliable way to separate an AWS posting from another Amazon org's, and a
-# false positive here (a non-AWS Amazon role under an "AWS" chip) is a far
-# smaller harm than the chip matching nothing.
+# "amazon" alone (for AWS) is deliberately broad — there is no reliable way
+# to separate an AWS posting from another Amazon org's from title/company
+# text alone, and a false positive here is a far smaller harm than the chip
+# matching nothing.
 EMPLOYER_CHIPS: dict[str, tuple[str, ...]] = {
     "AWS": ("aws", "amazon web services", "amazon"),
     "Google": ("google", "alphabet"),
@@ -808,8 +550,8 @@ def apply_filters(
     """Narrow a feed by enrichment attributes.
 
     Filtered in Python rather than SQL because the rows are already loaded and
-    ranked by _warm_feed — re-querying would discard that ordering and the
-    interleave that makes the first screen show a spread of roles.
+    ranked by _warm_feed/search_jobs — re-querying would discard that
+    ordering.
 
     An unenriched row (attribute is None) is excluded by any filter on that
     attribute. It is not evidence of absence: "we have not checked this
@@ -854,75 +596,3 @@ def filter_counts(rows: list[JobListing]) -> dict[str, dict[str, int]]:
         # been classified, instead of implying the filters cover everything.
         "unenriched": sum(1 for r in rows if r.h1b_sponsorship is None),
     }
-
-
-# Queries already queued for a background scrape, so a user retrying a search
-# a few times cannot fan out into several paid actor runs for the same term.
-_QUEUED: dict[str, float] = {}
-
-# One paid run per query per window, matching the cache TTL: re-scraping
-# sooner would replace rows that are still being served as fresh.
-QUEUE_COOLDOWN_SECONDS = 60 * 60
-
-
-def should_queue_refresh(query_key: str) -> bool:
-    """Whether a background scrape for this query is worth starting.
-
-    Guards the one path where a user action can spend money. Without the
-    cooldown, three people searching the same uncached role inside a minute
-    would start three actor runs for identical results.
-    """
-    if not query_key or not source_configured():
-        return False
-    last = _QUEUED.get(query_key)
-    if last is not None and (time.monotonic() - last) < QUEUE_COOLDOWN_SECONDS:
-        return False
-    _QUEUED[query_key] = time.monotonic()
-    return True
-
-
-# One scrape at a time across the process. An actor run takes minutes and
-# costs money; letting several overlap would multiply both for no gain.
-_SCRAPE_SLOT = threading.Semaphore(1)
-
-
-def _scrape(query_key: str) -> None:
-    """Run one scrape. Opens its own session — the request-scoped one is closed
-    the moment the response is sent."""
-    from app.core.database import SessionLocal
-
-    if not _SCRAPE_SLOT.acquire(blocking=False):
-        logger.info("background refresh: another scrape is running, skipping %r", query_key)
-        _QUEUED.pop(query_key, None)  # let it be retried once the slot frees
-        return
-
-    db = SessionLocal()
-    try:
-        rows, cost = refresh_query(db, query_key)
-        logger.info("background refresh: %r -> %d rows, $%.4f", query_key, len(rows), cost)
-        clear_feed_cache()
-    except Exception:
-        # Nothing is waiting on this. Logged and dropped rather than raised
-        # into a worker with no error channel.
-        logger.warning("background refresh failed for %r", query_key, exc_info=True)
-    finally:
-        db.close()
-        _SCRAPE_SLOT.release()
-
-
-def refresh_in_background(query_key: str) -> None:
-    """Start a scrape on a detached daemon thread.
-
-    Not FastAPI's BackgroundTasks: those run inside the request's worker
-    before it is released, so a nine-minute actor run would hold that worker
-    for nine minutes even though the response had already been written. A
-    daemon thread frees the worker immediately and dies with the process.
-    """
-    thread = threading.Thread(
-        target=_scrape, args=(query_key,), name=f"scrape:{query_key}", daemon=True
-    )
-    thread.start()
-
-
-def clear_queue() -> None:
-    _QUEUED.clear()

@@ -188,55 +188,18 @@ class TestSpendGuards:
 
     def test_dry_run_issues_no_requests(self, db, monkeypatch):
         def fail(*a, **k):
-            raise AssertionError("dry run must not call Apify")
+            raise AssertionError("dry run must not call any board")
 
-        monkeypatch.setattr(ingestion.jsearch, "search_many", fail)
+        monkeypatch.setattr(ingestion.ats_boards, "fetch_board", fail)
         report = ingestion.refresh_global_jobs(db)
         assert report.dry_run is True
-        assert report.postings_seen == 0
+        assert report.board_postings == 0
         assert any("DRY RUN" in e for e in report.errors)
-
-    def test_dry_run_reports_what_it_would_spend(self, db):
-        report = ingestion.refresh_global_jobs(db, roles=["a", "b", "c"])
-        # Only what would actually be queried, which the per-sweep cap bounds
-        # — listing three when two would run overstates the plan.
-        assert len(report.roles_searched) == ingestion.jsearch.MAX_QUERIES_PER_SWEEP
-        assert report.runs_completed == 0
-        assert report.total_cost_usd() == 0.0
-
-    def test_live_run_without_key_fetches_nothing(self, db, monkeypatch):
-        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: False)
-        report = ingestion.refresh_global_jobs(db, dry_run=False)
-        assert report.postings_seen == 0
-        assert any("RAPIDAPI_KEY" in e for e in report.errors)
 
     def test_cost_uses_measured_tokens(self):
         report = ingestion.SweepReport(input_tokens=1_000_000, output_tokens=1_000_000)
         # Haiku at $1/$5 per MTok, halved by the Batch API.
         assert report.claude_cost_usd() == 3.0
-
-    def test_the_aggregator_is_capped_per_sweep(self, db, monkeypatch):
-        """Replaces a per-run cost ceiling with a per-sweep request cap.
-
-        The scraper this used to bound billed per run, so the guard was a
-        dollar ceiling. Its replacement bills nothing per call and is limited
-        instead by a 200-request monthly quota, which a sweep running hourly
-        would exhaust in under two hours if it were allowed a query per role.
-        """
-        seen = {"queries": []}
-
-        def capture(roles, fetch=None):
-            seen["queries"] = list(roles)[: ingestion.jsearch.MAX_QUERIES_PER_SWEEP]
-            return []
-
-        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
-        monkeypatch.setattr(ingestion.jsearch, "search_many", capture)
-
-        report = ingestion.SweepReport(dry_run=False)
-        ingestion._collect(db, ["a", "b", "c", "d", "e"], report)
-
-        assert len(report.roles_searched) <= ingestion.jsearch.MAX_QUERIES_PER_SWEEP
-        assert report.total_cost_usd() == 0.0, "the aggregator bills nothing per call"
 
     def test_cost_is_zero_for_an_unpriced_model(self, monkeypatch):
         """Better to report nothing than a figure from a stale rate table."""
@@ -251,13 +214,13 @@ class TestSweepFlow:
         digest = ingestion.content_hash("Acme", "Engineer", "Remote")
         add_listing(db, digest, enriched=True)
 
-        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
+        monkeypatch.setattr(ingestion.boards_registry, "all_boards", lambda: [("greenhouse", "acme")])
         monkeypatch.setattr(
-            ingestion.jsearch,
-            "search_many",
-            lambda roles, fetch=None: [
+            ingestion.ats_boards,
+            "fetch_board",
+            lambda provider, board, query_key=None: [
                 {
-                    "query_key": "jsearch:engineer",
+                    "query_key": "greenhouse:acme",
                     "external_id": "x",
                     "title": "Engineer",
                     "company": "Acme",
@@ -267,7 +230,7 @@ class TestSweepFlow:
                     "description": "d",
                     "skills": "[]",
                     "posted_at": None,
-                    "source": "jsearch",
+                    "source": "greenhouse",
                 }
             ],
         )
@@ -276,50 +239,9 @@ class TestSweepFlow:
             raise AssertionError("must not create a batch when nothing is new")
 
         monkeypatch.setattr(ingestion, "_enrich", fail)
-        report = ingestion.refresh_global_jobs(db, roles=["ai engineer"], dry_run=False)
+        report = ingestion.refresh_global_jobs(db, dry_run=False)
         assert report.already_known == 1
         assert report.newly_enriched == 0
-
-    def test_the_same_posting_from_two_queries_is_one_job(self, db, monkeypatch):
-        """De-dup is on content_hash, so an aggregator returning the same role
-        under two searches must not produce two rows to enrich and pay for."""
-        row = {"title": "Engineer", "company": "Acme", "location": "Remote"}
-        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
-        monkeypatch.setattr(
-            ingestion.jsearch, "search_many", lambda roles, fetch=None: [dict(row), dict(row)]
-        )
-        report = ingestion.SweepReport(dry_run=False)
-        candidates = ingestion._collect(db, ["ai engineer", "ml engineer"], report)
-        assert report.postings_seen == 2
-        assert len(candidates) == 1
-
-    def test_an_unconfigured_key_is_reported_not_raised(self, db, monkeypatch):
-        """A missing key leaves the board rows intact — the sweep degrades to
-        its free half rather than failing outright."""
-        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: False)
-        report = ingestion.SweepReport(dry_run=False)
-        candidates = ingestion._collect(db, ["ai engineer"], report)
-        assert candidates == {}
-        assert any("RAPIDAPI_KEY" in e for e in report.errors)
-
-    def test_jsearch_row_with_a_non_us_location_is_excluded(self, db, monkeypatch):
-        """Belt-and-braces: jsearch.py already requests country=us, but a
-        stray non-US row from the API must not reach the feed either."""
-        monkeypatch.setattr(ingestion.jsearch, "is_configured", lambda: True)
-        monkeypatch.setattr(
-            ingestion.jsearch,
-            "search_many",
-            lambda roles, fetch=None: [
-                {"title": "Engineer", "company": "Acme", "location": "Dublin, Ireland"},
-                {"title": "Engineer", "company": "Acme US", "location": "Austin, TX"},
-            ],
-        )
-        report = ingestion.SweepReport(dry_run=False)
-        candidates = ingestion._collect(db, ["ai engineer"], report)
-        assert [c["company"] for c in candidates.values()] == ["Acme US"]
-        assert report.postings_excluded_non_us == 1
-        # Still counted as seen — the request was already spent on it.
-        assert report.postings_seen == 2
 
 
 class TestBoardSweepExcludesNonUsPostings:
