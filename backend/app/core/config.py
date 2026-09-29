@@ -142,6 +142,14 @@ class Settings(BaseSettings):
     # arithmetic, this one does not.
     JOB_MAX_SPEND_PER_RUN_USD: float = 0.50
 
+    # Crawler contact — every request the crawler makes (ATS boards and
+    # JSON-LD careers pages alike) identifies itself with a User-Agent that
+    # names a real contact, so an operator who wants to block or reach us
+    # can. Falls back to a placeholder rather than failing to boot: a blank
+    # value in dev/CI shouldn't stop the app, but production should set a
+    # real one.
+    CRAWLER_CONTACT_EMAIL: str = ""
+
     # Supabase Auth — the FastAPI backend verifies tokens Supabase issues,
     # it no longer signs its own. SUPABASE_JWT_SECRET is under
     # Project Settings -> API -> JWT Settings in the Supabase dashboard.
