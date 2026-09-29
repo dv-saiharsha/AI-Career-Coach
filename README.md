@@ -313,6 +313,16 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps 
 
 The worker's crawl is guarded by a Redis distributed lock (`REDIS_URL`, already required above one `UVICORN_WORKERS`) — safe to scale `worker` to more than one replica; extra ones simply skip a tick they don't win the lock for rather than double-crawling.
 
+**Managing the company registry.** `data/companies_seed.csv` (name, website, careers_url, ats_type, ats_slug, industry, size, active) is what `worker`/`scripts/run_crawl.py` actually crawl — not `job_market/boards_registry.py`'s older hardcoded list, which `job_market/scheduler.py`'s separate, still-running sweep still uses. To add companies: append rows to the CSV (leave `ats_type` blank for ones you don't already know), then:
+
+```
+python scripts/detect_ats.py data/companies_seed.csv     # fills in ats_type/ats_slug for blank rows
+python scripts/seed_companies.py data/companies_seed.csv # loads the CSV into the companies table
+python scripts/run_crawl.py                               # or scripts/run_crawl.py --company <slug> for one
+```
+
+Both scripts are safe to re-run — `detect_ats.py` never re-probes a row that already has an `ats_type`, and `seed_companies.py` upserts by `(ats_type, ats_slug)` (falling back to `name`), never duplicating a row. Crawl history and per-company health are readable at runtime through the admin API (`GET /api/admin/crawl/runs`, `GET /api/admin/crawl/companies` — gated by `ADMIN_EMAILS`), or triggered on demand with `POST /api/admin/crawl/run` / `POST /api/admin/crawl/companies/{id}/run`.
+
 **Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `RAPIDAPI_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
 
 **CORS.** `ALLOWED_ORIGINS` is a comma-separated list, read from settings rather than hardcoded — set it to your real frontend origin(s) in production. It is never `*` in production; `validate_startup()` enforces that directly.
@@ -343,10 +353,12 @@ TODO" subsections; this is the condensed index:
   metrics (filler words, pace, confidence) never populate for typed-answer
   sessions, by design; STAR-structure scoring only exists in the separate,
   unwired "story bank" feature.
-- **Job Portal** — no company-size field on `JobListing`; no un-save
-  endpoint (Save can only add, never retract); job match has 2 real
-  dimensions, not Figma's fabricated independent 3-reason breakdown;
-  `postedDaysAgo` is day-granularity only.
+- **Job Portal** — company size/industry exist on the `companies` table for
+  crawler-sourced listings (not yet surfaced on `JobListing`'s own payload
+  for JSearch rows, which have no `company_id`); no un-save endpoint (Save
+  can only add, never retract); job match has 2 real dimensions, not
+  Figma's fabricated independent 3-reason breakdown; `postedDaysAgo` is
+  day-granularity only.
 - **Applications** — no `priority` field; no free-text "next step" field;
   only one recruiter contact per application, not a list; no way to link a
   generated cover letter to an application.
