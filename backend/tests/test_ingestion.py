@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
+from app.models.company import Company  # noqa: F401 — registers job_listings.company_id's FK target
 from app.models.job import JobListing
 from app.modules.job_market import enrichment, ingestion
 

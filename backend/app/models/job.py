@@ -1,11 +1,12 @@
-from sqlalchemy import Column, DateTime, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 
 class JobListing(Base):
-    """One job posting, cached from an Apify actor run.
+    """One job posting — from an employer's own ATS board, a JSON-LD careers
+    page, or a cached JSearch aggregator result.
 
     This table is a paid-API cache, not user data — every row here cost money
     to fetch, so rows are kept and re-served until stale rather than deleted
@@ -62,11 +63,43 @@ class JobListing(Base):
 
     # TTL basis. Distinct from posted_at: when *we* fetched it, not when the
     # employer published it.
-    # Stable identity across sweeps: md5(company|title|location), normalised.
-    # Nullable because rows cached before the ingestion worker existed have no
-    # hash — backfilling one would be inventing an identity for a posting we
-    # can no longer verify.
-    content_hash = Column(String(32), nullable=True, index=True, unique=True)
+    # Content fingerprint, not identity: md5(company|title|location),
+    # normalised. NOT unique — see ix_job_listings_ats_identity below for why
+    # a content-based hash cannot also serve as the row's identity. Still
+    # useful as "did this posting change" for rows whose real identity comes
+    # from elsewhere. Nullable because rows cached before the ingestion
+    # worker existed have no hash — backfilling one would be inventing an
+    # identity for a posting we can no longer verify.
+    content_hash = Column(String(32), nullable=True, index=True)
+
+    # Structured pay, alongside salary_range's display string above — filled
+    # only when a source states numbers (Ashby's compensation block, a
+    # JSON-LD baseSalary). salary_range stays the thing every card renders;
+    # these exist for the salary filter, which can't range-query a string.
+    salary_min = Column(Integer, nullable=True)
+    salary_max = Column(Integer, nullable=True)
+    salary_currency = Column(String(8), nullable=True)
+
+    department = Column(String, nullable=True)
+
+    # Nullable: only crawler/ATS-sourced rows resolve to a registry entry.
+    # JSearch rows and any row from before the companies table existed have
+    # no company_id, and that's an accepted gap, not an error — see
+    # CRAWLER_PLAN.md §3.2.
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # first_seen_at is set once, at insert. last_seen_at is bumped on every
+    # crawl that re-observes the row — the pair is what the close-after-2-
+    # misses logic in job_market/ingestion.py compares against a company's
+    # last two successful crawls.
+    first_seen_at = Column(DateTime(timezone=True), nullable=True)
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 'open' | 'closed'. Only meaningful for standing crawler-sourced rows —
+    # the JSearch on-demand cache is replaced wholesale per query
+    # (services._replace_cache) and never transitions through this field.
+    status = Column(String(8), nullable=False, default="open", server_default="open")
+    closed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Claude-extracted, and only ever reporting what the posting SAYS.
     # h1b_sponsorship is never a claim about what an employer will do:
@@ -86,7 +119,42 @@ class JobListing(Base):
 
     fetched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    __table_args__ = (
+        # A CHECK rather than an enum, matching job_applications.status:
+        # SQLite has no enum type and the local dev database is SQLite.
+        CheckConstraint("status IN ('open', 'closed')", name="ck_job_listings_status"),
+    )
+
 
 # Composite index matching the actual cache lookup (query_key AND freshness).
 # Without this, every /jobs request table-scans a table that only grows.
 Index("ix_job_listings_query_fetched", JobListing.query_key, JobListing.fetched_at)
+
+# The real identity key for crawler/ATS-sourced rows. content_hash
+# (company|title|location) used to serve this purpose and was wrong on two
+# counts: two distinct open reqs with the same title at the same location
+# collapsed into one row, and a posting whose title was edited (a rename, not
+# a new job) read as a brand-new listing replacing the old one. Every
+# adapter in ats_boards.py already synthesizes a provider-scoped external_id
+# (e.g. "greenhouse:stripe:12345") at collection time, so (source, company,
+# external_id) is available with no new scraping — see
+# job_market/ingestion.py's upsert for the lookup this backs.
+#
+# Partial (source IS NOT NULL): JSearch rows carry no source and keep their
+# existing content_hash-based upsert entirely unchanged — this index does
+# not apply to them. NULLs in external_id are not deduplicated by a SQL
+# unique index (Postgres/SQLite both treat NULL <> NULL), so a source whose
+# adapter cannot produce a stable external_id (a JSON-LD page with no @id)
+# can still produce duplicate rows — an accepted, disclosed gap rather than
+# a silent one.
+Index(
+    "ix_job_listings_ats_identity",
+    JobListing.source, JobListing.company, JobListing.external_id,
+    unique=True,
+    postgresql_where=JobListing.source.isnot(None),
+    sqlite_where=JobListing.source.isnot(None),
+)
+
+# What the close-after-2-misses sweep queries: every open row for one
+# company. Without this it's a table scan per company per sweep.
+Index("ix_job_listings_company_status", JobListing.company_id, JobListing.status)

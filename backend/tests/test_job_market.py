@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.models.company import Company  # noqa: F401 — registers job_listings.company_id's FK target
+
 
 @pytest.fixture
 def db_session():
