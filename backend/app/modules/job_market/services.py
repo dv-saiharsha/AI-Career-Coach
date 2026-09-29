@@ -206,12 +206,17 @@ def search_jobs(db: Session, query: str) -> list[JobListing]:
     returns nothing until the crawler adds something that matches, which it
     does on its own hourly schedule rather than in response to a request.
 
-    Postgres uses a real to_tsvector/plainto_tsquery match against title,
-    company, skills and description, backed by ix_job_listings_fts (see the
-    migration that adds it). SQLite — local dev and every test here — has no
-    equivalent without a separate FTS5 virtual table, so it falls back to a
-    case-insensitive substring match across the same columns: adequate for a
-    small local dataset, and this branch never runs in production.
+    Postgres uses a real plainto_tsquery match against
+    job_listings_search_vector(...) — an IMMUTABLE SQL wrapper function the
+    migration also creates, and the exact expression ix_job_listings_fts is
+    built on; calling bare to_tsvector(...) here would compute the same
+    result but not be recognised by the planner as matching the index, and
+    that migration's own docstring explains why to_tsvector can't be
+    indexed directly in the first place. SQLite — local dev and every test
+    here — has no full-text equivalent without a separate FTS5 virtual
+    table, so it falls back to a case-insensitive substring match across
+    the same columns: adequate for a small local dataset, and this branch
+    never runs in production.
     """
     terms = (query or "").strip()
     if not terms:
@@ -220,11 +225,8 @@ def search_jobs(db: Session, query: str) -> list[JobListing]:
     base = db.query(JobListing).filter(JobListing.status == "open", _age_filter())
 
     if db.bind.dialect.name == "postgresql":
-        vector = func.to_tsvector(
-            "english",
-            func.concat_ws(
-                " ", JobListing.title, JobListing.company, JobListing.skills, JobListing.description
-            ),
+        vector = func.job_listings_search_vector(
+            JobListing.title, JobListing.company, JobListing.skills, JobListing.description
         )
         rows = (
             base.filter(vector.op("@@")(func.plainto_tsquery("english", terms)))
