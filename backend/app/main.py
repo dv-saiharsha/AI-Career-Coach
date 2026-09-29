@@ -17,6 +17,7 @@ from app.modules.events.router import router as events_router
 from app.modules.auth.router import router as auth_router
 from app.modules.interview_coach.router import router as interview_router
 from app.modules.job_market import scheduler
+from app.modules.job_market.admin_router import router as jobs_admin_router
 from app.modules.job_market.router import router as jobs_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.offers.router import router as offers_router
@@ -76,6 +77,7 @@ app.include_router(resume_builder_router, prefix="/api/resume-builder", tags=["R
 app.include_router(cover_letter_router, prefix="/api/cover-letter", tags=["Cover Letter"])
 app.include_router(interview_router, prefix="/api/interview", tags=["Interview Coach"])
 app.include_router(jobs_router, prefix="/api/jobs", tags=["Job Market"])
+app.include_router(jobs_admin_router, prefix="/api/admin/crawl", tags=["Job Market Admin"])
 app.include_router(applications_router, prefix="/api/applications", tags=["Application Pipeline"])
 app.include_router(offers_router, prefix="/api/offers", tags=["Offer Comparison"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])

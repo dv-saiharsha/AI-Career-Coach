@@ -61,10 +61,12 @@ def _redis_client():
     return redis.Redis.from_url(settings.REDIS_URL)
 
 
-def _run_once() -> None:
+def _run_once(
+    trigger: str = "scheduled", triggered_by: str | None = None, company_ids: list[int] | None = None
+) -> None:
     db = SessionLocal()
     try:
-        run = run_crawl(db, trigger="scheduled")
+        run = run_crawl(db, trigger=trigger, triggered_by=triggered_by, company_ids=company_ids)
         logger.info(
             "crawl run %s: %d/%d companies ok, %d new, %d updated, %d closed",
             run.id, run.companies_succeeded, run.companies_attempted,
@@ -79,19 +81,28 @@ def _run_once() -> None:
         db.close()
 
 
-def _run_once_locked() -> None:
+def run_locked(
+    trigger: str = "scheduled", triggered_by: str | None = None, company_ids: list[int] | None = None
+) -> None:
+    """Acquire the crawl lock (when Redis is configured) and run once.
+
+    Used by both the scheduled loop below and the admin API's manual-trigger
+    endpoints (job_market/admin_router.py), so a manually triggered crawl can
+    never overlap the scheduled one — it either gets the lock or skips,
+    exactly like a scheduled tick that lost the race would.
+    """
     client = _redis_client()
     if client is None:
-        _run_once()
+        _run_once(trigger, triggered_by, company_ids)
         return
 
     token = uuid.uuid4().hex
     acquired = client.set(LOCK_KEY, token, nx=True, ex=LOCK_TTL_SECONDS)
     if not acquired:
-        logger.info("crawl lock already held by another process — skipping this tick")
+        logger.info("crawl lock already held by another process — skipping")
         return
     try:
-        _run_once()
+        _run_once(trigger, triggered_by, company_ids)
     finally:
         try:
             client.eval(_RELEASE_SCRIPT, 1, LOCK_KEY, token)
@@ -109,7 +120,7 @@ def main() -> None:
     )
     time.sleep(STARTUP_DELAY_SECONDS)
     while True:
-        _run_once_locked()
+        run_locked()
         time.sleep(INTERVAL_SECONDS)
 
 

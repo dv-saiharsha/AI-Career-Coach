@@ -316,18 +316,24 @@ def _cleanup_retention(db: Session) -> int:
     )
 
 
-def run_crawl(db: Session, trigger: str = "scheduled", triggered_by: str | None = None) -> CrawlRun:
-    """One full crawl over every active, resolved company. Always returns a
-    persisted CrawlRun, even when nothing is configured to crawl yet."""
+def run_crawl(
+    db: Session,
+    trigger: str = "scheduled",
+    triggered_by: str | None = None,
+    company_ids: list[int] | None = None,
+) -> CrawlRun:
+    """One full crawl over every active, resolved company — or, with
+    company_ids, just those (the admin API's per-company manual trigger).
+    Always returns a persisted CrawlRun, even when nothing is configured to
+    crawl yet."""
     run = CrawlRun(trigger=trigger, triggered_by=triggered_by)
     db.add(run)
     db.flush()
 
-    companies = (
-        db.query(Company)
-        .filter(Company.active.is_(True), Company.ats_type.in_(_ATS_DISPATCH))
-        .all()
-    )
+    query = db.query(Company).filter(Company.active.is_(True), Company.ats_type.in_(_ATS_DISPATCH))
+    if company_ids is not None:
+        query = query.filter(Company.id.in_(company_ids))
+    companies = query.all()
 
     min_interval_ms = settings.CRAWLER_PER_DOMAIN_MIN_INTERVAL_MS
     results: dict[int, CompanyResult] = {}
