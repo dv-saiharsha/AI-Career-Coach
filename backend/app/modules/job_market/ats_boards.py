@@ -4,9 +4,11 @@ WHY THIS SOURCE EXISTS
 
 This was written to run alongside a paid Apify LinkedIn scraper, billed per
 run and bounded by two cost ceilings in ingestion.py — that scraper has
-since been removed entirely in favour of this and the budgeted JSearch
-aggregator, but the economics that motivated building this first are still
-the reason it stayed the primary source rather than a supplement. Greenhouse
+since been removed entirely (first in favour of a budgeted JSearch
+aggregator, which has itself since been removed too, leaving this and the
+other five ATS adapters plus the JSON-LD fallback as the only job source),
+but the economics that motivated building this first are still the reason it
+stayed the primary source rather than a supplement. Greenhouse
 and Lever both publish the job board of every company that uses them as
 public JSON, with no key, no account and no per-call charge. One request to
 Greenhouse returned 611 Stripe roles with full descriptions; one to Lever

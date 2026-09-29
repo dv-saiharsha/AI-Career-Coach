@@ -5,29 +5,26 @@ from app.core.database import Base
 
 
 class JobListing(Base):
-    """One job posting — from an employer's own ATS board, a JSON-LD careers
-    page, or a cached JSearch aggregator result.
-
-    This table is a paid-API cache, not user data — every row here cost money
-    to fetch, so rows are kept and re-served until stale rather than deleted
-    per request. `query_key` + `fetched_at` are what make that work: a lookup
-    is "rows for this query newer than the TTL", and a miss is what triggers a
-    billed actor run. Index the pair, not the columns separately.
+    """One job posting — from an employer's own ATS board (job_market/
+    crawler.py or the older job_market/ingestion.py sweep) or a careers
+    page's JSON-LD markup. The crawler is the only job source; there is no
+    other way a row gets into this table.
 
     There is no user_id. Listings are global and shared across all users —
-    that is the entire point of caching them centrally.
+    every candidate reads the same crawled, standing data.
     """
 
     __tablename__ = "job_listings"
 
     id = Column(Integer, primary_key=True, index=True)
-    # Normalised search term that produced this row (see services.normalise_query).
-    # Not the user's raw input — "Senior  ML Engineer " and "ml engineer" must
-    # collapse to one cache entry or we pay twice for the same listings.
+    # Which board produced this row — a provider:slug pair like
+    # "greenhouse:stripe", not a search term. (Historical note: this column
+    # briefly doubled as a search-cache key when an on-demand aggregator,
+    # since removed, filled it with the normalised query that fetched a row —
+    # any surviving row like that would have a null `source` below.)
     query_key = Column(String, nullable=False, index=True)
-    # Stable identifier from the actor, used to dedupe across overlapping
-    # queries ("ml engineer" and "machine learning engineer" return overlap).
-    # Nullable because not every actor guarantees one; falls back to a hash.
+    # Stable identifier from the source, used to dedupe across overlapping
+    # boards. Nullable because not every source guarantees one.
     external_id = Column(String, nullable=True, index=True)
 
     title = Column(String, nullable=False)
@@ -47,22 +44,23 @@ class JobListing(Base):
     apply_url = Column(String, nullable=False)
     posted_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Which ATS this posting came from: "greenhouse", "lever", or null for the
-    # Apify/LinkedIn feed where it is genuinely unknown.
+    # Which ATS this posting came from: "greenhouse", "lever", "ashby",
+    # "workable", "smartrecruiters", "recruitee", or "jsonld".
     #
     # Known by construction rather than inferred — a row fetched from
     # boards-api.greenhouse.io is a Greenhouse posting because that is where
-    # the bytes came from. It cannot be recovered for the scraped feed: 2,536
-    # of ~2,570 of those apply URLs are linkedin.com, so the ATS behind them
-    # is unknowable and null is the honest value.
+    # the bytes came from. Nullable only for historical reasons: the
+    # now-removed on-demand aggregators (JSearch, Active Jobs) never set it,
+    # since the ATS behind an aggregated result was genuinely unknowable. No
+    # current source ever leaves this null.
     #
     # Worth storing because resume_analyzer/ats_vendors.py already knows which
     # parsers a given resume loses content in, and pairing the two turns a
     # general warning into a specific one about the job in front of you.
     source = Column(String(24), nullable=True, index=True)
 
-    # TTL basis. Distinct from posted_at: when *we* fetched it, not when the
-    # employer published it.
+    # When we last fetched it. Distinct from posted_at: when *we* fetched it,
+    # not when the employer published it.
     # Content fingerprint, not identity: md5(company|title|location),
     # normalised. NOT unique — see ix_job_listings_ats_identity below for why
     # a content-based hash cannot also serve as the row's identity. Still
@@ -82,9 +80,9 @@ class JobListing(Base):
 
     department = Column(String, nullable=True)
 
-    # Nullable: only crawler/ATS-sourced rows resolve to a registry entry.
-    # JSearch rows and any row from before the companies table existed have
-    # no company_id, and that's an accepted gap, not an error — see
+    # Nullable: a row from before the companies table existed, or from the
+    # older ingestion.py sweep before it's been matched to a registry entry,
+    # has no company_id yet — an accepted gap, not an error. See
     # CRAWLER_PLAN.md §3.2.
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
 
@@ -95,9 +93,8 @@ class JobListing(Base):
     first_seen_at = Column(DateTime(timezone=True), nullable=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
 
-    # 'open' | 'closed'. Only meaningful for standing crawler-sourced rows —
-    # the JSearch on-demand cache is replaced wholesale per query
-    # (services._replace_cache) and never transitions through this field.
+    # 'open' | 'closed'. Set on every row the crawler writes; transitions
+    # through job_market/crawler.py's close-after-2-misses lifecycle.
     status = Column(String(8), nullable=False, default="open", server_default="open")
     closed_at = Column(DateTime(timezone=True), nullable=True)
     # Consecutive successful crawls of this row's company that did not
@@ -146,13 +143,13 @@ Index("ix_job_listings_query_fetched", JobListing.query_key, JobListing.fetched_
 # external_id) is available with no new scraping — see
 # job_market/ingestion.py's upsert for the lookup this backs.
 #
-# Partial (source IS NOT NULL): JSearch rows carry no source and keep their
-# existing content_hash-based upsert entirely unchanged — this index does
-# not apply to them. NULLs in external_id are not deduplicated by a SQL
-# unique index (Postgres/SQLite both treat NULL <> NULL), so a source whose
-# adapter cannot produce a stable external_id (a JSON-LD page with no @id)
-# can still produce duplicate rows — an accepted, disclosed gap rather than
-# a silent one.
+# Partial (source IS NOT NULL): a historical row with no source (from a
+# since-removed on-demand aggregator) is exempt, since it was never subject
+# to this identity scheme in the first place. NULLs in external_id are not
+# deduplicated by a SQL unique index (Postgres/SQLite both treat NULL <>
+# NULL), so a source whose adapter cannot produce a stable external_id (a
+# JSON-LD page with no @id) can still produce duplicate rows — an accepted,
+# disclosed gap rather than a silent one.
 Index(
     "ix_job_listings_ats_identity",
     JobListing.source, JobListing.company, JobListing.external_id,

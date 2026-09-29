@@ -473,3 +473,48 @@ table).
 replaces `content_hash` as the upsert identity for ATS/crawler-sourced rows;
 `content_hash` is kept for change detection only on those rows. JSearch rows
 are unchanged. See §3.2 and §9.
+
+---
+
+## 12. JSearch/RapidAPI removed — the crawler is now the sole job source
+
+Everywhere above that describes JSearch as "the licensed aggregator," "the
+existing aggregator," or an unchanged on-demand fallback (§0, §2.3, §3.2,
+§3.4, §8, §10) is now **historical** — it describes the architecture at the
+time this plan was written and approved, not the current one. Once the six
+ATS adapters plus the JSON-LD fallback were live and the companies registry
+was seeded (§6, §9), JSearch/RapidAPI stopped being needed for breadth and
+was removed outright, along with Active Jobs (the other RapidAPI product
+`JOB_SOURCE` could select):
+
+- `job_market/jsearch.py`, `job_market/active_jobs.py`, and their tests
+  deleted entirely.
+- The `JOB_SOURCE` switch, `_fetch()`, `source_configured()`,
+  `should_queue_refresh()`/`refresh_in_background()`/`_scrape()` (the
+  background-thread on-demand scrape), `_fresh_rows()`/`_any_rows()`/
+  `_replace_cache()` (the per-query cache), and `_enrich_rows()` (on-demand
+  Claude enrichment) all removed from `job_market/services.py`.
+- `RAPIDAPI_KEY`, `RAPIDAPI_HOST`, `JOB_SOURCE`, `JOB_LOCATIONS`,
+  `JOB_CACHE_TTL_HOURS`, `JOB_RESULTS_PER_QUERY`, `JOB_MAX_RESULTS_PER_RUN`,
+  `JOB_MAX_SPEND_PER_RUN_USD` all removed from `Settings`/`.env.example`.
+- `job_market/ingestion.py`'s `_collect()` (the JSearch half of the older
+  board sweep) removed; `_collect_boards()` (Greenhouse/Lever/Ashby) is
+  untouched and still runs locally exactly as §0/§9 describe.
+- The Job Portal's search (`services.search_jobs()`, new) is a full-text
+  query straight against `job_listings` — Postgres `to_tsvector`/
+  `plainto_tsquery` backed by a new `ix_job_listings_fts` GIN index, SQLite
+  falls back to a substring match. No external call happens at request
+  time; a term the crawler hasn't found anything for returns an honest
+  empty result rather than queuing a scrape.
+- `domain_for()` and the default-grid's target-role personalisation, both
+  previously keyed on `query_key` (meaningful only when query_key WAS the
+  search term an aggregator was asked for), now match against each row's
+  own `title` text instead — every row is crawler-sourced now, and
+  query_key is a board identifier, not a role.
+
+**Not done in this pass, deliberately:** `job_market/crawler.py` still does
+not run Claude enrichment on the rows it collects (see its own module
+docstring) — that gap predates and is independent of the JSearch removal.
+`job_market/ingestion.py`'s older board sweep is untouched and keeps running
+locally; retiring it (or migrating it to read from `companies`) remains the
+separate, later decision §9's own text already called out.

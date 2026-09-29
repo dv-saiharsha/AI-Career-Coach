@@ -3,20 +3,21 @@
 WHY THIS IS A SEPARATE PIPELINE FROM INGESTION.PY'S EXISTING BOARD SWEEP
 
 ingestion.py's board sweep (_collect_boards, run through scheduler.py) is
-large, tested, and already running in production doing exactly what it was
-built to do: free Greenhouse/Lever/Ashby reads off boards_registry.py's
-curated list, plus a budgeted JSearch aggregator pass. It has no concept of
-a companies table, three more ATS adapters, or a job lifecycle, and it does
-not need to be rewritten to gain them.
+tested and still runs locally, doing exactly what it was built to do: free
+Greenhouse/Lever/Ashby reads off boards_registry.py's curated list. (It used
+to also run a budgeted JSearch aggregator pass; that half was removed along
+with JSearch/RapidAPI entirely — see this repo's history for that change.)
+It has no concept of a companies table, three more ATS adapters, or a job
+lifecycle, and it does not need to be rewritten to gain them.
 
 This module is that capability instead, as its own pipeline: it reads the
 `companies` table (not boards_registry.py's hardcoded tuples), so it covers
 all six ATS adapters plus the JSON-LD fallback, and it is what carries the
 concurrency, per-domain rate limiting, retries, best-effort conditional
 requests, and the close-after-2-misses lifecycle. It is what
-backend/scripts/run_crawl.py and the worker process (job_market/worker_main.py)
-call. Retiring the older sweep, or migrating it to read from `companies` too,
-is a natural later step — deliberately not a rider on this change.
+backend/scripts/run_crawl.py and the worker process (app/worker.py) call.
+Retiring the older sweep, or migrating it to read from `companies` too, is a
+natural later step — deliberately not a rider on this change.
 
 CLOSE-AFTER-2-MISSES, PRECISELY
 
