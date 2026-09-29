@@ -1,0 +1,316 @@
+name,logo,website,careers_url,ats_type,ats_slug,industry,size,active
+Databricks,,,https://job-boards.greenhouse.io/databricks,greenhouse,databricks,,,true
+Stripe,,,https://job-boards.greenhouse.io/stripe,greenhouse,stripe,,,true
+Anthropic,,,https://job-boards.greenhouse.io/anthropic,greenhouse,anthropic,,,true
+Mongodb,,,https://job-boards.greenhouse.io/mongodb,greenhouse,mongodb,,,true
+Elastic,,,https://job-boards.greenhouse.io/elastic,greenhouse,elastic,,,true
+Cloudflare,,,https://job-boards.greenhouse.io/cloudflare,greenhouse,cloudflare,,,true
+Brex,,,https://job-boards.greenhouse.io/brex,greenhouse,brex,,,true
+Samsara,,,https://job-boards.greenhouse.io/samsara,greenhouse,samsara,,,true
+Gitlab,,,https://job-boards.greenhouse.io/gitlab,greenhouse,gitlab,,,true
+Scaleai,,,https://job-boards.greenhouse.io/scaleai,greenhouse,scaleai,,,true
+Affirm,,,https://job-boards.greenhouse.io/affirm,greenhouse,affirm,,,true
+Pinterest,,,https://job-boards.greenhouse.io/pinterest,greenhouse,pinterest,,,true
+Coinbase,,,https://job-boards.greenhouse.io/coinbase,greenhouse,coinbase,,,true
+Flexport,,,https://job-boards.greenhouse.io/flexport,greenhouse,flexport,,,true
+Airbnb,,,https://job-boards.greenhouse.io/airbnb,greenhouse,airbnb,,,true
+Lyft,,,https://job-boards.greenhouse.io/lyft,greenhouse,lyft,,,true
+Figma,,,https://job-boards.greenhouse.io/figma,greenhouse,figma,,,true
+Reddit,,,https://job-boards.greenhouse.io/reddit,greenhouse,reddit,,,true
+Twilio,,,https://job-boards.greenhouse.io/twilio,greenhouse,twilio,,,true
+Robinhood,,,https://job-boards.greenhouse.io/robinhood,greenhouse,robinhood,,,true
+Instacart,,,https://job-boards.greenhouse.io/instacart,greenhouse,instacart,,,true
+Asana,,,https://job-boards.greenhouse.io/asana,greenhouse,asana,,,true
+Duolingo,,,https://job-boards.greenhouse.io/duolingo,greenhouse,duolingo,,,true
+Vercel,,,https://job-boards.greenhouse.io/vercel,greenhouse,vercel,,,true
+Gusto,,,https://job-boards.greenhouse.io/gusto,greenhouse,gusto,,,true
+Chime,,,https://job-boards.greenhouse.io/chime,greenhouse,chime,,,true
+Carta,,,https://job-boards.greenhouse.io/carta,greenhouse,carta,,,true
+Discord,,,https://job-boards.greenhouse.io/discord,greenhouse,discord,,,true
+Checkr,,,https://job-boards.greenhouse.io/checkr,greenhouse,checkr,,,true
+Rocketlab,,,https://job-boards.greenhouse.io/rocketlab,greenhouse,rocketlab,,,true
+Waymo,,,https://job-boards.greenhouse.io/waymo,greenhouse,waymo,,,true
+Redwoodmaterials,,,https://job-boards.greenhouse.io/redwoodmaterials,greenhouse,redwoodmaterials,,,true
+Nuro,,,https://job-boards.greenhouse.io/nuro,greenhouse,nuro,,,true
+Justworks,,,https://job-boards.greenhouse.io/justworks,greenhouse,justworks,,,true
+Mixpanel,,,https://job-boards.greenhouse.io/mixpanel,greenhouse,mixpanel,,,true
+Astranis,,,https://job-boards.greenhouse.io/astranis,greenhouse,astranis,,,true
+Kodiak,,,https://job-boards.greenhouse.io/kodiak,greenhouse,kodiak,,,true
+Motional,,,https://job-boards.greenhouse.io/motional,greenhouse,motional,,,true
+Faire,,,https://job-boards.greenhouse.io/faire,greenhouse,faire,,,true
+Mercury,,,https://job-boards.greenhouse.io/mercury,greenhouse,mercury,,,true
+Zocdoc,,,https://job-boards.greenhouse.io/zocdoc,greenhouse,zocdoc,,,true
+Amplitude,,,https://job-boards.greenhouse.io/amplitude,greenhouse,amplitude,,,true
+Komodohealth,,,https://job-boards.greenhouse.io/komodohealth,greenhouse,komodohealth,,,true
+Stockx,,,https://job-boards.greenhouse.io/stockx,greenhouse,stockx,,,true
+Webflow,,,https://job-boards.greenhouse.io/webflow,greenhouse,webflow,,,true
+Freenome,,,https://job-boards.greenhouse.io/freenome,greenhouse,freenome,,,true
+Alloy,,,https://job-boards.greenhouse.io/alloy,greenhouse,alloy,,,true
+Airtable,,,https://job-boards.greenhouse.io/airtable,greenhouse,airtable,,,true
+Modernhealth,,,https://job-boards.greenhouse.io/modernhealth,greenhouse,modernhealth,,,true
+Honor,,,https://job-boards.greenhouse.io/honor,greenhouse,honor,,,true
+Labelbox,,,https://job-boards.greenhouse.io/labelbox,greenhouse,labelbox,,,true
+Lithic,,,https://job-boards.greenhouse.io/lithic,greenhouse,lithic,,,true
+Forward,,,https://job-boards.greenhouse.io/forward,greenhouse,forward,,,true
+Highnote,,,https://job-boards.greenhouse.io/highnote,greenhouse,highnote,,,true
+Andurilindustries,,,https://job-boards.greenhouse.io/andurilindustries,greenhouse,andurilindustries,,,true
+Verkada,,,https://job-boards.greenhouse.io/verkada,greenhouse,verkada,,,true
+Xai,,,https://job-boards.greenhouse.io/xai,greenhouse,xai,,,true
+Alphasense,,,https://job-boards.greenhouse.io/alphasense,greenhouse,alphasense,,,true
+Adyen,,,https://job-boards.greenhouse.io/adyen,greenhouse,adyen,,,true
+Chaosindustries,,,https://job-boards.greenhouse.io/chaosindustries,greenhouse,chaosindustries,,,true
+Tenstorrent,,,https://job-boards.greenhouse.io/tenstorrent,greenhouse,tenstorrent,,,true
+Gleanwork,,,https://job-boards.greenhouse.io/gleanwork,greenhouse,gleanwork,,,true
+Muonspace,,,https://job-boards.greenhouse.io/muonspace,greenhouse,muonspace,,,true
+Intercom,,,https://job-boards.greenhouse.io/intercom,greenhouse,intercom,,,true
+Figureai,,,https://job-boards.greenhouse.io/figureai,greenhouse,figureai,,,true
+Cresta,,,https://job-boards.greenhouse.io/cresta,greenhouse,cresta,,,true
+Vardaspace,,,https://job-boards.greenhouse.io/vardaspace,greenhouse,vardaspace,,,true
+Peregrinetechnologies,,,https://job-boards.greenhouse.io/peregrinetechnologies,greenhouse,peregrinetechnologies,,,true
+Apptronik,,,https://job-boards.greenhouse.io/apptronik,greenhouse,apptronik,,,true
+Chainguard,,,https://job-boards.greenhouse.io/chainguard,greenhouse,chainguard,,,true
+Togetherai,,,https://job-boards.greenhouse.io/togetherai,greenhouse,togetherai,,,true
+Instawork,,,https://job-boards.greenhouse.io/instawork,greenhouse,instawork,,,true
+Parloa,,,https://job-boards.greenhouse.io/parloa,greenhouse,parloa,,,true
+Maymobility,,,https://job-boards.greenhouse.io/maymobility,greenhouse,maymobility,,,true
+Latitude,,,https://job-boards.greenhouse.io/latitude,greenhouse,latitude,,,true
+Snorkelai,,,https://job-boards.greenhouse.io/snorkelai,greenhouse,snorkelai,,,true
+Pathrobotics,,,https://job-boards.greenhouse.io/pathrobotics,greenhouse,pathrobotics,,,true
+Eve,,,https://job-boards.greenhouse.io/eve,greenhouse,eve,,,true
+Prolific,,,https://job-boards.greenhouse.io/prolific,greenhouse,prolific,,,true
+Hackerrank,,,https://job-boards.greenhouse.io/hackerrank,greenhouse,hackerrank,,,true
+Vannevarlabs,,,https://job-boards.greenhouse.io/vannevarlabs,greenhouse,vannevarlabs,,,true
+Torq,,,https://job-boards.greenhouse.io/torq,greenhouse,torq,,,true
+Xairatherapeutics,,,https://job-boards.greenhouse.io/xairatherapeutics,greenhouse,xairatherapeutics,,,true
+Shifttechnology,,,https://job-boards.greenhouse.io/shifttechnology,greenhouse,shifttechnology,,,true
+Turing,,,https://job-boards.greenhouse.io/turing,greenhouse,turing,,,true
+Obsidiansecurity,,,https://job-boards.greenhouse.io/obsidiansecurity,greenhouse,obsidiansecurity,,,true
+Pronto,,,https://job-boards.greenhouse.io/pronto,greenhouse,pronto,,,true
+Eudia,,,https://job-boards.greenhouse.io/eudia,greenhouse,eudia,,,true
+Assemblyai,,,https://job-boards.greenhouse.io/assemblyai,greenhouse,assemblyai,,,true
+Riverai,,,https://job-boards.greenhouse.io/riverai,greenhouse,riverai,,,true
+Parallel,,,https://job-boards.greenhouse.io/parallel,greenhouse,parallel,,,true
+Thealleninstitute,,,https://job-boards.greenhouse.io/thealleninstitute,greenhouse,thealleninstitute,,,true
+Galileo,,,https://job-boards.greenhouse.io/galileo,greenhouse,galileo,,,true
+Smarterdx,,,https://job-boards.greenhouse.io/smarterdx,greenhouse,smarterdx,,,true
+Dropzoneai,,,https://job-boards.greenhouse.io/dropzoneai,greenhouse,dropzoneai,,,true
+Federato,,,https://job-boards.greenhouse.io/federato,greenhouse,federato,,,true
+Sensei,,,https://job-boards.greenhouse.io/sensei,greenhouse,sensei,,,true
+Youcom,,,https://job-boards.greenhouse.io/youcom,greenhouse,youcom,,,true
+Sourcegraph91,,,https://job-boards.greenhouse.io/sourcegraph91,greenhouse,sourcegraph91,,,true
+Weave,,,https://job-boards.greenhouse.io/weave,greenhouse,weave,,,true
+Diligent,,,https://job-boards.greenhouse.io/diligent,greenhouse,diligent,,,true
+Covar,,,https://job-boards.greenhouse.io/covar,greenhouse,covar,,,true
+Stackblitz,,,https://job-boards.greenhouse.io/stackblitz,greenhouse,stackblitz,,,true
+Beam,,,https://job-boards.greenhouse.io/beam,greenhouse,beam,,,true
+Raven,,,https://job-boards.greenhouse.io/raven,greenhouse,raven,,,true
+Sixfold,,,https://job-boards.greenhouse.io/sixfold,greenhouse,sixfold,,,true
+Ojin,,,https://job-boards.greenhouse.io/ojin,greenhouse,ojin,,,true
+Haven,,,https://job-boards.greenhouse.io/haven,greenhouse,haven,,,true
+Newton,,,https://job-boards.greenhouse.io/newton,greenhouse,newton,,,true
+Quotient,,,https://job-boards.greenhouse.io/quotient,greenhouse,quotient,,,true
+Polyai,,,https://job-boards.greenhouse.io/polyai,greenhouse,polyai,,,true
+Gopuff,,,https://jobs.lever.co/gopuff,lever,gopuff,,,true
+Palantir,,,https://jobs.lever.co/palantir,lever,palantir,,,true
+Binance,,,https://jobs.lever.co/binance,lever,binance,,,true
+Spotify,,,https://jobs.lever.co/spotify,lever,spotify,,,true
+Zoox,,,https://jobs.lever.co/zoox,lever,zoox,,,true
+Sila,,,https://jobs.lever.co/sila,lever,sila,,,true
+Arcadia,,,https://jobs.lever.co/arcadia,lever,arcadia,,,true
+Shieldai,,,https://jobs.lever.co/shieldai,lever,shieldai,,,true
+Waabi,,,https://jobs.lever.co/waabi,lever,waabi,,,true
+Articulate,,,https://jobs.lever.co/articulate,lever,articulate,,,true
+OpenAI,,,https://jobs.ashbyhq.com/openai,ashby,openai,,,true
+Crusoe,,,https://jobs.ashbyhq.com/crusoe,ashby,crusoe,,,true
+Snowflake,,,https://jobs.ashbyhq.com/snowflake,ashby,snowflake,,,true
+Harvey,,,https://jobs.ashbyhq.com/harvey,ashby,harvey,,,true
+Legora,,,https://jobs.ashbyhq.com/legora,ashby,legora,,,true
+Saronic,,,https://jobs.ashbyhq.com/saronic,ashby,saronic,,,true
+Sierra,,,https://jobs.ashbyhq.com/sierra,ashby,sierra,,,true
+Mistral AI,,,https://jobs.ashbyhq.com/mistral.ai,ashby,mistral.ai,,,true
+Decagon,,,https://jobs.ashbyhq.com/decagon,ashby,decagon,,,true
+Cohere,,,https://jobs.ashbyhq.com/cohere,ashby,cohere,,,true
+Skydio,,,https://jobs.ashbyhq.com/skydio,ashby,skydio,,,true
+Cursor,,,https://jobs.ashbyhq.com/cursor,ashby,cursor,,,true
+Perplexity,,,https://jobs.ashbyhq.com/perplexity,ashby,perplexity,,,true
+Cerebras,,,https://jobs.ashbyhq.com/cerebras,ashby,cerebras,,,true
+Mercor,,,https://jobs.ashbyhq.com/mercor,ashby,mercor,,,true
+Etched,,,https://jobs.ashbyhq.com/etched,ashby,etched,,,true
+LangChain,,,https://jobs.ashbyhq.com/langchain,ashby,langchain,,,true
+Baseten,,,https://jobs.ashbyhq.com/baseten,ashby,baseten,,,true
+Cognition,,,https://jobs.ashbyhq.com/cognition,ashby,cognition,,,true
+Deepgram,,,https://jobs.ashbyhq.com/deepgram,ashby,deepgram,,,true
+Lambda,,,https://jobs.ashbyhq.com/lambda,ashby,lambda,,,true
+Heidi Health,,,https://jobs.ashbyhq.com/heidihealth.com.au,ashby,heidihealth.com.au,,,true
+1X Technologies,,,https://jobs.ashbyhq.com/1x,ashby,1x,,,true
+Rogo,,,https://jobs.ashbyhq.com/rogo,ashby,rogo,,,true
+Fireworks AI,,,https://jobs.ashbyhq.com/fireworks,ashby,fireworks,,,true
+Lovable,,,https://jobs.ashbyhq.com/lovable,ashby,lovable,,,true
+Higgsfield,,,https://jobs.ashbyhq.com/higgsfieldai,ashby,higgsfieldai,,,true
+Ashby,,,https://jobs.ashbyhq.com/ashby,ashby,ashby,,,true
+Suno,,,https://jobs.ashbyhq.com/suno,ashby,suno,,,true
+Sarvam AI,,,https://jobs.ashbyhq.com/sarvam,ashby,sarvam,,,true
+Clay,,,https://jobs.ashbyhq.com/claylabs,ashby,claylabs,,,true
+Reflection AI,,,https://jobs.ashbyhq.com/reflectionai,ashby,reflectionai,,,true
+voize,,,https://jobs.ashbyhq.com/voize,ashby,voize,,,true
+Nooks,,,https://jobs.ashbyhq.com/nooks,ashby,nooks,,,true
+Exa,,,https://jobs.ashbyhq.com/exa,ashby,exa,,,true
+Writer,,,https://jobs.ashbyhq.com/writer,ashby,writer,,,true
+Factory AI,,,https://jobs.ashbyhq.com/factory,ashby,factory,,,true
+Mapbox,,,https://jobs.ashbyhq.com/mapbox,ashby,mapbox,,,true
+Basis,,,https://jobs.ashbyhq.com/basis-ai,ashby,basis-ai,,,true
+CodeRabbit,,,https://jobs.ashbyhq.com/coderabbit,ashby,coderabbit,,,true
+Thinking Machines,,,https://jobs.ashbyhq.com/thinkingmachines,ashby,thinkingmachines,,,true
+Ema,,,https://jobs.ashbyhq.com/ema,ashby,ema,,,true
+PermitFlow,,,https://jobs.ashbyhq.com/permitflow,ashby,permitflow,,,true
+Tenex.AI,,,https://jobs.ashbyhq.com/tenex,ashby,tenex,,,true
+Campfire,,,https://jobs.ashbyhq.com/campfire,ashby,campfire,,,true
+Abridge,,,https://jobs.ashbyhq.com/abridge,ashby,abridge,,,true
+Taktile,,,https://jobs.ashbyhq.com/taktile,ashby,taktile,,,true
+Luma AI,,,https://jobs.ashbyhq.com/lumaai,ashby,lumaai,,,true
+DeepL,,,https://jobs.ashbyhq.com/deepl,ashby,deepl,,,true
+Runway,,,https://jobs.ashbyhq.com/runway-ml,ashby,runway-ml,,,true
+Stepful,,,https://jobs.ashbyhq.com/stepful,ashby,stepful,,,true
+AfterQuery,,,https://jobs.ashbyhq.com/afterquery,ashby,afterquery,,,true
+Code Metal,,,https://jobs.ashbyhq.com/code-metal,ashby,code-metal,,,true
+Broccoli AI,,,https://jobs.ashbyhq.com/broccoli,ashby,broccoli,,,true
+Retell AI,,,https://jobs.ashbyhq.com/retell-ai,ashby,retell-ai,,,true
+Physical Intelligence,,,https://jobs.ashbyhq.com/physicalintelligence,ashby,physicalintelligence,,,true
+Standard Bots,,,https://jobs.ashbyhq.com/standardbots,ashby,standardbots,,,true
+Modal,,,https://jobs.ashbyhq.com/modal,ashby,modal,,,true
+n8n,,,https://jobs.ashbyhq.com/n8n,ashby,n8n,,,true
+Metaview,,,https://jobs.ashbyhq.com/metaview,ashby,metaview,,,true
+LiveKit,,,https://jobs.ashbyhq.com/livekit,ashby,livekit,,,true
+SkydropX,,,https://jobs.ashbyhq.com/skydropx,ashby,skydropx,,,true
+Vapi,,,https://jobs.ashbyhq.com/vapi,ashby,vapi,,,true
+Fal,,,https://jobs.ashbyhq.com/fal-ai,ashby,fal-ai,,,true
+Wispr Flow,,,https://jobs.ashbyhq.com/wispr-flow,ashby,wispr-flow,,,true
+Cartesia,,,https://jobs.ashbyhq.com/cartesia,ashby,cartesia,,,true
+Rilla,,,https://jobs.ashbyhq.com/rilla,ashby,rilla,,,true
+Litmus,,,https://jobs.ashbyhq.com/litmus,ashby,litmus,,,true
+Hyperexponential,,,https://jobs.ashbyhq.com/hyperexponential,ashby,hyperexponential,,,true
+OpenRouter,,,https://jobs.ashbyhq.com/openrouter,ashby,openrouter,,,true
+Socket,,,https://jobs.ashbyhq.com/socket,ashby,socket,,,true
+Distyl AI,,,https://jobs.ashbyhq.com/distyl,ashby,distyl,,,true
+Tennr,,,https://jobs.ashbyhq.com/tennr,ashby,tennr,,,true
+Sesame,,,https://jobs.ashbyhq.com/sesame,ashby,sesame,,,true
+Gecko Robotics,,,https://jobs.ashbyhq.com/gecko-robotics,ashby,gecko-robotics,,,true
+Numeric,,,https://jobs.ashbyhq.com/numeric,ashby,numeric,,,true
+Spellbook,,,https://jobs.ashbyhq.com/spellbook.com,ashby,spellbook.com,,,true
+Paraform,,,https://jobs.ashbyhq.com/paraform,ashby,paraform,,,true
+Anyscale,,,https://jobs.ashbyhq.com/anyscale,ashby,anyscale,,,true
+Aptura AI,,,https://jobs.ashbyhq.com/aptura,ashby,aptura,,,true
+Oscilar,,,https://jobs.ashbyhq.com/oscilar,ashby,oscilar,,,true
+Norm Ai,,,https://jobs.ashbyhq.com/norm-ai,ashby,norm-ai,,,true
+Nabla,,,https://jobs.ashbyhq.com/nabla,ashby,nabla,,,true
+Midjourney,,,https://jobs.ashbyhq.com/midjourney,ashby,midjourney,,,true
+Conveo,,,https://jobs.ashbyhq.com/conveo,ashby,conveo,,,true
+Crosby,,,https://jobs.ashbyhq.com/crosby,ashby,crosby,,,true
+Solve Intelligence,,,https://jobs.ashbyhq.com/solveintelligence,ashby,solveintelligence,,,true
+HUD,,,https://jobs.ashbyhq.com/hud,ashby,hud,,,true
+Wisdom AI,,,https://jobs.ashbyhq.com/wisdom-ai,ashby,wisdom-ai,,,true
+Granola,,,https://jobs.ashbyhq.com/granola,ashby,granola,,,true
+Pylon,,,https://jobs.ashbyhq.com/pylon,ashby,pylon,,,true
+Read AI,,,https://jobs.ashbyhq.com/read-ai,ashby,read-ai,,,true
+Metriport,,,https://jobs.ashbyhq.com/metriport,ashby,metriport,,,true
+Sygaldry Technologies,,,https://jobs.ashbyhq.com/sygaldry-technologies,ashby,sygaldry-technologies,,,true
+Maven AGI,,,https://jobs.ashbyhq.com/maven-agi,ashby,maven-agi,,,true
+Simile,,,https://jobs.ashbyhq.com/simile,ashby,simile,,,true
+Ambience Healthcare,,,https://jobs.ashbyhq.com/ambiencehealthcare,ashby,ambiencehealthcare,,,true
+GrayMatter Robotics,,,https://jobs.ashbyhq.com/graymatter-robotics,ashby,graymatter-robotics,,,true
+Beacon AI,,,https://jobs.ashbyhq.com/beaconai,ashby,beaconai,,,true
+Fyxer AI,,,https://jobs.ashbyhq.com/fyxer,ashby,fyxer,,,true
+AIUC,,,https://jobs.ashbyhq.com/aiuc,ashby,aiuc,,,true
+Weave (workweave),,,https://jobs.ashbyhq.com/workweave,ashby,workweave,,,true
+Pika,,,https://jobs.ashbyhq.com/pika,ashby,pika,,,true
+Auctor,,,https://jobs.ashbyhq.com/auctor,ashby,auctor,,,true
+OpenEvidence,,,https://jobs.ashbyhq.com/openevidence,ashby,openevidence,,,true
+LanceDB,,,https://jobs.ashbyhq.com/lancedb,ashby,lancedb,,,true
+Maincode,,,https://jobs.ashbyhq.com/maincode,ashby,maincode,,,true
+Unify,,,https://jobs.ashbyhq.com/unify,ashby,unify,,,true
+World Labs,,,https://jobs.ashbyhq.com/worldlabs,ashby,worldlabs,,,true
+Claim Health,,,https://jobs.ashbyhq.com/claim-health,ashby,claim-health,,,true
+Abundant,,,https://jobs.ashbyhq.com/abundant,ashby,abundant,,,true
+Casca,,,https://jobs.ashbyhq.com/casca,ashby,casca,,,true
+Kira Learning,,,https://jobs.ashbyhq.com/kira,ashby,kira,,,true
+MintMCP,,,https://jobs.ashbyhq.com/mintmcp,ashby,mintmcp,,,true
+Finto,,,https://jobs.ashbyhq.com/finto,ashby,finto,,,true
+Browserbase,,,https://jobs.ashbyhq.com/browserbase,ashby,browserbase,,,true
+Turbopuffer,,,https://jobs.ashbyhq.com/turbopuffer,ashby,turbopuffer,,,true
+Hyperbound,,,https://jobs.ashbyhq.com/hyperbound,ashby,hyperbound,,,true
+Cradle,,,https://jobs.ashbyhq.com/cradlebio,ashby,cradlebio,,,true
+FINNY AI,,,https://jobs.ashbyhq.com/finny,ashby,finny,,,true
+Kodex,,,https://jobs.ashbyhq.com/kodex,ashby,kodex,,,true
+Honeydew,,,https://jobs.ashbyhq.com/honeydew,ashby,honeydew,,,true
+Dataleap,,,https://jobs.ashbyhq.com/dataleap,ashby,dataleap,,,true
+TypeSafe AI,,,https://jobs.ashbyhq.com/typesafe-ai,ashby,typesafe-ai,,,true
+Artos,,,https://jobs.ashbyhq.com/artosai,ashby,artosai,,,true
+Probably Genetic,,,https://jobs.ashbyhq.com/probablygenetic,ashby,probablygenetic,,,true
+Slingshot,,,https://jobs.ashbyhq.com/slingshotai,ashby,slingshotai,,,true
+Knowtex,,,https://jobs.ashbyhq.com/knowtex,ashby,knowtex,,,true
+August Health,,,https://jobs.ashbyhq.com/august-health,ashby,august-health,,,true
+Checkly,,,https://jobs.ashbyhq.com/checkly,ashby,checkly,,,true
+Trigger.dev,,,https://jobs.ashbyhq.com/triggerdev,ashby,triggerdev,,,true
+Apolink,,,https://jobs.ashbyhq.com/apolink,ashby,apolink,,,true
+Lightsage,,,https://jobs.ashbyhq.com/lightsage,ashby,lightsage,,,true
+Cranston AI,,,https://jobs.ashbyhq.com/cranston,ashby,cranston,,,true
+Pathos AI,,,https://jobs.ashbyhq.com/pathos,ashby,pathos,,,true
+Escape,,,https://jobs.ashbyhq.com/escape,ashby,escape,,,true
+Kernel,,,https://jobs.ashbyhq.com/kernel,ashby,kernel,,,true
+Bild AI,,,https://jobs.ashbyhq.com/bild-ai,ashby,bild-ai,,,true
+Compa.AI,,,https://jobs.ashbyhq.com/compa,ashby,compa,,,true
+Eventual,,,https://jobs.ashbyhq.com/eventual,ashby,eventual,,,true
+Eagle,,,https://jobs.ashbyhq.com/eagle,ashby,eagle,,,true
+Weaviate,,,https://jobs.ashbyhq.com/weaviate,ashby,weaviate,,,true
+Fragment,,,https://jobs.ashbyhq.com/fragmentai,ashby,fragmentai,,,true
+Choco,,,https://jobs.ashbyhq.com/choco,ashby,choco,,,true
+Conductor,,,https://jobs.ashbyhq.com/conductor,ashby,conductor,,,true
+Infera,,,https://jobs.ashbyhq.com/infera,ashby,infera,,,true
+UpCodes,,,https://jobs.ashbyhq.com/upcodes,ashby,upcodes,,,true
+Popl,,,https://jobs.ashbyhq.com/popl,ashby,popl,,,true
+Conduit,,,https://jobs.ashbyhq.com/conduit,ashby,conduit,,,true
+Lark,,,https://jobs.ashbyhq.com/lark,ashby,lark,,,true
+Hugging Face,,https://huggingface.co,https://apply.workable.com/api/v1/widget/accounts/huggingface,workable,huggingface,AI/ML,201-500,true
+Flosum,,https://flosum.com,https://apply.workable.com/api/v1/widget/accounts/flosum,workable,flosum,Software,51-200,true
+Vitol,,https://www.vitol.com,https://api.smartrecruiters.com/v1/companies/Vitol/postings,smartrecruiters,Vitol,Energy,1001-5000,true
+RecruitAERO,,https://www.recruitaero.com,https://recruitaero.recruitee.com/api/offers/,recruitee,recruitaero,Aerospace,11-50,true
+Peloton,,https://www.onepeloton.com,https://www.onepeloton.com/careers,manual_review,,Fitness,1001-5000,true
+Warby Parker,,https://www.warbyparker.com,https://www.warbyparker.com/careers,manual_review,,Retail,1001-5000,true
+Allbirds,,https://www.allbirds.com,https://www.allbirds.com/pages/careers,manual_review,,Retail,501-1000,true
+Chewy,,https://www.chewy.com,https://careers.chewy.com,manual_review,,Retail,10001+,true
+Wayfair,,https://www.wayfair.com,https://www.aboutwayfair.com/careers,manual_review,,Retail,10001+,true
+Etsy,,https://www.etsy.com,https://www.etsy.com/careers,manual_review,,E-commerce,1001-5000,true
+Squarespace,,https://www.squarespace.com,https://www.squarespace.com/careers,manual_review,,Software,1001-5000,true
+Peloton Interactive,,https://www.peloton.com,https://www.peloton.com/careers,manual_review,,Fitness,1001-5000,true
+Casper,,https://casper.com,https://casper.com/careers,manual_review,,Retail,501-1000,true
+Glossier,,https://www.glossier.com,https://www.glossier.com/careers,manual_review,,Retail,201-500,true
+Harry's,,https://www.harrys.com,https://www.harrys.com/en/us/careers,greenhouse,harrys,Retail,201-500,true
+Bombas,,https://bombas.com,https://bombas.com/pages/careers,manual_review,,Retail,201-500,true
+Away,,https://www.awaytravel.com,https://www.awaytravel.com/careers,ashby,away,Retail,201-500,true
+ThirdLove,,https://www.thirdlove.com,https://www.thirdlove.com/pages/careers,manual_review,,Retail,51-200,true
+Boston Scientific,,https://www.bostonscientific.com,https://www.bostonscientific.com/en-US/careers.html,jsonld,,Healthcare,10001+,true
+Medtronic,,https://www.medtronic.com,https://jobs.medtronic.com,manual_review,,Healthcare,10001+,true
+Stryker,,https://www.stryker.com,https://www.stryker.com/us/en/careers.html,manual_review,,Healthcare,10001+,true
+Becton Dickinson,,https://www.bd.com,https://jobs.bd.com,manual_review,,Healthcare,10001+,true
+Charles Schwab,,https://www.schwab.com,https://www.schwabjobs.com,manual_review,,Finance,10001+,true
+Fidelity Investments,,https://www.fidelity.com,https://jobs.fidelity.com,manual_review,,Finance,10001+,true
+Edward Jones,,https://www.edwardjones.com,https://careers.edwardjones.com,manual_review,,Finance,10001+,true
+Raymond James,,https://www.raymondjames.com,https://careers.raymondjames.com,manual_review,,Finance,10001+,true
+Cummins,,https://www.cummins.com,https://www.cummins.com/careers,manual_review,,Manufacturing,10001+,true
+Caterpillar,,https://www.caterpillar.com,https://www.caterpillar.com/en/careers.html,manual_review,,Manufacturing,10001+,true
+Deere & Company,,https://www.deere.com,https://www.deere.com/en/our-company/careers,manual_review,,Manufacturing,10001+,true
+Parker Hannifin,,https://www.parker.com,https://www.parker.com/us/en/careers.html,manual_review,,Manufacturing,10001+,true
+Emerson Electric,,https://www.emerson.com,https://www.emerson.com/en-us/careers,manual_review,,Manufacturing,10001+,true
+Marriott International,,https://www.marriott.com,https://careers.marriott.com,manual_review,,Hospitality,10001+,true
+Hilton,,https://www.hilton.com,https://jobs.hilton.com,manual_review,,Hospitality,10001+,true
+Hyatt Hotels,,https://www.hyatt.com,https://careers.hyatt.com,manual_review,,Hospitality,10001+,true
+Darden Restaurants,,https://www.darden.com,https://www.darden.com/careers,manual_review,,Hospitality,10001+,true
+CBRE,,https://www.cbre.com,https://www.cbrecareers.com,manual_review,,Real Estate,10001+,true
+Turner Construction,,https://www.turnerconstruction.com,https://www.turnerconstruction.com/careers,manual_review,,Construction,5001-10000,true
+Bechtel,,https://www.bechtel.com,https://jobs.bechtel.com,manual_review,,Construction,10001+,true
+Fluor Corporation,,https://www.fluor.com,https://www.fluor.com/careers,manual_review,,Construction,10001+,true
+AECOM,,https://aecom.com,https://aecom.jobs,manual_review,,Construction,10001+,true
+Jacobs Engineering,,https://www.jacobs.com,https://careers.jacobs.com,manual_review,,Engineering,10001+,true
+Trane Technologies,,https://www.tranetechnologies.com,https://careers.tranetechnologies.com,manual_review,,Manufacturing,10001+,true
+Rockwell Automation,,https://www.rockwellautomation.com,https://www.rockwellautomation.com/en-us/company/careers.html,manual_review,,Manufacturing,10001+,true
+Illinois Tool Works,,https://www.itw.com,https://www.itw.com/careers,manual_review,,Manufacturing,10001+,true
