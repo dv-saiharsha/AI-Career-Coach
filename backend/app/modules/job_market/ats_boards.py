@@ -61,6 +61,14 @@ LEVER_URL = "https://api.lever.co/v0/postings/{board}?mode=json"
 ASHBY_URL = (
     "https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true"
 )
+WORKABLE_URL = "https://apply.workable.com/api/v1/widget/accounts/{board}?details=true"
+# limit=100 is a deliberate ceiling, not the API's own default: this module's
+# whole cost model is one request per board (see the module docstring), and a
+# board with more open reqs than that is truncated to its first page rather
+# than paginated — the same "bounded useful slice, not the full firehose"
+# tradeoff MAX_DESCRIPTION_CHARS already makes below.
+SMARTRECRUITERS_URL = "https://api.smartrecruiters.com/v1/companies/{board}/postings?limit=100"
+RECRUITEE_URL = "https://{board}.recruitee.com/api/offers/"
 
 # Long enough for a large board, short enough that a hung host cannot stall a
 # sweep. Stripe's 611-job payload is ~380KB and returns well inside this.
@@ -306,6 +314,188 @@ def normalise_lever(payload: list, board: str, query_key: str) -> list[dict]:
     return rows
 
 
+def _parse_space_datetime(value: str | None) -> datetime | None:
+    """Recruitee's own format: "2026-05-21 16:05:31 UTC" — not ISO 8601, so
+    _parse_iso's fromisoformat parse would raise on the space and the literal
+    "UTC" suffix."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.removesuffix(" UTC"), "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return None
+
+
+def normalise_workable(payload: dict, board: str, query_key: str) -> list[dict]:
+    """Workable's public widget API -> the same row shape as the other five.
+
+    shortcode, not `code` (present but empty in every board probed), is the
+    stable per-posting id — it is also what the job's own URLs are built
+    from, so it was never going to be optional for us to key on.
+    """
+    rows = []
+    for job in payload.get("jobs") or []:
+        shortcode = job.get("shortcode")
+        title = (job.get("title") or "").strip()
+        # "url" is the job page; "application_url" is the actual /apply
+        # form — apply_url should land a candidate on the form, not a page
+        # they then have to find a button on.
+        apply_url = (job.get("application_url") or job.get("url") or "").strip()
+        if not shortcode or not title or not apply_url:
+            continue
+
+        location = ", ".join(
+            part for part in (job.get("city"), job.get("state"), job.get("country")) if part
+        ) or "Not specified"
+        # telecommuting is Workable's own explicit flag, preferred over
+        # reading the location string for the same reason Lever's
+        # workplaceType is: a stated fact beats an inferred one.
+        work_mode = "Remote" if job.get("telecommuting") else _work_mode(location)
+
+        salary = job.get("salary") or {}
+        salary_min, salary_max = salary.get("salary_from"), salary.get("salary_to")
+        salary_currency = (salary.get("salary_currency") or "").upper() or None
+        salary_range = None
+        if salary_min and salary_max:
+            salary_range = f"{salary_currency or ''} {int(salary_min):,} - {int(salary_max):,}".strip()
+        elif salary_min:
+            salary_range = f"{salary_currency or ''} {int(salary_min):,}+".strip()
+
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"workable:{board}:{shortcode}",
+                "title": title,
+                "company": (payload.get("name") or board).strip(),
+                "location": location,
+                "work_mode": work_mode,
+                "salary_range": salary_range,
+                "salary_min": salary_min,
+                "salary_max": salary_max,
+                "salary_currency": salary_currency,
+                "description": strip_html(job.get("description")) or None,
+                "skills": json.dumps([]),
+                "apply_url": apply_url,
+                "posted_at": _parse_iso(job.get("published_on")),
+                "department": job.get("department") or None,
+                "source": "workable",
+            }
+        )
+    return rows
+
+
+def normalise_smartrecruiters(payload: dict, board: str, query_key: str) -> list[dict]:
+    """SmartRecruiters' postings list -> the same row shape as the other five.
+
+    List-endpoint only, deliberately: the full jobAd (description, the
+    canonical postingUrl/applyUrl) only exists behind a per-posting detail
+    call, and fetching one per posting would turn "one request per board"
+    into one-plus-N for every SmartRecruiters employer, on a host every
+    other SmartRecruiters company in the registry shares. apply_url is
+    synthesized instead from SmartRecruiters' own routing, confirmed live to
+    resolve without the SEO slug suffix
+    (jobs.smartrecruiters.com/{company}/{id} == .../{id}-{slug}); description
+    is left null, same as any board whose list view omits it.
+    """
+    rows = []
+    for posting in payload.get("content") or []:
+        posting_id = posting.get("id")
+        title = (posting.get("name") or "").strip()
+        if not posting_id or not title:
+            continue
+
+        company = posting.get("company") or {}
+        identifier = company.get("identifier") or board
+        location_info = posting.get("location") or {}
+        location = (location_info.get("fullLocation") or "").strip() or "Not specified"
+        if location_info.get("remote"):
+            work_mode = "Remote"
+        elif location_info.get("hybrid"):
+            work_mode = "Hybrid"
+        else:
+            work_mode = _work_mode(location)
+
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"smartrecruiters:{board}:{posting_id}",
+                "title": title,
+                "company": (company.get("name") or board).strip(),
+                "location": location,
+                "work_mode": work_mode,
+                "salary_range": None,
+                "description": None,
+                "skills": json.dumps([]),
+                "apply_url": f"https://jobs.smartrecruiters.com/{identifier}/{posting_id}",
+                "posted_at": _parse_iso(posting.get("releasedDate")),
+                "department": (posting.get("department") or {}).get("label"),
+                "source": "smartrecruiters",
+            }
+        )
+    return rows
+
+
+def normalise_recruitee(payload: dict, board: str, query_key: str) -> list[dict]:
+    """Recruitee's offers API -> the same row shape as the other five.
+
+    The one board of the six that states remote/hybrid/on-site as three
+    explicit booleans rather than one flag plus a location-string guess.
+    """
+    rows = []
+    for offer in payload.get("offers") or []:
+        offer_id = offer.get("id")
+        title = (offer.get("title") or "").strip()
+        apply_url = (offer.get("careers_apply_url") or offer.get("careers_url") or "").strip()
+        if offer_id is None or not title or not apply_url:
+            continue
+
+        location = (offer.get("location") or "").strip() or "Not specified"
+        if offer.get("remote"):
+            work_mode = "Remote"
+        elif offer.get("hybrid"):
+            work_mode = "Hybrid"
+        else:
+            work_mode = _work_mode(location)
+
+        description = strip_html(offer.get("description"))
+        requirements = strip_html(offer.get("requirements"))
+        if requirements:
+            description = f"{description}\n\n{requirements}".strip()
+
+        salary = offer.get("salary") or {}
+        salary_min, salary_max = salary.get("min"), salary.get("max")
+        salary_currency = salary.get("currency")
+        salary_range = None
+        if salary_min and salary_max:
+            salary_range = f"{salary_currency or ''} {int(salary_min):,} - {int(salary_max):,}".strip()
+        elif salary_min:
+            salary_range = f"{salary_currency or ''} {int(salary_min):,}+".strip()
+
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"recruitee:{board}:{offer_id}",
+                "title": title,
+                "company": (offer.get("company_name") or board).strip(),
+                "location": location,
+                "work_mode": work_mode,
+                "salary_range": salary_range,
+                "salary_min": salary_min,
+                "salary_max": salary_max,
+                "salary_currency": salary_currency,
+                "description": description[:MAX_DESCRIPTION_CHARS] or None,
+                "skills": json.dumps([]),
+                "apply_url": apply_url,
+                "posted_at": _parse_space_datetime(offer.get("published_at")),
+                "department": offer.get("department") or None,
+                "source": "recruitee",
+            }
+        )
+    return rows
+
+
 def _default_fetch(url: str) -> tuple[int, str]:
     import urllib.request
 
@@ -338,7 +528,14 @@ def fetch_board(
     and not an error worth propagating.
     """
     fetch = fetch or _default_fetch
-    urls = {"greenhouse": GREENHOUSE_URL, "lever": LEVER_URL, "ashby": ASHBY_URL}
+    urls = {
+        "greenhouse": GREENHOUSE_URL,
+        "lever": LEVER_URL,
+        "ashby": ASHBY_URL,
+        "workable": WORKABLE_URL,
+        "smartrecruiters": SMARTRECRUITERS_URL,
+        "recruitee": RECRUITEE_URL,
+    }
     if provider not in urls:
         logger.warning("unknown ATS provider %r for board %s", provider, board)
         return []
@@ -364,6 +561,12 @@ def fetch_board(
         return normalise_greenhouse(payload, board, query_key)
     if provider == "ashby":
         return normalise_ashby(payload, board, query_key, display_name)
+    if provider == "workable":
+        return normalise_workable(payload, board, query_key)
+    if provider == "smartrecruiters":
+        return normalise_smartrecruiters(payload, board, query_key)
+    if provider == "recruitee":
+        return normalise_recruitee(payload, board, query_key)
     return normalise_lever(payload, board, query_key)
 
 

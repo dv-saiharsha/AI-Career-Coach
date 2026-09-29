@@ -39,6 +39,76 @@ LEVER_PAYLOAD = [
     }
 ]
 
+# Trimmed from a real, live response captured while building this adapter
+# (apply.workable.com/api/v1/widget/accounts/huggingface?details=true).
+WORKABLE_PAYLOAD = {
+    "name": "Hugging Face",
+    "jobs": [
+        {
+            "title": "Senior Storage Engineer",
+            "shortcode": "F4C096B22E",
+            "code": "",
+            "employment_type": "Full-time",
+            "telecommuting": True,
+            "department": "Product",
+            "url": "https://apply.workable.com/j/F4C096B22E",
+            "application_url": "https://apply.workable.com/j/F4C096B22E/apply",
+            "published_on": "2026-07-30",
+            "country": "France",
+            "city": "Paris",
+            "state": "Île-de-France",
+            "description": "<p>Build storage systems.</p><p>Rust and Python.</p>",
+            "salary": {"salary_from": 90000, "salary_to": 120000, "salary_currency": "eur"},
+        }
+    ],
+}
+
+# Trimmed from a real, live response captured while building this adapter
+# (api.smartrecruiters.com/v1/companies/Vitol/postings).
+SMARTRECRUITERS_PAYLOAD = {
+    "totalFound": 1,
+    "content": [
+        {
+            "id": "744000152342599",
+            "name": "Governance, Risk & Compliance Officer",
+            "company": {"identifier": "Vitol", "name": "Vitol"},
+            "location": {
+                "city": "Geneva",
+                "region": "GE",
+                "country": "ch",
+                "remote": False,
+                "hybrid": False,
+                "fullLocation": "Geneva, GE, Switzerland",
+            },
+            "department": {"id": "1736387", "label": "Technology"},
+            "releasedDate": "2026-09-29T07:22:15.874Z",
+        }
+    ],
+}
+
+# Trimmed from a real, live response captured while building this adapter
+# (recruitaero.recruitee.com/api/offers/).
+RECRUITEE_PAYLOAD = {
+    "offers": [
+        {
+            "id": 2608967,
+            "title": "Head of Propulsion Engineering",
+            "company_name": "RecruitAERO Corporation",
+            "location": "Atlanta, Georgia, United States",
+            "remote": False,
+            "hybrid": False,
+            "on_site": True,
+            "department": None,
+            "description": "<p>Lead propulsion engineering.</p>",
+            "requirements": "<p>12+ years of gas turbine experience.</p>",
+            "careers_apply_url": "https://recruitaero.recruitee.com/o/head-of-propulsion-engineering/c/new",
+            "careers_url": "https://recruitaero.recruitee.com/o/head-of-propulsion-engineering",
+            "published_at": "2026-05-21 16:05:31 UTC",
+            "salary": {"min": None, "max": None, "period": None, "currency": None},
+        }
+    ],
+}
+
 
 def _fetcher(status=200, body=""):
     return lambda url: (status, body)
@@ -145,6 +215,117 @@ class TestLever:
         )
         assert "Design distributed systems." in rows[0]["description"]
         assert "Kubernetes and Go." in rows[0]["description"]
+
+
+class TestWorkable:
+    def test_normalises_and_records_its_source(self):
+        rows = ats_boards.fetch_board(
+            "workable", "huggingface", fetch=_fetcher(body=json.dumps(WORKABLE_PAYLOAD))
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["source"] == "workable"
+        assert row["title"] == "Senior Storage Engineer"
+        assert row["company"] == "Hugging Face"
+        assert row["department"] == "Product"
+        assert row["apply_url"] == "https://apply.workable.com/j/F4C096B22E/apply"
+        assert row["posted_at"] is not None
+
+    def test_telecommuting_flag_beats_reading_the_location_string(self):
+        rows = ats_boards.fetch_board(
+            "workable", "huggingface", fetch=_fetcher(body=json.dumps(WORKABLE_PAYLOAD))
+        )
+        # "Paris, Île-de-France, France" says nothing about remote; the
+        # structured telecommuting flag says it is.
+        assert rows[0]["work_mode"] == "Remote"
+
+    def test_structured_salary_is_parsed(self):
+        rows = ats_boards.fetch_board(
+            "workable", "huggingface", fetch=_fetcher(body=json.dumps(WORKABLE_PAYLOAD))
+        )
+        row = rows[0]
+        assert row["salary_min"] == 90000
+        assert row["salary_max"] == 120000
+        assert row["salary_currency"] == "EUR"
+        assert "90,000" in row["salary_range"] and "120,000" in row["salary_range"]
+
+    def test_a_job_with_no_shortcode_is_dropped(self):
+        payload = {"name": "X", "jobs": [{"title": "Engineer", "url": "https://x.com/1"}]}
+        rows = ats_boards.fetch_board("workable", "x", fetch=_fetcher(body=json.dumps(payload)))
+        assert rows == []
+
+
+class TestSmartRecruiters:
+    def test_normalises_and_records_its_source(self):
+        rows = ats_boards.fetch_board(
+            "smartrecruiters", "Vitol", fetch=_fetcher(body=json.dumps(SMARTRECRUITERS_PAYLOAD))
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["source"] == "smartrecruiters"
+        assert row["company"] == "Vitol"
+        assert row["location"] == "Geneva, GE, Switzerland"
+        assert row["department"] == "Technology"
+        assert row["posted_at"] is not None
+
+    def test_apply_url_is_synthesized_without_a_detail_fetch(self):
+        """The list endpoint carries no postingUrl/applyUrl — those only
+        exist behind a per-posting detail call this adapter deliberately
+        does not make (see normalise_smartrecruiters' docstring). Confirmed
+        live that SmartRecruiters' own routing resolves the bare id with no
+        SEO slug suffix."""
+        rows = ats_boards.fetch_board(
+            "smartrecruiters", "Vitol", fetch=_fetcher(body=json.dumps(SMARTRECRUITERS_PAYLOAD))
+        )
+        assert rows[0]["apply_url"] == "https://jobs.smartrecruiters.com/Vitol/744000152342599"
+
+    def test_a_posting_with_no_id_or_name_is_dropped(self):
+        payload = {"content": [{"company": {"identifier": "x"}}]}
+        rows = ats_boards.fetch_board(
+            "smartrecruiters", "x", fetch=_fetcher(body=json.dumps(payload))
+        )
+        assert rows == []
+
+
+class TestRecruitee:
+    def test_normalises_and_records_its_source(self):
+        rows = ats_boards.fetch_board(
+            "recruitee", "recruitaero", fetch=_fetcher(body=json.dumps(RECRUITEE_PAYLOAD))
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["source"] == "recruitee"
+        assert row["title"] == "Head of Propulsion Engineering"
+        assert row["company"] == "RecruitAERO Corporation"
+        assert row["apply_url"].endswith("/c/new")
+        assert row["posted_at"] is not None
+
+    def test_three_explicit_flags_beat_reading_the_location_string(self):
+        """Recruitee is the one board of the six that states remote/hybrid/
+        on-site as booleans rather than one flag plus a guess."""
+        rows = ats_boards.fetch_board(
+            "recruitee", "recruitaero", fetch=_fetcher(body=json.dumps(RECRUITEE_PAYLOAD))
+        )
+        assert rows[0]["work_mode"] == "On-site"
+
+    def test_description_and_requirements_are_joined(self):
+        rows = ats_boards.fetch_board(
+            "recruitee", "recruitaero", fetch=_fetcher(body=json.dumps(RECRUITEE_PAYLOAD))
+        )
+        description = rows[0]["description"]
+        assert "Lead propulsion engineering." in description
+        assert "12+ years of gas turbine experience." in description
+
+    def test_a_null_salary_produces_no_salary_range(self):
+        rows = ats_boards.fetch_board(
+            "recruitee", "recruitaero", fetch=_fetcher(body=json.dumps(RECRUITEE_PAYLOAD))
+        )
+        assert rows[0]["salary_range"] is None
+
+    def test_an_offer_with_no_apply_url_is_dropped(self):
+        payload = {"offers": [{"id": 1, "title": "Engineer"}]}
+        rows = ats_boards.fetch_board("recruitee", "x", fetch=_fetcher(body=json.dumps(payload)))
+        assert rows == []
 
 
 class TestFailureIsNotAnError:
