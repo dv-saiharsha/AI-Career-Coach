@@ -150,6 +150,33 @@ class Settings(BaseSettings):
     # real one.
     CRAWLER_CONTACT_EMAIL: str = ""
 
+    # job_market/crawler.py: how many companies are crawled at once. Bounded
+    # thread pool, not a process/connection ceiling — this and DB_POOL_SIZE
+    # are independent knobs.
+    CRAWLER_CONCURRENCY: int = 10
+    # Minimum gap between two requests to the same host, regardless of which
+    # company or thread issues them — several companies on the same ATS
+    # (e.g. every Greenhouse board) share boards-api.greenhouse.io, and
+    # concurrency above is what's bounded per company, not per host.
+    CRAWLER_PER_DOMAIN_MIN_INTERVAL_MS: int = 250
+
+    # How long a closed job_listings row is kept before the crawler hard-
+    # deletes it. Only applies to standing crawler-sourced rows (status
+    # transitions through job_market/crawler.py) — the JSearch on-demand
+    # cache has its own, separate TTL/replace lifecycle.
+    JOB_CLOSED_RETENTION_DAYS: int = 90
+
+    # Comma-separated allowlist gating the admin crawl API
+    # (job_market/admin_router.py) — checked against the authenticated
+    # user's email, same pattern as ALLOWED_ORIGINS. Empty means nobody can
+    # reach it, which is the correct default until an operator sets one.
+    ADMIN_EMAILS: str = ""
+
+    # Slack-compatible incoming webhook URL for crawl failure alerts. Optional
+    # — unset means alerts are logged only, which is also the correct default
+    # for local dev and CI.
+    ALERT_WEBHOOK_URL: str = ""
+
     # Supabase Auth — the FastAPI backend verifies tokens Supabase issues,
     # it no longer signs its own. SUPABASE_JWT_SECRET is under
     # Project Settings -> API -> JWT Settings in the Supabase dashboard.
@@ -168,6 +195,10 @@ class Settings(BaseSettings):
     @property
     def allowed_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def admin_emails_list(self) -> list[str]:
+        return [email.strip().lower() for email in self.ADMIN_EMAILS.split(",") if email.strip()]
 
 
 settings = Settings()

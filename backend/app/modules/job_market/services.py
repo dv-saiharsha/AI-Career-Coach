@@ -505,7 +505,13 @@ def _interleave_by_role(rows: list[JobListing]) -> list[JobListing]:
 # handful of rows from one old "java" search silently outlive that search and
 # turn up under an unrelated one, which is indistinguishable from the feed
 # being wrong.
-_STANDING_BOARD_SOURCES = ("greenhouse", "lever", "ashby")
+#
+# All six job_market/crawler.py ATS adapters plus the JSON-LD fallback are
+# standing in exactly the same sense — missing workable/smartrecruiters/
+# recruitee/jsonld here would silently hide every row those adapters find
+# from the default grid, the same invisible-cache bug _replace_cache's own
+# comment describes for a mismatched query_key.
+_STANDING_BOARD_SOURCES = ("greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee", "jsonld")
 
 
 # Below this many role-matching rows, filtering down to just them would

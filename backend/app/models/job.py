@@ -100,6 +100,12 @@ class JobListing(Base):
     # (services._replace_cache) and never transitions through this field.
     status = Column(String(8), nullable=False, default="open", server_default="open")
     closed_at = Column(DateTime(timezone=True), nullable=True)
+    # Consecutive successful crawls of this row's company that did not
+    # re-see it. Reset to 0 the moment it's seen again; closes the row at
+    # CLOSE_AFTER_MISSED_CRAWLS (job_market/crawler.py). A company crawl that
+    # itself failed does not touch this — see that module for why treating a
+    # failed crawl as a miss would be wrong.
+    missed_streak = Column(Integer, nullable=False, default=0, server_default="0")
 
     # Claude-extracted, and only ever reporting what the posting SAYS.
     # h1b_sponsorship is never a claim about what an employer will do:
