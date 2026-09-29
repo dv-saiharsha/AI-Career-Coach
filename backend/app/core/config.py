@@ -115,6 +115,17 @@ class Settings(BaseSettings):
     # hard-deletes it (status transitions through job_market/crawler.py).
     JOB_CLOSED_RETENTION_DAYS: int = 90
 
+    # Real, enforced ceiling on Claude enrichment spend per crawl run — unlike
+    # ingestion.py's MAX_SWEEP_COST_USD, which that module's own sweep never
+    # actually checks anywhere in code (it only appears in a dry-run message).
+    # Real cost isn't known until the Batch API responds, so this is enforced
+    # by bounding *request count* before submitting the batch, from a
+    # deliberately pessimistic per-request cost (see
+    # crawler._enrichment_request_cap for the arithmetic). A backlog larger
+    # than one run's cap is not lost — enriched_at stays null on the
+    # untouched rows, so the next hourly run picks up where this one left off.
+    JOB_ENRICH_MAX_COST_PER_RUN_USD: float = 3.00
+
     # Comma-separated allowlist gating the admin crawl API
     # (job_market/admin_router.py) — checked against the authenticated
     # user's email, same pattern as ALLOWED_ORIGINS. Empty means nobody can
