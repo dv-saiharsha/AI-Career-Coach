@@ -57,7 +57,7 @@ from app.core.config import settings
 from app.models.company import Company
 from app.models.crawl_run import CrawlRun
 from app.models.job import JobListing
-from app.modules.job_market import ats_boards, ingestion, jsonld_crawler
+from app.modules.job_market import ats_boards, geo, ingestion, jsonld_crawler
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +209,16 @@ def _crawl_one(company: Company, min_interval_ms: int) -> CompanyResult:
             )
     except Exception as exc:  # noqa: BLE001 - one company's crash must not stop the run
         return CompanyResult(error=str(exc))
+
+    # This app is US-focused (see geo.py) and these boards list every
+    # office's openings with no country filter of their own — a
+    # multinational's Greenhouse/Lever/Ashby board hands back its Tokyo,
+    # Bengaluru and Singapore reqs alongside its US ones. services.py's read
+    # path already drops these before a user ever sees them, but storing —
+    # and re-crawling — postings nobody can be shown is pure waste; this is
+    # the same filter ingestion.py's older board sweep already applies at
+    # collection time.
+    rows = [row for row in rows if not geo.is_non_us_location(row.get("location", ""))]
 
     # A row's own signal (real postings, or a confirmed-unchanged 304) always
     # wins over a captured error from an earlier, incidental call in the same

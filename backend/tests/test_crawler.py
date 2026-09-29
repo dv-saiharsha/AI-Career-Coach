@@ -290,6 +290,25 @@ class TestReconciliation:
         assert db.query(JobListing).count() == 0
 
 
+class TestNonUsFilter:
+    """Regression: these boards list every office's openings with no country
+    filter of their own, and services.py's read-time _us_only filter only
+    stops a non-US row from being *shown* — it does not stop this crawler
+    from storing (and re-crawling) it forever, which is pure waste."""
+
+    def test_a_non_us_row_is_dropped_before_it_reaches_reconciliation(self, monkeypatch):
+        monkeypatch.setattr(
+            crawler.ats_boards, "fetch_board",
+            lambda *a, **k: [
+                board_row("greenhouse:acme:1", location="Tokyo, Japan"),
+                board_row("greenhouse:acme:2", location="Austin, TX"),
+            ],
+        )
+        company = Company(name="Acme", ats_type="greenhouse", ats_slug="acme")
+        result = crawler._crawl_one(company, min_interval_ms=0)
+        assert [row["location"] for row in result.rows] == ["Austin, TX"]
+
+
 class TestRunCrawl:
     def test_manual_review_companies_are_never_crawled(self, db, monkeypatch):
         make_company(db, name="Unresolved", ats_type="manual_review", ats_slug=None)
