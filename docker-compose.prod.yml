@@ -21,6 +21,20 @@ services:
       REDIS_URL: redis://redis:6379/0
       UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      # The `worker` service below now runs job_market/crawler.py's crawl on
+      # its own schedule. job_market/scheduler.py's older in-process board
+      # sweep would otherwise keep running here too — every API replica
+      # sweeping Greenhouse/Lever/Ashby independently is wasteful, not wrong
+      # (upserts are idempotent), but there's no reason to pay for it once a
+      # dedicated worker exists. Local dev (docker-compose.yml alone) leaves
+      # this unset — JOB_SWEEP_ENABLED defaults true there, same as today.
+      JOB_SWEEP_ENABLED: "false"
+
+  worker:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://redis:6379/0
 
   frontend:
     restart: unless-stopped

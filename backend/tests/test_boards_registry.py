@@ -134,7 +134,7 @@ class TestSweepIntegration:
             lambda *a, **k: called.append(1) or [],
         )
 
-        report = ingestion.refresh_global_jobs(db=None, roles=["backend engineer"], dry_run=True)
+        report = ingestion.refresh_global_jobs(db=None, dry_run=True)
 
         assert called == [], "a dry run must not touch the boards"
         assert report.boards_swept == boards_registry.board_count()

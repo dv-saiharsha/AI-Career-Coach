@@ -290,13 +290,48 @@ Set these under **Settings → Secrets and variables → Actions**. Until they'r
 
 **What ships after that is still a manual (or externally-triggered) step.** This repo has no configured deploy target — no VPS, no PaaS account, nothing to `docker compose pull` on automatically. Pulling the new images onto wherever this actually runs, and restarting the stack, is the one piece intentionally left out until there's a real server or platform to point it at.
 
-**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `RAPIDAPI_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
+**The crawler is the only job source.** Every `job_listings` row comes from an employer's own ATS board (via `job_market/crawler.py` or the older `job_market/ingestion.py` sweep) or a careers page's JSON-LD markup — there is no other way a row gets into that table. JSearch and Active Jobs (both RapidAPI products this app used as an on-demand aggregator for employers on no known ATS) have been removed entirely, along with `RAPIDAPI_KEY`/`RAPIDAPI_HOST`/`JOB_SOURCE` and every code path that read them. The Job Portal's search (`job_market/services.py:search_jobs`) is a full-text query straight against `job_listings` — Postgres uses a real `to_tsvector` match backed by the `ix_job_listings_fts` GIN index, SQLite (local dev) falls back to a substring match — and never makes an external call at request time; a term the crawler hasn't found anything for yet returns an honest empty result; there is nothing left to queue a refresh for.
+
+**The `worker` service.** `docker-compose.yml` also defines `worker` — the same backend image, running `python -m app.worker` instead of the API (`app/worker.py`). It's what runs the hourly job crawl (`job_market/crawler.py`, reading the `companies` table) out of the request-serving process; see `CRAWLER_PLAN.md` §4 for why. It comes up automatically with the rest of the stack:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+A normal deploy — pull new images, restart everything — is unchanged, just with one more container:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+To restart only the worker (after an env change, say), without touching the API or frontend:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate worker
+```
+
+`docker-compose.prod.yml` sets `JOB_SWEEP_ENABLED=false` on `backend` in production — `worker` now covers what `job_market/scheduler.py`'s older in-process board sweep used to do, so there's no reason to keep paying for both. Local dev (`docker-compose.yml` alone, no prod overlay) is unaffected: `JOB_SWEEP_ENABLED` defaults `true` there exactly as it did before `worker` existed, so a bare `docker compose up` still works with no extra setup. Running both at once (e.g. by also starting `worker` locally) is wasteful, not wrong — every upsert here is idempotent.
+
+The worker's crawl is guarded by a Redis distributed lock (`REDIS_URL`, already required above one `UVICORN_WORKERS`) — safe to scale `worker` to more than one replica; extra ones simply skip a tick they don't win the lock for rather than double-crawling.
+
+**Managing the company registry.** `data/companies_seed.csv` (name, website, careers_url, ats_type, ats_slug, industry, size, active) is what `worker`/`scripts/run_crawl.py` actually crawl — not `job_market/boards_registry.py`'s older hardcoded list, which `job_market/scheduler.py`'s separate, still-running sweep still uses. To add companies: append rows to the CSV (leave `ats_type` blank for ones you don't already know), then:
+
+```
+python scripts/detect_ats.py data/companies_seed.csv     # fills in ats_type/ats_slug for blank rows
+python scripts/seed_companies.py data/companies_seed.csv # loads the CSV into the companies table
+python scripts/run_crawl.py                               # or scripts/run_crawl.py --company <slug> for one
+```
+
+Both scripts are safe to re-run — `detect_ats.py` never re-probes a row that already has an `ats_type`, and `seed_companies.py` upserts by `(ats_type, ats_slug)` (falling back to `name`), never duplicating a row. Crawl history and per-company health are readable at runtime through the admin API (`GET /api/admin/crawl/runs`, `GET /api/admin/crawl/companies` — gated by `ADMIN_EMAILS`), or triggered on demand with `POST /api/admin/crawl/run` / `POST /api/admin/crawl/companies/{id}/run`.
+
+**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
 
 **CORS.** `ALLOWED_ORIGINS` is a comma-separated list, read from settings rather than hardcoded — set it to your real frontend origin(s) in production. It is never `*` in production; `validate_startup()` enforces that directly.
 
 **Health check.** `GET /health` checks real database connectivity (not just process liveness) and returns 503 if the database is unreachable — point an orchestrator's readiness probe at it, not a static "is the process alive" check.
 
-**Multi-worker deployments need Redis.** Both `core/events.py`'s SSE fan-out and `job_market/services.py`'s scrape lock/cooldown/cache are in-process by default — correct for one worker, silently wrong for more than one (an event published on worker A never reaches a client connected to worker B; two workers can each spend the same monthly JSearch request on one query). Set `REDIS_URL` before running `UVICORN_WORKERS` above 1. This produces no errors either way — it's a correctness gap, not a crash — so treat it as a hard requirement, not a tuning knob.
+**Multi-worker deployments need Redis.** `core/events.py`'s SSE fan-out is in-process by default — correct for one worker, silently wrong for more than one (an event published on worker A never reaches a client connected to worker B). Set `REDIS_URL` before running `UVICORN_WORKERS` above 1. This produces no errors either way — it's a correctness gap, not a crash — so treat it as a hard requirement, not a tuning knob. (The job feed itself has no in-process state to worry about here any more — see "The crawler is the only job source" below.)
 
 **Frontend build-time vs. runtime configuration.** `VITE_*` variables are inlined into the client JavaScript bundle at `vite build` time, not read when the container starts. Pass them (see `frontend/Dockerfile`'s `ARG`s) as Docker build args, not environment variables at `docker run` time — an image built without a real `VITE_SUPABASE_URL` will silently point at a placeholder Supabase project.
 
@@ -320,10 +355,11 @@ TODO" subsections; this is the condensed index:
   metrics (filler words, pace, confidence) never populate for typed-answer
   sessions, by design; STAR-structure scoring only exists in the separate,
   unwired "story bank" feature.
-- **Job Portal** — no company-size field on `JobListing`; no un-save
-  endpoint (Save can only add, never retract); job match has 2 real
-  dimensions, not Figma's fabricated independent 3-reason breakdown;
-  `postedDaysAgo` is day-granularity only.
+- **Job Portal** — company size/industry exist on the `companies` table but
+  are not yet surfaced on `JobListing`'s own payload; no un-save endpoint (Save
+  can only add, never retract); job match has 2 real dimensions, not
+  Figma's fabricated independent 3-reason breakdown; `postedDaysAgo` is
+  day-granularity only.
 - **Applications** — no `priority` field; no free-text "next step" field;
   only one recruiter contact per application, not a list; no way to link a
   generated cover letter to an application.

@@ -1,10 +1,16 @@
-"""Job feed tests — no network, no spend."""
+"""Job feed tests — pure database reads, no network, no external calls.
 
-import json
-from datetime import datetime, timezone
-from types import SimpleNamespace
+Every row here is what job_market/crawler.py would have written: a
+standing, crawler-sourced listing with a real status. There is no more
+on-demand fetch, per-query cache, or aggregator to mock — see
+job_market/services.py's own module docstring for why.
+"""
+
+from datetime import datetime, timedelta, timezone
 
 import pytest
+
+from app.models.company import Company  # noqa: F401 — registers job_listings.company_id's FK target
 
 
 @pytest.fixture
@@ -27,158 +33,174 @@ def db_session():
     Base.metadata.drop_all(bind=engine)
 
 
-class TestJobSourceDefault:
-    """The default value of JOB_SOURCE, not an overridden one.
+def add_job(
+    db,
+    title,
+    company="Acme",
+    query_key="greenhouse:acme",
+    location="Remote",
+    status="open",
+    posted_hours=1,
+    fetched_hours_old=1,
+    skills="[]",
+    description=None,
+    external_id=None,
+):
+    from app.models.job import JobListing
 
-    Regression: it was "apify" — stale from before Apify was removed in
-    favour of employer boards plus this budgeted aggregator — and
-    _source()/_fetch() in services.py only ever recognised "jsearch". Nothing
-    in the live .env sets JOB_SOURCE explicitly, so every on-demand search
-    (any role outside the pre-warmed set) raised SourceUnavailable on the
-    Settings object's own default, in whichever environment never happened to
-    override it. Testing the Settings default directly, not a value passed
-    into the function under test, is the point: overriding JOB_SOURCE in the
-    test setup would make this pass while the real bug — what ships when
-    nobody sets it — stayed broken.
-    """
-
-    def test_the_default_is_a_source_the_code_actually_recognises(self):
-        from app.core.config import Settings
-
-        default_source = Settings.model_fields["JOB_SOURCE"].default
-        assert default_source == "jsearch", (
-            f"JOB_SOURCE defaults to {default_source!r}, which "
-            "_fetch()/_source_configured() do not recognise — every caller "
-            "that never overrides it hits SourceUnavailable on this exact "
-            "default"
-        )
-
-    def test_the_unconfigured_default_does_not_raise_unknown_source(self, monkeypatch):
-        """End-to-end version of the same assertion: drive it through the
-        real function with settings exactly as a fresh checkout would load
-        them, not a mocked-in value chosen to make the test pass."""
-        from app.core.config import Settings, settings
-        from app.modules.job_market import jsearch, services
-
-        # Read off the model rather than hardcoded "jsearch" here too, so
-        # this stays pinned to whatever config.py actually declares as the
-        # default rather than to what this test expects it to be.
-        live_default = Settings.model_fields["JOB_SOURCE"].default
-        monkeypatch.setattr(settings, "JOB_SOURCE", live_default)
-        monkeypatch.setattr(jsearch, "is_configured", lambda: False)
-
-        with pytest.raises(services.SourceUnavailable) as exc_info:
-            services._fetch("backend engineer", limit=10)
-
-        # It must fail because the API key genuinely isn't set in this test —
-        # not because JOB_SOURCE itself was unrecognised, which is the
-        # failure mode the original bug produced regardless of whether a key
-        # was configured.
-        assert "unknown JOB_SOURCE" not in str(exc_info.value)
-        assert "RAPIDAPI_KEY" in str(exc_info.value)
+    row = JobListing(
+        query_key=query_key,
+        external_id=external_id or f"{query_key}-{title}",
+        title=title,
+        company=company,
+        location=location,
+        work_mode="Remote",
+        apply_url="https://example.com/job",
+        status=status,
+        skills=skills,
+        description=description,
+        fetched_at=datetime.now(timezone.utc) - timedelta(hours=fetched_hours_old),
+        posted_at=(
+            None if posted_hours is None
+            else datetime.now(timezone.utc) - timedelta(hours=posted_hours)
+        ),
+    )
+    db.add(row)
+    db.commit()
+    return row
 
 
-class TestWarmFeedNeverEmpty:
-    """Regression: the default grid hard-filtered on TTL, so once the nightly
-    refresh lapsed it returned nothing while a full cache sat in the table —
-    the page showed "no matching openings" on top of 140 usable listings.
-    """
+class TestSearchJobs:
+    """search_jobs() on SQLite falls back to a substring match — the branch
+    every test here actually exercises, since local dev and CI are SQLite.
+    The Postgres to_tsvector branch is exercised by the migration that adds
+    ix_job_listings_fts and by production itself, not by this suite."""
 
-    def _add(self, db, query_key, hours_old, title="Engineer", posted_hours=1):
-        from datetime import datetime, timedelta, timezone
+    def test_matches_the_title(self, db_session):
+        from app.modules.job_market.services import search_jobs
 
-        from app.models.job import JobListing
+        add_job(db_session, "Senior Backend Engineer")
+        add_job(db_session, "Product Designer")
+        rows = search_jobs(db_session, "backend engineer")
+        assert [r.title for r in rows] == ["Senior Backend Engineer"]
 
-        row = JobListing(
-            query_key=query_key,
-            external_id=f"{query_key}-{hours_old}-{title}",
-            title=title,
-            company="Acme",
-            location="Remote",
-            work_mode="Remote",
-            apply_url="https://example.com/job",
-            fetched_at=datetime.now(timezone.utc) - timedelta(hours=hours_old),
-            posted_at=(
-                None if posted_hours is None
-                else datetime.now(timezone.utc) - timedelta(hours=posted_hours)
-            ),
-        )
-        db.add(row)
-        db.commit()
-        return row
+    def test_matches_the_company(self, db_session):
+        from app.modules.job_market.services import search_jobs
 
+        add_job(db_session, "Engineer", company="Stripe")
+        add_job(db_session, "Engineer", company="Acme", query_key="greenhouse:other")
+        rows = search_jobs(db_session, "stripe")
+        assert [r.company for r in rows] == ["Stripe"]
+
+    def test_matches_skills(self, db_session):
+        from app.modules.job_market.services import search_jobs
+
+        add_job(db_session, "Engineer", skills='["Rust", "Distributed Systems"]')
+        add_job(db_session, "Designer", skills='["Figma"]', query_key="greenhouse:other")
+        rows = search_jobs(db_session, "rust")
+        assert [r.title for r in rows] == ["Engineer"]
+
+    def test_an_empty_query_returns_nothing(self, db_session):
+        from app.modules.job_market.services import search_jobs
+
+        add_job(db_session, "Engineer")
+        assert search_jobs(db_session, "") == []
+        assert search_jobs(db_session, "   ") == []
+
+    def test_a_closed_row_is_excluded(self, db_session):
+        from app.modules.job_market.services import search_jobs
+
+        add_job(db_session, "Backend Engineer", status="closed")
+        assert search_jobs(db_session, "backend") == []
+
+    def test_a_non_us_row_is_excluded(self, db_session):
+        from app.modules.job_market.services import search_jobs
+
+        add_job(db_session, "Backend Engineer", location="São Paulo, Brazil")
+        assert search_jobs(db_session, "backend") == []
+
+    def test_an_expired_posting_is_excluded(self, db_session):
+        from app.core.config import settings
+        from app.modules.job_market.services import search_jobs
+
+        over = (settings.JOB_MAX_AGE_DAYS + 3) * 24
+        add_job(db_session, "Backend Engineer", posted_hours=over)
+        assert search_jobs(db_session, "backend") == []
+
+    def test_no_match_returns_empty_not_the_whole_table(self, db_session):
+        from app.modules.job_market.services import search_jobs
+
+        add_job(db_session, "Backend Engineer")
+        assert search_jobs(db_session, "underwater basket weaving") == []
+
+
+class TestWarmFeed:
     def test_stale_rows_are_served_rather_than_nothing(self, db_session):
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", hours_old=500)
+        add_job(db_session, "Software Engineer", fetched_hours_old=500)
         rows, last_updated = _warm_feed(db_session, None)
         assert len(rows) == 1
-        # Age is reported so the UI can say the feed is old, which beats
-        # showing an empty grid.
         assert last_updated is not None
 
     def test_ordered_by_when_the_job_was_posted(self, db_session):
-        """Ordering is on posted_at, not fetched_at. Every row from one sweep
-        shares a fetched_at, so sorting on it leaves the grid in arbitrary
-        order while looking sorted."""
+        """Ordering is on posted_at, not fetched_at — every row from one
+        crawl shares a fetched_at, so sorting on it leaves the grid in
+        arbitrary order while looking sorted."""
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", hours_old=1, title="Posted 3d ago", posted_hours=72)
-        self._add(db_session, "software engineer", hours_old=1, title="Posted 1h ago", posted_hours=1)
+        add_job(db_session, "Posted 3d ago", posted_hours=72, query_key="greenhouse:a")
+        add_job(db_session, "Posted 1h ago", posted_hours=1, query_key="greenhouse:b")
         rows, _ = _warm_feed(db_session, None)
         assert [r.title for r in rows] == ["Posted 1h ago", "Posted 3d ago"]
 
-    def test_target_roles_lead_the_feed(self, db_session):
+    def test_target_roles_lead_the_feed_by_title_match(self, db_session):
+        """Role matching is against the row's own title now — query_key is a
+        board identifier ("greenhouse:acme"), not a role, since every row is
+        crawler-sourced."""
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", hours_old=1, title="Generic")
-        self._add(db_session, "devops engineer", hours_old=1, title="Wanted")
+        add_job(db_session, "Generic Analyst", query_key="greenhouse:a")
+        add_job(db_session, "DevOps Engineer, Wanted", query_key="greenhouse:b")
         rows, _ = _warm_feed(db_session, ["DevOps Engineer"])
-        assert rows[0].title == "Wanted"
-
-    def test_target_role_outside_warm_roles_is_included(self, db_session):
-        """A role cached from a past search but never warmed must still reach
-        the default grid — otherwise the nightly refresh list silently caps
-        which roles a profile can ever see.
-
-        Uses a non-software role deliberately: WARM_ROLES covers software
-        titles, so an electrical or construction profile is exactly the case
-        that would otherwise get someone else's feed.
-        """
-        from app.modules.job_market.services import WARM_ROLES, _warm_feed
-
-        assert "quantum hardware engineer" not in WARM_ROLES
-        self._add(db_session, "quantum hardware engineer", hours_old=1, title="Wanted")
-        rows, _ = _warm_feed(db_session, ["Quantum Hardware Engineer"])
-        assert [r.title for r in rows] == ["Wanted"]
+        assert rows[0].title == "DevOps Engineer, Wanted"
 
     def test_roles_are_normalised_before_matching(self, db_session):
-        """'Senior DevOps Engineer ' must hit the 'devops engineer' key."""
+        """'Senior DevOps Engineer' must still match a title containing
+        'devops engineer' once seniority words are stripped."""
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "devops engineer", hours_old=1, title="Wanted")
+        add_job(db_session, "DevOps Engineer Wanted")
         rows, _ = _warm_feed(db_session, ["Senior DevOps Engineer "])
-        assert rows and rows[0].title == "Wanted"
+        assert rows and rows[0].title == "DevOps Engineer Wanted"
 
-    def test_warm_roles_backfill_a_narrow_profile(self, db_session):
-        """A one-role profile still gets a full page rather than a thin one."""
+    def test_a_narrow_profile_is_backfilled(self, db_session):
+        """Below MIN_PERSONALIZED_MATCHES, the full ranked set (role-first)
+        is shown rather than an almost-empty grid."""
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "devops engineer", hours_old=1, title="Wanted")
-        self._add(db_session, "software engineer", hours_old=1, title="Backfill")
+        add_job(db_session, "DevOps Engineer Wanted", query_key="greenhouse:a")
+        add_job(db_session, "Backend Engineer", query_key="greenhouse:b")
         rows, _ = _warm_feed(db_session, ["DevOps Engineer"])
-        assert {r.title for r in rows} == {"Wanted", "Backfill"}
+        assert {r.title for r in rows} == {"DevOps Engineer Wanted", "Backend Engineer"}
+
+    def test_enough_matches_drops_the_backfill_entirely(self, db_session):
+        from app.modules.job_market import services
+
+        for i in range(services.MIN_PERSONALIZED_MATCHES):
+            add_job(db_session, f"DevOps Engineer {i}", query_key=f"greenhouse:{i}")
+        add_job(db_session, "Unrelated Backfill Role", query_key="greenhouse:backfill")
+
+        rows, _ = services._warm_feed(db_session, ["DevOps Engineer"])
+        assert all("DevOps Engineer" in r.title for r in rows)
 
     def test_postings_older_than_the_cap_are_suppressed(self, db_session):
-        """An expired listing wastes an application, so age excludes rather
-        than demotes — and the cap applies to every read path, not just this
-        one."""
         from app.core.config import settings
         from app.modules.job_market.services import _warm_feed
 
         over = (settings.JOB_MAX_AGE_DAYS + 3) * 24
-        self._add(db_session, "software engineer", hours_old=1, title="Too old", posted_hours=over)
-        self._add(db_session, "software engineer", hours_old=1, title="Recent", posted_hours=12)
+        add_job(db_session, "Too Old", posted_hours=over, query_key="greenhouse:a")
+        add_job(db_session, "Recent", posted_hours=12, query_key="greenhouse:b")
         rows, _ = _warm_feed(db_session, None)
         assert [r.title for r in rows] == ["Recent"]
 
@@ -187,321 +209,81 @@ class TestWarmFeedNeverEmpty:
         silently hide every posting whose source omitted one."""
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", hours_old=1, title="No date", posted_hours=None)
+        add_job(db_session, "No Date", posted_hours=None)
         rows, _ = _warm_feed(db_session, None)
-        assert [r.title for r in rows] == ["No date"]
+        assert [r.title for r in rows] == ["No Date"]
 
-    def test_interleave_loses_no_rows(self, db_session):
-        from app.modules.job_market.services import _warm_feed
-
-        for role in ("ai engineer", "product manager"):
-            for n in range(4):
-                self._add(db_session, role, hours_old=1, title=f"{role}-{n}")
-        rows, _ = _warm_feed(db_session, ["AI Engineer"])
-        assert len(rows) == 8
-
-    def test_empty_cache_still_returns_empty(self, db_session):
+    def test_empty_table_returns_empty(self, db_session):
         from app.modules.job_market.services import _warm_feed
 
         rows, last_updated = _warm_feed(db_session, ["AI Engineer"])
         assert rows == [] and last_updated is None
 
-    def test_no_target_roles_falls_back_to_warm_roles(self, db_session):
+    def test_no_target_roles_still_returns_the_feed(self, db_session):
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", hours_old=1, title="Generic")
+        add_job(db_session, "Software Engineer")
         rows, _ = _warm_feed(db_session, [])
         assert len(rows) == 1
 
-
-class TestFeedExcludesNonUsPostings:
-    """Regression: Greenhouse/Lever/Ashby boards list every office's
-    openings with no country filter of their own, so a multinational
-    company's board handed the feed Brazil and India rows alongside its US
-    ones. geo.is_non_us_location is applied on every read path here, same
-    as the age cap above — a filter that only caught the default grid would
-    let a search return what the grid was hiding.
-    """
-
-    def _add(self, db, query_key, title, location, fetched_hours_old=1):
-        from datetime import datetime, timedelta, timezone
-
-        from app.models.job import JobListing
-
-        row = JobListing(
-            query_key=query_key,
-            external_id=f"{query_key}-{title}",
-            title=title,
-            company="Acme",
-            location=location,
-            work_mode="On-site",
-            apply_url="https://example.com/job",
-            fetched_at=datetime.now(timezone.utc) - timedelta(hours=fetched_hours_old),
-            posted_at=datetime.now(timezone.utc) - timedelta(hours=1),
-        )
-        db.add(row)
-        db.commit()
-        return row
-
-    def test_warm_feed_excludes_a_non_us_row(self, db_session):
+    def test_a_closed_row_is_excluded(self, db_session):
         from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", "BR role", "São Paulo, Brazil")
-        self._add(db_session, "software engineer", "US role", "Austin, TX")
+        add_job(db_session, "Closed Role", status="closed", query_key="greenhouse:a")
+        add_job(db_session, "Open Role", status="open", query_key="greenhouse:b")
         rows, _ = _warm_feed(db_session, None)
-        assert [r.title for r in rows] == ["US role"]
+        assert [r.title for r in rows] == ["Open Role"]
 
-    def test_fresh_rows_excludes_a_non_us_row(self, db_session):
-        from app.modules.job_market.services import _fresh_rows
+    def test_a_non_us_row_is_excluded(self, db_session):
+        from app.modules.job_market.services import _warm_feed
 
-        self._add(db_session, "software engineer", "IN role", "Bangalore")
-        self._add(db_session, "software engineer", "US role", "Austin, TX")
-        rows = _fresh_rows(db_session, "software engineer")
-        assert [r.title for r in rows] == ["US role"]
+        add_job(db_session, "BR Role", location="São Paulo, Brazil", query_key="greenhouse:a")
+        add_job(db_session, "US Role", location="Austin, TX", query_key="greenhouse:b")
+        rows, _ = _warm_feed(db_session, None)
+        assert [r.title for r in rows] == ["US Role"]
 
-    def test_any_rows_excludes_a_non_us_row_even_when_stale(self, db_session):
-        from app.modules.job_market.services import _any_rows
 
-        self._add(db_session, "software engineer", "UK role", "London, UK", fetched_hours_old=500)
-        self._add(db_session, "software engineer", "US role", "Austin, TX", fetched_hours_old=500)
-        rows = _any_rows(db_session, "software engineer")
-        assert [r.title for r in rows] == ["US role"]
-
-    def test_a_query_returning_only_non_us_rows_falls_through_to_the_warm_feed(self, db_session):
-        """If every fresh row for a query is foreign, that must read as a
-        cache miss (fall through to the warm feed / a queued refresh), not
-        as "here are zero jobs for this role."""
+class TestGetJobs:
+    def test_no_query_serves_the_warm_feed(self, db_session):
         from app.modules.job_market.services import get_jobs
 
-        self._add(db_session, "devops engineer", "BR role", "São Paulo, Brazil")
-        self._add(db_session, "software engineer", "Backfill", "Austin, TX")
-        rows, _, refresh_needed = get_jobs(db_session, "DevOps Engineer", target_roles=None)
-        assert refresh_needed is True
-        assert all(r.title != "BR role" for r in rows)
-
-
-class TestSearchResultsAreFindableAfterCaching:
-    """Regression: jsearch.normalise() stamps every row with its own
-    "jsearch:<query>" query_key, a different string from the plain
-    normalised key _fresh_rows/_any_rows filter on (and that refresh_query's
-    caller passes to _replace_cache). A search result was being cached under
-    a key its own read path could never match — so every on-demand search
-    silently "succeeded" (a real, billed jsearch call, a real commit) while
-    remaining permanently invisible, and got re-scraped, and re-billed, on
-    every subsequent identical search since the miss never stopped looking
-    like one.
-    """
-
-    def test_a_refreshed_query_is_readable_by_its_own_key(self, db_session, monkeypatch):
-        from app.modules.job_market import services
-
-        monkeypatch.setattr(services, "_fetch", lambda query_key, limit: (
-            [
-                {
-                    # The shape jsearch.normalise() actually returns: its own
-                    # "jsearch:" - prefixed key, deliberately NOT matching
-                    # the canonical query_key argument below.
-                    "query_key": f"jsearch:{query_key}",
-                    "external_id": "jsearch:1",
-                    "title": "Risk Analyst",
-                    "company": "Acme",
-                    "location": "Remote",
-                    "work_mode": "Remote",
-                    "apply_url": "https://example.com/j",
-                    "description": "d",
-                    "skills": "[]",
-                    "posted_at": None,
-                    "source": "jsearch",
-                }
-            ],
-            0.0,
-        ))
-
-        rows, cost = services.refresh_query(db_session, "risk analyst")
+        add_job(db_session, "Software Engineer")
+        rows, _updated, refreshing = get_jobs(db_session, None, [])
         assert len(rows) == 1
+        assert refreshing is False
 
-        # The whole point: a caller reading back by the same key it just
-        # refreshed must find what was just stored, not a cache that looks
-        # empty forever.
-        refetched = services._fresh_rows(db_session, "risk analyst")
-        assert [r.title for r in refetched] == ["Risk Analyst"]
-
-
-class TestWarmFeedDoesNotLeakOldSearchResults:
-    """Regression: _warm_feed's fallback used to match on "source is not
-    null", which was written back when the only non-null sources were
-    standing employer boards (greenhouse/lever/ashby) — a query_key-less
-    source worth showing regardless of who's searching. jsearch and
-    active_jobs rows *also* carry a non-null source, but for the opposite
-    reason: each one exists only because somebody searched that exact term.
-    Once real active_jobs rows started landing, every past search's leftover
-    rows — "java", "java developer", whatever was searched last — quietly
-    joined the fallback grid shown to anyone whose *own* new search hadn't
-    been scraped yet, which looks exactly like "the search results are
-    wrong" from the user's side.
-    """
-
-    def _add(self, db, query_key, title, source=None):
-        from app.models.job import JobListing
-
-        row = JobListing(
-            query_key=query_key,
-            external_id=f"{query_key}-{title}",
-            title=title,
-            company="Acme",
-            location="United States",
-            work_mode="Remote",
-            apply_url="https://example.com/job",
-            source=source,
-        )
-        db.add(row)
-        db.commit()
-        return row
-
-    def test_a_stale_active_jobs_search_result_is_excluded_from_the_fallback(self, db_session):
-        from app.modules.job_market.services import _warm_feed
-
-        self._add(db_session, "java", "Java Developer", source="active_jobs")
-        self._add(db_session, "greenhouse:acme", "Real Board Role", source="greenhouse")
-
-        rows, _ = _warm_feed(db_session, None)
-
-        assert [r.title for r in rows] == ["Real Board Role"]
-
-    def test_a_stale_jsearch_search_result_is_also_excluded(self, db_session):
-        from app.modules.job_market.services import _warm_feed
-
-        self._add(db_session, "risk analyst", "Risk Analyst", source="jsearch")
-
-        rows, _ = _warm_feed(db_session, None)
-
-        assert rows == []
-
-    def test_the_same_source_still_shows_for_its_own_search(self, db_session):
-        """The fix must not make on-demand results invisible outright — only
-        outside the search that actually produced them."""
+    def test_a_query_searches_directly_no_cache_no_refresh_flag(self, db_session):
         from app.modules.job_market.services import get_jobs
 
-        self._add(db_session, "java", "Java Developer", source="active_jobs")
+        add_job(db_session, "Backend Engineer")
+        rows, _updated, refreshing = get_jobs(db_session, "backend", None)
+        assert [r.title for r in rows] == ["Backend Engineer"]
+        assert refreshing is False
 
-        rows, _, refresh_needed = get_jobs(db_session, "Java", target_roles=None)
+    def test_a_query_matching_nothing_returns_an_empty_feed_not_a_fallback(self, db_session):
+        """Unlike the old on-demand design, a miss is not a reason to fall
+        back to the warm feed — there is nothing left to refresh, so an
+        honest empty result is correct."""
+        from app.modules.job_market.services import get_jobs
 
-        assert [r.title for r in rows] == ["Java Developer"]
-        assert refresh_needed is False
+        add_job(db_session, "Software Engineer")
+        rows, _updated, refreshing = get_jobs(db_session, "nonexistent role xyz", None)
+        assert rows == []
+        assert refreshing is False
 
 
-class TestOnDemandRowsGetEnriched:
-    """Regression: only the nightly board sweep (ingestion.py) ever ran
-    Claude enrichment. Rows landing through the on-demand source
-    (services.refresh_query, i.e. JSearch/Active Jobs) never did — the card
-    template is identical either way, but a row from this path could never
-    carry an h1b_sponsorship or experience_level, so it could never show the
-    badge a board-sourced card can earn once enriched. Same template,
-    permanently different badges depending on which API answered.
-    """
+class TestDomainClassification:
+    """domain_for() reads a posting's own title now, not query_key — every
+    row is crawler-sourced, and query_key is a board identifier
+    ("greenhouse:stripe"), not the role it was searched for."""
 
-    def _row(self, external_id="jsearch:1", **overrides):
-        row = {
-            "query_key": "risk analyst",
-            "external_id": external_id,
-            "title": "Risk Analyst",
-            "company": "Acme",
-            "location": "Remote",
-            "work_mode": "Remote",
-            "apply_url": "https://example.com/j",
-            "description": "Some description text.",
-            "skills": "[]",
-            "posted_at": None,
-            "source": "jsearch",
-        }
-        row.update(overrides)
-        return row
+    def test_classifies_from_the_title(self):
+        from app.modules.job_market.services import domain_for
 
-    def _message(self, **payload):
-        base = {
-            "h1b_sponsorship": "explicitly_sponsored",
-            "h1b_evidence": "We sponsor H-1B visas.",
-            "experience_level": "senior",
-            "employment_type": "full_time",
-            "core_skills": ["Python"],
-            "summary": "A role.",
-        }
-        base.update(payload)
-        return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input=base)])
+        assert domain_for("Senior Software Engineer") == "Software & AI"
+        assert domain_for("Registered Nurse - ICU") == "Healthcare & Medical"
 
-    def test_a_new_row_is_enriched_before_caching(self, db_session, monkeypatch):
-        from app.modules.job_market import services
+    def test_an_unrecognised_title_classifies_as_none(self):
+        from app.modules.job_market.services import domain_for
 
-        monkeypatch.setattr(
-            services.llm_client,
-            "_client",
-            SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: self._message())),
-        )
-
-        rows = services._enrich_rows(db_session, [self._row()])
-
-        assert rows[0]["h1b_sponsorship"] == "explicitly_sponsored"
-        assert rows[0]["experience_level"] == "senior"
-        assert json.loads(rows[0]["skills"]) == ["Python"]
-
-    def test_llm_unavailable_leaves_rows_unenriched_but_intact(self, db_session, monkeypatch):
-        """No ANTHROPIC_API_KEY configured must degrade to the old
-        behaviour — rows still cache, they just carry no badges — not raise
-        and lose the search results entirely."""
-        from app.modules.job_market import services
-
-        monkeypatch.setattr(services.llm_client, "_client", None)
-        row = self._row()
-
-        rows = services._enrich_rows(db_session, [row])
-
-        assert rows == [row]
-
-    def test_a_previously_enriched_external_id_is_reused_not_rebilled(self, db_session, monkeypatch):
-        """The dedup check: refresh_query replaces its whole cache entry on
-        every refresh (see _replace_cache), so without this a query that
-        gets refreshed hourly would re-pay Claude for the same unchanged
-        posting every single time."""
-        from app.models.job import JobListing
-        from app.modules.job_market import services
-
-        existing = JobListing(
-            query_key="risk analyst", external_id="jsearch:1", title="Risk Analyst",
-            company="Acme", location="Remote", work_mode="Remote",
-            apply_url="https://example.com/j", skills="[]",
-            h1b_sponsorship="no_sponsorship", h1b_evidence="",
-            experience_level="mid", employment_type="full_time",
-            enriched_at=datetime.now(timezone.utc),
-        )
-        db_session.add(existing)
-        db_session.commit()
-
-        calls = []
-        monkeypatch.setattr(
-            services.llm_client,
-            "_client",
-            SimpleNamespace(
-                messages=SimpleNamespace(create=lambda **kw: calls.append(kw) or self._message())
-            ),
-        )
-
-        rows = services._enrich_rows(db_session, [self._row()])
-
-        assert calls == []
-        assert rows[0]["h1b_sponsorship"] == "no_sponsorship"
-        assert rows[0]["experience_level"] == "mid"
-
-    def test_rows_with_no_external_id_still_get_enriched(self, db_session, monkeypatch):
-        """external_id is nullable on the model; the dedup lookup must not
-        choke on a row that has none to look up by."""
-        from app.modules.job_market import services
-
-        monkeypatch.setattr(
-            services.llm_client,
-            "_client",
-            SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: self._message())),
-        )
-
-        rows = services._enrich_rows(db_session, [self._row(external_id=None)])
-
-        assert rows[0]["h1b_sponsorship"] == "explicitly_sponsored"
+        assert domain_for("Chief Vibes Officer") is None

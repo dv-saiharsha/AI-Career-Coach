@@ -20,6 +20,7 @@ from app.core.database import Base, get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.core.ratelimit import reset_rate_limits
 from app.main import app
+from app.models.company import Company  # noqa: F401 — registers job_listings.company_id's FK target
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
 from app.modules.resume_builder import faang, services
