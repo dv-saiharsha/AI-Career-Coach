@@ -37,6 +37,22 @@ than being read as "zero jobs." Any provider that ignores these headers (not
 all six do) simply always returns 200, and the crawl proceeds exactly as if
 this feature did not exist for that company — never a wrong answer, only a
 missed optimization.
+
+ENRICHMENT, AND WHY THE COST CAP IS ENFORCED HERE RATHER THAN TRUSTED
+
+Every currently-open row with no enriched_at is a candidate, each run — not
+just rows this run's companies touched, so a row a previous run's cap left
+behind is picked up later rather than left behind forever. Reuses
+ingestion.py's own Batch API code (_enrich), which needs no changes to work
+here: it takes a plain {id: {title, company, description}} dict and returns
+facts keyed the same way, regardless of what pipeline collected the rows.
+
+The cap is real, unlike ingestion.MAX_SWEEP_COST_USD, which that module's
+own sweep never actually checks anywhere in code — it only appears in a
+dry-run message. Real cost isn't knowable before the Batch API responds, so
+this is enforced by bounding *request count* going in, from a deliberately
+pessimistic per-request cost (see _enrichment_request_cap) rather than a
+post-hoc check that would only ever notice an overspend after it happened.
 """
 
 from __future__ import annotations
@@ -58,7 +74,7 @@ from app.core.config import settings
 from app.models.company import Company
 from app.models.crawl_run import CrawlRun
 from app.models.job import JobListing
-from app.modules.job_market import ats_boards, geo, ingestion, jsonld_crawler
+from app.modules.job_market import ats_boards, enrichment, geo, ingestion, jsonld_crawler
 
 logger = logging.getLogger(__name__)
 
@@ -327,6 +343,94 @@ def _cleanup_retention(db: Session) -> int:
     )
 
 
+# Chars-per-token is a coarse approximation (English averages ~4), used only
+# to size a *pessimistic* per-request cost estimate for the cap below — never
+# for anything billed, which always comes from the API's own measured token
+# usage (report.claude_cost_usd()).
+_CHARS_PER_TOKEN_ESTIMATE = 4
+
+# Tool schema + title/company aren't captured by the chars-per-token estimate
+# below (they're a structured tool definition and two short fields, not
+# description prose) — a flat token allowance stands in for them instead.
+_ENRICHMENT_FIXED_OVERHEAD_TOKENS = 200
+
+
+def _worst_case_cost_per_request_usd() -> float:
+    """The most a single enrichment request could plausibly cost — the
+    longest input this ever sends (MAX_DESCRIPTION_CHARS, the system
+    prompt) and the hardest output ceiling the API call itself sets
+    (MAX_TOKENS). Real per-request cost is normally lower; this estimate is
+    deliberately pessimistic because _enrichment_request_cap divides a
+    dollar budget by it — underestimating here is what would let a run
+    actually overspend its cap.
+    """
+    input_tokens = (
+        len(enrichment.ENRICHMENT_SYSTEM_PROMPT) + enrichment.MAX_DESCRIPTION_CHARS
+    ) / _CHARS_PER_TOKEN_ESTIMATE + _ENRICHMENT_FIXED_OVERHEAD_TOKENS
+    output_tokens = enrichment.MAX_TOKENS
+    # Haiku 4.5 batch pricing — the same rate SweepReport.claude_cost_usd() uses.
+    return (input_tokens / 1e6 * 0.50) + (output_tokens / 1e6 * 2.50)
+
+
+def _enrichment_request_cap() -> int:
+    """How many postings this run may enrich, derived from
+    JOB_ENRICH_MAX_COST_PER_RUN_USD and the pessimistic per-request cost
+    above — a real, checked-before-spending cap, not an aspirational one."""
+    return max(1, int(settings.JOB_ENRICH_MAX_COST_PER_RUN_USD / _worst_case_cost_per_request_usd()))
+
+
+def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
+    """Batch-enrich currently-open rows with no enriched_at, oldest-fetched
+    first, up to _enrichment_request_cap() of them. A backlog bigger than
+    the cap is not lost — enriched_at stays null on whatever wasn't reached,
+    so the next run's own query picks those rows up again.
+    """
+    cap = _enrichment_request_cap()
+    pending_rows = (
+        db.query(JobListing)
+        .filter(JobListing.status == "open", JobListing.enriched_at.is_(None))
+        .order_by(JobListing.fetched_at.asc())
+        .limit(cap)
+        .all()
+    )
+    if not pending_rows:
+        return
+
+    pending = {
+        str(row.id): {"title": row.title, "company": row.company, "description": row.description or ""}
+        for row in pending_rows
+    }
+
+    report = ingestion.SweepReport(dry_run=False)
+    facts = ingestion._enrich(pending, report)
+
+    now = datetime.now(timezone.utc)
+    by_id = {row.id: row for row in pending_rows}
+    for key, item in facts.items():
+        row = by_id.get(int(key))
+        if row is None:
+            continue
+        row.h1b_sponsorship = item["h1b_sponsorship"]
+        row.h1b_evidence = item["h1b_evidence"] or None
+        # Claude only fills what the source left blank; a value the source
+        # itself stated always wins over an inferred one.
+        if row.experience_level is None:
+            row.experience_level = item["experience_level"]
+        if row.employment_type is None:
+            row.employment_type = item["employment_type"]
+        row.enriched_at = now
+        if item["core_skills"]:
+            row.skills = json.dumps(item["core_skills"])
+
+    run.cost_usd = (run.cost_usd or 0.0) + report.claude_cost_usd()
+    errors.extend(report.errors)
+
+    logger.info(
+        "crawl enrichment: %d pending (cap %d), %d enriched, %d failed, $%.4f",
+        len(pending_rows), cap, report.newly_enriched, report.enrichment_failures, report.claude_cost_usd(),
+    )
+
+
 def run_crawl(
     db: Session,
     trigger: str = "scheduled",
@@ -386,6 +490,7 @@ def run_crawl(
         run.jobs_updated += updated_count
         run.jobs_closed += closed_count
 
+    _enrich_pending(db, run, errors)
     run.jobs_closed += _cleanup_retention(db)
     run.errors = json.dumps(errors[:50])
     run.ended_at = datetime.now(timezone.utc)

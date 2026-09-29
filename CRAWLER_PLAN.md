@@ -512,9 +512,17 @@ was removed outright, along with Active Jobs (the other RapidAPI product
   own `title` text instead — every row is crawler-sourced now, and
   query_key is a board identifier, not a role.
 
-**Not done in this pass, deliberately:** `job_market/crawler.py` still does
-not run Claude enrichment on the rows it collects (see its own module
-docstring) — that gap predates and is independent of the JSearch removal.
+**Update:** `job_market/crawler.py` now runs Claude enrichment too (added
+during Phase 2 of the JSearch-removal work, once "confirm MAX_SWEEP_COST_USD
+caps it" turned out to have no honest answer — see this repo's history).
+Every currently-open row with no `enriched_at`, across every run, is a
+candidate — not just rows the current run's companies touched, so a row a
+previous run's cap left behind is picked up later. Reuses `ingestion.py`'s
+own tested Batch API code (`_enrich`) unchanged; the only new logic is
+`crawler.py`'s own `_enrichment_request_cap()`, a **real, enforced** ceiling
+(`JOB_ENRICH_MAX_COST_PER_RUN_USD`) — unlike `ingestion.MAX_SWEEP_COST_USD`,
+which that module's own sweep never actually checks anywhere in code.
+
 `job_market/ingestion.py`'s older board sweep is untouched and keeps running
 locally; retiring it (or migrating it to read from `companies`) remains the
 separate, later decision §9's own text already called out.

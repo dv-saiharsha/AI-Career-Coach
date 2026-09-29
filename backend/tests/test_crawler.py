@@ -2,6 +2,7 @@
 close-after-2-misses lifecycle, per-company health, and the low-level
 fetch/retry/throttle machinery. No real network calls anywhere."""
 
+import json
 import urllib.error
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +25,16 @@ def db():
     session = sessionmaker(bind=engine)()
     yield session
     session.close()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_anthropic_calls(monkeypatch):
+    """run_crawl()'s enrichment step reuses ingestion._enrich, which checks
+    llm_client.available — true in local dev, where a real ANTHROPIC_API_KEY
+    is normally configured. Without this, any test here that leaves an
+    unenriched open row behind would place a real, billed Batch API call.
+    Tests that actually exercise enrichment override this themselves."""
+    monkeypatch.setattr(crawler.ingestion, "_enrich", lambda pending, report: {})
 
 
 def make_company(db, **overrides) -> Company:
@@ -309,6 +320,173 @@ class TestNonUsFilter:
         assert [row["location"] for row in result.rows] == ["Austin, TX"]
 
 
+def _open_row(db, company, external_id, **overrides) -> JobListing:
+    defaults = dict(
+        query_key="greenhouse:acme", source="greenhouse", company="Acme", external_id=external_id,
+        company_id=company.id, title="Engineer", location="Remote", work_mode="Remote",
+        apply_url=f"https://acme.com/{external_id}", skills="[]", status="open",
+    )
+    row = JobListing(**{**defaults, **overrides})
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _fake_facts(**overrides) -> dict:
+    facts = {
+        "h1b_sponsorship": "explicitly_sponsored", "h1b_evidence": "We sponsor H-1B visas.",
+        "experience_level": "senior", "employment_type": "full_time", "core_skills": ["Python"],
+    }
+    facts.update(overrides)
+    return facts
+
+
+class TestEnrichmentCostCap:
+    def test_worst_case_cost_is_positive_and_small(self):
+        """Sanity, not a pinned value: real per-request cost is a fraction
+        of a cent, and this estimate is deliberately pessimistic (the
+        longest input, the hardest output ceiling) rather than typical."""
+        cost = crawler._worst_case_cost_per_request_usd()
+        assert 0 < cost < 0.01
+
+    def test_cap_scales_with_the_budget_setting(self, monkeypatch):
+        monkeypatch.setattr(crawler.settings, "JOB_ENRICH_MAX_COST_PER_RUN_USD", 3.0)
+        small_cap = crawler._enrichment_request_cap()
+        monkeypatch.setattr(crawler.settings, "JOB_ENRICH_MAX_COST_PER_RUN_USD", 6.0)
+        large_cap = crawler._enrichment_request_cap()
+        assert large_cap >= 2 * small_cap - 1  # roughly double, integer rounding aside
+
+    def test_the_cap_is_never_zero(self, monkeypatch):
+        """A misconfigured near-zero budget must still enrich at least one
+        posting rather than silently enriching nothing forever."""
+        monkeypatch.setattr(crawler.settings, "JOB_ENRICH_MAX_COST_PER_RUN_USD", 0.0000001)
+        assert crawler._enrichment_request_cap() >= 1
+
+
+class TestEnrichPending:
+    def test_enriches_a_pending_open_row(self, db, monkeypatch):
+        company = make_company(db)
+        row = _open_row(db, company, "1")
+        db.commit()
+
+        monkeypatch.setattr(
+            crawler.ingestion, "_enrich", lambda pending, report: {str(row.id): _fake_facts()}
+        )
+        run = CrawlRun()
+        db.add(run)
+        db.flush()
+        errors: list[str] = []
+
+        crawler._enrich_pending(db, run, errors)
+        db.commit()
+
+        db.refresh(row)
+        assert row.h1b_sponsorship == "explicitly_sponsored"
+        assert row.experience_level == "senior"
+        assert row.enriched_at is not None
+        assert json.loads(row.skills) == ["Python"]
+
+    def test_a_value_the_source_already_stated_is_not_overwritten(self, db, monkeypatch):
+        """Claude only fills what the source left blank — a value the board
+        itself stated always wins over an inferred one."""
+        company = make_company(db)
+        row = _open_row(db, company, "1", experience_level="mid")
+        db.commit()
+
+        monkeypatch.setattr(
+            crawler.ingestion, "_enrich",
+            lambda pending, report: {str(row.id): _fake_facts(experience_level="senior")},
+        )
+        run = CrawlRun()
+        db.add(run)
+        db.flush()
+
+        crawler._enrich_pending(db, run, [])
+        db.commit()
+        db.refresh(row)
+        assert row.experience_level == "mid"
+
+    def test_already_enriched_rows_are_not_re_sent(self, db, monkeypatch):
+        company = make_company(db)
+        _open_row(db, company, "1", enriched_at=datetime.now(timezone.utc))
+        db.commit()
+
+        def fail(pending, report):
+            raise AssertionError("an already-enriched row must not be sent again")
+
+        monkeypatch.setattr(crawler.ingestion, "_enrich", fail)
+        run = CrawlRun()
+        db.add(run)
+        db.flush()
+        crawler._enrich_pending(db, run, [])  # must not raise
+
+    def test_closed_rows_are_not_enriched(self, db, monkeypatch):
+        company = make_company(db)
+        _open_row(db, company, "1", status="closed")
+        db.commit()
+
+        def fail(pending, report):
+            raise AssertionError("a closed row must not be enriched")
+
+        monkeypatch.setattr(crawler.ingestion, "_enrich", fail)
+        run = CrawlRun()
+        db.add(run)
+        db.flush()
+        crawler._enrich_pending(db, run, [])  # must not raise
+
+    def test_nothing_pending_is_a_no_op(self, db, monkeypatch):
+        def fail(pending, report):
+            raise AssertionError("must not call _enrich with nothing pending")
+
+        monkeypatch.setattr(crawler.ingestion, "_enrich", fail)
+        run = CrawlRun()
+        db.add(run)
+        db.flush()
+        crawler._enrich_pending(db, run, [])  # must not raise
+
+    def test_respects_the_request_cap(self, db, monkeypatch):
+        company = make_company(db)
+        for i in range(5):
+            _open_row(db, company, str(i))
+        db.commit()
+
+        monkeypatch.setattr(crawler, "_enrichment_request_cap", lambda: 2)
+        seen = {}
+
+        def capture(pending, report):
+            seen["count"] = len(pending)
+            return {}
+
+        monkeypatch.setattr(crawler.ingestion, "_enrich", capture)
+        run = CrawlRun()
+        db.add(run)
+        db.flush()
+        crawler._enrich_pending(db, run, [])
+        assert seen["count"] == 2
+
+    def test_cost_and_errors_are_recorded_on_the_run(self, db, monkeypatch):
+        company = make_company(db)
+        _open_row(db, company, "1")
+        db.commit()
+
+        def fake_enrich(pending, report):
+            report.input_tokens = 1_000_000
+            report.output_tokens = 1_000_000
+            report.errors.append("one posting failed to enrich")
+            return {}
+
+        monkeypatch.setattr(crawler.ingestion, "_enrich", fake_enrich)
+        run = CrawlRun(cost_usd=0.0)
+        db.add(run)
+        db.flush()
+        errors: list[str] = []
+
+        crawler._enrich_pending(db, run, errors)
+
+        assert run.cost_usd == 3.0  # Haiku batch: $0.50 + $2.50 per MTok in/out
+        assert errors == ["one posting failed to enrich"]
+
+
 class TestRunCrawl:
     def test_manual_review_companies_are_never_crawled(self, db, monkeypatch):
         make_company(db, name="Unresolved", ats_type="manual_review", ats_slug=None)
@@ -334,6 +512,23 @@ class TestRunCrawl:
         assert run.companies_failed == 0
         assert run.jobs_new == 1
         assert run.ended_at is not None
+
+    def test_a_full_run_enriches_the_rows_it_just_collected(self, db, monkeypatch):
+        """End-to-end: run_crawl() itself reaches enrichment, not just
+        _enrich_pending called directly."""
+        make_company(db)
+        monkeypatch.setattr(crawler.ats_boards, "fetch_board", lambda *a, **k: [board_row("greenhouse:acme:1")])
+        monkeypatch.setattr(
+            crawler.ingestion, "_enrich",
+            lambda pending, report: {digest: _fake_facts() for digest in pending},
+        )
+
+        run = crawler.run_crawl(db)
+
+        row = db.query(JobListing).one()
+        assert row.enriched_at is not None
+        assert row.h1b_sponsorship == "explicitly_sponsored"
+        assert run.cost_usd >= 0
 
     def test_a_failing_company_does_not_stop_the_run_or_touch_its_jobs(self, db, monkeypatch):
         make_company(db, name="Dead", ats_slug="dead")
