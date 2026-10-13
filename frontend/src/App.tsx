@@ -24,8 +24,7 @@ import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
-import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
-import { AuthCallbackPage } from '@/pages/auth/AuthCallbackPage'
+import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 export function App() {
@@ -42,8 +41,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       {/* Authenticated Application Shell */}
       <Route element={<ProtectedRoute />}>

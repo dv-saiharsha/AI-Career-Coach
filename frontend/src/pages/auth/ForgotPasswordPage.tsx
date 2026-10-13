@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/AuthContext'
+import { friendlyAuthError } from '@/lib/authErrors'
 
 export function ForgotPasswordPage() {
   const { requestPasswordReset } = useAuth()
@@ -20,7 +21,7 @@ export function ForgotPasswordPage() {
       await requestPasswordReset(email)
       setSent(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not send reset email.')
+      toast.error(friendlyAuthError(err, 'Could not send reset email.'))
     } finally {
       setIsLoading(false)
     }

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { getIdToken } from '@/lib/firebase'
 
 /* Best-effort live progress for one resume scan.
 
@@ -29,13 +29,11 @@ export function subscribeToScanStages(scanId: string, onStage: (stage: string) =
 
   void (async () => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session?.access_token) return
+      const token = await getIdToken()
+      if (!token) return
 
       const response = await fetch(`${BASE_URL}/events/stream`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
       if (!response.ok || !response.body) return
