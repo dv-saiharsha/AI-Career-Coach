@@ -83,6 +83,20 @@ of both sides. The only expected differences are `profiles.accent_color`, Supaba
 RLS flag on `user_devices`, and the type of the 11 `user_id` columns (`uuid` in Supabase,
 `text` here, by design). Anything else is a stop.
 
+### 2.3b Two users are intentionally left out
+The owner deleted two imported users from Firebase on purpose: Google user **D** (uuid
+starts `9e41089a`; 9 applications, 41 resume scans, 6 interview sessions in the copy) and
+the unverified email/password user (uuid starts `c007ac55`; an empty profile). Decision:
+**do not import them and do not load their data into `career_coach`.** Their data stays in
+Supabase and in the final backup; nothing is deleted from Supabase.
+* **Import:** the final `import_users_to_firebase.py` must skip both uids (an
+  `--exclude-uid` option is added before the final run; the dry run must then show 2 users
+  fewer, and `--verify` must apply the same exclusion), otherwise it would recreate them.
+* **Data:** after the data load, erase both uids from `career_coach` with the application's
+  own `privacy.delete_user_data` (it covers all 15 tables), then re-run the row-count
+  check, expecting those users' rows to be the only differences from Supabase. The full
+  uuids are read from Supabase at that time, not written here.
+
 ### 2.4 Firebase user import
 `SOURCE_DB_URL=... python backend/scripts/import_users_to_firebase.py` is a **dry run** by
 default (counts only, never prints personal data). Then `--apply --project <id>` and
@@ -163,3 +177,47 @@ still uses Supabase and is untouched. No dual Supabase verifier is provided.
   with no files, so they check nothing. `tsc -p tsconfig.app.json --noEmit` is the real check.
 * Leftover Supabase wording in `backend/.env.example` comments, `docs/oauth-setup.md`,
   the frontend `Dockerfile`, compose files, and CI workflows (7g).
+
+## 7. Job platform decisions (Part B; the owner's addendum overrides the earlier job-feed plan)
+
+**Sources.** No keyed, paid or sign-up API services (no JSearch, RapidAPI, Adzuna or similar);
+any remaining JSearch code is removed. Kept: the public, keyless Greenhouse and Lever board
+readers. Ashby, SmartRecruiters, Workable and similar boards only after their official pages
+confirm they are public and permitted. **Primary collector: company career pages**, reading
+schema.org `JobPosting` (JSON-LD, microdata if present) and using `sitemap.xml` / `lastmod`
+to find new or changed postings cheaply. robots.txt respected, per-domain rate limits, an
+identifying User-Agent, no bypassing logins or CAPTCHAs. Playwright only for pages that
+genuinely need JavaScript, and only after the owner has seen which ones and why. Company
+discovery extends `seed_companies.py` and `discover_boards.py`, with counts reported per method.
+
+**Legitimacy (every posting).** From the employer's own domain or official careers platform;
+the apply URL points to the employer or that platform; `validThrough` not in the past; the
+page still live at last check; title, company, location-or-remote and apply URL present; no spam
+patterns. A failing posting is not shown and the reason is logged. The rules are documented in
+`SOURCES.md`.
+
+**Retention.** The feed shows jobs posted in the last `FEED_WINDOW_DAYS` (default 3), using the
+source's own posted date when reliable (`datePosted`, platform publish date) and `first_seen`
+otherwise; which one each source uses is stated per source. A daily cleanup (Cloud Scheduler +
+Cloud Run Job, advisory lock) deletes `job_listings` older than `RETENTION_DAYS` (default 3) by the
+same rule. Before deleting, a lightweight "seen" record (source/company, external id or canonical
+URL, first_seen) is kept so a still-open old posting is never re-added as fresh; seen records
+are cleared after `SEEN_RETENTION_DAYS` (default 90). User data is protected: every table and code
+path referencing job listings is listed first, and jobs a user saved, applied to or used must not
+break (keep them, or snapshot the needed fields into the user's record); the design needs the
+owner's approval. The first cleanup on existing data is a **dry run** showing how many rows
+would be deleted and how many protected. Database size is measured before and after, with a
+steady-state projection.
+
+**Done when:** crawls run on GCP at least hourly per active company with no API services; the
+feed shows only legitimate postings from the last 3 days, newest first; older jobs are deleted
+daily, old postings never reappear as new, and applications and saved jobs are unaffected; every
+source and legitimacy rule is in `SOURCES.md`; alerts fire if crawling or cleanup stops; and all
+tests pass with evidence (recorded real pages, JSON-LD parsing, sitemap detection, legitimacy,
+dedupe, the seen-list, retention and protection).
+
+**Future, not built now: a "Post a job" flow for employers.** A simple form for an employer to
+submit a posting directly. It would need employer identity and email verification, the same
+legitimacy checks as crawled postings, moderation, an expiry date, and abuse limits. Left for
+after launch.
+
