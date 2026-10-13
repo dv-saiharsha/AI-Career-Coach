@@ -29,6 +29,7 @@ rehearsed.
 | Scaling rule | **Add Redis or LISTEN/NOTIFY before raising max-instances above 1.** Until then the in-process erasure block (`core/security.block_user`) is exact; beyond one instance it only narrows the window and Firebase's own deletion is the shared truth. |
 | Connections | `max_connections` is 50 (3 reserved). API pool 6+3, crawl Job pool 4+3 plus 1 for the advisory lock; steady 22, worst case during a deploy 31. |
 | Cloud Run IAM | A custom role with exactly `firebaseauth.users.get` and `firebaseauth.users.delete` for the service account. |
+| User id type | `user_id` is **text**, not uuid. Firebase gives new accounts a 28-character id; only the 4 imported users have UUID-shaped ids, and a uuid column rejects the rest (`invalid input syntax for type uuid`). Migration `c7e4a19d5b36`. |
 | Sign-in | Google via popup (not redirect). Reset and verify links use Firebase's hosted action pages for now. |
 | API hostname | The API gets its **own hostname**, not a Firebase Hosting rewrite: Hosting caps requests proxied to Cloud Run at 60 seconds (a 504 after that), and `/events/stream` is long-lived. |
 
@@ -55,7 +56,9 @@ All of this was rehearsed against `career_coach_test`; the real database is stil
 Never run it against Supabase.
 
 1. Rebuild from scratch: `backend/scripts/supabase_compat_shim.sql` on the empty
-   database, then `alembic upgrade 388e523dda7a`, then `alembic upgrade d2f6a8c1b937`.
+   database, then `alembic upgrade 388e523dda7a`, then `alembic upgrade head`. `head` is
+   currently `c7e4a19d5b36`, passing through `d2f6a8c1b937` (the Supabase cleanup) and then
+   converting the 11 `user_id` columns from `uuid` to `text`.
    The cleanup migration **refuses to run against a real Supabase database** (marker
    comment, GoTrue tables and `auth.users` rows are all checked).
 2. Dump (v17 client): `pg_dump -Fc --data-only --schema=public -T public.alembic_version -T public.profiles --no-owner --no-privileges`.
@@ -67,7 +70,7 @@ Never run it against Supabase.
    holds personal data: write it outside the repo and delete it straight after.
 5. Set every sequence to the source's `last_value`/`is_called` (18 sequences).
 6. Verify, all must pass: exact row counts for all 19 data tables; every sequence at or above
-   `max(id)`; schema parity (see 2.3a); `alembic_version` is `d2f6a8c1b937`; 0 auth/storage
+   `max(id)`; schema parity (see 2.3a); `alembic_version` is `c7e4a19d5b36`; all 11 `user_id` columns are `text` and no `uuid` column remains; 0 auth/storage
    schemas, 0 FKs into auth, 0 RLS tables, 0 anon/authenticated grants.
 
 Rehearsal timings (data steps only): dump 35 s, restore 157-169 s, profiles 2 s,
@@ -76,8 +79,9 @@ sequences 4 s.
 move them into `backend/scripts/` before the real run.
 
 **2.3a Schema parity.** Compare `pg_dump --schema-only --schema=public --no-owner --no-privileges --no-comments`
-of both sides. The only expected differences are `profiles.accent_color` and Supabase's
-RLS flag on `user_devices`. Anything else is a stop.
+of both sides. The only expected differences are `profiles.accent_color`, Supabase's
+RLS flag on `user_devices`, and the type of the 11 `user_id` columns (`uuid` in Supabase,
+`text` here, by design). Anything else is a stop.
 
 ### 2.4 Firebase user import
 `SOURCE_DB_URL=... python backend/scripts/import_users_to_firebase.py` is a **dry run** by

@@ -1,5 +1,4 @@
 from sqlalchemy import Column, DateTime, Float, Integer, LargeBinary, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -11,10 +10,12 @@ class ResumeAnalysis(Base):
     # References auth.users(id) in Supabase Postgres — enforced at the DB
     # level via the Alembic migration, not an SQLAlchemy FK (that table
     # lives in the auth schema, which we don't model here).
-    # with_variant: Postgres' UUID type raises on SQLite, which DB_URL
-    # defaults to. Postgres DDL and behaviour are unchanged.
+    # The sign-in provider's user id (a Firebase uid), stored as text. NOT a UUID:
+    # Firebase gives brand-new accounts a 28-character id; only users imported from
+    # Supabase have UUID-shaped ids. No SQLAlchemy FK either: the identity lives in
+    # Firebase, not in a table this backend owns.
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
     resume_filename = Column(String, nullable=False)
     job_description = Column(Text, nullable=False)

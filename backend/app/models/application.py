@@ -1,5 +1,4 @@
 from sqlalchemy import CheckConstraint, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -58,11 +57,12 @@ class JobApplication(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # References auth.users(id), matching resume_analyses and profiles —
-    # Supabase's auth schema is authoritative and isn't modelled here.
-    # with_variant: Postgres' UUID type raises on SQLite.
+    # The sign-in provider's user id (a Firebase uid), stored as text. NOT a UUID:
+    # Firebase gives brand-new accounts a 28-character id; only users imported from
+    # Supabase have UUID-shaped ids. No SQLAlchemy FK either: the identity lives in
+    # Firebase, not in a table this backend owns.
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
 
     job_title = Column(String, nullable=False)

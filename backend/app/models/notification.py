@@ -1,5 +1,4 @@
 from sqlalchemy import CheckConstraint, Column, DateTime, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -62,7 +61,7 @@ class Notification(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
 
     type = Column(String, nullable=False)

@@ -1,5 +1,4 @@
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -14,7 +13,7 @@ class JobOffer(Base):
     # DB level in the migration, not as a SQLAlchemy ForeignKey — auth lives
     # in a schema this app doesn't model.
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
 
     # Integer, not UUID: job_applications.id is an Integer primary key, and a

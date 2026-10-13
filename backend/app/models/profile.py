@@ -1,5 +1,4 @@
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -8,28 +7,26 @@ from app.core.database import Base
 class Profile(Base):
     """Per-user onboarding state and career preferences.
 
-    One row per Supabase user, keyed by the auth.users UUID. There is no
-    foreign key to auth.users — the same convention the other tables follow,
-    because auth lives in a schema this app does not own and Alembic should
-    not be issuing DDL that depends on it.
+    One row per user, keyed by the Firebase uid. There is no foreign key: the
+    identity lives in Firebase, not in a table this app owns.
 
-    Rows are created lazily on first read rather than by a signup hook: the
-    backend never sees a signup (Supabase handles it), so there is no moment
-    at which it could insert one eagerly.
+    Rows are created the first time a user is seen authenticated (see
+    core/deps.py and services.ensure_profile) rather than by a signup hook: the
+    backend never sees a signup, so there is no moment at which it could insert
+    one eagerly.
     """
 
     __tablename__ = "profiles"
 
-    # Not a surrogate id — the Supabase user UUID *is* the identity here, so a
+    # Not a surrogate id — the provider's user id *is* the identity here, so a
     # separate primary key would just add a second way to say the same thing
     # and allow two profiles for one user.
     #
-    # with_variant because Postgres' UUID type has no SQLite implementation:
-    # its result processor tries to build a uuid.UUID from whatever SQLite
-    # hands back and raises. DB_URL defaults to SQLite (app/core/config.py),
-    # so without this the model can only ever be used against Postgres.
+    # Text, not UUID: Firebase assigns new accounts a 28-character id. Only users
+    # imported from Supabase have UUID-shaped ids, and a uuid column rejects the
+    # rest with "invalid input syntax for type uuid".
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), primary_key=True, index=True
+        String, primary_key=True, index=True
     )
 
     onboarding_completed = Column(Boolean, nullable=False, default=False, server_default="false")
