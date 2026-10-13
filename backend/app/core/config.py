@@ -145,6 +145,20 @@ class Settings(BaseSettings):
     # production, `gcloud auth application-default login` locally.
     FIREBASE_PROJECT_ID: str = ""
 
+    # Profile photos live in a private Cloud Storage bucket. Unset AVATAR_BUCKET
+    # turns custom photos off (the sign-in provider's picture is shown instead).
+    AVATAR_BUCKET: str = ""
+    # The service account that signs upload and read URLs through the IAM
+    # Credentials signBlob API. On Cloud Run the service already runs as this
+    # account; it needs roles/iam.serviceAccountTokenCreator on itself.
+    AVATAR_SIGNER_SERVICE_ACCOUNT: str = ""
+    # LOCAL DEVELOPMENT ONLY. A developer's own login cannot sign, so the backend
+    # impersonates AVATAR_SIGNER_SERVICE_ACCOUNT instead (the developer needs
+    # roles/iam.serviceAccountTokenCreator on it). Leave false anywhere the
+    # service already runs as that account.
+    AVATAR_IMPERSONATE_SIGNER: bool = False
+    AVATAR_MAX_BYTES: int = 5 * 1024 * 1024
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

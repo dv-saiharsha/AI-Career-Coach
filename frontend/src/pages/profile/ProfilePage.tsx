@@ -64,6 +64,9 @@ function formatDate(value: string | null): string {
 // Every dimension the real Profile model actually has — Figma's mock
 // "completeness" is a fixed 86% with no formula behind it; this is a real
 // one, computed from the same fields this page lets you edit.
+/** The types the API will sign an upload for; it enforces the same list server-side. */
+const ACCEPTED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
 function completenessChecks(profile: ProfileSchema, hasAvatar: boolean) {
   return [
     { done: hasAvatar, hint: 'Add a profile photo' },
@@ -78,6 +81,8 @@ function completenessChecks(profile: ProfileSchema, hasAvatar: boolean) {
 
 export function ProfilePage() {
   const { user } = useAuth()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   const [profile, setProfile] = useState<ProfileSchema | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -215,6 +220,31 @@ export function ProfilePage() {
     }
   }
 
+  const handleAvatarFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !user) return
+    if (!ACCEPTED_AVATAR_TYPES.includes(file.type)) {
+      toast.error('Choose a JPEG, PNG or WebP image.')
+      return
+    }
+    setAvatarUploading(true)
+    try {
+      const upload = await profileService.requestAvatarUpload(file.type)
+      if (file.size > upload.max_bytes) {
+        toast.error(`Image must be under ${Math.round(upload.max_bytes / (1024 * 1024))}MB.`)
+        return
+      }
+      await profileService.uploadAvatarToStorage(upload, file)
+      setProfile(await profileService.confirmAvatar(upload.path))
+      toast.success('Profile photo updated.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not upload your photo.')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   const providers = user?.providers ?? []
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : null
   const displayName = user?.fullName || 'Unnamed user'
@@ -259,7 +289,22 @@ export function ProfilePage() {
               {initials(displayName)}
             </AvatarFallback>
           </Avatar>
-          {/* Changing the photo is disabled until avatar storage moves to Cloud Storage (it used Supabase Storage). */}
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarUploading}
+            aria-label="Change profile photo"
+            className="absolute -bottom-1 -right-1 grid h-[25px] w-[25px] place-items-center rounded-full border-[3px] border-card bg-secondary text-primary"
+          >
+            {avatarUploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept={ACCEPTED_AVATAR_TYPES.join(',')}
+            className="hidden"
+            onChange={handleAvatarFile}
+          />
         </div>
 
         <div className="min-w-0 text-center sm:text-left">

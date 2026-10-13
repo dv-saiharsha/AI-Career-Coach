@@ -16,10 +16,16 @@ from sqlalchemy.orm import Session
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
+from app.modules.user_profile import avatars
 
 logger = logging.getLogger(__name__)
 
 ACTIVITY_LIMIT = 6
+
+# Columns a client may never write through the generic update, whatever it sends.
+# avatar_path is set only by the confirm step, after the object it names has been
+# checked to belong to the caller.
+_SERVER_ONLY_FIELDS = frozenset({"avatar_path", "user_id", "created_at", "updated_at"})
 
 
 def ensure_profile(db: Session, user_id: str, avatar_url: str | None = None) -> Profile:
@@ -114,7 +120,9 @@ def profile_payload(profile: Profile) -> dict:
         "current_title": profile.current_title,
         "seniority": profile.seniority,
         "primary_target_role": profile.primary_target_role,
-        "avatar_url": profile.avatar_url,
+        # The stored photo (a short-lived signed link) if there is one, otherwise the
+        # sign-in provider's picture.
+        "avatar_url": avatars.display_url(profile.avatar_path, profile.avatar_url),
     }
 
 
@@ -128,7 +136,7 @@ def update_profile(db: Session, user_id: str, fields: dict) -> Profile:
     """
     profile = get_or_create_profile(db, user_id)
     for key, value in fields.items():
-        if not hasattr(profile, key):
+        if not hasattr(profile, key) or key in _SERVER_ONLY_FIELDS:
             continue
         if key == "target_roles":
             # A JSON-encoded Text column, not a scalar. A raw setattr would
@@ -138,6 +146,15 @@ def update_profile(db: Session, user_id: str, fields: dict) -> Profile:
             profile.target_roles = json.dumps(value or [])
             continue
         setattr(profile, key, value if value not in ("", None) else None)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def set_avatar_path(db: Session, user_id: str, path: str | None) -> Profile:
+    """Record (or clear) the stored photo. Callers must have checked `path` first."""
+    profile = get_or_create_profile(db, user_id)
+    profile.avatar_path = path
     db.commit()
     db.refresh(profile)
     return profile
