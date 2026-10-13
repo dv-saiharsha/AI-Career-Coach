@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 ACTIVITY_LIMIT = 6
 
 
-def ensure_profile(db: Session, user_id: str) -> Profile:
+def ensure_profile(db: Session, user_id: str, avatar_url: str | None = None) -> Profile:
     """Return the user's profile, creating an empty one if there is none.
 
     Safe under concurrent first requests. A browser opens several tabs and a
@@ -36,6 +36,10 @@ def ensure_profile(db: Session, user_id: str) -> Profile:
     person is seen authenticated (see core/deps.py) and, as a backstop, the
     first time anything reads it. A missing row and a row with
     onboarding_completed=False mean the same thing to every caller.
+
+    avatar_url (the sign-in provider's picture) is stored only when the row is
+    created, which is what the trigger did for Google avatars; an existing
+    profile, including one the person has since edited, is never overwritten.
     """
     dialect = db.get_bind().dialect.name
     if dialect == "postgresql":
@@ -47,7 +51,7 @@ def ensure_profile(db: Session, user_id: str) -> Profile:
 
     db.execute(
         insert(Profile)
-        .values(user_id=user_id, onboarding_completed=False, target_roles="[]")
+        .values(user_id=user_id, onboarding_completed=False, target_roles="[]", avatar_url=avatar_url)
         .on_conflict_do_nothing(index_elements=["user_id"])
     )
     db.commit()

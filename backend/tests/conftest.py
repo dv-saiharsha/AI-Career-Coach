@@ -6,6 +6,27 @@ from app.modules.job_market import services
 
 
 @pytest.fixture(autouse=True)
+def _reset_auth_state():
+    """Process-wide auth state must not leak between tests.
+
+    security.block_user and the verification cache, and deps' known-profile
+    set, are module-level on purpose (they are per-process caches in production).
+    A test that erases ALICE would otherwise leave her blocked for every
+    later test in the run.
+    """
+    from app.core import deps, security
+
+    def clear():
+        security._cache.clear()
+        security._blocked.clear()
+        deps._profile_ensured.clear()
+
+    clear()
+    yield
+    clear()
+
+
+@pytest.fixture(autouse=True)
 def _clear_job_feed_cache():
     """Drop the process-local job feed cache around every test.
 

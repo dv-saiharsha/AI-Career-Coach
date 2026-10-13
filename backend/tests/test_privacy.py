@@ -25,8 +25,6 @@ from app.models.application import ApplicationStatusHistory, JobApplication
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
-import httpx
-
 from app.modules.user_profile import auth_admin, privacy, router
 
 ALICE = "00000000-0000-0000-0000-00000000000a"
@@ -322,49 +320,39 @@ class TestIdentityRemoval:
 
 
 class TestAuthAdmin:
-    def test_missing_credentials_reports_failure_rather_than_claiming_success(
-        self, monkeypatch
-    ):
-        """CI and local development run without the service-role key. The
-        honest answer there is 'no', not a silent yes."""
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "")
+    """The Firebase side of erasure. delete_auth_user must never raise: by the
+    time it runs the rows are already gone."""
+
+    def test_missing_configuration_reports_failure_rather_than_claiming_success(self, monkeypatch):
+        monkeypatch.setattr(auth_admin.settings, "FIREBASE_PROJECT_ID", "")
         assert auth_admin.delete_auth_user(ALICE) is False
 
-    def test_a_missing_user_counts_as_deleted(self, monkeypatch):
-        """404 means the identity is not there, which is the state this
-        function exists to reach. Calling it a failure would make a retry
-        after a partial deletion report failure forever."""
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_URL", "https://x.supabase.co")
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "secret")
+    def test_the_user_is_deleted_in_firebase(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(auth_admin.settings, "FIREBASE_PROJECT_ID", "proj")
+        monkeypatch.setattr(auth_admin.security, "firebase_app", lambda: "app")
         monkeypatch.setattr(
-            auth_admin.httpx, "delete", lambda *a, **k: httpx.Response(404, text="not found")
+            auth_admin.firebase_auth, "delete_user", lambda uid, app=None: seen.update(uid=uid, app=app)
         )
         assert auth_admin.delete_auth_user(ALICE) is True
+        assert seen == {"uid": ALICE, "app": "app"}
 
-    def test_a_network_failure_does_not_raise(self, monkeypatch):
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_URL", "https://x.supabase.co")
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "secret")
+    def test_a_missing_user_counts_as_deleted(self, monkeypatch):
+        monkeypatch.setattr(auth_admin.settings, "FIREBASE_PROJECT_ID", "proj")
+        monkeypatch.setattr(auth_admin.security, "firebase_app", lambda: "app")
 
-        def boom(*_a, **_k):
-            raise httpx.ConnectError("no route to host")
+        def gone(uid, app=None):
+            raise auth_admin.firebase_auth.UserNotFoundError("no such user")
 
-        monkeypatch.setattr(auth_admin.httpx, "delete", boom)
-        assert auth_admin.delete_auth_user(ALICE) is False
-
-    def test_the_service_role_key_is_sent_and_the_user_id_is_in_the_path(self, monkeypatch):
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_URL", "https://x.supabase.co/")
-        monkeypatch.setattr(auth_admin.settings, "SUPABASE_SECRET_API_KEY", "secret-key")
-        seen: dict = {}
-
-        def capture(url, headers=None, timeout=None):
-            seen["url"] = url
-            seen["headers"] = headers
-            return httpx.Response(200)
-
-        monkeypatch.setattr(auth_admin.httpx, "delete", capture)
+        monkeypatch.setattr(auth_admin.firebase_auth, "delete_user", gone)
         assert auth_admin.delete_auth_user(ALICE) is True
 
-        # The trailing slash on SUPABASE_URL must not produce a double slash.
-        assert seen["url"] == f"https://x.supabase.co/auth/v1/admin/users/{ALICE}"
-        assert seen["headers"]["apikey"] == "secret-key"
-        assert seen["headers"]["Authorization"] == "Bearer secret-key"
+    def test_any_failure_does_not_raise(self, monkeypatch):
+        monkeypatch.setattr(auth_admin.settings, "FIREBASE_PROJECT_ID", "proj")
+        monkeypatch.setattr(auth_admin.security, "firebase_app", lambda: "app")
+
+        def boom(uid, app=None):
+            raise RuntimeError("firebase unreachable")
+
+        monkeypatch.setattr(auth_admin.firebase_auth, "delete_user", boom)
+        assert auth_admin.delete_auth_user(ALICE) is False

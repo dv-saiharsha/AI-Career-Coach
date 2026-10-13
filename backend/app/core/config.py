@@ -137,14 +137,13 @@ class Settings(BaseSettings):
     # for local dev and CI.
     ALERT_WEBHOOK_URL: str = ""
 
-    # Supabase Auth — the FastAPI backend verifies tokens Supabase issues,
-    # it no longer signs its own. SUPABASE_JWT_SECRET is under
-    # Project Settings -> API -> JWT Settings in the Supabase dashboard.
-    SUPABASE_URL: str = ""
-    SUPABASE_JWT_SECRET: str = ""
-    # Elevated-privilege key for calling Supabase's own APIs directly (admin
-    # user management, etc). Not used by the token-verification path above.
-    SUPABASE_SECRET_API_KEY: str = ""
+    # Firebase Authentication — the backend verifies the ID tokens Firebase
+    # issues and never signs its own. The project id is all the verifier needs;
+    # there is no shared secret to configure. Credentials for the calls that DO
+    # need privilege (checking a user still exists, deleting a user) come from
+    # Application Default Credentials: the Cloud Run service account in
+    # production, `gcloud auth application-default login` locally.
+    FIREBASE_PROJECT_ID: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -221,10 +220,8 @@ def validate_startup() -> None:
     missing: list[str] = []
     if settings.DB_URL.startswith("sqlite"):
         missing.append("DB_URL (still the local SQLite default — set it to the production Postgres URL)")
-    if not settings.SUPABASE_URL:
-        missing.append("SUPABASE_URL")
-    if not settings.SUPABASE_JWT_SECRET:
-        missing.append("SUPABASE_JWT_SECRET")
+    if not settings.FIREBASE_PROJECT_ID:
+        missing.append("FIREBASE_PROJECT_ID")
     if not settings.ANTHROPIC_API_KEY:
         missing.append("ANTHROPIC_API_KEY")
     if not settings.allowed_origins_list or settings.ALLOWED_ORIGINS.strip() == "*":

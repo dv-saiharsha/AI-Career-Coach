@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.modules.user_profile import services, privacy
+from app.core import deps, security
 from app.modules.user_profile.auth_admin import delete_auth_user
 from app.schemas.profile import (
     ActivityResponseSchema,
@@ -162,10 +163,14 @@ def delete_my_account(
     THE IDENTITY GOES TOO, AND IT GOES SECOND
 
     Erasing the rows while leaving the login intact is a half-deletion, and
-    the person has been told their account is gone. So the Supabase identity
+    the person has been told their account is gone. So the Firebase identity
     is removed as well — but after the data, never before. See auth_admin for
     why that order is not arbitrary: the reverse leaves someone unable to
     authenticate and therefore unable to retry, with data still held.
+
+    The user is blocked in this process BEFORE anything is erased, so a request
+    already in flight cannot recreate rows in the gap before the identity goes.
+    The block is lifted only if the erasure itself fails, so they can retry.
 
     A failure in that second half is reported, not raised. The rows really
     are gone by then, and a 500 would tell the caller nothing had happened.
@@ -176,7 +181,13 @@ def delete_my_account(
             detail="Pass confirm=DELETE to erase your data. This cannot be undone.",
         )
 
-    deleted = privacy.delete_user_data(db, current_user.id)
+    security.block_user(current_user.id)
+    try:
+        deleted = privacy.delete_user_data(db, current_user.id)
+    except Exception:
+        security.unblock_user(current_user.id)
+        raise
+    deps.forget_profile_cache(current_user.id)
     identity_removed = delete_auth_user(current_user.id)
 
     if not identity_removed:

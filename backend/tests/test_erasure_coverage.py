@@ -50,9 +50,7 @@ def schema_file(tmp_path_factory):
         "HOME": os.environ.get("HOME", ""),
         "DB_URL": f"sqlite:///{db_file}",
         "ENVIRONMENT": "development",
-        "SUPABASE_URL": "",
-        "SUPABASE_JWT_SECRET": "",
-        "SUPABASE_SECRET_API_KEY": "",
+        "FIREBASE_PROJECT_ID": "",
         "ANTHROPIC_API_KEY": "",
         "REDIS_URL": "",
     }

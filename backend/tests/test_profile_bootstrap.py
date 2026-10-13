@@ -91,7 +91,9 @@ def _credentials():
 
 
 def test_the_first_authenticated_request_creates_the_profile(engine, monkeypatch):
-    monkeypatch.setattr(deps, "verify_supabase_token", lambda _t: {"sub": USER, "email": "a@x.com"})
+    monkeypatch.setattr(
+        deps, "verify_firebase_token", lambda _t: {"sub": USER, "email": "a@x.com", "email_verified": True}
+    )
     Session = sessionmaker(bind=engine)
     with Session() as s:
         user = deps.get_current_user(_credentials(), s)
@@ -100,7 +102,9 @@ def test_the_first_authenticated_request_creates_the_profile(engine, monkeypatch
 
 
 def test_a_known_user_costs_no_database_work(engine, monkeypatch):
-    monkeypatch.setattr(deps, "verify_supabase_token", lambda _t: {"sub": USER, "email": "a@x.com"})
+    monkeypatch.setattr(
+        deps, "verify_firebase_token", lambda _t: {"sub": USER, "email": "a@x.com", "email_verified": True}
+    )
     deps._profile_ensured.add(USER)
 
     class ExplodingSession:
@@ -111,7 +115,9 @@ def test_a_known_user_costs_no_database_work(engine, monkeypatch):
 
 
 def test_a_database_failure_never_fails_authentication(monkeypatch):
-    monkeypatch.setattr(deps, "verify_supabase_token", lambda _t: {"sub": USER, "email": "a@x.com"})
+    monkeypatch.setattr(
+        deps, "verify_firebase_token", lambda _t: {"sub": USER, "email": "a@x.com", "email_verified": True}
+    )
 
     class BrokenSession:
         def get_bind(self):
