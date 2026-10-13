@@ -22,23 +22,44 @@ logger = logging.getLogger(__name__)
 ACTIVITY_LIMIT = 6
 
 
-def get_or_create_profile(db: Session, user_id: str) -> Profile:
-    """Fetch the profile, creating an empty one on first access.
+def ensure_profile(db: Session, user_id: str) -> Profile:
+    """Return the user's profile, creating an empty one if there is none.
 
-    Lazy creation because the backend never observes signup — Supabase owns
-    that flow — so there is no earlier point at which a row could be inserted.
-    A missing row and a row with onboarding_completed=False mean the same
-    thing, which keeps the caller from having to distinguish them.
+    Safe under concurrent first requests. A browser opens several tabs and a
+    page fires many requests at once, so two requests for a brand-new user can
+    both find no row. A plain SELECT-then-INSERT lets the second one hit the
+    primary key and fail with a 500; INSERT ... ON CONFLICT DO NOTHING makes
+    the loser a no-op, and the row is read back afterwards either way.
+
+    This replaces the signup trigger the database used to have. The backend
+    never observes signup itself, so the row is created the first time the
+    person is seen authenticated (see core/deps.py) and, as a backstop, the
+    first time anything reads it. A missing row and a row with
+    onboarding_completed=False mean the same thing to every caller.
     """
+    dialect = db.get_bind().dialect.name
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    elif dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    else:  # pragma: no cover - the app only runs on these two
+        raise RuntimeError(f"ensure_profile does not support dialect {dialect!r}")
+
+    db.execute(
+        insert(Profile)
+        .values(user_id=user_id, onboarding_completed=False, target_roles="[]")
+        .on_conflict_do_nothing(index_elements=["user_id"])
+    )
+    db.commit()
+    return db.query(Profile).filter(Profile.user_id == user_id).one()
+
+
+def get_or_create_profile(db: Session, user_id: str) -> Profile:
+    """Fetch the profile, creating an empty one on first access."""
     profile = db.query(Profile).filter(Profile.user_id == user_id).first()
     if profile is not None:
         return profile
-
-    profile = Profile(user_id=user_id, onboarding_completed=False, target_roles="[]")
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return profile
+    return ensure_profile(db, user_id)
 
 
 def read_target_roles(profile: Profile) -> list[str]:
