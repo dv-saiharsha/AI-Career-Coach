@@ -367,3 +367,37 @@ class TestAfterErasure:
         assert client.delete("/api/user/account?confirm=yes", headers=_auth(token)).status_code == 400
         assert not security.is_blocked(ALICE)
         assert client.get("/api/user/profile", headers=_auth(token)).status_code == 200
+
+
+class TestAdminGate:
+    """ADMIN_EMAILS grants access by address, so it must only ever match an address
+    that has been verified. A person who signs up with an admin's email without
+    owning it must not become an admin."""
+
+    ADMIN = "owner@example.com"
+
+    @pytest.fixture(autouse=True)
+    def _admin_configured(self, monkeypatch):
+        monkeypatch.setattr(settings, "ADMIN_EMAILS", self.ADMIN)
+
+    def _get(self, world, *, email, verified, provider="password"):
+        client, _session, firebase = world
+        firebase.add_user(ALICE)
+        token = firebase.issue(ALICE, email=email, verified=verified, provider=provider)
+        return client.get("/api/admin/crawl/runs", headers=_auth(token))
+
+    def test_a_verified_admin_address_is_admitted(self, world):
+        assert self._get(world, email=self.ADMIN, verified=True).status_code == 200
+
+    def test_an_unverified_admin_address_is_refused_before_the_allowlist_is_consulted(self, world):
+        response = self._get(world, email=self.ADMIN, verified=False)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "email_not_verified"
+
+    def test_the_match_ignores_case_and_whitespace_but_not_the_address(self, world):
+        assert self._get(world, email="  Owner@Example.COM ", verified=True).status_code == 200
+
+    def test_a_verified_address_that_is_not_listed_is_refused(self, world):
+        response = self._get(world, email="someone.else@example.com", verified=True)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Admin access required"
