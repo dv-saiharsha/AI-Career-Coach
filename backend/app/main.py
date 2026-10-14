@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.llm import LLMProviderError, describe_problems, llm_client
+from app.ml import inference
 from app.modules.analytics.router import router as analytics_router
 from app.modules.applications.router import router as applications_router
 from app.modules.dashboard.router import router as dashboard_router
@@ -32,6 +34,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def log_startup_state() -> None:
+    """One clear line per thing the operator needs to know before the first
+    request fails. Warnings only: nothing here stops the app from starting.
+    The one network call is a single GET /api/tags to Ollama, capped at 3s."""
+    provider = llm_client.provider
+    logger.info("LLM provider: %s", provider)
+    if provider == "anthropic" and not settings.ANTHROPIC_API_KEY:
+        logger.warning(
+            "LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is empty: AI features will fall back "
+            "to the rule-based path or answer 503."
+        )
+    for problem in describe_problems(llm_client.health()):
+        logger.warning(problem)
+    if not inference.model_available():
+        logger.warning(
+            "ATS scoring model not found at %s. Scores fall back to a simple keyword ratio, "
+            "optimizer and tailor scores are omitted, and /api/resume-builder/compile-and-score "
+            "answers 503. The file is gitignored: train it with scripts/train_ats_model.py "
+            "or copy ats_model.joblib into that folder.",
+            inference.MODEL_PATH,
+        )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Start and stop the hourly board sweep alongside the app.
@@ -44,6 +69,7 @@ async def lifespan(_: FastAPI):
     Gated on a setting so a worker that should not sweep — a one-off script, a
     test process, a second replica — can opt out without a code change.
     """
+    log_startup_state()
     scheduler.start(enabled=settings.JOB_SWEEP_ENABLED)
     try:
         yield
@@ -136,6 +162,26 @@ async def llm_unavailable_handler(request: Request, exc: anthropic.APIError):
     return JSONResponse(status_code=status, content={"detail": detail})
 
 
+@app.exception_handler(LLMProviderError)
+async def llm_provider_error_handler(request: Request, exc: LLMProviderError):
+    """The configured model (Ollama) failed: not running, too slow, model not
+    pulled, or unusable output. A 503 that says which, in words that name the
+    fix. The text is built from settings, never from the exception, so no
+    address, port or response body reaches the client; the exception itself
+    goes to the log."""
+    detail = {
+        "unreachable": "Ollama is not running, so AI features are unavailable. Start it with `ollama serve` and try again.",
+        "model_missing": f"The AI model isn't installed on this machine. Run `ollama pull {settings.OLLAMA_MODEL}` and try again.",
+        "timeout": "The AI model took too long to respond. Try again, or use a shorter input.",
+        "bad_output": "The AI model returned an answer we couldn't use. Please try again.",
+    }.get(exc.kind, "AI features are temporarily unavailable. Nothing you did caused this — please try again shortly.")
+    logger.error(
+        "LLM provider failed on %s %s: %s (%s)",
+        request.method, request.url.path, exc.kind, exc, exc_info=True,
+    )
+    return JSONResponse(status_code=503, content={"detail": detail})
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Every expected failure mode is already converted to an HTTPException
@@ -165,3 +211,19 @@ def health_check():
         logger.warning("health check: database unreachable", exc_info=True)
         return JSONResponse(status_code=503, content={"status": "error", "database": "unreachable"})
     return {"status": "ok", "database": "reachable"}
+
+
+@app.get("/health/llm")
+def llm_health():
+    """Which model serves the AI features and whether it can answer right now.
+
+    Sends no completion request, so it never bills and costs one cheap GET
+    to Ollama. Under Ollama: ok = chat and embedding models both pulled;
+    degraded = a chat model is pulled but something is missing; unavailable =
+    Ollama is down or no chat model is pulled. 200 for ok/degraded, 503
+    otherwise. Reports whether an Anthropic key is configured, never the key.
+    """
+    info = llm_client.health()
+    info["ats_scoring_model_installed"] = inference.model_available()
+    ok = info.get("status") in ("ok", "degraded")
+    return JSONResponse(status_code=200 if ok else 503, content=info)

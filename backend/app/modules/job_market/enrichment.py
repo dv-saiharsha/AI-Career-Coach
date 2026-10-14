@@ -138,6 +138,87 @@ def build_request_params(title: str, company: str, description: str) -> dict:
     }
 
 
+def normalise_facts(payload: dict[str, Any]) -> dict[str, Any]:
+    """Clean one model answer into the stored shape, whichever provider made it.
+
+    Normalise rather than trust: the enum permits null, and a model returning
+    the string "null" or "" would otherwise be stored as a real classification.
+    """
+    payload = dict(payload)
+    for field in ("experience_level", "employment_type"):
+        if payload.get(field) in ("", "null", "none", "unknown"):
+            payload[field] = None
+    if payload.get("h1b_sponsorship") not in (
+        "explicitly_sponsored",
+        "no_sponsorship",
+        "unmentioned",
+    ):
+        payload["h1b_sponsorship"] = "unmentioned"
+    # Evidence only ever accompanies a verdict. The model sometimes returns a
+    # quote alongside "unmentioned" anyway, and a quote shown under a "not
+    # mentioned" label reads as a finding the classification explicitly
+    # declined to make.
+    if payload.get("h1b_sponsorship") == "unmentioned":
+        payload["h1b_evidence"] = ""
+    skills = payload.get("core_skills")
+    payload["core_skills"] = [s for s in skills if isinstance(s, str)] if isinstance(skills, list) else []
+    return {**UNENRICHED, **payload}
+
+
+def _squash(text: str) -> str:
+    """Whitespace- and case-insensitive form, for comparing a quote with its source."""
+    return " ".join((text or "").split()).lower()
+
+
+def verify_evidence(facts: dict[str, Any], description: str) -> dict[str, Any]:
+    """A sponsorship verdict stands only if its evidence really is in the posting.
+
+    The evidence is shown to the candidate so they can judge the claim for
+    themselves. A smaller model sometimes fills the field with a word or a
+    paraphrase instead of a quote ("description"), which would present an
+    invented sentence as proof of a visa claim. So a verdict whose evidence
+    is not a verbatim substring of the text the model was given (the same
+    truncation) is downgraded to "unmentioned", the schema's own answer for
+    "cannot support a claim".
+    """
+    if facts["h1b_sponsorship"] == "unmentioned":
+        return facts
+    quote = _squash(facts["h1b_evidence"])
+    if quote and quote in _squash((description or "")[:MAX_DESCRIPTION_CHARS]):
+        return facts
+    logger.warning(
+        "enrichment: h1b verdict %r dropped; its evidence %r is not a quote from the posting",
+        facts["h1b_sponsorship"], (facts["h1b_evidence"] or "")[:60],
+    )
+    return {**facts, "h1b_sponsorship": "unmentioned", "h1b_evidence": ""}
+
+
+# Added after the shared user prompt on the non-batch path only. The batch path
+# (Claude) is unchanged.
+_EVIDENCE_REMINDER = (
+    "\n\nFor h1b_evidence, copy one sentence word for word from the description above. "
+    "Leave it empty when h1b_sponsorship is unmentioned."
+)
+
+
+def extract_facts(client: Any, title: str, company: str, description: str) -> dict[str, Any]:
+    """Enrich one posting with one request through the provider wrapper.
+
+    This is the non-batch path (Ollama has no batch API). Provider failures
+    propagate as LLMProviderError so the caller decides what a failed posting
+    means; it is never silently stored as "enriched". The result is checked
+    with verify_evidence before it is returned.
+    """
+    payload = client.complete_tool_json(
+        ENRICHMENT_SYSTEM_PROMPT,
+        build_user_prompt(title, company, description) + _EVIDENCE_REMINDER,
+        ENRICHMENT_TOOL_NAME,
+        ENRICHMENT_SCHEMA,
+        max_tokens=MAX_TOKENS,
+    )
+    return verify_evidence(normalise_facts(payload), description)
+
+
 def parse_enrichment(message: Any) -> dict[str, Any]:
     """Pull the tool_use payload out of a batch result message.
 
@@ -148,28 +229,7 @@ def parse_enrichment(message: Any) -> dict[str, Any]:
     try:
         for block in message.content:
             if getattr(block, "type", None) == "tool_use":
-                payload = dict(block.input)
-                # Normalise rather than trust: the enum permits null, and a
-                # model returning the string "null" or "" would otherwise be
-                # stored as a real classification.
-                for field in ("experience_level", "employment_type"):
-                    if payload.get(field) in ("", "null", "none", "unknown"):
-                        payload[field] = None
-                if payload.get("h1b_sponsorship") not in (
-                    "explicitly_sponsored",
-                    "no_sponsorship",
-                    "unmentioned",
-                ):
-                    payload["h1b_sponsorship"] = "unmentioned"
-                # Evidence only ever accompanies a verdict. The model
-                # sometimes returns a quote alongside "unmentioned" anyway,
-                # and a quote shown under a "not mentioned" label reads as a
-                # finding the classification explicitly declined to make.
-                if payload.get("h1b_sponsorship") == "unmentioned":
-                    payload["h1b_evidence"] = ""
-                skills = payload.get("core_skills")
-                payload["core_skills"] = [s for s in skills if isinstance(s, str)] if isinstance(skills, list) else []
-                return {**UNENRICHED, **payload}
+                return normalise_facts(dict(block.input))
     except Exception:
         logger.warning("enrichment: could not parse batch result", exc_info=True)
     return dict(UNENRICHED)

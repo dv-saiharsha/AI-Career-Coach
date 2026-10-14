@@ -22,7 +22,7 @@ from app.core.llm import llm_client
 from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import layout_check, quality
 from app.ml.features import extract_features
-from app.ml.inference import model_available, predict_score
+from app.ml.inference import ScoringModelUnavailable, model_available, predict_score
 from app.modules.resume_builder import autofill, fit, guards, latex
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing  # noqa: F401 (re-exported)
 
@@ -142,6 +142,12 @@ def compile_and_score(payload: dict) -> dict:
     """Render the resume to LaTeX, compile to PDF, and score it with the
     real trained model — the honest hybrid: a computed keyword overlap, a
     computed TF-IDF cosine, and a model-predicted score, no invented weights."""
+    # Checked first so a missing model costs nothing: the compile below takes
+    # about a second and needs the tectonic binary, and its output would be
+    # thrown away anyway because the score is the point of this call.
+    if not model_available():
+        raise ScoringModelUnavailable("the ATS scoring model file is not installed")
+
     resume_text = _resume_text_from_payload(payload)
     jd_text = payload.get("job_description", "")
 

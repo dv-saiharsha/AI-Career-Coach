@@ -7,6 +7,7 @@ from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.job import JobListing
 from app.models.resume import ResumeAnalysis
 from app.modules.resume_builder import autofill, cache, faang, optimizer, services, tailor
+from app.ml.inference import ScoringModelUnavailable
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
     AutofillSchema,
@@ -148,6 +149,17 @@ def compile_and_score(
 ):
     try:
         return services.compile_and_score(payload.model_dump())
+    except ScoringModelUnavailable as exc:
+        # 503 with a plain sentence: the server is missing its trained model
+        # file (it is gitignored, so a fresh clone has none). Not a bug in the
+        # request, and not the bare 500 it used to be.
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "This server doesn't have the ATS scoring model installed, so the resume "
+                "can't be scored right now. Nothing you did caused this."
+            ),
+        ) from exc
     except LatexToolchainMissing as exc:
         # 503, not 500: this is an environment/deployment gap ("tectonic
         # isn't installed here"), not a problem with the request or a bug —

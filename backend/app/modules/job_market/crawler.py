@@ -408,6 +408,11 @@ def _enrichment_request_cap() -> int:
     """How many postings this run may enrich, derived from
     JOB_ENRICH_MAX_COST_PER_RUN_USD and the pessimistic per-request cost
     above — a real, checked-before-spending cap, not an aspirational one."""
+    if not getattr(ingestion.llm_client, "supports_batch", False):
+        # No batch API (Ollama): nothing bills, but each posting is its own
+        # sequential request, so the bound is a request count, not dollars.
+        # 0 turns enrichment off.
+        return max(0, settings.OLLAMA_ENRICH_MAX_PER_RUN)
     return max(1, int(settings.JOB_ENRICH_MAX_COST_PER_RUN_USD / _worst_case_cost_per_request_usd()))
 
 

@@ -71,8 +71,46 @@ class Settings(BaseSettings):
     # re-querying. The feed is identical for every user sharing a target-role
     # set, so this turns N concurrent readers into one query.
     JOB_FEED_CACHE_SECONDS: int = 60
+    # Which model serves every AI feature (analysis, tailoring, cover letters,
+    # interview coach): "ollama" (a local model, free) or "anthropic" (Claude,
+    # billed, needs ANTHROPIC_API_KEY). See core/llm.py. Defaults to ollama
+    # while no Anthropic credits are available; switching back is this one
+    # setting. Job enrichment uses Anthropic's Batch API under
+    # LLM_PROVIDER=anthropic and one capped request at a time under ollama
+    # (OLLAMA_ENRICH_MAX_PER_RUN).
+    LLM_PROVIDER: str = "ollama"
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"
+
+    # Ollama (LLM_PROVIDER=ollama). The timeout is per request and generous
+    # because an 8B model on a laptop can take a minute on a long resume.
+    # NUM_CTX must cover the largest prompt we send (JD up to ~6k chars plus
+    # resume up to ~8k chars, roughly 4-5k tokens); Ollama's own default
+    # context is much smaller and silently truncates the prompt.
+    #
+    # Ollama runs natively on the host, not in Docker. From a container, point
+    # OLLAMA_BASE_URL at http://host.docker.internal:11434.
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.1"
+    # Used only when OLLAMA_MODEL isn't pulled. Empty disables the fallback.
+    OLLAMA_FALLBACK_MODEL: str = "llama3.2"
+    # Embeddings (/api/embed). No fallback: vectors from two different
+    # embedding models are not comparable.
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+    OLLAMA_TIMEOUT_SECONDS: float = 180.0
+    # Retries per call, both for transport errors / 5xx and for a reply that
+    # is not valid, schema-conforming JSON. 1 try + this many retries.
+    OLLAMA_MAX_RETRIES: int = 2
+    OLLAMA_NUM_CTX: int = 8192
+    # Structured calls (extraction, scoring, tailoring) must be repeatable, so
+    # 0. Streaming chat (Career Coach) gets a little variety.
+    OLLAMA_TEMPERATURE: float = 0.0
+    OLLAMA_CHAT_TEMPERATURE: float = 0.3
+    # Under Ollama, job enrichment is one request per posting, sequentially, so
+    # a crawl run must not be held for hours by a large backlog. At most this
+    # many postings per run; the rest keep enriched_at NULL and are picked up
+    # by the next run.
+    OLLAMA_ENRICH_MAX_PER_RUN: int = 25
 
     # Voice Interview's speech-to-text provider. Unset means the feature
     # degrades to "unavailable" (a clear error, not a crash) — same shape as
@@ -238,8 +276,16 @@ def validate_startup() -> None:
         missing.append("DB_URL (still the local SQLite default — set it to the production Postgres URL)")
     if not settings.FIREBASE_PROJECT_ID:
         missing.append("FIREBASE_PROJECT_ID")
-    if not settings.ANTHROPIC_API_KEY:
-        missing.append("ANTHROPIC_API_KEY")
+    provider = settings.LLM_PROVIDER.strip().lower()
+    if provider == "anthropic":
+        if not settings.ANTHROPIC_API_KEY:
+            missing.append("ANTHROPIC_API_KEY (LLM_PROVIDER=anthropic)")
+    elif provider != "ollama":
+        # Ollama needs nothing here: whether the server is reachable and the
+        # models are pulled is checked when the app starts (main.log_startup_state),
+        # as a warning, because validate_startup runs at import time and must
+        # not make network calls.
+        missing.append(f"LLM_PROVIDER (must be 'ollama' or 'anthropic', got {provider!r})")
     if not settings.allowed_origins_list or settings.ALLOWED_ORIGINS.strip() == "*":
         missing.append("ALLOWED_ORIGINS (must be a real, non-wildcard origin list in production)")
 

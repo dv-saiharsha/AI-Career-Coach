@@ -12,7 +12,7 @@ graph LR
     UI --> AUTH[Supabase Auth]
     API --> AUTH
     API --> DB[(Supabase Postgres)]
-    API --> LLM[Anthropic Claude API]
+    API --> LLM[Ollama (local, default) or Anthropic Claude]
     API --> ML[Trained ATS scoring model]
 ```
 
@@ -67,7 +67,7 @@ font, and shared primitive below is defined directly in `frontend/src/`.
 
 - **Auth**: Supabase Auth (email/password + verification, password reset, Google OAuth). The frontend talks to Supabase directly via `@supabase/supabase-js` (`frontend/src/lib/supabase.ts`), holding the session client-side (no server to hold an httpOnly cookie in a static SPA); the backend verifies the same Supabase-issued JWT on every API request (JWKS-based, no shared secret needed on modern Supabase projects).
 - **Database**: Supabase Postgres. Schema is managed with Alembic migrations (`backend/alembic/`) — never edited by hand against the live DB.
-- **LLM**: Anthropic Claude (Messages API, tool-use-forced JSON) for resume scoring, interview question generation, and answer evaluation. If `ANTHROPIC_API_KEY` is unset or a call fails, the resume analyzer falls back to a rule-based keyword scorer and the interview coach falls back to a seed question dataset, so the app still works without a key.
+- **LLM**: a local Ollama model by default (`llama3.1`, schema-constrained JSON), or Anthropic Claude when `LLM_PROVIDER=anthropic` — one setting, selected in `backend/app/core/llm.py`. It serves resume analysis, tailoring, cover letters, interview questions and evaluation. If the model is unavailable or a call fails, the resume analyzer falls back to a rule-based keyword scorer and the interview coach falls back to a seed question dataset, so the app still works. See "Local AI with Ollama" below.
 - **Trained ATS model** (`backend/app/ml/`): a small, fast regression model trained on LLM-labeled `(resume, job description, score)` pairs — see "ATS scoring model" below. Optional; the LLM/rule-based path above is what the live app uses today.
 
 ### Frontend dependencies
@@ -91,7 +91,7 @@ management library is installed — the app doesn't use one.
 - **Node.js 24** (ships npm 11) — 24 is what CI pins and what generated `package-lock.json`. Node 20 is too old for `@supabase/supabase-js` (needs >= 22), and Node 22 ships npm 10, which resolves optional wasm bindings into a different tree and makes `npm ci` fail. Use 24 and `npm ci` works everywhere.
 - **Git**
 - A **Supabase** project (ask a teammate for shared dev credentials, or create your own at [supabase.com](https://supabase.com))
-- An **Anthropic API key** (optional but recommended — [console.anthropic.com](https://console.anthropic.com)); the app works in a degraded mode without one
+- **Ollama** with `llama3.1` and `nomic-embed-text` pulled (see "Local AI with Ollama" below) — or, instead, an **Anthropic API key** ([console.anthropic.com](https://console.anthropic.com)) with `LLM_PROVIDER=anthropic`. The app works in a degraded, rule-based mode with neither.
 
 ## Setup Instructions
 
@@ -222,6 +222,36 @@ rather than loopback:
 npm run backend -- -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+## Local AI with Ollama
+
+All AI features run on a local [Ollama](https://ollama.com) by default, so no API key or credits are needed. Ollama runs natively on your machine (not in Docker).
+
+1. **Install and start it** (macOS): `brew install ollama`, then `ollama serve` — or open the Ollama app. Skip this if `ollama --version` already works.
+2. **Pull the models** (about 5 GB for the chat model; the fallback is optional):
+   ```
+   ollama pull llama3.1          # chat model: analysis, tailoring, cover letters, interview coach
+   ollama pull nomic-embed-text  # embeddings: semantic matching
+   ollama pull llama3.2          # optional fallback, used only if llama3.1 is missing
+   ```
+3. **Configure `backend/.env`** — the defaults already point at Ollama, so normally nothing is needed. Leave `ANTHROPIC_API_KEY` blank. The settings are `LLM_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_FALLBACK_MODEL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_NUM_CTX` (default 8192), `OLLAMA_TIMEOUT_SECONDS` (default 180), `OLLAMA_MAX_RETRIES` (default 2), `OLLAMA_TEMPERATURE` (default 0) and `OLLAMA_ENRICH_MAX_PER_RUN` (default 25); see `backend/.env.example`.
+4. **Check it**: start the backend and open `http://localhost:8000/health/llm`. `"status": "ok"` means Ollama is reachable and both the chat and embedding models are pulled. The same problems are logged as warnings when the backend starts ("Ollama is not running…", "Run `ollama pull llama3.1`").
+
+Things to know:
+
+- **First request is slow.** Ollama loads the model on first use (about 20 s on an M-series Mac), then answers in seconds. By default it unloads a model after 5 idle minutes, so the next request after a pause pays that load again.
+- **Keep the model loaded** with `OLLAMA_KEEP_ALIVE=30m`. This is a setting of the Ollama server (`ollama serve`), not of this app, so it goes where the server is started:
+  - Running it yourself: `OLLAMA_KEEP_ALIVE=30m ollama serve`
+  - As a Homebrew service (`brew services start ollama`): add `<key>OLLAMA_KEEP_ALIVE</key><string>30m</string>` inside the `EnvironmentVariables` dictionary of `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist`, then run `brew services restart ollama`.
+  - With the Ollama desktop app: `launchctl setenv OLLAMA_KEEP_ALIVE 30m`, then quit and reopen the app.
+
+  To check it took effect, make any request and run `ollama ps`: the `UNTIL` column should show about 30 minutes ahead instead of 5. While loaded, `llama3.1` holds roughly 5-6 GB of memory.
+- **From a container** use `OLLAMA_BASE_URL=http://host.docker.internal:11434`.
+- **Structured calls** send the JSON schema in Ollama's `format` field with `temperature` 0, validate the reply, and retry up to `OLLAMA_MAX_RETRIES` times before the caller falls back to its rule-based path.
+- **Job enrichment** (H-1B, seniority, skills) uses Anthropic's Batch API under `LLM_PROVIDER=anthropic`. Under Ollama there is no batch API, so each crawl run enriches at most `OLLAMA_ENRICH_MAX_PER_RUN` postings one at a time; the rest are picked up by later runs.
+- **Embeddings** come from `OLLAMA_EMBED_MODEL` only. Anthropic has no embeddings API, so features that need them require Ollama.
+- **Switching back to Claude**: set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. Nothing else changes. Under `ENVIRONMENT=production` the key is then required at startup.
+- **This is a local setup.** A server running in the cloud cannot reach `localhost:11434`.
+
 ## ATS scoring model (optional, in progress)
 `backend/app/ml/` holds a trained regression model that scores resumes numerically instead of via an LLM call — faster, free to run, and deterministic. It's trained on data produced by scripts in `backend/scripts/`:
 
@@ -325,7 +355,7 @@ python scripts/run_crawl.py                               # or scripts/run_crawl
 
 Both scripts are safe to re-run — `detect_ats.py` never re-probes a row that already has an `ats_type`, and `seed_companies.py` upserts by `(ats_type, ats_slug)` (falling back to `name`), never duplicating a row. Crawl history and per-company health are readable at runtime through the admin API (`GET /api/admin/crawl/runs`, `GET /api/admin/crawl/companies` — gated by `ADMIN_EMAILS`), or triggered on demand with `POST /api/admin/crawl/run` / `POST /api/admin/crawl/companies/{id}/run`.
 
-**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
+**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY` (only when `LLM_PROVIDER=anthropic`), `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
 
 **CORS.** `ALLOWED_ORIGINS` is a comma-separated list, read from settings rather than hardcoded — set it to your real frontend origin(s) in production. It is never `*` in production; `validate_startup()` enforces that directly.
 

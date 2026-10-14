@@ -1,5 +1,17 @@
 """Shared test fixtures."""
 
+import os
+
+# Set before any `app` import (Settings reads the environment once). The suite
+# must never reach a real model: a blank Claude key means nothing can bill, and
+# LLM_PROVIDER=anthropic means the shared llm_client is the Claude client that
+# the existing tests already patch (`llm_client._client = object()` and
+# `complete_tool_json`) instead of an Ollama client that would try
+# localhost:11434. Ollama is covered in tests/test_llm_ollama.py through
+# httpx.MockTransport only.
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["LLM_PROVIDER"] = "anthropic"
+
 import pytest
 
 from app.modules.job_market import services

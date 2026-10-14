@@ -44,7 +44,46 @@ APP_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 BILLED_METHODS = {"complete_json", "complete_tool_json", "stream", "stream_text"}
 
 # Routes the trace flags that provably cannot reach Claude, with the reason.
-KNOWN_FREE: dict[tuple[str, str], str] = {}
+KNOWN_FREE: dict[tuple[str, str], str] = {
+    ("GET", "/health/llm"): (
+        "reports which provider is configured and, under Ollama, makes one GET /api/tags; "
+        "it sends no completion request, so nothing can bill or generate"
+    ),
+}
+
+
+# What a KNOWN_FREE handler may touch on the shared client. Both are
+# configuration reads or a cheap status probe; neither sends a completion.
+SAFE_LLM_MEMBERS = {"health", "provider"}
+
+
+def _why_not_provably_free(handler: ast.AST) -> str | None:
+    """None if `handler` reaches the LLM client only through SAFE_LLM_MEMBERS.
+
+    KNOWN_FREE used to be a bare list the test skipped, which trusted the
+    reason written next to each entry. This reads the handler instead: any
+    billed method, any other member of the client, and any bare use of the
+    client (passing it to a helper, aliasing it) all fail, because from the
+    outside those cannot be told apart from a call that bills.
+    """
+    safe_accesses = 0
+    client_names = 0
+    for node in ast.walk(handler):
+        if isinstance(node, ast.Attribute):
+            if node.attr in BILLED_METHODS:
+                return f"calls .{node.attr}(), which sends a completion"
+            if isinstance(node.value, ast.Name) and node.value.id == "llm_client":
+                if node.attr not in SAFE_LLM_MEMBERS:
+                    return f"uses llm_client.{node.attr}, which is not one of {sorted(SAFE_LLM_MEMBERS)}"
+                safe_accesses += 1
+        if isinstance(node, ast.Name):
+            if node.id == "ClaudeClient":
+                return "constructs or references ClaudeClient directly"
+            if node.id == "llm_client":
+                client_names += 1
+    if client_names != safe_accesses:
+        return "uses llm_client other than through its safe members (passed to a helper or aliased)"
+    return None
 
 
 def _module_name(path: str) -> str:
@@ -199,9 +238,43 @@ def test_every_billed_route_is_rate_limited(method, path, route):
     """A route that can spend money on the operator's Anthropic account must
     bound how fast one account can spend it."""
     if (method, path) in KNOWN_FREE:
-        pytest.skip(KNOWN_FREE[(method, path)])
+        # Not skipped: a route is allowed to skip the rate limit only if its
+        # handler provably cannot bill, so the claim is checked, not trusted.
+        handler = FUNCTIONS[f"{route.endpoint.__module__}.{route.endpoint.__name__}"][1]
+        problem = _why_not_provably_free(handler)
+        assert problem is None, (
+            f"{method} {path} is in KNOWN_FREE ({KNOWN_FREE[(method, path)]}) but its handler {problem}. "
+            "Give it a RateLimit dependency and remove it from KNOWN_FREE."
+        )
+        return
     assert _has_rate_limit(route), (
         f"{method} {path} reaches Claude with no RateLimit dependency. "
         "Add Depends(RateLimit(bucket, cap, window, message)) to the handler "
         "signature, or record it in KNOWN_FREE with the reason it cannot bill."
     )
+
+
+@pytest.mark.parametrize(
+    "source,expect_free",
+    [
+        ("def h():\n    return llm_client.health()", True),
+        ("def h():\n    return {'p': llm_client.provider, 'h': llm_client.health()}", True),
+        ("def h():\n    return llm_client.complete_json('s', 'u')", False),
+        ("def h():\n    return llm_client.complete_tool_json('s', 'u', 't', {})", False),
+        ("def h():\n    return llm_client.embed(['x'])", False),
+        ("def h():\n    return some_helper(llm_client)", False),
+        ("def h():\n    c = llm_client\n    return c.health()", False),
+        ("def h():\n    return ClaudeClient().health()", False),
+    ],
+)
+def test_the_known_free_check_accepts_a_status_probe_and_rejects_anything_that_could_bill(source, expect_free):
+    """A guard on the KNOWN_FREE guard: it must not wave everything through."""
+    handler = ast.parse(source).body[0]
+    assert (_why_not_provably_free(handler) is None) is expect_free
+
+
+def test_every_known_free_route_still_exists_and_is_flagged_by_the_trace():
+    """A KNOWN_FREE entry for a route that no longer exists (or no longer trips
+    the trace) is dead weight that could quietly excuse a future route."""
+    flagged = {(method, path) for method, path, _ in BILLED}
+    assert set(KNOWN_FREE) <= flagged
