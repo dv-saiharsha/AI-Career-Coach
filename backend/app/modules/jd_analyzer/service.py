@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 1
+ANALYZER_VERSION = 2
 
 TOOL_NAME = "analyze_job_description"
 MAX_OUTPUT_TOKENS = 1800
@@ -73,6 +73,10 @@ SYSTEM_PROMPT = (
     "preferred_skills: those it marks optional (\"nice to have\", \"a plus\", \"preferred\", "
     "\"bonus\"). Never list soft skills (communication, teamwork, eagerness), the job title, "
     "benefits, perks or what the company does.\n"
+    "List conceptual skills and practices the posting asks for, not only named tools and languages: "
+    "for example \"load balancing\", \"query optimization\", \"data modeling\" or \"feature "
+    "engineering\". A phrase such as \"strong understanding of X\" or \"experience with X\" makes X a "
+    "required skill whether X is a product or a concept.\n"
     "Every skill has three fields. name: the skill alone, one to three words, as a standalone term "
     "(a language, tool, framework, method or practice), never a sentence and never with words such as "
     "\"deep\", \"strong\" or \"experience\". evidence: the SHORTEST exact phrase copied letter for "
