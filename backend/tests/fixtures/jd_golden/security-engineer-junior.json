@@ -1,0 +1,157 @@
+{
+  "jd_id": "security-engineer-junior",
+  "role": "security-engineer",
+  "seniority_in_seed": "junior",
+  "why_chosen": "The only seed JD that names a certification; a junior role with an either/or scripting requirement and a 'plus' clause.",
+  "judgment_calls": [
+    "SECURITY+: the JD says 'Security certifications (Security+, or coursework) are a plus but not required.' -> required: false.",
+    "SQLi, XSS, CSRF and SSRF are listed separately: each is a stated vulnerability class and a separate keyword.",
+    "'Python or Bash' is an either/or: alternative_group 'scripting'.",
+    "'or coursework' is an alternative to the certification, not a degree, so education stays empty.",
+    "'static analysis tools' -> skill 'static analysis' (the tool category; no product is named)."
+  ],
+  "expected": {
+    "job_title": "Junior Security Engineer",
+    "seniority": "junior",
+    "seniority_source": "stated",
+    "min_years_experience": 1,
+    "required_skills": [
+      {
+        "name": "application security",
+        "evidence": "application security",
+        "alternative_group": null
+      },
+      {
+        "name": "owasp top 10",
+        "evidence": "OWASP Top 10",
+        "alternative_group": null
+      },
+      {
+        "name": "sqli",
+        "evidence": "SQLi",
+        "alternative_group": null
+      },
+      {
+        "name": "xss",
+        "evidence": "XSS",
+        "alternative_group": null
+      },
+      {
+        "name": "csrf",
+        "evidence": "CSRF",
+        "alternative_group": null
+      },
+      {
+        "name": "ssrf",
+        "evidence": "SSRF",
+        "alternative_group": null
+      },
+      {
+        "name": "static analysis",
+        "evidence": "static analysis",
+        "alternative_group": null
+      },
+      {
+        "name": "penetration testing",
+        "evidence": "penetration-testing",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python or Bash",
+        "alternative_group": "scripting"
+      },
+      {
+        "name": "bash",
+        "evidence": "Python or Bash",
+        "alternative_group": "scripting"
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "python",
+      "bash"
+    ],
+    "education": [],
+    "certifications": [
+      {
+        "name": "Security+",
+        "required": false,
+        "evidence": "Security certifications (Security+, or coursework) are a plus but not required"
+      }
+    ],
+    "responsibilities": [
+      "triage vulnerability reports",
+      "support security reviews for new features"
+    ],
+    "ats_keywords": [
+      {
+        "term": "application security",
+        "weight": 1.0
+      },
+      {
+        "term": "owasp top 10",
+        "weight": 1.0
+      },
+      {
+        "term": "sqli",
+        "weight": 1.0
+      },
+      {
+        "term": "xss",
+        "weight": 1.0
+      },
+      {
+        "term": "csrf",
+        "weight": 1.0
+      },
+      {
+        "term": "ssrf",
+        "weight": 1.0
+      },
+      {
+        "term": "static analysis",
+        "weight": 1.0
+      },
+      {
+        "term": "penetration testing",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "bash",
+        "weight": 1.0
+      },
+      {
+        "term": "security engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "security+",
+        "weight": 0.5
+      },
+      {
+        "term": "vulnerability",
+        "weight": 0.4
+      },
+      {
+        "term": "saas",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "aws",
+    "kubernetes",
+    "terraform",
+    "java",
+    "burp suite",
+    "nessus",
+    "splunk",
+    "oauth"
+  ],
+  "annotated_by": "hand"
+}

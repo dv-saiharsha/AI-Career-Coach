@@ -1,0 +1,86 @@
+{
+  "jd_id": "wildcard-junior-generalist",
+  "role": "wildcard",
+  "seniority_in_seed": "junior",
+  "why_chosen": "The entry-level case, and a hallucination trap: it names no technology at all, so any language or tool the analyzer reports is invented.",
+  "judgment_calls": [
+    "'0-2 years' -> min_years_experience 0 (the stated lower bound), not null.",
+    "Seniority: the title says 'Junior', so seniority is 'junior' and seniority_source is 'stated'.",
+    "'CS fundamentals' is listed beside its two elaborations (data structures, algorithms) because an ATS keyword search could hit any of them.",
+    "'at least one language you're comfortable building projects in' names no language, so it yields no skill.",
+    "'new-grad friendly' states no degree, so education stays empty.",
+    "Eagerness to learn and communication are soft skills: excluded from skills."
+  ],
+  "expected": {
+    "job_title": "Junior Software Engineer",
+    "seniority": "junior",
+    "seniority_source": "stated",
+    "min_years_experience": 0,
+    "required_skills": [
+      {
+        "name": "cs fundamentals",
+        "evidence": "CS fundamentals",
+        "alternative_group": null
+      },
+      {
+        "name": "data structures",
+        "evidence": "data structures",
+        "alternative_group": null
+      },
+      {
+        "name": "algorithms",
+        "evidence": "algorithms",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "rotate across two teams in the first year"
+    ],
+    "ats_keywords": [
+      {
+        "term": "data structures",
+        "weight": 1.0
+      },
+      {
+        "term": "algorithms",
+        "weight": 1.0
+      },
+      {
+        "term": "cs fundamentals",
+        "weight": 1.0
+      },
+      {
+        "term": "software engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "new grad",
+        "weight": 0.4
+      },
+      {
+        "term": "internships",
+        "weight": 0.4
+      },
+      {
+        "term": "generalist",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "python",
+    "java",
+    "javascript",
+    "c++",
+    "sql",
+    "git",
+    "react",
+    "aws",
+    "docker"
+  ],
+  "annotated_by": "hand"
+}
