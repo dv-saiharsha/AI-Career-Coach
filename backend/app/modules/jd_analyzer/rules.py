@@ -566,7 +566,9 @@ def concept_matches(text: str) -> list[str]:
 
 
 _RULE_REQUIRED = re.compile(
-    r"\bmust\b|(?<!not )\brequired\b|\byou have\b|\bexperience with\b|\bproficiency in\b|\bstrong\b", re.IGNORECASE
+    r"\bmust\b|(?<!not )\brequired\b|\byou have\b|\bexperience (?:with|in|building)\b|\bproficiency in\b|"
+    r"\bstrong\b|\btrack record of\b|\bexpertise in\b",
+    re.IGNORECASE,
 )
 _RULE_OPTIONAL = re.compile(r"\bplus\b|\bnice[- ]to[- ]have\b|\bbonus\b|\bpreferred\b|\bnot required\b", re.IGNORECASE)
 
@@ -575,8 +577,9 @@ def classify_rule_skill(text: str, written: str) -> str:
     """"required" or "preferred" for a skill the rules found, from the wording
     of its sentence: optional wording ("plus", "nice to have", "bonus",
     "preferred") makes it preferred; requirement wording ("must", "required",
-    "you have", "experience with", "proficiency in", "strong") makes it required;
-    neither leaves it preferred."""
+    "you have", "experience with / in / building", "proficiency in", "strong",
+    "track record of", "expertise in") makes it required; neither leaves it
+    preferred."""
     sentence = sentence_containing(text, written)
     if _RULE_OPTIONAL.search(sentence):
         return "preferred"
