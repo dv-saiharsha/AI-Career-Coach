@@ -13,6 +13,7 @@ what it means, so the judgements that must be repeatable live here:
 
 import re
 
+from app.core.concepts import CONCEPTS
 from app.core.keywords import keyword_candidates
 from app.core.skill_match import named_at_end, named_in
 from app.core.taxonomy import CANONICAL_ALIASES, DOMAINS, IMPLIED_PARENTS, canonical, skill_candidates
@@ -535,6 +536,85 @@ def _as_written(text: str, term: str) -> str | None:
     return match.group(0) if match else None
 
 
+# ── Concepts and the rules merge ─────────────────────────────────────────
+
+
+def _concept_pattern(term: str) -> re.Pattern[str]:
+    """A vocabulary term as written in a posting: any case, hyphen or space
+    between its words ("fine-tuning", "fine tuning"), and an optional plural."""
+    words = r"[\s\-/]+".join(re.escape(w) for w in re.split(r"[\s\-/]+", term))
+    return re.compile(r"(?<![\w])" + words + r"s?(?![\w])", re.IGNORECASE)
+
+
+# Longest first, so "access control design" is found before "access control".
+_CONCEPT_PATTERNS = sorted(((t, _concept_pattern(t)) for t in CONCEPTS), key=lambda tp: -len(tp[0]))
+
+
+def concept_matches(text: str) -> list[str]:
+    """Vocabulary concepts the text names, each as written there (its first
+    occurrence). A shorter term inside a longer one already found is skipped."""
+    spans: list[tuple[int, int]] = []
+    found: list[str] = []
+    for _, pattern in _CONCEPT_PATTERNS:
+        for match in pattern.finditer(text):
+            if any(match.start() < end and start < match.end() for start, end in spans):
+                continue
+            spans.append(match.span())
+            found.append(match.group(0))
+            break
+    return found
+
+
+_RULE_REQUIRED = re.compile(
+    r"\bmust\b|(?<!not )\brequired\b|\byou have\b|\bexperience with\b|\bproficiency in\b|\bstrong\b", re.IGNORECASE
+)
+_RULE_OPTIONAL = re.compile(r"\bplus\b|\bnice[- ]to[- ]have\b|\bbonus\b|\bpreferred\b|\bnot required\b", re.IGNORECASE)
+
+
+def classify_rule_skill(text: str, written: str) -> str:
+    """"required" or "preferred" for a skill the rules found, from the wording
+    of its sentence: optional wording ("plus", "nice to have", "bonus",
+    "preferred") makes it preferred; requirement wording ("must", "required",
+    "you have", "experience with", "proficiency in", "strong") makes it required;
+    neither leaves it preferred."""
+    sentence = sentence_containing(text, written)
+    if _RULE_OPTIONAL.search(sentence):
+        return "preferred"
+    if _RULE_REQUIRED.search(sentence):
+        return "required"
+    return "preferred"
+
+
+def _overlaps(name: str, taken: set[str]) -> bool:
+    """Whether `name` is one of `taken`, or a whole-word part of one of them, or
+    contains one: "distributed systems" is covered by "high reliability
+    distributed systems" already found."""
+    padded = f" {name} "
+    return any(t and (f" {t} " in padded or padded in f" {t} ") for t in taken)
+
+
+def rule_found_skills(text: str, exclude: set[str]) -> list[tuple[str, str]]:
+    """(name, as written) for every skill the rules find in `text` that is not
+    already in `exclude`: vocabulary concepts first, then the technology-looking
+    terms of the keyword rules. Quotes are taken from the text, so verbatim."""
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for written in concept_matches(text):
+        name = trim_generic_suffix(canonical(written))
+        if not name or name in seen or _overlaps(name, exclude) or is_generic_name(name) or is_soft_skill(name):
+            continue
+        seen.add(name)
+        found.append((name, written))
+    for term in rule_skill_candidates(text, exclude=exclude | seen):
+        written = _as_written(text, term)
+        name = canonical(term)
+        if not written or name in seen or _overlaps(name, exclude | seen):
+            continue
+        seen.add(name)
+        found.append((name, written))
+    return found
+
+
 def rules_requirements(text: str) -> tuple[list[Requirement], list[Requirement]]:
     """(education, certifications) by pattern. Evidence is the whole sentence,
     so "or equivalent" and "a plus" travel with it."""
@@ -571,9 +651,9 @@ def rules_responsibilities(text: str) -> list[str]:
 
 def rules_analysis(text: str) -> JDAnalysis:
     """A complete analysis with no model: the job title, level, years, the
-    technology-looking terms the keyword rules find (optional when their
-    sentence says so), degrees, certifications and what "You'll" sentences
-    describe. Plainer than the model's, and never wrong about what the text
+    concepts and technology-looking terms the rules find (required or preferred
+    by the wording of their sentence), degrees, certifications and what "You'll"
+    sentences describe. Plainer than the model's, and never wrong about what the text
     says; used when the model cannot be."""
     title = title_from_text(text)
     years = first_years(text)
@@ -583,12 +663,11 @@ def rules_analysis(text: str) -> JDAnalysis:
     title_words = {w.lower() for w in re.findall(r"[A-Za-z0-9+#]+", title)}
     required: list[Skill] = []
     preferred: list[Skill] = []
-    for term in rule_skill_candidates(text, exclude=forms):
-        written = _as_written(text, term)
-        if not written or written.lower() in title_words:
+    for name, written in rule_found_skills(text, exclude=forms):
+        if written.lower() in title_words:
             continue
-        skill = Skill(name=canonical(term), evidence=written)
-        (preferred if is_optional(text, written) else required).append(skill)
+        skill = Skill(name=name, evidence=written)
+        (required if classify_rule_skill(text, written) == "required" else preferred).append(skill)
 
     education, certifications = rules_requirements(text)
     tools = [s.name for s in required + preferred if s.name in _KNOWN_NODES]

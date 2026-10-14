@@ -201,7 +201,7 @@ class TestChecks:
         )]
         a, report = service.analyze_with_report(JD)
         names = [s.name for s in a.required_skills + a.preferred_skills]
-        assert [s.name for s in a.required_skills] == ["python"]
+        assert "python" in [s.name for s in a.required_skills]
         assert "backend engineer" not in names and "senior backend engineer" not in names
         assert "backend engineer" not in a.tools_technologies
         assert "backend engineer" in report.title_leaks
@@ -362,13 +362,13 @@ class TestTrimmedNames:
 
 
 class TestRulesBackstop:
-    def test_a_term_the_rules_find_and_the_model_missed_becomes_preferred_and_the_source_hybrid(self, llm):
+    def test_a_term_the_rules_find_goes_where_its_sentence_wording_puts_it(self, llm):
         llm.replies = [reply(tools_technologies=["Python"])]  # AWS is in the posting; the model left it out
         a, report = service.analyze_with_report(JD)
-        assert a.source == "hybrid" and report.rule_additions == ["aws"]
-        added = next(s for s in a.preferred_skills if s.name == "aws")
+        # "Must hold the AWS Certified ..." is requirement wording.
+        assert a.source == "hybrid" and report.rule_additions == ["aws (required)"]
+        added = next(s for s in a.required_skills if s.name == "aws")
         assert added.evidence == "AWS"
-        assert "aws" not in [s.name for s in a.required_skills]
 
     def test_nothing_missed_means_source_llm(self, llm):
         assert service.analyze(JD).source == "llm"
@@ -379,6 +379,46 @@ class TestRulesBackstop:
 
 
 # --- when the model fails ---------------------------------------------------
+
+
+class TestConceptMerge:
+    TEXT = (
+        "Backend Engineer. Strong understanding of distributed systems and message queues. "
+        "Experience with Python. Familiarity with load balancing is a plus. We value code review."
+    )
+
+    def _reply(self):
+        return reply(
+            job_title="Backend Engineer", seniority="unknown", min_years_experience=None,
+            required_skills=[skill("Python")], preferred_skills=[], tools_technologies=["Python"],
+            education=[], certifications=[], responsibilities=[],
+        )
+
+    def test_concepts_the_model_missed_are_added_by_the_wording_of_their_sentence(self, llm):
+        llm.replies = [self._reply()]
+        a, report = service.analyze_with_report(self.TEXT)
+        required = {s.name for s in a.required_skills}
+        preferred = {s.name for s in a.preferred_skills}
+        assert {"distributed systems", "message queues"} <= required  # "Strong understanding of"
+        assert "load balancing" in preferred  # "is a plus"
+        assert "code review" in preferred  # neither wording: preferred
+        assert a.source == "hybrid"
+        assert "distributed systems (required)" in report.rule_additions
+
+    def test_rule_found_quotes_are_verbatim(self, llm):
+        from app.modules.job_market.enrichment import quote_in_text
+
+        llm.replies = [self._reply()]
+        a = service.analyze(self.TEXT)
+        assert all(quote_in_text(s.evidence, self.TEXT) for s in a.required_skills + a.preferred_skills)
+
+    def test_a_concept_the_model_already_has_is_not_added_twice(self, llm):
+        r = self._reply()
+        r["required_skills"].append(skill("distributed systems"))
+        llm.replies = [r]
+        a = service.analyze(self.TEXT)
+        names = [s.name for s in a.required_skills + a.preferred_skills]
+        assert names.count("distributed systems") == 1
 
 
 class TestFallback:

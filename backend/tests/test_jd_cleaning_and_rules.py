@@ -443,6 +443,57 @@ class TestTrimAndAlias:
         assert canonical("RAG") == canonical("retrieval-augmented generation") == "retrieval augmented generation"
 
 
+class TestConceptVocabulary:
+    def test_the_vocabulary_has_at_least_150_terms_and_no_duplicates(self):
+        from app.core.concepts import CONCEPTS
+
+        assert len(CONCEPTS) >= 150 and len(set(CONCEPTS)) == len(CONCEPTS)
+
+    def test_it_holds_no_everyday_single_words(self):
+        from app.core.concepts import CONCEPTS
+
+        assert not {"testing", "security", "design", "transactions", "data", "communication"} & set(CONCEPTS)
+
+    def test_matches_any_case_hyphen_or_plural_as_written(self):
+        found = rules.concept_matches("Experience with Fine Tuning, unit-testing and Distributed Systems.")
+        assert {"Fine Tuning", "unit-testing", "Distributed Systems"} <= set(found)
+
+    def test_a_longer_term_wins_over_the_shorter_one_inside_it(self):
+        found = rules.concept_matches("Solid access-control design.")
+        assert found == ["access-control design"]
+
+    def test_only_whole_words_match(self):
+        assert rules.concept_matches("We use preprocessing-heavy redesigns.") == []
+
+
+class TestRuleClassification:
+    @pytest.mark.parametrize(
+        "sentence,bucket",
+        [
+            ("Must know distributed systems.", "required"),
+            ("Distributed systems experience is required.", "required"),
+            ("You have shipped distributed systems.", "required"),
+            ("Experience with distributed systems.", "required"),
+            ("Proficiency in distributed systems.", "required"),
+            ("Strong distributed systems background.", "required"),
+            ("Distributed systems is a plus.", "preferred"),
+            ("Nice to have: distributed systems.", "preferred"),
+            ("Bonus: distributed systems.", "preferred"),
+            ("Distributed systems preferred.", "preferred"),
+            ("Distributed systems knowledge is not required.", "preferred"),
+            ("Strong distributed systems skills are a strong plus.", "preferred"),
+            ("We build distributed systems.", "preferred"),
+        ],
+    )
+    def test_the_wording_of_the_sentence_decides(self, sentence, bucket):
+        assert rules.classify_rule_skill(sentence, "distributed systems") == bucket
+
+    def test_rule_found_skills_skip_what_is_already_there_or_covered(self):
+        text = "Strong understanding of high reliability distributed systems and unit testing."
+        found = dict(rules.rule_found_skills(text, exclude={"high reliability distributed systems"}))
+        assert "distributed systems" not in found and "unit testing" in found
+
+
 # --- keywords ---------------------------------------------------------------
 
 

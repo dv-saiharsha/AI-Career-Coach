@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 2
+ANALYZER_VERSION = 3
 
 TOOL_NAME = "analyze_job_description"
 MAX_OUTPUT_TOKENS = 1800
@@ -472,18 +472,20 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
         analysis.certifications.append(extra)
         report.rule_additions.append(f"certification: {extra.name}")
 
-    # Backstop: what the keyword rules find that the model missed goes in as
-    # preferred, never required. The model's own tools are excluded so a skill
-    # it judged to be only where the work happens is not promoted by the rules.
+    # Rules merge: concepts from the vocabulary and technology-looking terms the
+    # model missed, each placed by the wording of its sentence (required for
+    # "must" / "experience with" / "strong" ..., preferred for "plus" / "nice to
+    # have" ... or neither). The model's own tools are excluded, so something it
+    # judged to be only where the work happens is not promoted by the rules.
     taken = {s.name for s in analysis.required_skills + analysis.preferred_skills} | set(tools) | leak_forms
-    extras = rules.rule_skill_candidates(cleaned, exclude=taken)
-    for term in extras:
-        written = rules._as_written(cleaned, term)
-        if written:
-            analysis.preferred_skills.append(Skill(name=canonical(term), evidence=written))
-            report.rule_additions.append(canonical(term))
+    for name, written in rules.rule_found_skills(cleaned, exclude=taken):
+        bucket = rules.classify_rule_skill(cleaned, written)
+        target = analysis.required_skills if bucket == "required" else analysis.preferred_skills
+        target.append(Skill(name=name, evidence=written))
+        report.rule_additions.append(f"{name} ({bucket})")
     if report.rule_additions:
         analysis.source = "hybrid"
+        analysis.required_skills = rules.assign_alternative_groups(analysis.required_skills, cleaned)
         analysis.preferred_skills = rules.assign_alternative_groups(analysis.preferred_skills, cleaned)
 
     analysis.ats_keywords = rules.build_keywords(analysis)
