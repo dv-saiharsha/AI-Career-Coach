@@ -1,0 +1,151 @@
+{
+  "jd_id": "security-engineer-mid",
+  "role": "security-engineer",
+  "seniority_in_seed": "mid",
+  "holdout": true,
+  "why_chosen": "Holdout. A mid-level security role: concept-heavy (encryption, secrets management, access control), an either/or experience area, and a 'strong plus' preferred clause.",
+  "judgment_calls": [
+    "No level word: seniority 'mid' from '3-5 years' (seniority_source 'years').",
+    "'application security or security engineering' is an either/or: both are skills, one group ('experience area').",
+    "'encryption at rest and in transit' is one skill, 'encryption', quoted as written: 'encryption in transit' is not a phrase in the text.",
+    "'Vault or similar' names one tool (Vault); 'or similar' names nothing, so no group. Vault is required: it is the named example under a required skill.",
+    "'Familiarity with compliance frameworks (SOC 2, HIPAA) is a strong plus' -> three preferred skills: compliance frameworks, SOC 2, HIPAA.",
+    "Working with engineering teams to remediate findings is experience context and a duty; it is not listed as a skill."
+  ],
+  "expected": {
+    "job_title": "Security Engineer",
+    "seniority": "mid",
+    "seniority_source": "years",
+    "min_years_experience": 3,
+    "required_skills": [
+      {
+        "name": "application security",
+        "evidence": "application security or security engineering",
+        "alternative_group": "experience area"
+      },
+      {
+        "name": "security engineering",
+        "evidence": "application security or security engineering",
+        "alternative_group": "experience area"
+      },
+      {
+        "name": "encryption",
+        "evidence": "encryption at rest and in transit",
+        "alternative_group": null
+      },
+      {
+        "name": "secrets management",
+        "evidence": "secrets management",
+        "alternative_group": null
+      },
+      {
+        "name": "vault",
+        "evidence": "Vault",
+        "alternative_group": null
+      },
+      {
+        "name": "access control design",
+        "evidence": "access-control design",
+        "alternative_group": null
+      },
+      {
+        "name": "security code review",
+        "evidence": "security code review",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "compliance frameworks",
+        "evidence": "compliance frameworks",
+        "alternative_group": null
+      },
+      {
+        "name": "soc 2",
+        "evidence": "SOC 2",
+        "alternative_group": null
+      },
+      {
+        "name": "hipaa",
+        "evidence": "HIPAA",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "vault"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "partner with backend teams to bake security into the development process"
+    ],
+    "ats_keywords": [
+      {
+        "term": "application security",
+        "weight": 1.0
+      },
+      {
+        "term": "security engineering",
+        "weight": 1.0
+      },
+      {
+        "term": "encryption",
+        "weight": 1.0
+      },
+      {
+        "term": "secrets management",
+        "weight": 1.0
+      },
+      {
+        "term": "vault",
+        "weight": 1.0
+      },
+      {
+        "term": "access control design",
+        "weight": 1.0
+      },
+      {
+        "term": "security code review",
+        "weight": 1.0
+      },
+      {
+        "term": "security engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "compliance frameworks",
+        "weight": 0.5
+      },
+      {
+        "term": "soc 2",
+        "weight": 0.5
+      },
+      {
+        "term": "hipaa",
+        "weight": 0.5
+      },
+      {
+        "term": "healthcare",
+        "weight": 0.4
+      },
+      {
+        "term": "platform",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "aws",
+    "python",
+    "java",
+    "kubernetes",
+    "oauth",
+    "terraform",
+    "splunk",
+    "penetration testing",
+    "owasp",
+    "static analysis",
+    "jwt"
+  ],
+  "annotated_by": "hand"
+}

@@ -21,6 +21,8 @@ from scripts.seed_job_descriptions import SEED_JOB_DESCRIPTIONS
 FIXTURES = Path(__file__).parent / "fixtures" / "jd_golden"
 SEED = {j["id"]: j["text"] for j in SEED_JOB_DESCRIPTIONS}
 FILES = sorted(FIXTURES.glob("*.json"))
+HOLDOUT_FILES = sorted((FIXTURES.parent / "jd_holdout").glob("*.json"))
+ALL_FILES = FILES + HOLDOUT_FILES
 
 
 def load(path):
@@ -41,7 +43,7 @@ def test_the_set_covers_an_entry_level_junior_mid_senior_and_manager_jd():
     assert {"junior", "mid", "senior", "manager"} <= levels
 
 
-@pytest.mark.parametrize("path", FILES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", ALL_FILES, ids=lambda p: p.stem)
 class TestEachFixture:
     def test_expected_is_a_valid_analysis(self, path):
         doc, _, _ = load(path)
@@ -134,3 +136,10 @@ def test_seed_jds_are_untouched_by_cleaning():
         doc = json.loads(path.read_text(encoding="utf-8"))
         if not doc.get("synthetic"):
             assert cleaning.clean_jd(SEED[doc["jd_id"]]) == SEED[doc["jd_id"]]
+
+
+def test_the_holdout_set_has_three_hand_annotated_jds_none_of_them_golden():
+    docs = [json.loads(p.read_text(encoding="utf-8")) for p in HOLDOUT_FILES]
+    golden = {json.loads(p.read_text(encoding="utf-8"))["jd_id"] for p in FILES}
+    assert len(docs) == 3 and all(d["holdout"] and d["annotated_by"] == "hand" for d in docs)
+    assert not {d["jd_id"] for d in docs} & golden

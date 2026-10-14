@@ -1,0 +1,152 @@
+{
+  "jd_id": "backend-engineer-junior",
+  "role": "backend-engineer",
+  "seniority_in_seed": "junior",
+  "holdout": true,
+  "why_chosen": "Holdout. A junior role with a four-way framework either/or, 'preferred' and 'a plus but not required' wording, and practices (REST design, relational databases).",
+  "judgment_calls": [
+    "'Junior' in the title: seniority 'junior', seniority_source 'stated'.",
+    "'Django, FastAPI, Express, or Rails' is one either/or group of four ('framework'); 'a backend framework' itself names nothing.",
+    "'(PostgreSQL preferred)' -> preferred. 'Exposure to Docker is a plus but not required' -> preferred.",
+    "'relational databases' and 'REST API design' are concept skills: required.",
+    "Python is NOT named, even though Django and FastAPI are Python frameworks: it must not be reported.",
+    "'alongside two senior engineers' describes the team, not the level of the role."
+  ],
+  "expected": {
+    "job_title": "Junior Backend Engineer",
+    "seniority": "junior",
+    "seniority_source": "stated",
+    "min_years_experience": 1,
+    "required_skills": [
+      {
+        "name": "django",
+        "evidence": "Django, FastAPI, Express, or Rails",
+        "alternative_group": "framework"
+      },
+      {
+        "name": "fastapi",
+        "evidence": "Django, FastAPI, Express, or Rails",
+        "alternative_group": "framework"
+      },
+      {
+        "name": "express",
+        "evidence": "Django, FastAPI, Express, or Rails",
+        "alternative_group": "framework"
+      },
+      {
+        "name": "rails",
+        "evidence": "Django, FastAPI, Express, or Rails",
+        "alternative_group": "framework"
+      },
+      {
+        "name": "rest api design",
+        "evidence": "REST API design",
+        "alternative_group": null
+      },
+      {
+        "name": "relational databases",
+        "evidence": "relational databases",
+        "alternative_group": null
+      },
+      {
+        "name": "git",
+        "evidence": "Git workflows",
+        "alternative_group": null
+      },
+      {
+        "name": "code review",
+        "evidence": "code review",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "postgresql",
+        "evidence": "PostgreSQL preferred",
+        "alternative_group": null
+      },
+      {
+        "name": "docker",
+        "evidence": "Exposure to Docker is a plus but not required",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "django",
+      "fastapi",
+      "express",
+      "rails",
+      "postgresql",
+      "git",
+      "docker"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "work on our core API alongside two senior engineers",
+      "ship features end to end"
+    ],
+    "ats_keywords": [
+      {
+        "term": "django",
+        "weight": 1.0
+      },
+      {
+        "term": "fastapi",
+        "weight": 1.0
+      },
+      {
+        "term": "express",
+        "weight": 1.0
+      },
+      {
+        "term": "rails",
+        "weight": 1.0
+      },
+      {
+        "term": "rest api design",
+        "weight": 1.0
+      },
+      {
+        "term": "relational databases",
+        "weight": 1.0
+      },
+      {
+        "term": "git",
+        "weight": 1.0
+      },
+      {
+        "term": "code review",
+        "weight": 1.0
+      },
+      {
+        "term": "backend engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "postgresql",
+        "weight": 0.5
+      },
+      {
+        "term": "docker",
+        "weight": 0.5
+      },
+      {
+        "term": "social platform",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "python",
+    "aws",
+    "kubernetes",
+    "redis",
+    "graphql",
+    "java",
+    "terraform",
+    "javascript",
+    "ruby"
+  ],
+  "annotated_by": "hand"
+}
