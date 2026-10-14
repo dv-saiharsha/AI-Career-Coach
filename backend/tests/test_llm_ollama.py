@@ -654,6 +654,60 @@ class TestTemperature:
         assert err.value.kind == "bad_output"
 
 
+class TestKeepAlive:
+    """OLLAMA_KEEP_ALIVE rides on every /api/chat and /api/embed request, so
+    the model stays loaded without any change to how `ollama serve` starts."""
+
+    def test_the_default_is_thirty_minutes(self):
+        assert llm_module.settings.OLLAMA_KEEP_ALIVE == "30m"
+
+    def test_every_chat_and_embed_request_carries_it(self):
+        def handler(request):
+            if request.url.path == "/api/embed":
+                return httpx.Response(200, json={"embeddings": [[0.1]]})
+            return httpx.Response(200, json=chat_reply('{"title": "T", "skills": []}'))
+
+        client, seen = make_client(handler)
+        client.complete_tool_json("s", "u", "t", SCHEMA)
+        client.complete_json("s", "u")
+        client.embed(["x"])
+
+        assert [r.url.path for r in seen] == ["/api/chat", "/api/chat", "/api/embed"]
+        assert [json.loads(r.content)["keep_alive"] for r in seen] == ["30m", "30m", "30m"]
+
+    @pytest.mark.asyncio
+    async def test_streaming_chat_carries_it_too(self):
+        payload = (json.dumps({"message": {"content": "hi"}, "done": True}) + "\n").encode()
+        client, seen = make_client(lambda r: httpx.Response(200, content=payload))
+        _ = [t async for t in client.stream_message("s", [{"role": "user", "content": "x"}])]
+        assert json.loads(seen[0].content)["keep_alive"] == "30m"
+
+    def test_it_is_configurable(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_KEEP_ALIVE", "2h")
+        client, seen = make_client(lambda r: httpx.Response(200, json=chat_reply("{}")))
+        client.complete_json("s", "u")
+        assert json.loads(seen[0].content)["keep_alive"] == "2h"
+
+    @pytest.mark.parametrize("configured,sent", [("-1", -1), ("0", 0), ("300", 300)])
+    def test_a_number_of_seconds_is_sent_as_a_number(self, monkeypatch, configured, sent):
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_KEEP_ALIVE", configured)
+        client, seen = make_client(lambda r: httpx.Response(200, json=chat_reply("{}")))
+        client.complete_json("s", "u")
+        body = json.loads(seen[0].content)
+        assert body["keep_alive"] == sent and isinstance(body["keep_alive"], int)
+
+    def test_empty_means_leave_ollamas_own_default(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_KEEP_ALIVE", "")
+        client, seen = make_client(lambda r: httpx.Response(200, json=chat_reply("{}")))
+        client.complete_json("s", "u")
+        assert "keep_alive" not in json.loads(seen[0].content)
+
+    def test_the_health_probe_does_not_send_a_model_request(self):
+        client, seen = make_client(tags("llama3.1:latest"))
+        client.health()
+        assert all(r.method == "GET" for r in seen)
+
+
 class TestProviderInterface:
     def test_both_providers_satisfy_the_interface(self):
         assert isinstance(ClaudeClient(), LLMProvider)

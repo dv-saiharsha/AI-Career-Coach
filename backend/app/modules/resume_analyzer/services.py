@@ -3,7 +3,7 @@ import re
 from typing import Callable
 
 from app.core.llm import llm_client
-from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
+from app.core.taxonomy import CANONICAL_ALIASES, canonical, expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import integrity, layout_check, quality
 from app.ml.inference import model_available, predict_score
 
@@ -14,7 +14,8 @@ SYSTEM_PROMPT = (
     "If it is not a resume, set is_resume to false and give the other fields reasonable "
     "empty/zero defaults, since they won't be used. If it is a resume, set is_resume to "
     "true and identify matched/missing/extracted skills, a keyword-frequency breakdown, "
-    "and specific, actionable feedback. Do not compute a numeric match score — that is "
+    "and specific, actionable feedback. Never suggest adding a skill that already appears "
+    "on the resume. Do not compute a numeric match score — that is "
     "handled separately by a dedicated scoring model."
 )
 
@@ -131,13 +132,26 @@ def extract_text(filename: str, content: bytes) -> str:
     raise ValueError("Unsupported file type. Upload a PDF or DOCX resume.")
 
 
-def _score(resume_text: str, jd_text: str, fallback_ratio: float) -> float:
+# Where ats_score came from. Returned with every scan so a number is never
+# shown without saying what produced it.
+SCORE_SOURCE_MODEL = "model"
+SCORE_SOURCE_KEYWORDS = "keyword_fallback"
+
+
+def _keyword_ratio(matched: list, missing: list) -> float:
+    """Share of the job's keywords the resume covers, 0-100. The same figure
+    on both paths, so a scan scores the same whichever one produced the lists."""
+    return round(100 * len(matched) / ((len(matched) + len(missing)) or 1), 1)
+
+
+def _score_with_source(resume_text: str, jd_text: str, fallback_ratio: float) -> tuple[float, str]:
     """ats_score always comes from the trained model when one exists — it's
     deterministic and free, unlike asking the LLM for a number. The keyword-
-    ratio fallback only applies before anyone has ever run train_ats_model.py."""
+    ratio fallback only applies before anyone has ever run train_ats_model.py,
+    and the second value says which of the two this is."""
     if model_available():
-        return float(predict_score(resume_text, jd_text))
-    return fallback_ratio
+        return float(predict_score(resume_text, jd_text)), SCORE_SOURCE_MODEL
+    return fallback_ratio, SCORE_SOURCE_KEYWORDS
 
 
 def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
@@ -177,7 +191,7 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
         })
 
     total = len(candidates) or 1
-    ats_score = _score(resume_text, jd_text, round(100 * len(matched) / total, 1))
+    ats_score, score_source = _score_with_source(resume_text, jd_text, round(100 * len(matched) / total, 1))
     suggestions = [
         f'Add or emphasize "{kw}" — it appears in the job description but not your resume.'
         for kw in missing[:6]
@@ -196,6 +210,7 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
 
     return {
         "ats_score": ats_score,
+        "score_source": score_source,
         "missing_skills": missing[:15],
         "matched_skills": matched[:15],
         "extracted_skills": matched[:15],
@@ -219,42 +234,129 @@ def _llm_analysis(resume_text: str, jd_text: str) -> dict:
     data.setdefault("keyword_analysis", [])
     data.setdefault("suggestions", [])
     # The LLM no longer produces a score at all (see SYSTEM_PROMPT) — the
-    # trained model is the sole, deterministic source of ats_score.
-    data["ats_score"] = _score(resume_text, jd_text, 0.0)
+    # trained model is the sole, deterministic source of ats_score. Without a
+    # model the score falls back to the keyword ratio, as on the rule-based
+    # path; it used to fall back to 0.0 here, which a user reads as "your
+    # resume matches nothing".
+    data["ats_score"], data["score_source"] = _score_with_source(
+        resume_text, jd_text, _keyword_ratio(data["matched_skills"], data["missing_skills"])
+    )
     return data
 
 
+# Skill names that are also ordinary English words. A case-insensitive search
+# for "go" would delete any suggestion containing "go beyond", so these only
+# count as a mention when written exactly as the matched skill was AND not as
+# the first word of a sentence, where "Go beyond..." is indistinguishable from
+# the language by spelling alone.
+_AMBIGUOUS_SKILL_WORDS = {"go", "swift", "rust", "spark", "ruby", "dart"}
+
+
+def _surface_forms(skill: str) -> tuple[set[str], set[str]]:
+    """(case-insensitive forms, case-sensitive forms) a skill can be written as:
+    the skill itself, its taxonomy canonical node, and every alias of that node
+    ("k8s" for Kubernetes, "Amazon Web Services" for AWS)."""
+    written = skill.strip()
+    node = canonical(written)
+    forms = {written.lower(), node}
+    forms |= {alias for alias, target in CANONICAL_ALIASES.items() if target == node}
+    insensitive, sensitive = set(), set()
+    for form in forms:
+        if form in _AMBIGUOUS_SKILL_WORDS:
+            sensitive.add(written)
+        elif len(form) >= 3:  # two-letter forms ("ml", "ts") are too easy to hit by accident
+            insensitive.add(form)
+    return insensitive, sensitive
+
+
+def _mentions_any(text: str, skills: list[str]) -> bool:
+    """Whether `text` names any of `skills` as a whole word, through taxonomy
+    normalisation and case-insensitively."""
+    insensitive: set[str] = set()
+    sensitive: set[str] = set()
+    for skill in skills:
+        ci, cs = _surface_forms(skill)
+        insensitive |= ci
+        sensitive |= cs
+    # (forms, flags, what must precede the word). Mid-sentence only for the
+    # ambiguous ones: a word character, comma or bracket, then one space.
+    for forms, flags, before in (
+        (insensitive, re.IGNORECASE, r"(?<!\w)"),
+        (sensitive, 0, r"(?<=[A-Za-z0-9,;:()]\s)"),
+    ):
+        if not forms:
+            continue
+        pattern = before + r"(?:" + "|".join(re.escape(f) for f in sorted(forms, key=len, reverse=True)) + r")(?!\w)"
+        if re.search(pattern, text, flags):
+            return True
+    return False
+
+
+def _drop_suggestions_naming_matched_skills(suggestions: list[str], matched_skills: list[str]) -> list[str]:
+    """Remove suggestions that tell the candidate to add a skill they already
+    have. The prompt asks the model not to, but a model that is told is not a
+    model that complies, and "Consider adding Kubernetes" beside a matched
+    Kubernetes is the kind of contradiction that makes the rest of the advice
+    look untrustworthy. Checked here, against the final matched list."""
+    if not matched_skills:
+        return suggestions
+    return [text for text in suggestions if not _mentions_any(text, matched_skills)]
+
+
+def _refresh_keyword_score(result: dict) -> dict:
+    """Recompute a keyword-ratio score from the final skill lists. Reconciling
+    moves skills from missing to matched after the score was first computed, so
+    the ratio has to be taken afterwards. A model score is left alone."""
+    if result.get("score_source") == SCORE_SOURCE_KEYWORDS:
+        result["ats_score"] = _keyword_ratio(result.get("matched_skills") or [], result.get("missing_skills") or [])
+    return result
+
+
 def _reconcile_implied(resume_text: str, result: dict) -> dict:
-    """Move skills the resume demonstrably implies out of `missing_skills`.
+    """Move skills the resume demonstrably has out of `missing_skills`.
 
     The LLM path builds its own skill lists, so without this the taxonomy only
     ever applied to the rule-based fallback — and since Claude is normally
     configured, the false negative it exists to fix (PyTorch listed, "deep
     learning" reported missing) would survive in production.
 
-    Implied skills move to matched and are flagged, not silently merged: the
-    candidate still needs to write the phrase down for a literal ATS search.
+    Two different things can be hiding in `missing_skills`:
+
+      * the resume WRITES the skill (the model simply got it wrong — a small
+        local model does, now and then). It moves to matched with nothing said
+        about it: there is nothing for the candidate to fix.
+      * the resume only IMPLIES it. It moves to matched and is flagged, not
+        silently merged: the candidate still needs to write the phrase down
+        for a literal ATS search, so that one earns a suggestion.
     """
     implied_pool = expand_skills(skill_candidates(resume_text))
-    still_missing, newly_implied = [], []
+    still_missing, literal, newly_implied = [], [], []
 
     for skill in result.get("missing_skills") or []:
-        if canonical(skill) in implied_pool:
+        if _mentions_any(resume_text, [skill]):
+            literal.append(skill)
+        elif canonical(skill) in implied_pool:
             newly_implied.append(skill)
         else:
             still_missing.append(skill)
 
-    if not newly_implied:
+    if not literal and not newly_implied:
         return result
 
     result["missing_skills"] = still_missing
-    result["matched_skills"] = (result.get("matched_skills") or []) + newly_implied
+    result["matched_skills"] = (result.get("matched_skills") or []) + literal + newly_implied
 
     implied_set = {s.lower() for s in newly_implied}
+    literal_set = {s.lower() for s in literal}
     for item in result.get("keyword_analysis") or []:
-        if item.get("keyword", "").lower() in implied_set:
+        keyword = item.get("keyword", "").lower()
+        if keyword in implied_set:
             item["present"] = True
             item["implied"] = True
+        elif keyword in literal_set:
+            item["present"] = True
+            item["implied"] = False
+            item["frequency"] = max(int(item.get("frequency") or 0), 1)
 
     result["suggestions"] = (result.get("suggestions") or []) + [
         f'State "{skill}" explicitly — your other skills imply it, but an ATS keyword '
@@ -383,7 +485,17 @@ def analyze_resume_against_job(
             # Applied here too, not just on the fallback: this is the path
             # that actually runs in production.
             stage("reconciling")
+            llm_suggestion_count = len(result["suggestions"])
             result = _reconcile_implied(resume_text, result)
+            # Only what the model wrote is filtered; the "state it explicitly"
+            # lines reconcile just added name matched skills on purpose.
+            result["suggestions"] = (
+                _drop_suggestions_naming_matched_skills(
+                    result["suggestions"][:llm_suggestion_count], result["matched_skills"]
+                )
+                + result["suggestions"][llm_suggestion_count:]
+            )
+            result = _refresh_keyword_score(result)
             stage("diagnostics")
             result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
             return result

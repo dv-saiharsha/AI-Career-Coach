@@ -261,7 +261,22 @@ class OllamaClient:
         }
         if fmt is not None:
             body["format"] = fmt
+        keep_alive = self._keep_alive()
+        if keep_alive is not None:
+            body["keep_alive"] = keep_alive
         return body
+
+    @staticmethod
+    def _keep_alive():
+        """settings.OLLAMA_KEEP_ALIVE in the form Ollama's API takes: a number
+        of seconds as a number ("-1" -> -1), a duration as a string ("30m")."""
+        value = (settings.OLLAMA_KEEP_ALIVE or "").strip()
+        if not value:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return value
 
     @staticmethod
     def _is_model_missing(response: httpx.Response) -> bool:
@@ -411,11 +426,14 @@ class OllamaClient:
         produces vectors that cannot be compared with these."""
         if not texts:
             return []
-        reply = self._post(
-            "/api/embed",
-            lambda model: {"model": model, "input": texts, "options": {"num_ctx": settings.OLLAMA_NUM_CTX}},
-            [self.embed_model],
-        )
+        def payload(model: str) -> dict:
+            body = {"model": model, "input": texts, "options": {"num_ctx": settings.OLLAMA_NUM_CTX}}
+            keep_alive = self._keep_alive()
+            if keep_alive is not None:
+                body["keep_alive"] = keep_alive
+            return body
+
+        reply = self._post("/api/embed", payload, [self.embed_model])
         vectors = reply.get("embeddings")
         valid = (
             isinstance(vectors, list)

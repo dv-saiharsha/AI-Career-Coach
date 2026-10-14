@@ -233,18 +233,13 @@ All AI features run on a local [Ollama](https://ollama.com) by default, so no AP
    ollama pull nomic-embed-text  # embeddings: semantic matching
    ollama pull llama3.2          # optional fallback, used only if llama3.1 is missing
    ```
-3. **Configure `backend/.env`** — the defaults already point at Ollama, so normally nothing is needed. Leave `ANTHROPIC_API_KEY` blank. The settings are `LLM_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_FALLBACK_MODEL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_NUM_CTX` (default 8192), `OLLAMA_TIMEOUT_SECONDS` (default 180), `OLLAMA_MAX_RETRIES` (default 2), `OLLAMA_TEMPERATURE` (default 0) and `OLLAMA_ENRICH_MAX_PER_RUN` (default 25); see `backend/.env.example`.
+3. **Configure `backend/.env`** — the defaults already point at Ollama, so normally nothing is needed. Leave `ANTHROPIC_API_KEY` blank. The settings are `LLM_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_FALLBACK_MODEL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_NUM_CTX` (default 8192), `OLLAMA_TIMEOUT_SECONDS` (default 180), `OLLAMA_KEEP_ALIVE` (default `30m`), `OLLAMA_MAX_RETRIES` (default 2), `OLLAMA_TEMPERATURE` (default 0) and `OLLAMA_ENRICH_MAX_PER_RUN` (default 25); see `backend/.env.example`.
 4. **Check it**: start the backend and open `http://localhost:8000/health/llm`. `"status": "ok"` means Ollama is reachable and both the chat and embedding models are pulled. The same problems are logged as warnings when the backend starts ("Ollama is not running…", "Run `ollama pull llama3.1`").
 
 Things to know:
 
 - **First request is slow.** Ollama loads the model on first use (about 20 s on an M-series Mac), then answers in seconds. By default it unloads a model after 5 idle minutes, so the next request after a pause pays that load again.
-- **Keep the model loaded** with `OLLAMA_KEEP_ALIVE=30m`. This is a setting of the Ollama server (`ollama serve`), not of this app, so it goes where the server is started:
-  - Running it yourself: `OLLAMA_KEEP_ALIVE=30m ollama serve`
-  - As a Homebrew service (`brew services start ollama`): add `<key>OLLAMA_KEEP_ALIVE</key><string>30m</string>` inside the `EnvironmentVariables` dictionary of `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist`, then run `brew services restart ollama`.
-  - With the Ollama desktop app: `launchctl setenv OLLAMA_KEEP_ALIVE 30m`, then quit and reopen the app.
-
-  To check it took effect, make any request and run `ollama ps`: the `UNTIL` column should show about 30 minutes ahead instead of 5. While loaded, `llama3.1` holds roughly 5-6 GB of memory.
+- **The model stays loaded for 30 minutes.** The backend sends `keep_alive` (`OLLAMA_KEEP_ALIVE`, default `30m`) with every `/api/chat` and `/api/embed` request, so **nothing needs to change on the Ollama side** — no `launchd` plist edit, no `ollama serve` flag. This replaces the server-side setting an earlier version of this README described. Use a duration (`30m`, `2h`), a number of seconds, or `-1` to never unload. To check it, make any request and run `ollama ps`: the `UNTIL` column shows about 30 minutes ahead instead of 5. While loaded, `llama3.1` holds roughly 5-6 GB of memory. (A server-side `OLLAMA_KEEP_ALIVE` still applies to any other program that talks to your Ollama; this app's per-request value overrides it for its own calls.)
 - **From a container** use `OLLAMA_BASE_URL=http://host.docker.internal:11434`.
 - **Structured calls** send the JSON schema in Ollama's `format` field with `temperature` 0, validate the reply, and retry up to `OLLAMA_MAX_RETRIES` times before the caller falls back to its rule-based path.
 - **Job enrichment** (H-1B, seniority, skills) uses Anthropic's Batch API under `LLM_PROVIDER=anthropic`. Under Ollama there is no batch API, so each crawl run enriches at most `OLLAMA_ENRICH_MAX_PER_RUN` postings one at a time; the rest are picked up by later runs.

@@ -98,6 +98,13 @@ class Settings(BaseSettings):
     # embedding models are not comparable.
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
     OLLAMA_TIMEOUT_SECONDS: float = 180.0
+    # Sent as "keep_alive" on every /api/chat and /api/embed request, so the
+    # model stays loaded this long after its last use (Ollama's own default is
+    # 5 minutes, after which the next request pays a ~20 s reload). Setting it
+    # per request means no change to how `ollama serve` is started. A duration
+    # like "30m", or a number of seconds; "-1" keeps it loaded indefinitely and
+    # "0" unloads it right after each request.
+    OLLAMA_KEEP_ALIVE: str = "30m"
     # Retries per call, both for transport errors / 5xx and for a reply that
     # is not valid, schema-conforming JSON. 1 try + this many retries.
     OLLAMA_MAX_RETRIES: int = 2

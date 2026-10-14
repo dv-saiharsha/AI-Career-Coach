@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -89,6 +89,11 @@ class AnalysisResultSchema(BaseModel):
     keyword_analysis: List[KeywordFrequency]
     suggestions: List[str]
     created_at: str
+    # What produced ats_score: "model" (the trained scorer) or
+    # "keyword_fallback" (the share of the job's keywords the resume covers,
+    # used when no trained model file is installed). None on scans stored
+    # before this field existed.
+    score_source: Literal["model", "keyword_fallback"] | None = None
     # Optional so a stored scan from before diagnostics existed still
     # deserializes instead of 500-ing on history reads.
     diagnostics: DiagnosticsSchema | None = None
