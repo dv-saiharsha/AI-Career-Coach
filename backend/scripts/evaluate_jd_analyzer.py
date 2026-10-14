@@ -1,163 +1,170 @@
-"""Score the JD analyzer against the hand-written golden set, with the real model.
+"""Score the JD analyzer against hand-written expected analyses, with the real model.
 
-    ANTHROPIC_API_KEY= python scripts/evaluate_jd_analyzer.py            # the 6 golden JDs
-    ANTHROPIC_API_KEY= python scripts/evaluate_jd_analyzer.py --all      # then all 17 seed JDs
-    ANTHROPIC_API_KEY= python scripts/evaluate_jd_analyzer.py --json out.json
+    ANTHROPIC_API_KEY= python scripts/evaluate_jd_analyzer.py --set golden --json run.json
+    ANTHROPIC_API_KEY= python scripts/evaluate_jd_analyzer.py --set holdout --json run.json
+    ANTHROPIC_API_KEY= python scripts/evaluate_jd_analyzer.py --all     # also the 17 seed JDs
+    python scripts/evaluate_jd_analyzer.py --rescore run.json           # offline, no model
 
-Each JD is analysed with the cache off, through the same service the app uses
-(whatever LLM_PROVIDER selects; Ollama by default). Nothing is written to a
-database. The golden files are tests/fixtures/jd_golden/*.json; their README says
-how each field was annotated.
+Sets are folders under tests/fixtures/: golden (jd_golden), holdout (jd_holdout),
+or any other jd_<name> folder. Each JD is analysed with the cache off, through
+the same service the app uses (whatever LLM_PROVIDER selects; Ollama by
+default). Nothing is written to a database. --json saves every analysis in full,
+so a run can be scored again later (--rescore) without calling the model.
 
-Per golden JD and pooled over all of them:
-  required-skill precision and recall (an either/or group counts as found when
-  one member is found, and every member counts as correct), hallucinations (a
-  "forbidden" item anywhere in the output), either/or groups found correctly,
-  seniority + its source, min_years, education and certifications including the
-  required flag, job-title leaks, skills dropped by the evidence check, the
-  source of the analysis, and seconds.
+Metrics, per JD and pooled over every annotated skill:
+  found_recall     golden required skills found anywhere in the output
+                   (required OR preferred). An either/or group counts as found
+                   when one member is found.
+  bucket_accuracy  of those found, the share the output put in required.
+  precision        of the output's required skills, the share that match a
+                   golden required skill (every member of a group is correct).
+  hallucinations   a "forbidden" item (one the JD does not say) anywhere in the
+                   output: skills, tools, keywords, requirements, responsibilities.
+  title leaks      the job title as a skill or tool.
+plus either/or groups, seniority and its source, min_years, education and
+certifications (with the required flag), skills dropped by the evidence check,
+the source of the analysis, and seconds.
 
-Targets: required recall >= 0.80, precision >= 0.85, zero hallucinations,
-zero job-title leaks.
+Names match when their canonical forms are equal.
+
+Targets: found_recall >= 0.80, precision >= 0.85, hallucinations 0, title
+leaks 0. bucket_accuracy is reported, not a gate.
 """
 
 import argparse
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.llm import llm_client  # noqa: E402
 from app.core.taxonomy import canonical  # noqa: E402
-from app.modules.jd_analyzer import rules, service  # noqa: E402
-from app.modules.jd_analyzer.schemas import JDAnalysis  # noqa: E402
+from app.modules.jd_analyzer import rules  # noqa: E402
 from scripts.seed_job_descriptions import SEED_JOB_DESCRIPTIONS  # noqa: E402
 
-FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "jd_golden"
+FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 SEED = {j["id"]: j for j in SEED_JOB_DESCRIPTIONS}
 RECALL_TARGET, PRECISION_TARGET = 0.80, 0.85
 
 
-def load_golden(folder: Path = FIXTURES) -> list[dict]:
+def load_set(name: str) -> list[dict]:
     docs = []
-    for path in sorted(folder.glob("*.json")):
+    for path in sorted((FIXTURES / f"jd_{name}").glob("*.json")):
         doc = json.loads(path.read_text(encoding="utf-8"))
-        doc["text"] = doc["jd_text"] if doc.get("synthetic") else SEED[doc["jd_id"]]["text"]
+        doc["text"] = doc.get("jd_text") or SEED[doc["jd_id"]]["text"]
         docs.append(doc)
     return docs
 
 
-def _flat(text: str) -> list[str]:
+def match(a: str, b: str) -> bool:
+    return canonical(a) == canonical(b)
+
+
+def _words(text: str) -> list[str]:
     return [w for w in re.sub(r"[^a-z0-9+#]+", " ", text.lower()).split() if len(w) >= 3]
 
 
-def same_name(a: str, b: str) -> bool:
+def same_requirement(a: str, b: str) -> bool:
     """Whether two certification / degree names are the same thing: one contains
     the other, or they share at least 60% of the words of the shorter."""
-    fa, fb = _flat(a), _flat(b)
-    if not fa or not fb:
+    wa, wb = _words(a), _words(b)
+    if not wa or not wb:
         return False
-    if " ".join(fa) in " ".join(fb) or " ".join(fb) in " ".join(fa):
+    if " ".join(wa) in " ".join(wb) or " ".join(wb) in " ".join(wa):
         return True
-    shared = len(set(fa) & set(fb))
-    return shared / min(len(set(fa)), len(set(fb))) >= 0.6
+    return len(set(wa) & set(wb)) / min(len(set(wa)), len(set(wb))) >= 0.6
 
 
-def requirements_correct(golden: list[dict], output: list) -> tuple[bool, str]:
+def requirements_correct(golden: list[dict], output: list[dict]) -> tuple[bool, str]:
     """Every golden item found with the right required flag, and nothing extra."""
     notes = []
     unmatched = list(output)
     for item in golden:
-        match = next((o for o in unmatched if same_name(item["name"], o.name)), None)
-        if match is None:
+        hit = next((o for o in unmatched if same_requirement(item["name"], o["name"])), None)
+        if hit is None:
             notes.append(f"missing {item['name']!r}")
             continue
-        unmatched.remove(match)
-        if match.required != item["required"]:
-            notes.append(f"{item['name']!r} required={match.required}, expected {item['required']}")
-    notes += [f"extra {o.name!r}" for o in unmatched]
+        unmatched.remove(hit)
+        if hit["required"] != item["required"]:
+            notes.append(f"{item['name']!r} required={hit['required']}, expected {item['required']}")
+    notes += [f"extra {o['name']!r}" for o in unmatched]
     return (not notes), "; ".join(notes)
 
 
-def hallucinations(analysis: JDAnalysis, forbidden: list[str]) -> list[str]:
-    """Forbidden items anywhere in the output: skill, tool and keyword names by
-    canonical equality, and whole words in the free-text fields."""
-    names = {s.name for s in analysis.required_skills + analysis.preferred_skills}
-    names |= set(analysis.tools_technologies) | {canonical(k.term) for k in analysis.ats_keywords}
-    names |= {canonical(r.name) for r in analysis.education + analysis.certifications}
-    free_text = " ".join(analysis.responsibilities + [r.evidence for r in analysis.education + analysis.certifications])
-    found = []
-    for item in forbidden:
-        hit = item in names
-        if not hit and len(item) >= 3:
-            hit = bool(re.search(r"(?<![a-z0-9+#])" + re.escape(item) + r"(?![a-z0-9+#])", free_text.lower()))
-        if hit:
-            found.append(item)
-    return found
-
-
-def score(doc: dict, analysis: JDAnalysis, report) -> dict:
+def score(doc: dict, out: dict, rep: dict) -> dict:
+    """Score one saved analysis (a JDAnalysis as JSON) against its golden file."""
     e = doc["expected"]
-    golden_required = e["required_skills"]
-    golden_names = {s["name"] for s in golden_required}
-    groups: dict[str, set[str]] = {}
-    singles: set[str] = set()
-    for s in golden_required:
-        (groups.setdefault(s["alternative_group"], set()).add(s["name"]) if s["alternative_group"] else singles.add(s["name"]))
+    required_out = [s["name"] for s in out["required_skills"]]
+    everything = required_out + [s["name"] for s in out["preferred_skills"]]
 
-    out_names = [s.name for s in analysis.required_skills]
-    out = set(out_names)
-    found_singles = singles & out
-    found_groups = [g for g, members in groups.items() if members & out]
-    items = len(singles) + len(groups)
-    recall = (len(found_singles) + len(found_groups)) / items if items else 1.0
-    correct = [n for n in out_names if n in golden_names]
-    precision = len(correct) / len(out_names) if out_names else (1.0 if not golden_names else 0.0)
+    singles: list[str] = []
+    groups: dict[str, list[str]] = {}
+    for s in e["required_skills"]:
+        if s["alternative_group"]:
+            groups.setdefault(s["alternative_group"], []).append(s["name"])
+        else:
+            singles.append(s["name"])
+    items = [[n] for n in singles] + list(groups.values())
 
-    golden_pref = {s["name"] for s in e["preferred_skills"]} | set(e["tools_technologies"])
-    false_pos = [n for n in out_names if n not in golden_names]
-    missed = sorted(singles - out) + [f"one of {sorted(m)}" for g, m in groups.items() if not m & out]
+    def hit(members: list[str], pool: list[str]) -> bool:
+        return any(match(m, o) for m in members for o in pool)
 
-    out_groups: dict[str, set[str]] = {}
-    for s in analysis.required_skills:
-        if s.alternative_group:
-            out_groups.setdefault(s.alternative_group, set()).add(s.name)
+    found = [m for m in items if hit(m, everything)]
+    found_required = [m for m in found if hit(m, required_out)]
+
+    golden_required = [s["name"] for s in e["required_skills"]]
+    correct = [o for o in required_out if any(match(o, g) for g in golden_required)]
+    golden_other = [s["name"] for s in e["preferred_skills"]] + list(e["tools_technologies"])
+    false_pos = [
+        f"{o} (golden preferred/tool)" if any(match(o, g) for g in golden_other) else o
+        for o in required_out if o not in correct
+    ]
+
+    # Either/or groups: the members present share one non-null label, and that
+    # label holds nothing outside the golden group.
+    label_of = {s["name"]: s["alternative_group"] for s in out["required_skills"] + out["preferred_skills"]}
     groups_correct = 0
     for members in groups.values():
-        present = members & out
-        labels = {s.alternative_group for s in analysis.required_skills if s.name in present}
+        present = [o for o in everything if any(match(o, m) for m in members)]
+        labels = {label_of[o] for o in present}
         if len(present) >= 2 and len(labels) == 1 and None not in labels:
             label = next(iter(labels))
-            if out_groups.get(label, set()) <= members:
+            if all(any(match(n, m) for m in members) for n, lbl in label_of.items() if lbl == label):
                 groups_correct += 1
 
-    edu_ok, edu_note = requirements_correct(e["education"], analysis.education)
-    cert_ok, cert_note = requirements_correct(e["certifications"], analysis.certifications)
-    title_forms = rules.title_forms(analysis.job_title) | rules.title_forms(e["job_title"])
-    leaks = [n for n in out | {s.name for s in analysis.preferred_skills} | set(analysis.tools_technologies) if n in title_forms]
+    names = everything + list(out["tools_technologies"]) + [k["term"] for k in out["ats_keywords"]]
+    names += [r["name"] for r in out["education"] + out["certifications"]]
+    free_text = " ".join(out["responsibilities"] + [r["evidence"] for r in out["education"] + out["certifications"]]).lower()
+    halluc = [
+        f for f in doc["forbidden_skills"]
+        if any(match(f, n) for n in names)
+        or (len(f) >= 3 and re.search(r"(?<![a-z0-9+#])" + re.escape(f) + r"(?![a-z0-9+#])", free_text))
+    ]
+
+    title_forms = rules.title_forms(out["job_title"]) | rules.title_forms(e["job_title"])
+    leaks = [n for n in everything + list(out["tools_technologies"]) if n in title_forms]
+    edu_ok, edu_note = requirements_correct(e["education"], out["education"])
+    cert_ok, cert_note = requirements_correct(e["certifications"], out["certifications"])
 
     return {
-        "jd_id": doc["jd_id"], "source": analysis.source, "seconds": report.seconds,
-        "required_out": len(out_names), "recall": recall, "precision": precision,
-        "recall_found": len(found_singles) + len(found_groups), "recall_items": items,
-        "precision_correct": len(correct), "precision_out": len(out_names),
-        "missed": missed,
-        "false_positives": [f"{n} (golden preferred/tool)" if n in golden_pref else n for n in false_pos],
-        "hallucinations": hallucinations(analysis, doc["forbidden_skills"]),
+        "jd_id": doc["jd_id"], "source": out["source"], "seconds": rep.get("seconds", 0.0),
+        "items": len(items), "found": len(found), "found_required": len(found_required),
+        "found_recall": len(found) / len(items) if items else 1.0,
+        "bucket_accuracy": len(found_required) / len(found) if found else 1.0,
+        "precision_correct": len(correct), "precision_out": len(required_out),
+        "precision": len(correct) / len(required_out) if required_out else (1.0 if not golden_required else 0.0),
+        "missed": [" / ".join(m) for m in items if m not in found],
+        "misbucketed": [" / ".join(m) for m in found if m not in found_required],
+        "false_positives": false_pos, "hallucinations": halluc,
         "groups_correct": groups_correct, "groups_total": len(groups),
-        "seniority_ok": analysis.seniority == e["seniority"], "seniority": analysis.seniority,
-        "seniority_source_ok": analysis.seniority_source == e["seniority_source"], "seniority_source": analysis.seniority_source,
-        "years_ok": analysis.min_years_experience == e["min_years_experience"], "years": analysis.min_years_experience,
-        "education_ok": edu_ok, "education_note": edu_note,
-        "certifications_ok": cert_ok, "certifications_note": cert_note,
-        "title_ok": analysis.job_title == e["job_title"], "title": analysis.job_title,
-        "title_leaks": leaks, "stripped_title_leaks": list(report.title_leaks),
-        "dropped_by_evidence": list(report.dropped_by_evidence), "rejected": list(report.rejected),
-        "rule_additions": list(report.rule_additions), "moved_to_tools": list(report.moved_to_tools),
-        "attempts": report.attempts,
-        "llm_error": report.llm_error,
+        "seniority_ok": out["seniority"] == e["seniority"], "seniority": out["seniority"],
+        "seniority_source_ok": out["seniority_source"] == e["seniority_source"], "seniority_source": out["seniority_source"],
+        "years_ok": out["min_years_experience"] == e["min_years_experience"], "years": out["min_years_experience"],
+        "education_ok": edu_ok, "education_note": edu_note, "certifications_ok": cert_ok, "certifications_note": cert_note,
+        "title_ok": out["job_title"] == e["job_title"], "title": out["job_title"], "title_leaks": leaks,
+        "report": rep,
     }
 
 
@@ -165,152 +172,146 @@ def yn(flag: bool) -> str:
     return "yes" if flag else "NO"
 
 
-def print_golden(rows: list[dict]) -> dict:
-    print("\n== PER JD ==")
-    header = f"{'JD':32} {'src':6} {'sec':>5} {'prec':>5} {'recl':>5} {'hall':>4} {'grp':>5} {'sen':>4} {'srcOK':>5} {'yrs':>4} {'edu':>4} {'cert':>4} {'leak':>4} {'drop':>4}"
-    print(header)
+def print_rows(rows: list[dict], label: str) -> dict:
+    print(f"\n== {label}: PER JD ==")
+    print(f"{'JD':32} {'src':6} {'sec':>5} {'fRecl':>5} {'bAcc':>5} {'prec':>5} {'hall':>4} {'grp':>5} {'sen':>4} {'srcOK':>5} {'yrs':>4} {'edu':>4} {'cert':>4} {'leak':>4} {'drop':>4}")
     for r in rows:
         print(
-            f"{r['jd_id']:32} {r['source']:6} {r['seconds']:5.1f} {r['precision']:5.2f} {r['recall']:5.2f} "
-            f"{len(r['hallucinations']):4d} {r['groups_correct']}/{r['groups_total']:<3} {yn(r['seniority_ok']):>4} "
-            f"{yn(r['seniority_source_ok']):>5} {yn(r['years_ok']):>4} {yn(r['education_ok']):>4} {yn(r['certifications_ok']):>4} "
-            f"{len(r['title_leaks']):4d} {len(r['dropped_by_evidence']):4d}"
+            f"{r['jd_id'][:32]:32} {r['source']:6} {r['seconds']:5.1f} {r['found_recall']:5.2f} {r['bucket_accuracy']:5.2f} "
+            f"{r['precision']:5.2f} {len(r['hallucinations']):4d} {r['groups_correct']}/{r['groups_total']:<3} "
+            f"{yn(r['seniority_ok']):>4} {yn(r['seniority_source_ok']):>5} {yn(r['years_ok']):>4} {yn(r['education_ok']):>4} "
+            f"{yn(r['certifications_ok']):>4} {len(r['title_leaks']):4d} {len(r['report'].get('dropped_by_evidence') or []):4d}"
         )
-    pooled = {
-        "recall": sum(r["recall_found"] for r in rows) / max(1, sum(r["recall_items"] for r in rows)),
-        "precision": sum(r["precision_correct"] for r in rows) / max(1, sum(r["precision_out"] for r in rows)),
-        "hallucinations": sum(len(r["hallucinations"]) for r in rows),
-        "groups": (sum(r["groups_correct"] for r in rows), sum(r["groups_total"] for r in rows)),
-        "seniority": sum(r["seniority_ok"] for r in rows), "seniority_source": sum(r["seniority_source_ok"] for r in rows),
-        "years": sum(r["years_ok"] for r in rows), "education": sum(r["education_ok"] for r in rows),
-        "certifications": sum(r["certifications_ok"] for r in rows), "title": sum(r["title_ok"] for r in rows),
-        "title_leaks": sum(len(r["title_leaks"]) for r in rows),
-        "dropped": sum(len(r["dropped_by_evidence"]) for r in rows),
-        "seconds": sum(r["seconds"] for r in rows), "n": len(rows),
+    n = len(rows)
+    items, found = sum(r["items"] for r in rows), sum(r["found"] for r in rows)
+    found_req = sum(r["found_required"] for r in rows)
+    pc, po = sum(r["precision_correct"] for r in rows), sum(r["precision_out"] for r in rows)
+    p = {
+        "found_recall": found / max(1, items), "bucket_accuracy": found_req / max(1, found), "precision": pc / max(1, po),
+        "hallucinations": sum(len(r["hallucinations"]) for r in rows), "title_leaks": sum(len(r["title_leaks"]) for r in rows),
+        "seconds": sum(r["seconds"] for r in rows), "n": n,
     }
-    p = pooled
-    print("\n== OVERALL (pooled over all skills) ==")
-    print(f"required-skill recall    {p['recall']:.3f}   target >= {RECALL_TARGET}   {'PASS' if p['recall'] >= RECALL_TARGET else 'BELOW TARGET'}")
-    print(f"required-skill precision {p['precision']:.3f}   target >= {PRECISION_TARGET}   {'PASS' if p['precision'] >= PRECISION_TARGET else 'BELOW TARGET'}")
-    print(f"hallucinations           {p['hallucinations']}       target 0      {'PASS' if p['hallucinations'] == 0 else 'FAIL'}")
-    print(f"job-title leaks          {p['title_leaks']}       target 0      {'PASS' if p['title_leaks'] == 0 else 'FAIL'}")
-    print(f"either/or groups found   {p['groups'][0]}/{p['groups'][1]}")
-    print(f"seniority correct        {p['seniority']}/{p['n']}   seniority_source correct {p['seniority_source']}/{p['n']}   min_years correct {p['years']}/{p['n']}   title correct {p['title']}/{p['n']}")
-    print(f"education correct        {p['education']}/{p['n']}   certifications correct {p['certifications']}/{p['n']}")
-    print(f"skills dropped by the evidence check {p['dropped']}   total time {p['seconds']:.0f}s ({p['seconds'] / p['n']:.0f}s per JD)")
+    print(f"\n== {label}: OVERALL (pooled) ==")
+    print(f"found_recall     {p['found_recall']:.3f} ({found}/{items})   target >= {RECALL_TARGET}   {'PASS' if p['found_recall'] >= RECALL_TARGET else 'BELOW TARGET'}")
+    print(f"bucket_accuracy  {p['bucket_accuracy']:.3f} ({found_req}/{found})   reported, not a gate")
+    print(f"precision        {p['precision']:.3f} ({pc}/{po})   target >= {PRECISION_TARGET}   {'PASS' if p['precision'] >= PRECISION_TARGET else 'BELOW TARGET'}")
+    print(f"hallucinations   {p['hallucinations']}   target 0   {'PASS' if p['hallucinations'] == 0 else 'FAIL'}")
+    print(f"title leaks      {p['title_leaks']}   target 0   {'PASS' if p['title_leaks'] == 0 else 'FAIL'}")
+    print(
+        f"either/or groups {sum(r['groups_correct'] for r in rows)}/{sum(r['groups_total'] for r in rows)}   "
+        f"seniority {sum(r['seniority_ok'] for r in rows)}/{n}   source {sum(r['seniority_source_ok'] for r in rows)}/{n}   "
+        f"years {sum(r['years_ok'] for r in rows)}/{n}   title {sum(r['title_ok'] for r in rows)}/{n}   "
+        f"education {sum(r['education_ok'] for r in rows)}/{n}   certifications {sum(r['certifications_ok'] for r in rows)}/{n}"
+    )
+    print(f"time {p['seconds']:.0f}s ({p['seconds'] / max(1, n):.0f}s per JD)")
 
-    print("\n== THE MISSES, PER JD ==")
+    print(f"\n== {label}: DETAILS PER JD ==")
     for r in rows:
-        lines = []
-        if r["missed"]:
-            lines.append(f"  missed required      : {r['missed']}")
-        if r["false_positives"]:
-            lines.append(f"  required, not golden : {r['false_positives']}")
-        if r["hallucinations"]:
-            lines.append(f"  HALLUCINATED         : {r['hallucinations']}")
+        rep = r["report"]
+        lines = [f"  {title:22}: {r[key]}" for key, title in [
+            ("missed", "missed (not found)"), ("misbucketed", "found, but preferred"),
+            ("false_positives", "required, not golden"), ("hallucinations", "HALLUCINATED"),
+        ] if r[key]]
         if not r["seniority_ok"] or not r["seniority_source_ok"]:
-            lines.append(f"  seniority            : got {r['seniority']}/{r['seniority_source']}")
+            lines.append(f"  {'seniority':22}: {r['seniority']}/{r['seniority_source']}")
         if not r["years_ok"]:
-            lines.append(f"  min_years            : got {r['years']}")
+            lines.append(f"  {'min_years':22}: {r['years']}")
         if not r["title_ok"]:
-            lines.append(f"  title                : got {r['title']!r}")
-        if not r["education_ok"]:
-            lines.append(f"  education            : {r['education_note']}")
-        if not r["certifications_ok"]:
-            lines.append(f"  certifications       : {r['certifications_note']}")
-        if r["dropped_by_evidence"]:
-            lines.append(f"  dropped by evidence  : {r['dropped_by_evidence']}")
-        if r["rejected"]:
-            lines.append(f"  rejected by validators: {r['rejected']}")
-        if r["moved_to_tools"]:
-            lines.append(f"  moved to tools       : {r['moved_to_tools']}")
-        if r["rule_additions"]:
-            lines.append(f"  added by the rules   : {r['rule_additions']}")
-        if r["stripped_title_leaks"]:
-            lines.append(f"  title leaks stripped : {r['stripped_title_leaks']}")
-        if r["llm_error"]:
-            lines.append(f"  model error          : {r['llm_error']}")
-        print(f"{r['jd_id']}" + ("" if lines else "  (no misses)"))
-        print("\n".join(lines))
-    return pooled
+            lines.append(f"  {'title':22}: {r['title']!r}")
+        lines += [f"  {title:22}: {r[key]}" for key, title in [("education_note", "education"), ("certifications_note", "certifications")] if r[key]]
+        lines += [f"  {title:22}: {rep[key]}" for key, title in [
+            ("dropped_by_evidence", "dropped by evidence"), ("rejected", "rejected (validators)"),
+            ("moved_to_tools", "moved to tools"), ("rule_additions", "added by the rules"),
+            ("title_leaks", "title leaks stripped"), ("llm_error", "model error"),
+        ] if rep.get(key)]
+        print(r["jd_id"] + ("" if lines else "  (nothing to report)"))
+        if lines:
+            print("\n".join(lines))
+    return p
 
 
-def run_all_seeds(golden_rows: dict[str, dict]) -> list[dict]:
-    print("\n== ALL 17 SEED JDs ==")
-    print(f"{'JD':30} {'src':6} {'sec':>5} {'req':>3} {'pref':>4} {'drop':>4} {'tries':>5}  {'level/source':14} {'yrs':>3} {'title':>5}  failures")
+def analyse(text: str) -> tuple[dict, dict]:
+    from app.modules.jd_analyzer import service
+
+    analysis, report = service.analyze_with_report(text, use_cache=False)
+    return analysis.model_dump(mode="json"), {k: (list(v) if isinstance(v, (list, set, tuple)) else v) for k, v in vars(report).items()}
+
+
+def run_all_seeds() -> list[dict]:
+    from app.core.skill_match import named_in
+
+    print("\n== ALL 17 SEED JDs: crashes, and anything not in the posting ==")
+    print(f"{'JD':30} {'src':6} {'sec':>5} {'req':>3} {'pref':>4} {'drop':>4}  {'level/source':14} {'yrs':>3}  failures")
     rows = []
     for doc in SEED_JOB_DESCRIPTIONS:
         jd_id, text = doc["id"], doc["text"]
-        failure = []
         try:
-            analysis, report = service.analyze_with_report(text, use_cache=False)
-        except Exception as exc:  # noqa: BLE001 - the point of this run is to find failures
+            out, rep = analyse(text)
+        except Exception as exc:  # noqa: BLE001 - finding crashes is the point of this run
             print(f"{jd_id:30} EXCEPTION {type(exc).__name__}: {exc}")
             rows.append({"jd_id": jd_id, "failure": [f"exception {type(exc).__name__}"]})
             continue
-        if analysis.source == "rules":
-            failure.append(f"model path failed ({report.llm_error})")
-        if not analysis.required_skills:
-            failure.append("no required skills")
-        title_ok = analysis.job_title == rules.title_from_text(text)
-        if not title_ok:
-            failure.append(f"title {analysis.job_title!r}")
-        if report.title_leaks or {s.name for s in analysis.required_skills + analysis.preferred_skills} & rules.title_forms(analysis.job_title):
-            failure.append("title leak")
-        label = doc["seniority"]
-        # Anything named in the output that the posting does not mention.
-        from app.core.skill_match import named_in
-
-        claimed = [s.name for s in analysis.required_skills + analysis.preferred_skills] + list(analysis.tools_technologies)
+        failure = []
+        if out["source"] == "rules":
+            failure.append(f"model path failed ({rep.get('llm_error')})")
+        claimed = [s["name"] for s in out["required_skills"] + out["preferred_skills"]] + list(out["tools_technologies"])
         unsupported = [n for n in claimed if not named_in(text, n)]
-        unsupported += [r.name for r in analysis.education + analysis.certifications if r.evidence.lower() not in " ".join(text.split()).lower()]
+        flat = " ".join(text.split()).lower()
+        unsupported += [r["name"] for r in out["education"] + out["certifications"] if r["evidence"].lower() not in flat]
         if unsupported:
             failure.append(f"not in the posting: {unsupported}")
-        if label in ("junior", "senior") and analysis.seniority != label:
-            failure.append(f"level {analysis.seniority} vs seed label {label}")
-        if label == "mid" and (analysis.seniority, analysis.seniority_source) != ("mid", "years"):
-            failure.append(f"level {analysis.seniority}/{analysis.seniority_source} vs seed label mid")
-        row = {
-            "jd_id": jd_id, "source": analysis.source, "seconds": report.seconds, "required": len(analysis.required_skills),
-            "preferred": len(analysis.preferred_skills), "dropped": len(report.dropped_by_evidence), "attempts": report.attempts,
-            "level": f"{analysis.seniority}/{analysis.seniority_source}", "years": analysis.min_years_experience,
-            "title_ok": title_ok, "failure": failure, "golden": jd_id in golden_rows,
-        }
-        rows.append(row)
+        if {s["name"] for s in out["required_skills"] + out["preferred_skills"]} & rules.title_forms(out["job_title"]):
+            failure.append("title leak")
+        rows.append({"jd_id": jd_id, "failure": failure, "output": out, "report": rep})
         print(
-            f"{jd_id:30} {analysis.source:6} {report.seconds:5.1f} {row['required']:3d} {row['preferred']:4d} {row['dropped']:4d} "
-            f"{report.attempts:5d}  {row['level']:14} {str(row['years']):>3} {yn(title_ok):>5}  {'; '.join(failure) or '-'}"
+            f"{jd_id:30} {out['source']:6} {rep['seconds']:5.1f} {len(out['required_skills']):3d} {len(out['preferred_skills']):4d} "
+            f"{len(rep['dropped_by_evidence']):4d}  {out['seniority'] + '/' + out['seniority_source']:14} "
+            f"{str(out['min_years_experience']):>3}  {'; '.join(failure) or '-'}"
         )
-    failures = [r for r in rows if r["failure"]]
-    print(f"\n{len(rows) - len(failures)}/{len(rows)} analysed with no failure; {len(failures)} with at least one")
+    bad = [r for r in rows if r["failure"]]
+    print(f"\n{len(rows) - len(bad)}/{len(rows)} with no crash and nothing ungrounded")
     return rows
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--all", action="store_true", help="also run all 17 seed JDs")
-    parser.add_argument("--json", metavar="PATH", help="write the results as JSON")
-    parser.add_argument("--holdout", action="store_true", help="score the holdout set (tests/fixtures/jd_holdout) instead of the golden set")
+    parser.add_argument("--set", default="golden", help="fixture set: golden, holdout, or another jd_<name> folder")
+    parser.add_argument("--holdout", action="store_true", help="same as --set holdout")
+    parser.add_argument("--all", action="store_true", help="also run all 17 seed JDs (crash and grounding check)")
+    parser.add_argument("--json", metavar="PATH", help="save the run, every analysis in full, as JSON")
+    parser.add_argument("--rescore", metavar="PATH", help="score a saved run again, offline")
     args = parser.parse_args()
+    set_name = "holdout" if args.holdout else args.set
 
-    print(f"provider={llm_client.provider} model={getattr(llm_client, 'model', None)} available={llm_client.available}")
+    if args.rescore:
+        saved = json.loads(Path(args.rescore).read_text())
+        docs = {d["jd_id"]: d for d in load_set(saved["set"])}
+        rows = [score(docs[r["jd_id"]], r["output"], r["report"]) for r in saved["runs"]]
+        print(f"re-scored {args.rescore} (set {saved['set']}, saved {saved.get('saved_at')})")
+        print_rows(rows, saved["set"].upper())
+        return 0
+
+    from app.core.llm import llm_client
+
+    print(f"provider={llm_client.provider} model={getattr(llm_client, 'model', None)} available={llm_client.available} set={set_name}")
     if not llm_client.available:
         print("no model available: this evaluates the model, so there is nothing to run")
         return 2
-
-    golden_rows = []
-    folder = FIXTURES.parent / "jd_holdout" if args.holdout else FIXTURES
-    print(f"set: {folder.name}")
-    for doc in load_golden(folder):
-        analysis, report = service.analyze_with_report(doc["text"], use_cache=False)
-        golden_rows.append(score(doc, analysis, report))
-        print(f"  analysed {doc['jd_id']} ({report.seconds:.0f}s, {analysis.source})", flush=True)
-    pooled = print_golden(golden_rows)
-    seed_rows = run_all_seeds({r["jd_id"]: r for r in golden_rows}) if args.all else None
-
+    runs, rows = [], []
+    for doc in load_set(set_name):
+        out, rep = analyse(doc["text"])
+        runs.append({"jd_id": doc["jd_id"], "output": out, "report": rep})
+        rows.append(score(doc, out, rep))
+        print(f"  analysed {doc['jd_id']} ({rep['seconds']:.0f}s, {out['source']})", flush=True)
+    pooled = print_rows(rows, set_name.upper())
+    seeds = run_all_seeds() if args.all else None
     if args.json:
-        Path(args.json).write_text(json.dumps({"golden": golden_rows, "pooled": pooled, "seeds": seed_rows}, indent=2, default=list))
-    ok = pooled["recall"] >= RECALL_TARGET and pooled["precision"] >= PRECISION_TARGET and pooled["hallucinations"] == 0 and pooled["title_leaks"] == 0
+        Path(args.json).write_text(json.dumps(
+            {"set": set_name, "saved_at": time.strftime("%Y-%m-%d %H:%M:%S"), "runs": runs, "pooled": pooled, "seeds": seeds},
+            indent=1, default=list,
+        ))
+    ok = (pooled["found_recall"] >= RECALL_TARGET and pooled["precision"] >= PRECISION_TARGET
+          and pooled["hallucinations"] == 0 and pooled["title_leaks"] == 0)
     return 0 if ok else 1
 
 
