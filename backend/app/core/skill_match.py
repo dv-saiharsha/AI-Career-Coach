@@ -78,3 +78,18 @@ def named_in(text: str, skill: str) -> bool:
     forms |= {alias for alias, target in CANONICAL_ALIASES.items() if target == node}
     flat = _flatten(text)
     return any(f" {_flatten(form).strip()} " in flat for form in forms if form.strip())
+
+
+def _forms(skill: str) -> set[str]:
+    node = canonical(skill)
+    forms = {skill.strip().lower(), node}
+    forms |= {alias for alias, target in CANONICAL_ALIASES.items() if target == node}
+    return {f for f in forms if f.strip()}
+
+
+def named_at_end(text: str, skill: str) -> bool:
+    """Whether `text` ENDS with `skill` (or an alias), across punctuation. For the
+    last item of a list that starts partway through a clause: in "experience with
+    message queues (Kafka", only Kafka ends the text, not "message queues"."""
+    flat = _flatten(text)
+    return any(flat.endswith(f" {_flatten(form).strip()} ") for form in _forms(skill))

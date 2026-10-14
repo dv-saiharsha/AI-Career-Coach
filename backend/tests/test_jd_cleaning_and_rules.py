@@ -301,6 +301,79 @@ class TestAlternatives:
         assert labels["go"] == labels["java"] != labels["postgresql"] == labels["mysql"]
 
 
+class TestGroupsPerList:
+    def test_two_lists_the_model_gave_one_label_each_get_their_own_group(self):
+        skills = (
+            [Skill(name=n, evidence="Go, Java, or Python", alternative_group="language") for n in ("go", "java", "python")]
+            + [Skill(name=n, evidence="Kafka, SQS, or RabbitMQ", alternative_group="language") for n in ("kafka", "sqs", "rabbitmq")]
+        )
+        labels = {s.name: s.alternative_group for s in rules.assign_alternative_groups(skills)}
+        assert labels["go"] == labels["java"] == labels["python"]
+        assert labels["kafka"] == labels["sqs"] == labels["rabbitmq"]
+        assert labels["go"] != labels["kafka"]
+
+    def test_a_label_that_belongs_to_one_list_is_kept(self):
+        skills = [Skill(name=n, evidence="Go, Java, or Python", alternative_group="language") for n in ("go", "java", "python")] + [
+            Skill(name=n, evidence="Kafka or SQS", alternative_group="queue") for n in ("kafka", "sqs")
+        ]
+        labels = {s.name: s.alternative_group for s in rules.assign_alternative_groups(skills)}
+        assert labels["go"] == "language" and labels["kafka"] == "queue"
+
+    def test_the_list_is_read_from_the_whole_sentence_around_the_quote(self):
+        text = "Production experience with a major cloud: AWS, GCP, or Azure."
+        skills = [
+            Skill(name="aws", evidence="AWS"),  # the model quoted only this much
+            Skill(name="gcp", evidence="GCP, or Azure"),
+            Skill(name="azure", evidence="GCP, or Azure"),
+        ]
+        out = rules.assign_alternative_groups(skills, text)
+        assert len({s.alternative_group for s in out}) == 1 and out[0].alternative_group is not None
+
+    def test_without_the_text_only_the_quote_is_read(self):
+        skills = [Skill(name="aws", evidence="AWS"), Skill(name="gcp", evidence="GCP, or Azure"), Skill(name="azure", evidence="GCP, or Azure")]
+        groups = {s.name: s.alternative_group for s in rules.assign_alternative_groups(skills)}
+        assert groups["aws"] is None and groups["gcp"] == groups["azure"] is not None
+
+    def test_skills_in_different_sentences_are_not_grouped(self):
+        text = "Experience with Python. Knowledge of Go or Java is useful."
+        skills = [Skill(name="python", evidence="Python"), Skill(name="go", evidence="Go or Java"), Skill(name="java", evidence="Go or Java")]
+        groups = {s.name: s.alternative_group for s in rules.assign_alternative_groups(skills, text)}
+        assert groups["python"] is None and groups["go"] == groups["java"] is not None
+
+    def test_lead_in_words_before_the_first_item_do_not_pull_in_a_neighbouring_skill(self):
+        names = ["message queues", "kafka", "sqs", "rabbitmq"]
+        assert rules.find_alternative_sets("Experience with message queues (Kafka, SQS, or RabbitMQ)", names) == [
+            {"kafka", "sqs", "rabbitmq"}
+        ]
+
+    def test_two_lists_in_one_sentence_stay_two_sets(self):
+        text = "Experience with PostgreSQL or MySQL at scale and with Kafka, SQS, or RabbitMQ."
+        sets = rules.find_alternative_sets(text, ["postgresql", "mysql", "kafka", "sqs", "rabbitmq"])
+        assert {frozenset(x) for x in sets} == {frozenset({"postgresql", "mysql"}), frozenset({"kafka", "sqs", "rabbitmq"})}
+
+    def test_an_or_binds_only_the_items_after_the_and(self):
+        names = ["python", "scikit-learn", "xgboost", "lightgbm"]
+        text = "Deep expertise in Python, scikit-learn, and either XGBoost or LightGBM."
+        assert rules.find_alternative_sets(text, names) == [{"xgboost", "lightgbm"}]
+
+    def test_the_same_list_in_the_sentence_gives_the_same_group(self):
+        text = "Deep expertise in Python, scikit-learn, and either XGBoost or LightGBM."
+        skills = [Skill(name="python", evidence="Python"), Skill(name="scikit-learn", evidence="scikit-learn")] + [
+            Skill(name=n, evidence="either XGBoost or LightGBM", alternative_group="machine learning library") for n in ("xgboost", "lightgbm")
+        ]
+        groups = {s.name: s.alternative_group for s in rules.assign_alternative_groups(skills, text)}
+        assert groups["python"] is None and groups["scikit-learn"] is None
+        assert groups["xgboost"] == groups["lightgbm"] == "machine learning library"
+
+    def test_named_at_end(self):
+        from app.core.skill_match import named_at_end
+
+        assert named_at_end("experience with message queues (Kafka", "kafka")
+        assert not named_at_end("experience with message queues (Kafka", "message queues")
+        assert named_at_end("either XGBoost", "xgboost") and named_at_end("k8s", "kubernetes")
+        assert not named_at_end("Go beyond", "go")
+
+
 # --- keywords ---------------------------------------------------------------
 
 

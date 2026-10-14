@@ -14,7 +14,7 @@ what it means, so the judgements that must be repeatable live here:
 import re
 
 from app.core.keywords import keyword_candidates
-from app.core.skill_match import named_in
+from app.core.skill_match import named_at_end, named_in
 from app.core.taxonomy import CANONICAL_ALIASES, DOMAINS, IMPLIED_PARENTS, canonical, skill_candidates
 from app.modules.jd_analyzer import cleaning
 from app.modules.jd_analyzer.schemas import (
@@ -266,50 +266,80 @@ _OR = re.compile(r",?\s+or\s+", re.IGNORECASE)
 def find_alternative_sets(evidence: str, names: list[str]) -> list[set[str]]:
     """Sets of skill names that `evidence` offers as alternatives.
 
-    For each "or" in the quote: the one or more skills right after it, and the
-    run of short comma-separated items before it that each name a skill ("Go,
-    Java, or Python", "either XGBoost or LightGBM"). A long clause before the
-    "or" ("Kubernetes and Terraform in production or staging") does not count.
+    For each "or" in the text: the skills right after it, and the run of
+    comma-separated items before it that END in a skill name ("Go, Java, or
+    Python", "either XGBoost or LightGBM", "experience with queues (Kafka, SQS,
+    or RabbitMQ)"). The first item of a list may be preceded by lead-in words, so
+    a segment longer than three words ends the run after it is counted, and only
+    the skill at its very end counts: "message queues (Kafka" yields Kafka, not
+    "message queues". A long clause before the "or" ("Kubernetes and Terraform in
+    production or staging") names nothing at its end and yields no group.
     """
     sets: list[set[str]] = []
     for match in _OR.finditer(evidence):
-        right = " ".join(evidence[match.end() :].split()[:3])
+        right = re.split(r"[,;]|\band\b", evidence[match.end() :], maxsplit=1, flags=re.IGNORECASE)[0]
+        right = " ".join(right.split()[:3])
         members = {n for n in names if named_in(right, n)}
-        left = evidence[: match.start()]
-        for segment in reversed([s for s in left.split(",")]):
+        for segment in reversed(evidence[: match.start()].split(",")):
             segment = segment.strip()
-            if not segment or len(segment.split()) > 3:
-                break
-            named = {n for n in names if named_in(segment, n)}
+            named = {n for n in names if named_at_end(segment, n)} if segment else set()
             if not named:
                 break
             members |= named
+            # "Python, SQL, and either Go or Java": the "or" binds only the items
+            # after the "and"; what comes before it is a different list.
+            if len(segment.split()) > 3 or re.match(r"(?:and|plus)\b", segment, re.IGNORECASE):
+                break
         if len(members) >= 2:
             sets.append(members)
     return sets
 
 
-def assign_alternative_groups(skills: list[Skill]) -> list[Skill]:
-    """Give every skill that a quote offers as an alternative the same
-    `alternative_group`, even when the model did not. The model's own label is
-    kept when it gave one for a real group; a group of one is no group."""
+def assign_alternative_groups(skills: list[Skill], text: str | None = None) -> list[Skill]:
+    """Give every skill that the posting offers as an alternative the same
+    `alternative_group`, even when the model did not.
+
+    Each either/or list is its own group. The list is read from the skill's quote
+    and, when `text` is given, from the whole sentence around the quote: a model
+    that quoted only "AWS" for a skill from "a major cloud: AWS, GCP, or Azure"
+    still gets AWS grouped with the others.
+
+    The model's label is kept when it is the label of exactly one list; if the
+    model gave two lists the same label ("language" for both the languages and the
+    queues), neither keeps it. A group of one is no group.
+    """
     names = [s.name for s in skills]
     by_name = {s.name: s for s in skills}
     model_labels = {s.name: s.alternative_group for s in skills}  # read before they are cleared below
     groups: list[set[str]] = []
-    for skill in skills:
-        for members in find_alternative_sets(skill.evidence, names):
-            merged = set(members)
-            for existing in [g for g in groups if g & merged]:
-                merged |= existing
-                groups.remove(existing)
-            groups.append(merged)
+
+    def add(members: set[str]) -> None:
+        merged = set(members)
+        for existing in [g for g in groups if g & merged]:
+            merged |= existing
+            groups.remove(existing)
+        groups.append(merged)
 
     for skill in skills:
+        for members in find_alternative_sets(skill.evidence, names):
+            add(members)
+        if text:
+            sentence = sentence_containing(text, skill.evidence)
+            if sentence != skill.evidence:
+                for members in find_alternative_sets(sentence, names):
+                    if skill.name in members:
+                        add(members)
+
+    def model_label(members: set[str]) -> str | None:
+        labels = [model_labels[n].strip().lower() for n in sorted(members) if model_labels[n]]
+        return max(set(labels), key=labels.count) if labels else None
+
+    claimed = [model_label(g) for g in groups]
+    for skill in skills:
         skill.alternative_group = None
-    for members in groups:
-        label = next((model_labels[n] for n in sorted(members) if model_labels[n]), None)
-        label = (label or "").strip().lower() or "any-of:" + "/".join(sorted(members))
+    for members, label in zip(groups, claimed):
+        if not label or claimed.count(label) > 1:
+            label = "any-of:" + "/".join(sorted(members))
         for name in members:
             by_name[name].alternative_group = label
     return skills
@@ -467,8 +497,8 @@ def rules_analysis(text: str) -> JDAnalysis:
         seniority=level,
         seniority_source=level_source,
         min_years_experience=years,
-        required_skills=assign_alternative_groups(required),
-        preferred_skills=assign_alternative_groups(preferred),
+        required_skills=assign_alternative_groups(required, text),
+        preferred_skills=assign_alternative_groups(preferred, text),
         tools_technologies=tools,
         education=education,
         certifications=certifications,

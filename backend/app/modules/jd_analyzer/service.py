@@ -438,8 +438,8 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
         seniority=level,
         seniority_source=level_source,
         min_years_experience=years,
-        required_skills=rules.assign_alternative_groups(required),
-        preferred_skills=rules.assign_alternative_groups(preferred),
+        required_skills=rules.assign_alternative_groups(required, cleaned),
+        preferred_skills=rules.assign_alternative_groups(preferred, cleaned),
         tools_technologies=tools,
         education=_clean_requirements(out.education, cleaned, report),
         certifications=_clean_requirements(out.certifications, cleaned, report),
@@ -459,7 +459,7 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
             report.rule_additions.append(canonical(term))
     if report.rule_additions:
         analysis.source = "hybrid"
-        analysis.preferred_skills = rules.assign_alternative_groups(analysis.preferred_skills)
+        analysis.preferred_skills = rules.assign_alternative_groups(analysis.preferred_skills, cleaned)
 
     analysis.ats_keywords = rules.build_keywords(analysis)
     return analysis
