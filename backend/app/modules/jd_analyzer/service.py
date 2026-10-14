@@ -181,6 +181,9 @@ class AnalysisReport:
     seconds: float = 0.0
     llm_error: str | None = None
     dropped_by_evidence: list[str] = field(default_factory=list)
+    # Rejected by a validator (generic name, soft skill, wrong kind of requirement),
+    # as opposed to dropped because the quote was not in the posting.
+    rejected: list[str] = field(default_factory=list)
     title_leaks: list[str] = field(default_factory=list)
     unsupported_tools: list[str] = field(default_factory=list)
     rule_additions: list[str] = field(default_factory=list)
@@ -347,6 +350,12 @@ def _clean_skills(
         evidence = item.evidence.strip()
         if not name:
             continue
+        if rules.is_generic_name(name):
+            report.rejected.append(f"{name} (generic name)")
+            continue
+        if rules.is_soft_skill(name):
+            report.rejected.append(f"{name} (soft skill)")
+            continue
         if not quote_in_text(evidence, cleaned):
             report.dropped_by_evidence.append(f"{name} <- {evidence[:60]!r} (not in the posting)")
             continue
@@ -373,12 +382,19 @@ def _name_supported(name: str, evidence: str) -> bool:
 
 
 def _clean_requirements(
-    items: list[_LLMRequirement], cleaned: str, report: AnalysisReport
+    items: list[_LLMRequirement],
+    cleaned: str,
+    report: AnalysisReport,
+    name_ok: Callable[[str], bool],
+    kind: str,
 ) -> list[Requirement]:
     out: list[Requirement] = []
     for item in items:
         name, evidence = item.name.strip(), item.evidence.strip()
         if not name:
+            continue
+        if not name_ok(name):
+            report.rejected.append(f"{name} (not a {kind})")
             continue
         if not quote_in_text(evidence, cleaned) or not _name_supported(name, evidence):
             report.dropped_by_evidence.append(f"{name} <- {evidence[:60]!r} (requirement quote not in the posting)")
@@ -441,11 +457,16 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
         required_skills=rules.assign_alternative_groups(required, cleaned),
         preferred_skills=rules.assign_alternative_groups(preferred, cleaned),
         tools_technologies=tools,
-        education=_clean_requirements(out.education, cleaned, report),
-        certifications=_clean_requirements(out.certifications, cleaned, report),
+        education=_clean_requirements(out.education, cleaned, report, rules.education_name_ok, "degree"),
+        certifications=_clean_requirements(out.certifications, cleaned, report, rules.certification_name_ok, "certification"),
         responsibilities=responsibilities[:MAX_RESPONSIBILITIES],
         source="llm",
     )
+
+    # Certifications the pattern rules find that the model filed elsewhere or skipped.
+    for extra in rules.backfill_certifications(cleaned, analysis.certifications):
+        analysis.certifications.append(extra)
+        report.rule_additions.append(f"certification: {extra.name}")
 
     # Backstop: what the keyword rules find that the model missed goes in as
     # preferred, never required. The model's own tools are excluded so a skill

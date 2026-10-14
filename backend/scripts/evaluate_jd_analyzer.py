@@ -154,7 +154,8 @@ def score(doc: dict, analysis: JDAnalysis, report) -> dict:
         "certifications_ok": cert_ok, "certifications_note": cert_note,
         "title_ok": analysis.job_title == e["job_title"], "title": analysis.job_title,
         "title_leaks": leaks, "stripped_title_leaks": list(report.title_leaks),
-        "dropped_by_evidence": list(report.dropped_by_evidence), "attempts": report.attempts,
+        "dropped_by_evidence": list(report.dropped_by_evidence), "rejected": list(report.rejected),
+        "rule_additions": list(report.rule_additions), "attempts": report.attempts,
         "llm_error": report.llm_error,
     }
 
@@ -218,6 +219,10 @@ def print_golden(rows: list[dict]) -> dict:
             lines.append(f"  certifications       : {r['certifications_note']}")
         if r["dropped_by_evidence"]:
             lines.append(f"  dropped by evidence  : {r['dropped_by_evidence']}")
+        if r["rejected"]:
+            lines.append(f"  rejected by validators: {r['rejected']}")
+        if r["rule_additions"]:
+            lines.append(f"  added by the rules   : {r['rule_additions']}")
         if r["stripped_title_leaks"]:
             lines.append(f"  title leaks stripped : {r['stripped_title_leaks']}")
         if r["llm_error"]:

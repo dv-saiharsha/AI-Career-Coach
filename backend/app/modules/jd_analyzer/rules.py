@@ -377,6 +377,83 @@ def build_keywords(analysis: JDAnalysis) -> list[Keyword]:
     return [Keyword(term=t, weight=w) for t, w in weights.items()]
 
 
+# ── Validators ───────────────────────────────────────────────────────────
+
+# Words that name a category of thing, never a skill: "language", "framework".
+GENERIC_SKILL_NAMES = {
+    "language", "languages", "programming language", "programming languages", "framework", "frameworks",
+    "tool", "tools", "library", "libraries", "platform", "platforms", "technology", "technologies",
+    "skill", "skills", "experience", "software", "system", "systems", "team", "teams", "project",
+    "projects", "environment", "environments", "stack", "service", "services", "application",
+    "applications", "code", "data", "product", "products", "solution", "solutions", "process",
+    "processes", "practice", "practices", "knowledge", "fundamentals",
+}
+
+# Soft skills are not skills here; mentoring and the like are responsibilities.
+SOFT_SKILLS = {
+    "communication", "communication skills", "written communication", "verbal communication", "teamwork",
+    "team player", "collaboration", "leadership", "problem solving", "critical thinking", "adaptability",
+    "creativity", "time management", "attention to detail", "interpersonal skills", "work ethic",
+    "initiative", "self motivated", "fast learner", "eagerness to learn", "willingness to learn",
+    "curiosity", "organizational skills", "multitasking", "flexibility", "positive attitude", "ownership",
+    "mentoring", "mentorship", "stakeholder management", "presentation skills", "public speaking",
+    "negotiation",
+}
+
+_DEGREE_WORDS = re.compile(
+    r"\b(?:bachelors?|masters?|doctorate|ph\.?d|degree|diploma|associates?|mba|b\.?s\.?c?|m\.?s\.?c?|high school|ged)\b",
+    re.IGNORECASE,
+)
+_CERT_WORDS = re.compile(
+    r"certif|licen[sc]e|\+|\b(?:cissp|cism|cisa|ceh|oscp|osce|gpen|gsec|pmp|capm|csm|cka|ckad|cks|ccna|ccnp|ccie|"
+    r"cpa|cfa|frm|itil|togaf|six sigma|scrum master)\b",
+    re.IGNORECASE,
+)
+
+
+def is_generic_name(name: str) -> bool:
+    return canonical(name) in GENERIC_SKILL_NAMES
+
+
+def is_soft_skill(name: str) -> bool:
+    return canonical(name) in SOFT_SKILLS
+
+
+def education_name_ok(name: str) -> bool:
+    """An education requirement has to be about a degree: "coursework" and
+    "CS fundamentals" are not, whatever the model filed them under."""
+    return bool(_DEGREE_WORDS.search(name))
+
+
+def certification_name_ok(name: str) -> bool:
+    """A certification has to look like one: "certified", "license", a "+" suffix
+    (Security+), or a well-known credential. "coursework" does not."""
+    return bool(_CERT_WORDS.search(name))
+
+
+def same_requirement_name(a: str, b: str) -> bool:
+    """Whether two degree or certification names are the same thing: one contains
+    the other, or they share at least 60% of the words of the shorter."""
+
+    def words(text: str) -> list[str]:
+        return [w for w in re.sub(r"[^a-z0-9+#]+", " ", text.lower()).split() if len(w) >= 3]
+
+    wa, wb = words(a), words(b)
+    if not wa or not wb:
+        return False
+    if " ".join(wa) in " ".join(wb) or " ".join(wb) in " ".join(wa):
+        return True
+    return len(set(wa) & set(wb)) / min(len(set(wa)), len(set(wb))) >= 0.6
+
+
+def backfill_certifications(text: str, existing: list[Requirement]) -> list[Requirement]:
+    """Certifications the pattern rules find that `existing` does not have. The
+    model files a certification as a preferred skill now and then; the quote is
+    the whole sentence, as written, so it is verbatim."""
+    found = rules_requirements(text)[1]
+    return [c for c in found if not any(same_requirement_name(c.name, e.name) for e in existing)]
+
+
 # ── Rules-only analysis ──────────────────────────────────────────────────
 
 _NOISE = {
@@ -454,6 +531,10 @@ def rules_requirements(text: str) -> tuple[list[Requirement], list[Requirement]]
         evidence = sentence_containing(text, match.group(0)).strip()
         if name and not any(r.name.lower() == name.lower() for r in certifications):
             certifications.append(Requirement(name=name, required=not is_optional(text, evidence), evidence=evidence))
+    # "Certified Kubernetes Administrator (CKA)" matches twice, as the name and as
+    # its acronym; keep the name.
+    initials = {"".join(w[0] for w in c.name.split()).upper() for c in certifications if len(c.name.split()) >= 2}
+    certifications = [c for c in certifications if not (c.name.isupper() and c.name in initials)]
     return education, certifications
 
 

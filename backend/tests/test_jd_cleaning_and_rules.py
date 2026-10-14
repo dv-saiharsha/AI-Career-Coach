@@ -374,6 +374,56 @@ class TestGroupsPerList:
         assert not named_at_end("Go beyond", "go")
 
 
+class TestValidators:
+    @pytest.mark.parametrize("name", ["language", "Frameworks", "tools", "programming language", "data", "fundamentals"])
+    def test_generic_names(self, name):
+        assert rules.is_generic_name(name)
+
+    @pytest.mark.parametrize("name", ["python", "data structures", "data pipelines", "cs fundamentals", "design patterns"])
+    def test_real_skills_are_not_generic(self, name):
+        assert not rules.is_generic_name(name)
+
+    @pytest.mark.parametrize(
+        "name", ["communication skills", "Teamwork", "problem-solving", "attention to detail", "eagerness to learn", "mentoring"]
+    )
+    def test_soft_skills(self, name):
+        assert rules.is_soft_skill(name)
+
+    def test_technical_skills_are_not_soft(self):
+        assert not rules.is_soft_skill("code review") and not rules.is_soft_skill("system design")
+
+    @pytest.mark.parametrize("name", ["Bachelor's degree in Computer Science", "BS in CS", "Master's", "PhD", "High school diploma", "MBA"])
+    def test_degree_names(self, name):
+        assert rules.education_name_ok(name)
+
+    @pytest.mark.parametrize("name", ["CS fundamentals", "coursework", "Python", "data structures"])
+    def test_not_degree_names(self, name):
+        assert not rules.education_name_ok(name)
+
+    @pytest.mark.parametrize(
+        "name", ["Security+", "AWS Certified Solutions Architect", "Certified Kubernetes Administrator (CKA)", "PMP", "CISSP", "Professional license"]
+    )
+    def test_certification_names(self, name):
+        assert rules.certification_name_ok(name)
+
+    @pytest.mark.parametrize("name", ["coursework", "Python", "Bachelor's degree"])
+    def test_not_certification_names(self, name):
+        assert not rules.certification_name_ok(name)
+
+    def test_same_requirement_name(self):
+        assert rules.same_requirement_name("AWS Certified Solutions Architect", "AWS Certified Solutions Architect certification")
+        assert rules.same_requirement_name("Certified Kubernetes Administrator (CKA)", "Certified Kubernetes Administrator")
+        assert not rules.same_requirement_name("Security+", "AWS Certified Solutions Architect")
+
+    def test_backfill_adds_only_what_is_missing(self):
+        from app.modules.jd_analyzer.schemas import Requirement
+
+        text = "Must hold the PMP certification. Certified Scrum Master is a plus."
+        have = [Requirement(name="PMP", required=True, evidence="Must hold the PMP certification")]
+        added = rules.backfill_certifications(text, have)
+        assert [(c.name, c.required) for c in added] == [("Certified Scrum Master", False)]
+
+
 # --- keywords ---------------------------------------------------------------
 
 

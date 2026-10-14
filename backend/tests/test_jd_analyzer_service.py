@@ -168,8 +168,10 @@ class TestAnalysis:
     def test_a_requirement_whose_quote_is_not_in_the_posting_is_dropped(self, llm):
         llm.replies = [reply(certifications=[{"name": "PMP", "required": True, "evidence": "PMP certification required"}])]
         a, report = service.analyze_with_report(JD)
-        assert a.certifications == []
+        assert "PMP" not in [c.name for c in a.certifications]
         assert any("PMP" in d for d in report.dropped_by_evidence)
+        # The certification the posting really names is back-filled from the pattern rules.
+        assert [c.name for c in a.certifications] == ["AWS Certified Solutions Architect"]
 
     def test_the_analysis_validates_as_a_JDAnalysis(self, llm):
         a = service.analyze(JD)
@@ -282,6 +284,66 @@ class TestAlternativeGroups:
         llm.replies = [reply(required_skills=[skill("Python", "Go, Java, or Python", "language"), skill("PostgreSQL", "PostgreSQL or MySQL", "database")], preferred_skills=[])]
         groups = {s.name: s.alternative_group for s in service.analyze(JD).required_skills}
         assert groups == {"python": None, "postgresql": None}  # each is alone: the other alternatives were not reported
+
+
+class TestValidators:
+    def test_generic_names_and_soft_skills_are_rejected_and_reported(self, llm):
+        text = "Software Engineer. Strong communication skills. Python required. Any language or framework you like."
+        llm.replies = [reply(
+            job_title="Software Engineer", seniority="unknown", min_years_experience=None,
+            required_skills=[skill("language", "language"), skill("framework", "framework"), skill("Python", "Python")],
+            preferred_skills=[skill("communication skills", "communication skills")],
+            tools_technologies=[], education=[], certifications=[], responsibilities=[],
+        )]
+        a, report = service.analyze_with_report(text)
+        assert [s.name for s in a.required_skills] == ["python"]
+        assert "communication skills" not in [s.name for s in a.preferred_skills]
+        assert {"language (generic name)", "framework (generic name)", "communication skills (soft skill)"} <= set(report.rejected)
+        assert not any("language" in d for d in report.dropped_by_evidence)  # rejected, not an evidence failure
+
+    def test_an_education_item_must_be_about_a_degree(self, llm):
+        text = "Junior Engineer. CS fundamentals are required. A Bachelor's degree is a plus."
+        llm.replies = [reply(
+            job_title="Junior Engineer", seniority="junior", min_years_experience=None, required_skills=[], preferred_skills=[],
+            tools_technologies=[], certifications=[], responsibilities=[],
+            education=[
+                {"name": "CS fundamentals", "required": True, "evidence": "CS fundamentals"},
+                {"name": "Bachelor's degree", "required": True, "evidence": "A Bachelor's degree is a plus"},
+            ],
+        )]
+        a, report = service.analyze_with_report(text)
+        assert [(e.name, e.required) for e in a.education] == [("Bachelor's degree", False)]
+        assert "CS fundamentals (not a degree)" in report.rejected
+
+    def test_a_certification_must_look_like_one(self, llm):
+        text = "Security Engineer. Security certifications (Security+, or coursework) are a plus but not required."
+        llm.replies = [reply(
+            job_title="Security Engineer", seniority="unknown", min_years_experience=None, required_skills=[], preferred_skills=[],
+            tools_technologies=[], education=[], responsibilities=[],
+            certifications=[
+                {"name": "Security+", "required": False, "evidence": "Security certifications (Security+, or coursework) are a plus but not required"},
+                {"name": "coursework", "required": False, "evidence": "or coursework"},
+            ],
+        )]
+        a, report = service.analyze_with_report(text)
+        assert [(c.name, c.required) for c in a.certifications] == [("Security+", False)]
+        assert "coursework (not a certification)" in report.rejected
+
+    def test_a_certification_the_model_missed_is_back_filled_with_the_wording_deciding_required(self, llm):
+        text = "Platform Engineer. Must hold the AWS Certified Solutions Architect certification. Certified Kubernetes Administrator (CKA) is a plus."
+        llm.replies = [reply(
+            job_title="Platform Engineer", seniority="unknown", min_years_experience=None, required_skills=[], preferred_skills=[skill("CKA")],
+            tools_technologies=[], education=[], certifications=[], responsibilities=[],
+        )]
+        a, report = service.analyze_with_report(text)
+        assert {c.name: c.required for c in a.certifications} == {
+            "AWS Certified Solutions Architect": True, "Certified Kubernetes Administrator": False,
+        }
+        assert a.source == "hybrid" and any("certification: " in r for r in report.rule_additions)
+
+    def test_a_certification_the_model_already_has_is_not_added_twice(self, llm):
+        a = service.analyze(JD)  # the reply already lists the AWS certification
+        assert [c.name for c in a.certifications] == ["AWS Certified Solutions Architect"]
 
 
 class TestRulesBackstop:
