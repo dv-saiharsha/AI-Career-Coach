@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 6
+ANALYZER_VERSION = 7
 
 TOOL_NAME = "analyze_job_description"
 MAX_OUTPUT_TOKENS = 1800
@@ -420,12 +420,14 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
     required = _clean_skills(out.required_skills, cleaned, leak_forms, report)
     preferred = _clean_skills(out.preferred_skills, cleaned, leak_forms, report)
 
-    # The JD's own wording wins: a "required" skill whose sentence or section
-    # says it is a plus is preferred. Never the other way round.
-    still_required: list[Skill] = []
-    for skill in required:
-        (preferred if rules.is_optional(cleaned, skill.evidence) else still_required).append(skill)
-    required = still_required
+    # Where the JD puts a skill wins over the model's bucket: a nice-to-have
+    # section or optional wording makes it preferred, a requirements section
+    # makes it required (rules.skill_bucket).
+    placed: dict[str, list[Skill]] = {"required": [], "preferred": []}
+    for default, bucket in (("required", required), ("preferred", preferred)):
+        for skill in bucket:
+            placed[rules.skill_bucket(cleaned, skill.evidence, default)].append(skill)
+    required, preferred = placed["required"], placed["preferred"]
     # A named platform mentioned only as where the work happens ("deployment on
     # AWS SageMaker") is a tool, not a skill the candidate must already have.
     environment: list[str] = []

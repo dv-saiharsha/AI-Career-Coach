@@ -49,8 +49,9 @@ _KEEP_HEADINGS = re.compile(
     r"^(?:about (?:us|the (?:role|team|job|position|company))|the role|the team|responsibilities|"
     r"what you'll do|what you will do|what you'll be doing|key responsibilities|requirements?|"
     r"qualifications|minimum qualifications|basic qualifications|preferred qualifications|"
-    r"required skills|must[- ]haves?|nice[- ]to[- ]haves?|bonus(?: points)?|preferred|"
-    r"what we're looking for|who you are|skills|experience|education|your impact)$",
+    r"required qualifications|required skills|preferred skills|must[- ]haves?|nice[- ]to[- ]haves?|"
+    r"bonus(?: points)?|pluses|preferred|what you(?:'ll| will)? need|what you(?:'ll| will)? bring|"
+    r"what we're looking for|who you are|about you|you have|skills|experience|education|your impact)$",
     re.IGNORECASE,
 )
 

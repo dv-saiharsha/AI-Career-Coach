@@ -249,6 +249,43 @@ class TestOptional:
         assert rules.requirement_flag("Valid CISSP held.", "Valid CISSP held", False) is False
 
 
+SECTIONED = (
+    "About the role\n"
+    "You will work with Kafka every day.\n"
+    "What you'll need\n"
+    "Python and SQL\n"
+    "Terraform is a plus\n"
+    "Preferred qualifications:\n"
+    "Experience with Rust\n"
+)
+
+
+class TestSections:
+    def test_section_kinds(self):
+        assert rules.section_kind(SECTIONED, "Kafka") is None
+        assert rules.section_kind(SECTIONED, "Python and SQL") == "required"
+        assert rules.section_kind(SECTIONED, "Experience with Rust") == "optional"
+        assert rules.section_kind("Python and SQL", "Python") is None
+
+    def test_a_requirements_section_makes_a_skill_required_over_the_model(self):
+        assert rules.skill_bucket(SECTIONED, "Python and SQL", "preferred") == "required"
+
+    def test_its_own_optional_wording_still_wins_inside_a_requirements_section(self):
+        assert rules.skill_bucket(SECTIONED, "Terraform", "required") == "preferred"
+
+    def test_an_optional_section_makes_a_skill_preferred(self):
+        assert rules.skill_bucket(SECTIONED, "Experience with Rust", "required") == "preferred"
+
+    def test_no_section_keeps_the_default(self):
+        assert rules.skill_bucket(SECTIONED, "Kafka", "required") == "required"
+        assert rules.skill_bucket(SECTIONED, "Kafka", "preferred") == "preferred"
+
+    def test_rule_found_skills_follow_the_section(self):
+        # No requirement wording on the line, but it sits under "What you'll need".
+        assert rules.classify_rule_skill(SECTIONED, "SQL") == "required"
+        assert rules.classify_rule_skill(SECTIONED, "Rust") == "preferred"
+
+
 # --- either/or groups -------------------------------------------------------
 
 NAMES = ["go", "java", "python", "postgresql", "mysql", "kubernetes", "terraform", "fastapi", "xgboost", "lightgbm", "aws", "gcp", "azure"]

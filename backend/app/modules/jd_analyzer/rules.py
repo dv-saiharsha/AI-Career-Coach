@@ -235,26 +235,65 @@ def section_heading(text: str, quote: str) -> str:
     return ""
 
 
-def is_optional(text: str, quote: str) -> bool:
-    """Whether the JD makes what `quote` says optional: the sentence says so
-    ("is a plus", "or equivalent") without also saying it is required, or the
-    section it sits under is a nice-to-have section."""
+# Headings of a section that lists what the job needs. Checked after the
+# optional ones, so "preferred qualifications" is optional.
+_REQUIRED_SECTION = re.compile(
+    r"requirement|qualification|what you(?:'ll| will)? need|what you(?:'ll| will)? bring|must[- ]haves?|"
+    r"required skills|what we're looking for|who you are|about you|you have|you bring|skills",
+    re.IGNORECASE,
+)
+
+
+def section_kind(text: str, quote: str) -> str | None:
+    """"optional" when `quote` sits under a nice-to-have heading ("Nice to
+    have", "Preferred qualifications", "Bonus"), "required" under a heading
+    that lists what the job needs ("Requirements", "Qualifications", "What
+    you'll need", "Must have"), and None under any other heading or none."""
+    heading = section_heading(text, quote)
+    if not heading:
+        return None
+    if _OPTIONAL_SECTION.search(heading):
+        return "optional"
+    if _REQUIRED_SECTION.search(heading):
+        return "required"
+    return None
+
+
+def _clause_optional(text: str, quote: str) -> bool:
+    """Whether the words around `quote` make it optional: optional wording ("is
+    a plus", "or equivalent", "not required") without requirement wording."""
     sentence = sentence_containing(text, quote)
-    if _OPTIONAL.search(sentence) and not _REQUIRED.search(sentence):
-        return True
     if "not required" in sentence.lower():
         return True
-    return bool(_OPTIONAL_SECTION.search(section_heading(text, quote)))
+    return bool(_OPTIONAL.search(sentence) and not _REQUIRED.search(sentence))
+
+
+def is_optional(text: str, quote: str) -> bool:
+    """Whether the JD makes what `quote` says optional: it sits in a
+    nice-to-have section, or its own words say so."""
+    return section_kind(text, quote) == "optional" or _clause_optional(text, quote)
+
+
+def skill_bucket(text: str, evidence: str, default: str) -> str:
+    """"required" or "preferred" for a skill, by where the JD puts it. In a
+    nice-to-have section: preferred. Otherwise optional wording around it:
+    preferred. In a requirements section: required. With no section to go by,
+    `default` (the model's bucket, or the wording rule for a rule-found skill)."""
+    if is_optional(text, evidence):
+        return "preferred"
+    if section_kind(text, evidence) == "required":
+        return "required"
+    return default
 
 
 def requirement_flag(text: str, evidence: str, model_flag: bool) -> bool:
     """Whether a degree or certification is required. The JD's own wording wins
-    over the model: optional wording ("or equivalent", "a plus", "not required")
-    makes it false, "must"/"required" makes it true, and only a quote that says
-    neither falls back to the model's flag."""
+    over the model: optional wording or section ("or equivalent", "a plus",
+    "Nice to have") makes it false, "must"/"required" or a requirements section
+    makes it true, and only a quote with neither falls back to the model's flag."""
     if is_optional(text, evidence):
         return False
-    if _REQUIRED.search(sentence_containing(text, evidence)):
+    if _REQUIRED.search(sentence_containing(text, evidence)) or section_kind(text, evidence) == "required":
         return True
     return model_flag
 
@@ -574,12 +613,16 @@ _RULE_OPTIONAL = re.compile(r"\bplus\b|\bnice[- ]to[- ]have\b|\bbonus\b|\bprefer
 
 
 def classify_rule_skill(text: str, written: str) -> str:
-    """"required" or "preferred" for a skill the rules found, from the wording
-    of its sentence: optional wording ("plus", "nice to have", "bonus",
-    "preferred") makes it preferred; requirement wording ("must", "required",
-    "you have", "experience with / in / building", "proficiency in", "strong",
-    "track record of", "expertise in") makes it required; neither leaves it
-    preferred."""
+    """"required" or "preferred" for a skill the rules found. Its section
+    decides first (skill_bucket); with no section to go by, the wording of its
+    sentence: optional wording ("plus", "nice to have", "bonus", "preferred")
+    makes it preferred; requirement wording ("must", "required", "you have",
+    "experience with / in / building", "proficiency in", "strong", "track
+    record of", "expertise in") makes it required; neither leaves it preferred."""
+    return skill_bucket(text, written, _rule_wording(text, written))
+
+
+def _rule_wording(text: str, written: str) -> str:
     sentence = sentence_containing(text, written)
     if _RULE_OPTIONAL.search(sentence):
         return "preferred"
