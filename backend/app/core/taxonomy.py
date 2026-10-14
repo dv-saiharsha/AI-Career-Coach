@@ -74,6 +74,7 @@ CANONICAL_ALIASES: dict[str, str] = {
     "ml": "machine learning",
     "dl": "deep learning",
     "nlp": "natural language processing",
+    "rag": "retrieval augmented generation",
     "llms": "llm",
     "large language models": "llm",
     "large language model": "llm",

@@ -424,6 +424,25 @@ class TestValidators:
         assert [(c.name, c.required) for c in added] == [("Certified Scrum Master", False)]
 
 
+class TestTrimAndAlias:
+    @pytest.mark.parametrize(
+        "name,trimmed",
+        [
+            ("static analysis tools", "static analysis"), ("rag pipelines", "retrieval augmented generation"),
+            ("ci cd pipelines", "cicd"), ("ml frameworks", "machine learning"), ("etl pipeline", "etl pipeline"),
+            ("data pipelines", "data pipelines"), ("build tools", "build tools"), ("tools", "tools"),
+            ("python", "python"), ("deployment frameworks", "deployment frameworks"),
+        ],
+    )
+    def test_trim_generic_suffix(self, name, trimmed):
+        assert rules.trim_generic_suffix(name) == trimmed
+
+    def test_rag_is_retrieval_augmented_generation(self):
+        from app.core.taxonomy import canonical
+
+        assert canonical("RAG") == canonical("retrieval-augmented generation") == "retrieval augmented generation"
+
+
 # --- keywords ---------------------------------------------------------------
 
 

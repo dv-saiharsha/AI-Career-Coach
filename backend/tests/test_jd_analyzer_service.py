@@ -346,6 +346,21 @@ class TestValidators:
         assert [c.name for c in a.certifications] == ["AWS Certified Solutions Architect"]
 
 
+class TestTrimmedNames:
+    def test_a_trailing_tools_or_pipelines_is_trimmed_and_rag_is_canonical(self, llm):
+        text = "Security Engineer. Familiarity with static analysis tools. Experience with RAG pipelines. Experience building data pipelines."
+        llm.replies = [reply(
+            job_title="Security Engineer", seniority="unknown", min_years_experience=None,
+            required_skills=[skill("static analysis tools"), skill("RAG pipelines", "RAG pipelines"), skill("data pipelines")],
+            preferred_skills=[], tools_technologies=["static analysis tools"], education=[], certifications=[], responsibilities=[],
+        )]
+        a = service.analyze(text)
+        names = [s.name for s in a.required_skills]
+        assert names == ["static analysis", "retrieval augmented generation", "data pipelines"]
+        assert a.required_skills[0].evidence == "static analysis tools"  # the quote stays as written
+        assert a.tools_technologies == ["static analysis"]
+
+
 class TestRulesBackstop:
     def test_a_term_the_rules_find_and_the_model_missed_becomes_preferred_and_the_source_hybrid(self, llm):
         llm.replies = [reply(tools_technologies=["Python"])]  # AWS is in the posting; the model left it out

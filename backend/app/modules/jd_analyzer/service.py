@@ -346,7 +346,7 @@ def _clean_skills(
     out: list[Skill] = []
     seen: set[str] = set()
     for item in items:
-        name = canonical(item.name)
+        name = rules.trim_generic_suffix(canonical(item.name))
         evidence = item.evidence.strip()
         if not name:
             continue
@@ -430,7 +430,7 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
 
     tools: list[str] = []
     for tool in out.tools_technologies:
-        name = canonical(tool)
+        name = rules.trim_generic_suffix(canonical(tool))
         if not name or name in tools:
             continue
         if name in leak_forms:
