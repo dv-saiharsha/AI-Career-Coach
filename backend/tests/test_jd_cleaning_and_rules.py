@@ -429,6 +429,7 @@ class TestTrimAndAlias:
         "name,trimmed",
         [
             ("static analysis tools", "static analysis"), ("rag pipelines", "retrieval augmented generation"),
+            ("penetration testing concepts", "penetration testing"), ("basic concepts", "basic concepts"),
             ("ci cd pipelines", "cicd"), ("ml frameworks", "machine learning"), ("etl pipeline", "etl pipeline"),
             ("data pipelines", "data pipelines"), ("build tools", "build tools"), ("tools", "tools"),
             ("python", "python"), ("deployment frameworks", "deployment frameworks"),

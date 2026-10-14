@@ -414,11 +414,11 @@ _CERT_WORDS = re.compile(
 
 # A trailing word that describes the kind of thing, not the skill: "static analysis
 # tools" is static analysis, "RAG pipelines" is RAG.
-_TRAILING_GENERIC = {"tools", "tool", "pipelines", "pipeline", "frameworks", "framework"}
+_TRAILING_GENERIC = {"tools", "tool", "pipelines", "pipeline", "frameworks", "framework", "concepts", "concept"}
 
 
 def trim_generic_suffix(name: str) -> str:
-    """The skill without a trailing "tools", "pipelines" or "frameworks", when what
+    """The skill without a trailing "tools", "pipelines", "frameworks" or "concepts", when what
     is left is still a skill: two or more words, or a name the taxonomy knows.
     "data pipelines" stays (what is left, "data", is not a skill); "RAG pipelines"
     becomes the canonical retrieval augmented generation."""
