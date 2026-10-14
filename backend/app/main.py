@@ -18,6 +18,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.events.router import router as events_router
 from app.modules.auth.router import router as auth_router
 from app.modules.interview_coach.router import router as interview_router
+from app.modules.jd_analyzer.router import router as jd_router
 from app.modules.job_market import scheduler
 from app.modules.job_market.admin_router import router as jobs_admin_router
 from app.modules.job_market.router import router as jobs_router
@@ -101,6 +102,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(resume_router, prefix="/api/resume", tags=["Resume Analyzer"])
 app.include_router(resume_builder_router, prefix="/api/resume-builder", tags=["Resume Builder"])
 app.include_router(cover_letter_router, prefix="/api/cover-letter", tags=["Cover Letter"])
+app.include_router(jd_router, prefix="/api/jd", tags=["JD Analyzer"])
 app.include_router(interview_router, prefix="/api/interview", tags=["Interview Coach"])
 app.include_router(jobs_router, prefix="/api/jobs", tags=["Job Market"])
 app.include_router(jobs_admin_router, prefix="/api/admin/crawl", tags=["Job Market Admin"])

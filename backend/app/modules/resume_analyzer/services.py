@@ -3,9 +3,12 @@ import re
 from typing import Callable
 
 from app.core.llm import llm_client
-from app.core.taxonomy import CANONICAL_ALIASES, canonical, expand_skills, group_by_domain, skill_candidates
+from app.core.skill_match import mentions_any
+from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import integrity, layout_check, quality
 from app.ml.inference import model_available, predict_score
+from app.modules.jd_analyzer import service as jd_service
+from app.modules.jd_analyzer.schemas import JDAnalysis
 
 SYSTEM_PROMPT = (
     "You are an ATS (applicant tracking system) resume screening engine combined with a "
@@ -154,7 +157,7 @@ def _score_with_source(resume_text: str, jd_text: str, fallback_ratio: float) ->
     return fallback_ratio, SCORE_SOURCE_KEYWORDS
 
 
-def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
+def _rule_based_analysis(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> dict:
     """Keyword analysis with taxonomy-aware matching.
 
     A JD keyword counts as present when the resume states it literally OR when
@@ -170,7 +173,13 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
     # Single tokens from the shared extractor, plus multi-word skills it can't
     # see ("deep learning", "rest apis") — without these the taxonomy never
     # fires on the phrases that most need it.
-    candidates = skill_candidates(jd_text)
+    # The keyword list the analysis yields (the older flat list, derived from
+    # it); with no analysis, or a rules-only one, exactly skill_candidates.
+    candidates = (
+        jd_service.keywords_from(jd_analysis, jd_text, skill_candidates)
+        if jd_analysis is not None
+        else skill_candidates(jd_text)
+    )
     resume_implied = expand_skills(skill_candidates(resume_text))
 
     matched, missing, keyword_analysis = [], [], []
@@ -219,10 +228,19 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
     }
 
 
-def _llm_analysis(resume_text: str, jd_text: str) -> dict:
+def _llm_analysis(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> dict:
+    # The job, already analysed: what it requires and what it only prefers, so
+    # the model compares the resume against that and not against its own first
+    # reading of the posting.
+    summary = (
+        f"STRUCTURED SUMMARY OF THE JOB:\n{jd_service.structured_summary(jd_analysis)}\n\n"
+        if jd_analysis is not None and jd_analysis.source != "rules"
+        else ""
+    )
     user_prompt = (
         f"RESUME:\n{resume_text[:8000]}\n\n"
         f"JOB DESCRIPTION:\n{jd_text[:4000]}\n\n"
+        f"{summary}"
         "Score how well the resume matches the job description as an ATS would."
     )
     data = llm_client.complete_tool_json(SYSTEM_PROMPT, user_prompt, "submit_analysis", ANALYSIS_TOOL_SCHEMA)
@@ -244,54 +262,6 @@ def _llm_analysis(resume_text: str, jd_text: str) -> dict:
     return data
 
 
-# Skill names that are also ordinary English words. A case-insensitive search
-# for "go" would delete any suggestion containing "go beyond", so these only
-# count as a mention when written exactly as the matched skill was AND not as
-# the first word of a sentence, where "Go beyond..." is indistinguishable from
-# the language by spelling alone.
-_AMBIGUOUS_SKILL_WORDS = {"go", "swift", "rust", "spark", "ruby", "dart"}
-
-
-def _surface_forms(skill: str) -> tuple[set[str], set[str]]:
-    """(case-insensitive forms, case-sensitive forms) a skill can be written as:
-    the skill itself, its taxonomy canonical node, and every alias of that node
-    ("k8s" for Kubernetes, "Amazon Web Services" for AWS)."""
-    written = skill.strip()
-    node = canonical(written)
-    forms = {written.lower(), node}
-    forms |= {alias for alias, target in CANONICAL_ALIASES.items() if target == node}
-    insensitive, sensitive = set(), set()
-    for form in forms:
-        if form in _AMBIGUOUS_SKILL_WORDS:
-            sensitive.add(written)
-        elif len(form) >= 3:  # two-letter forms ("ml", "ts") are too easy to hit by accident
-            insensitive.add(form)
-    return insensitive, sensitive
-
-
-def _mentions_any(text: str, skills: list[str]) -> bool:
-    """Whether `text` names any of `skills` as a whole word, through taxonomy
-    normalisation and case-insensitively."""
-    insensitive: set[str] = set()
-    sensitive: set[str] = set()
-    for skill in skills:
-        ci, cs = _surface_forms(skill)
-        insensitive |= ci
-        sensitive |= cs
-    # (forms, flags, what must precede the word). Mid-sentence only for the
-    # ambiguous ones: a word character, comma or bracket, then one space.
-    for forms, flags, before in (
-        (insensitive, re.IGNORECASE, r"(?<!\w)"),
-        (sensitive, 0, r"(?<=[A-Za-z0-9,;:()]\s)"),
-    ):
-        if not forms:
-            continue
-        pattern = before + r"(?:" + "|".join(re.escape(f) for f in sorted(forms, key=len, reverse=True)) + r")(?!\w)"
-        if re.search(pattern, text, flags):
-            return True
-    return False
-
-
 def _drop_suggestions_naming_matched_skills(suggestions: list[str], matched_skills: list[str]) -> list[str]:
     """Remove suggestions that tell the candidate to add a skill they already
     have. The prompt asks the model not to, but a model that is told is not a
@@ -300,7 +270,7 @@ def _drop_suggestions_naming_matched_skills(suggestions: list[str], matched_skil
     look untrustworthy. Checked here, against the final matched list."""
     if not matched_skills:
         return suggestions
-    return [text for text in suggestions if not _mentions_any(text, matched_skills)]
+    return [text for text in suggestions if not mentions_any(text, matched_skills)]
 
 
 def _refresh_keyword_score(result: dict) -> dict:
@@ -333,7 +303,7 @@ def _reconcile_implied(resume_text: str, result: dict) -> dict:
     still_missing, literal, newly_implied = [], [], []
 
     for skill in result.get("missing_skills") or []:
-        if _mentions_any(resume_text, [skill]):
+        if mentions_any(resume_text, [skill]):
             literal.append(skill)
         elif canonical(skill) in implied_pool:
             newly_implied.append(skill)
@@ -476,11 +446,18 @@ def analyze_resume_against_job(
     if not looks_like_resume(resume_text):
         raise NotAResumeError(NOT_A_RESUME_MESSAGE)
 
+    # The job description is analysed first, once, and both paths below work
+    # from the result. analyze() never raises: with no model it returns the
+    # rules-only analysis, which keeps the older keyword list exactly.
+    jd_analysis: JDAnalysis | None = None
+
     if llm_client.available:
         try:
             stage("analyzing")
-            result = _llm_analysis(resume_text, jd_text)
+            jd_analysis = jd_service.analyze(jd_text)
+            result = _llm_analysis(resume_text, jd_text, jd_analysis)
             result["_source"] = "llm"
+            result["jd_analysis"] = jd_analysis.model_dump(mode="json")
             result["resume_text"] = resume_text
             # Applied here too, not just on the fallback: this is the path
             # that actually runs in production.
@@ -508,8 +485,11 @@ def analyze_resume_against_job(
     # LLM mid-scan sees the checklist continue rather than stall on
     # "analyzing" while rule-based scoring quietly finishes the job.
     stage("analyzing")
-    result = _rule_based_analysis(resume_text, jd_text)
+    if jd_analysis is None:
+        jd_analysis = jd_service.analyze(jd_text)
+    result = _rule_based_analysis(resume_text, jd_text, jd_analysis)
     result["_source"] = "rules"
+    result["jd_analysis"] = jd_analysis.model_dump(mode="json")
     result["resume_text"] = resume_text
     stage("diagnostics")
     result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)

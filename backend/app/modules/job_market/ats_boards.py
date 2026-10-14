@@ -86,13 +86,16 @@ _WHITESPACE = re.compile(r"[ \t ]+")
 _BLANK_LINES = re.compile(r"\n{3,}")
 
 
-def strip_html(raw: str | None) -> str:
+def strip_html(raw: str | None, limit: int | None = MAX_DESCRIPTION_CHARS) -> str:
     """Greenhouse returns HTML-escaped HTML. Both layers have to come off.
 
     The content field arrives double-encoded — `&lt;p&gt;` rather than `<p>` —
     so unescaping first turns it into real tags, and only then can they be
     removed. Doing it in the other order leaves the markup visible in the
     stored description, which is what the matcher would then read.
+
+    `limit` caps the result (the stored-description size by default); pass None
+    to keep everything, as the JD analyzer does for a long pasted posting.
     """
     if not raw:
         return ""
@@ -127,7 +130,8 @@ def strip_html(raw: str | None) -> str:
             continue
         cleaned.append(line)
 
-    return "\n".join(cleaned).strip()[:MAX_DESCRIPTION_CHARS]
+    result = "\n".join(cleaned).strip()
+    return result if limit is None else result[:limit]
 
 
 

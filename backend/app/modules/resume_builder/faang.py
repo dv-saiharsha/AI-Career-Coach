@@ -134,7 +134,7 @@ def build_preview(
         from_cache = True
     else:
         staged = services.stage_fixes(
-            resume_text, jd_text, experiences=None if not include_rewrites else []
+            resume_text, jd_text, experiences=None if not include_rewrites else [], db=db
         )
         missing = staged["missing_keywords"][:MAX_KEYWORDS]
 

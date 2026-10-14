@@ -158,9 +158,9 @@ class TestBuildPreviewCaching:
         calls = {"n": 0}
         real_stage_fixes = services.stage_fixes
 
-        def counting_stage_fixes(resume_text, jd_text, experiences):
+        def counting_stage_fixes(resume_text, jd_text, experiences, **kwargs):
             calls["n"] += 1
-            return real_stage_fixes(resume_text, jd_text, experiences)
+            return real_stage_fixes(resume_text, jd_text, experiences, **kwargs)
 
         monkeypatch.setattr(services, "stage_fixes", counting_stage_fixes)
 

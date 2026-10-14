@@ -57,8 +57,9 @@ Never run it against Supabase.
 
 1. Rebuild from scratch: `backend/scripts/supabase_compat_shim.sql` on the empty
    database, then `alembic upgrade 388e523dda7a`, then `alembic upgrade head`. `head` is
-   currently `c7e4a19d5b36`, passing through `d2f6a8c1b937` (the Supabase cleanup) and then
-   converting the 11 `user_id` columns from `uuid` to `text`.
+   currently `a9d3c5e7f102` (adds `jd_analyses`, the JD analyzer's table), passing through
+   `d2f6a8c1b937` (the Supabase cleanup), then `c7e4a19d5b36` (converting the 11 `user_id`
+   columns from `uuid` to `text`).
    The cleanup migration **refuses to run against a real Supabase database** (marker
    comment, GoTrue tables and `auth.users` rows are all checked).
 2. Dump (v17 client): `pg_dump -Fc --data-only --schema=public -T public.alembic_version -T public.profiles --no-owner --no-privileges`.
@@ -70,7 +71,7 @@ Never run it against Supabase.
    holds personal data: write it outside the repo and delete it straight after.
 5. Set every sequence to the source's `last_value`/`is_called` (18 sequences).
 6. Verify, all must pass: exact row counts for all 19 data tables; every sequence at or above
-   `max(id)`; schema parity (see 2.3a); `alembic_version` is `c7e4a19d5b36`; all 11 `user_id` columns are `text` and no `uuid` column remains; 0 auth/storage
+   `max(id)`; schema parity (see 2.3a); `alembic_version` is `a9d3c5e7f102`; all 11 `user_id` columns are `text` and no `uuid` column remains; 0 auth/storage
    schemas, 0 FKs into auth, 0 RLS tables, 0 anon/authenticated grants.
 
 Rehearsal timings (data steps only): dump 35 s, restore 157-169 s, profiles 2 s,
@@ -163,7 +164,9 @@ still uses Supabase and is untouched. No dual Supabase verifier is provided.
 ## 6. Known follow-ups (not part of the move)
 
 * **Six migrations are deferred** (`f3b8a2c41d90` through `f8a2c61d9e03`, from the
-  unmerged feature work). To be re-parented after `d2f6a8c1b937` in a later release.
+  unmerged feature work). To be re-parented after the current head, `a9d3c5e7f102`, in a later
+  release (earlier notes said after `c7e4a19d5b36`; `a9d3c5e7f102` now sits on that, so they go
+  after it, not beside it, or there would be two heads).
 * **5,645 duplicate `(source, external_id)` pairs** in `job_listings` block
   `b4d8e1f27a63`; which duplicate to keep is a data decision.
 * `GET /api/user/activity` returns 500 (`router.py:125`, `created_at` is a string).

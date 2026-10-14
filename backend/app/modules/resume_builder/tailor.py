@@ -55,10 +55,12 @@ def build_handoff(db: Session, user_id: str, job_id: int, analysis_id: int) -> d
     # the whole point is re-targeting at this specific job.
     jd_text = job.description or ""
 
-    # Free: keyword extraction and taxonomy, no LLM call. stage_fixes is called
-    # without experiences so it stays on its no-cost path; bullet rewriting is
-    # the user's explicit next step, not something to spend on every card click.
-    staged = services.stage_fixes(resume_text, jd_text, experiences=None)
+    # The job is analysed first (one model call, cached by the posting's text, so
+    # the preview and the quick tailor that follow reuse it), then keyword
+    # extraction and taxonomy. stage_fixes is called without experiences, so no
+    # bullet rewriting happens here; that is the user's explicit next step, not
+    # something to run on every card click.
+    staged = services.stage_fixes(resume_text, jd_text, experiences=None, db=db)
     missing = staged["missing_keywords"][:MAX_GAPS]
 
     # Skills the resume implies but never states. Distinct from a real gap:

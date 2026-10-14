@@ -170,6 +170,22 @@ def _squash(text: str) -> str:
     return " ".join((text or "").split()).lower()
 
 
+def quote_in_text(quote: str, text: str, limit: int | None = None) -> bool:
+    """Whether `quote` appears word for word in `text` (ignoring case and
+    whitespace runs). `limit` restricts the search to the text the model was
+    actually shown. An empty quote is never a quote.
+
+    The one verbatim-evidence rule in the codebase: job enrichment uses it for
+    sponsorship evidence and the JD analyzer for every skill, certification and
+    degree it reports.
+    """
+    needle = _squash(quote)
+    if not needle:
+        return False
+    haystack = text if limit is None else (text or "")[:limit]
+    return needle in _squash(haystack)
+
+
 def verify_evidence(facts: dict[str, Any], description: str) -> dict[str, Any]:
     """A sponsorship verdict stands only if its evidence really is in the posting.
 
@@ -183,8 +199,7 @@ def verify_evidence(facts: dict[str, Any], description: str) -> dict[str, Any]:
     """
     if facts["h1b_sponsorship"] == "unmentioned":
         return facts
-    quote = _squash(facts["h1b_evidence"])
-    if quote and quote in _squash((description or "")[:MAX_DESCRIPTION_CHARS]):
+    if quote_in_text(facts["h1b_evidence"], description, limit=MAX_DESCRIPTION_CHARS):
         return facts
     logger.warning(
         "enrichment: h1b verdict %r dropped; its evidence %r is not a quote from the posting",
