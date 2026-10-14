@@ -421,6 +421,28 @@ class TestConceptMerge:
         assert names.count("distributed systems") == 1
 
 
+class TestEnvironmentOnlyInTheAnalysis:
+    def test_a_platform_named_only_as_where_the_work_runs_becomes_a_tool(self, llm):
+        text = "Senior Data Scientist. Strong Python. You'll own deployment on AWS SageMaker."
+        llm.replies = [reply(
+            job_title="Senior Data Scientist", seniority="senior", min_years_experience=None,
+            required_skills=[skill("Python"), skill("AWS SageMaker")], preferred_skills=[],
+            tools_technologies=["Python"], education=[], certifications=[], responsibilities=[],
+        )]
+        a, report = service.analyze_with_report(text)
+        assert "aws sagemaker" not in [s.name for s in a.required_skills + a.preferred_skills]
+        assert "aws sagemaker" in a.tools_technologies and report.moved_to_tools == ["aws sagemaker"]
+
+    def test_a_concept_stays_a_skill(self, llm):
+        text = "Data Scientist. Strong model monitoring in production deployment on our platform."
+        llm.replies = [reply(
+            job_title="Data Scientist", seniority="unknown", min_years_experience=None,
+            required_skills=[skill("model monitoring")], preferred_skills=[], tools_technologies=[],
+            education=[], certifications=[], responsibilities=[],
+        )]
+        assert "model monitoring" in [s.name for s in service.analyze(text).required_skills]
+
+
 class TestFallback:
     def test_a_provider_failure_gives_the_rules_analysis_and_is_not_cached(self, llm):
         llm.replies = [LLMProviderError("Ollama is down", "unreachable")]

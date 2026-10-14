@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 3
+ANALYZER_VERSION = 4
 
 TOOL_NAME = "analyze_job_description"
 MAX_OUTPUT_TOKENS = 1800
@@ -190,6 +190,7 @@ class AnalysisReport:
     rejected: list[str] = field(default_factory=list)
     title_leaks: list[str] = field(default_factory=list)
     unsupported_tools: list[str] = field(default_factory=list)
+    moved_to_tools: list[str] = field(default_factory=list)
     rule_additions: list[str] = field(default_factory=list)
 
 
@@ -425,6 +426,15 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
     for skill in required:
         (preferred if rules.is_optional(cleaned, skill.evidence) else still_required).append(skill)
     required = still_required
+    # A named platform mentioned only as where the work happens ("deployment on
+    # AWS SageMaker") is a tool, not a skill the candidate must already have.
+    environment: list[str] = []
+    for bucket in (required, preferred):
+        for skill in list(bucket):
+            if rules.environment_only(skill.name, cleaned):
+                bucket.remove(skill)
+                environment.append(skill.name)
+    report.moved_to_tools.extend(environment)
     required_names = {s.name for s in required}
     seen_preferred: set[str] = set()
     preferred = [
@@ -443,6 +453,7 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
             tools.append(name)
         else:
             report.unsupported_tools.append(name)
+    tools += [name for name in environment if name not in tools]
 
     years = rules.resolve_years(out.min_years_experience, cleaned)
     level, level_source = rules.resolve_seniority(title, cleaned, years, out.seniority)

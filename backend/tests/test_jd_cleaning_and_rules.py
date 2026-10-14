@@ -494,6 +494,25 @@ class TestRuleClassification:
         assert "distributed systems" not in found and "unit testing" in found
 
 
+class TestEnvironmentOnly:
+    @pytest.mark.parametrize(
+        "name,text,expected",
+        [
+            ("aws sagemaker", "You'll own the lifecycle to production deployment on AWS SageMaker.", True),
+            ("heroku", "The app is hosted on Heroku today.", True),
+            ("gke", "Services running in GKE.", True),
+            ("aws sagemaker", "Experience with AWS SageMaker is required.", False),
+            ("sagemaker", "Strong SageMaker skills. Models are deployed on SageMaker.", False),  # one mention is a requirement
+            ("snowflake", "Experience with a cloud data warehouse (Snowflake, BigQuery, or Redshift).", False),
+            ("model monitoring", "Production deployment on model monitoring.", False),  # a concept is never moved
+            ("aws sagemaker", "We like SageMaker.", False),  # mentioned, but not as where work runs
+            ("aws sagemaker", "Nothing about it here.", False),
+        ],
+    )
+    def test_environment_only(self, name, text, expected):
+        assert rules.environment_only(name, text) is expected
+
+
 # --- keywords ---------------------------------------------------------------
 
 

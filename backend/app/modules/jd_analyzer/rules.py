@@ -615,6 +615,45 @@ def rule_found_skills(text: str, exclude: set[str]) -> list[tuple[str, str]]:
     return found
 
 
+# ── Where the work happens ───────────────────────────────────────────────
+
+# Named platforms and managed services that a posting often mentions only as the
+# place the work runs. Products, never concepts: a concept is never moved.
+MANAGED_PLATFORMS = {
+    "aws sagemaker", "sagemaker", "amazon sagemaker", "vertex ai", "google vertex ai", "azure ml",
+    "azure machine learning", "databricks", "aws lambda", "amazon ecs", "ecs", "eks", "amazon eks", "gke",
+    "aks", "cloud run", "google cloud run", "app engine", "heroku", "vercel", "netlify", "firebase",
+    "aws glue", "amazon emr", "emr", "dataproc", "aws batch", "snowflake", "bigquery", "redshift",
+}
+
+# Words that, right before a platform, say it is where something runs:
+# "deployment on AWS SageMaker", "hosted on Heroku", "running in GKE".
+_WHERE_IT_RUNS = re.compile(
+    r"\b(?:deploy\w*|host\w*|run\w*|built|serv(?:e|ed|es|ing)|production|live)\b[\w\s,'-]{0,25}?"
+    r"\b(?:on|in|to|via|using)\s+(?:the\s+|our\s+|an?\s+)?$",
+    re.IGNORECASE,
+)
+
+
+def environment_only(name: str, text: str) -> bool:
+    """Whether `name` is a named platform or managed service that the posting
+    mentions ONLY as where the work happens. Every mention must be introduced by
+    "deployment on", "hosted on", "running in"... and no sentence mentioning it
+    may carry requirement wording ("must", "experience with", "strong", ...)."""
+    if canonical(name) not in MANAGED_PLATFORMS:
+        return False
+    mentions = list(_concept_pattern(name).finditer(text))
+    if not mentions:
+        return False
+    for mention in mentions:
+        before = re.split(r"[.\n]", text[max(0, mention.start() - 80) : mention.start()])[-1]
+        if not _WHERE_IT_RUNS.search(before):
+            return False
+        if _RULE_REQUIRED.search(sentence_containing(text, mention.group(0))):
+            return False
+    return True
+
+
 def rules_requirements(text: str) -> tuple[list[Requirement], list[Requirement]]:
     """(education, certifications) by pattern. Evidence is the whole sentence,
     so "or equivalent" and "a plus" travel with it."""
