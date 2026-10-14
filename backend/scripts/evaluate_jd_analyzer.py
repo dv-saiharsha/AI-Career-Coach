@@ -40,9 +40,9 @@ SEED = {j["id"]: j for j in SEED_JOB_DESCRIPTIONS}
 RECALL_TARGET, PRECISION_TARGET = 0.80, 0.85
 
 
-def load_golden() -> list[dict]:
+def load_golden(folder: Path = FIXTURES) -> list[dict]:
     docs = []
-    for path in sorted(FIXTURES.glob("*.json")):
+    for path in sorted(folder.glob("*.json")):
         doc = json.loads(path.read_text(encoding="utf-8"))
         doc["text"] = doc["jd_text"] if doc.get("synthetic") else SEED[doc["jd_id"]]["text"]
         docs.append(doc)
@@ -166,7 +166,7 @@ def yn(flag: bool) -> str:
 
 
 def print_golden(rows: list[dict]) -> dict:
-    print("\n== GOLDEN SET: per JD ==")
+    print("\n== PER JD ==")
     header = f"{'JD':32} {'src':6} {'sec':>5} {'prec':>5} {'recl':>5} {'hall':>4} {'grp':>5} {'sen':>4} {'srcOK':>5} {'yrs':>4} {'edu':>4} {'cert':>4} {'leak':>4} {'drop':>4}"
     print(header)
     for r in rows:
@@ -189,7 +189,7 @@ def print_golden(rows: list[dict]) -> dict:
         "seconds": sum(r["seconds"] for r in rows), "n": len(rows),
     }
     p = pooled
-    print("\n== GOLDEN SET: overall (pooled over all skills) ==")
+    print("\n== OVERALL (pooled over all skills) ==")
     print(f"required-skill recall    {p['recall']:.3f}   target >= {RECALL_TARGET}   {'PASS' if p['recall'] >= RECALL_TARGET else 'BELOW TARGET'}")
     print(f"required-skill precision {p['precision']:.3f}   target >= {PRECISION_TARGET}   {'PASS' if p['precision'] >= PRECISION_TARGET else 'BELOW TARGET'}")
     print(f"hallucinations           {p['hallucinations']}       target 0      {'PASS' if p['hallucinations'] == 0 else 'FAIL'}")
@@ -199,7 +199,7 @@ def print_golden(rows: list[dict]) -> dict:
     print(f"education correct        {p['education']}/{p['n']}   certifications correct {p['certifications']}/{p['n']}")
     print(f"skills dropped by the evidence check {p['dropped']}   total time {p['seconds']:.0f}s ({p['seconds'] / p['n']:.0f}s per JD)")
 
-    print("\n== GOLDEN SET: the misses, per JD ==")
+    print("\n== THE MISSES, PER JD ==")
     for r in rows:
         lines = []
         if r["missed"]:
@@ -258,6 +258,14 @@ def run_all_seeds(golden_rows: dict[str, dict]) -> list[dict]:
         if report.title_leaks or {s.name for s in analysis.required_skills + analysis.preferred_skills} & rules.title_forms(analysis.job_title):
             failure.append("title leak")
         label = doc["seniority"]
+        # Anything named in the output that the posting does not mention.
+        from app.core.skill_match import named_in
+
+        claimed = [s.name for s in analysis.required_skills + analysis.preferred_skills] + list(analysis.tools_technologies)
+        unsupported = [n for n in claimed if not named_in(text, n)]
+        unsupported += [r.name for r in analysis.education + analysis.certifications if r.evidence.lower() not in " ".join(text.split()).lower()]
+        if unsupported:
+            failure.append(f"not in the posting: {unsupported}")
         if label in ("junior", "senior") and analysis.seniority != label:
             failure.append(f"level {analysis.seniority} vs seed label {label}")
         if label == "mid" and (analysis.seniority, analysis.seniority_source) != ("mid", "years"):
@@ -282,6 +290,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--all", action="store_true", help="also run all 17 seed JDs")
     parser.add_argument("--json", metavar="PATH", help="write the results as JSON")
+    parser.add_argument("--holdout", action="store_true", help="score the holdout set (tests/fixtures/jd_holdout) instead of the golden set")
     args = parser.parse_args()
 
     print(f"provider={llm_client.provider} model={getattr(llm_client, 'model', None)} available={llm_client.available}")
@@ -290,7 +299,9 @@ def main() -> int:
         return 2
 
     golden_rows = []
-    for doc in load_golden():
+    folder = FIXTURES.parent / "jd_holdout" if args.holdout else FIXTURES
+    print(f"set: {folder.name}")
+    for doc in load_golden(folder):
         analysis, report = service.analyze_with_report(doc["text"], use_cache=False)
         golden_rows.append(score(doc, analysis, report))
         print(f"  analysed {doc['jd_id']} ({report.seconds:.0f}s, {analysis.source})", flush=True)
