@@ -52,14 +52,16 @@ class Settings(BaseSettings):
     # Ashby sweep, not job_market/crawler.py's companies-table crawl, which
     # the separate `worker` service runs unconditionally).
     #
-    # Free — board reads only, never Claude — so leaving it on costs nothing
-    # but requests. Turn it off for a process that should not sweep: a
-    # one-off script, or a second replica where one worker already covers it,
-    # or (the production default, set in docker-compose.prod.yml) the API
-    # service once the `worker` service covers the same ground and more.
-    # Upserts are idempotent on content_hash, so two workers sweeping is
-    # wasteful rather than wrong.
-    JOB_SWEEP_ENABLED: bool = True
+    # Defaults OFF as of the companies-table crawler's go-live: the `worker`
+    # service (job_market/crawler.py) is now the one and only writer of
+    # job_listings, with company_id linkage, the close-after-2-misses
+    # lifecycle, and enrichment — the older sweep has none of those. Opt back
+    # in per-process (e.g. local dev without `worker` running) by setting
+    # JOB_SWEEP_ENABLED=true; it is still free (board reads only, never
+    # Claude) and its upserts are idempotent on content_hash, so turning it
+    # on alongside `worker` is wasteful rather than wrong — it just no longer
+    # happens by default.
+    JOB_SWEEP_ENABLED: bool = False
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 5

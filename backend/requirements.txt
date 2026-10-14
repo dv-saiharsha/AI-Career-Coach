@@ -7,7 +7,7 @@ sqlalchemy==2.0.35
 # file. FastAPI 0.115.0 and pydantic-settings 2.5.2 both run clean on 2.13.x.
 pydantic==2.13.4
 pydantic-settings==2.5.2
-anthropic==0.39.0
+anthropic==0.40.0
 # Test-only since resume extraction moved to PyMuPDF. tests/test_extraction.py
 # keeps it as the comparand that proves the two agree, so removing it deletes
 # the evidence for the swap rather than a live dependency.

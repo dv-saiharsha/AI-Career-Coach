@@ -7,11 +7,11 @@ job_market/crawler.py — reading the `companies` table, covering all six ATS
 adapters plus the JSON-LD fallback, with the close-after-2-misses lifecycle —
 is what backend/scripts/run_crawl.py and the worker process
 (app/worker.py) actually run in production. This module is what
-job_market/scheduler.py's older in-process sweep still calls locally
-(JOB_SWEEP_ENABLED, default on for a single dev process); production disables
-it (docker-compose.prod.yml) since `worker` now covers the same ground and
-more. It is kept working rather than deleted because retiring it outright is
-a separate, later decision — not a rider on removing JSearch.
+job_market/scheduler.py's older in-process sweep still calls when a process
+opts in with JOB_SWEEP_ENABLED=true — off by default everywhere now that
+`worker` covers the same ground and more. It is kept working rather than
+deleted because retiring it outright is a separate, later decision — not a
+rider on removing JSearch.
 
 Cost shape. Only one half spends money:
 
@@ -173,7 +173,7 @@ def _enrich(pending: dict[str, dict], report: SweepReport) -> dict[str, dict]:
             report.errors.append("ANTHROPIC_API_KEY not configured — postings stored unenriched")
         return {}
 
-    # Beta namespace, not client.messages.batches: the pinned SDK (0.39.0)
+    # Beta namespace, not client.messages.batches: the pinned SDK (0.40.0)
     # exposes batches only under client.beta.messages. Importing the non-beta
     # path raises ModuleNotFoundError before a batch is ever created.
     from anthropic.types.beta.message_create_params import MessageCreateParamsNonStreaming

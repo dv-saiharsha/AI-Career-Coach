@@ -68,9 +68,9 @@ def list_jobs(
         "refreshing": refreshing,
         # Real, or absent. next_run_at() is None until job_market/scheduler.py's
         # older in-process sweep has completed a pass — a process with it
-        # disabled (JOB_SWEEP_ENABLED=false, the production default once the
-        # worker service is running) says nothing rather than advertising a
-        # schedule it is not keeping.
+        # disabled (JOB_SWEEP_ENABLED=false, the default everywhere now that
+        # the worker service is the real crawl) says nothing rather than
+        # advertising a schedule it is not keeping.
         "next_sync_at": (
             scheduler.next_run_at().isoformat() if scheduler.next_run_at() else None
         ),

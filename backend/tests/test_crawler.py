@@ -235,6 +235,70 @@ class TestReconciliation:
         assert row.id == original_id
         assert row.title == "Senior Engineer"
 
+    def test_a_legacy_unlinked_row_is_matched_by_ats_slug_not_duplicated(self, db):
+        """Regression: this crashed a real crawl run on its first attempt.
+        The older ingestion.py sweep writes rows with company_id NULL. When
+        the new crawler later processes a company that sweep already
+        touched, it must find that row by (source, company, external_id)
+        and update it in place — not miss it (scoped only to
+        company_id == company.id) and try to INSERT a second row with the
+        same identity, which violates ix_job_listings_ats_identity's unique
+        constraint."""
+        company = make_company(db, name="Acme")
+        legacy_row = JobListing(
+            query_key="greenhouse:acme", source="greenhouse", company="Acme",
+            external_id="greenhouse:acme:1", company_id=None,
+            title="Engineer", location="Remote", work_mode="Remote",
+            apply_url="https://acme.com/1", skills="[]", status="open",
+        )
+        db.add(legacy_row)
+        db.commit()
+
+        new, updated, closed = crawler._reconcile_company_rows(
+            db, company, [board_row("greenhouse:acme:1", title="Senior Engineer")], not_modified=False
+        )
+        db.commit()
+
+        assert (new, updated, closed) == (0, 1, 0)
+        assert db.query(JobListing).count() == 1
+        row = db.query(JobListing).one()
+        assert row.id == legacy_row.id
+        assert row.company_id == company.id
+        assert row.title == "Senior Engineer"
+
+    def test_a_legacy_row_with_different_company_casing_is_still_matched(self, db):
+        """Regression: this crashed a real crawl run too, against the exact
+        company this fix was first written for. ats_boards.normalise_
+        greenhouse() takes a row's `company` value from the board's own API
+        response (job.company_name), never from companies.name — so the
+        legacy row and companies.name can name the same board differently
+        ("MongoDB" vs "Mongodb", observed in production). Matching by name
+        missed this; matching by ats_slug (embedded in every external_id)
+        does not, because it never looks at either side's company text."""
+        company = make_company(db, name="Mongodb", ats_slug="mongodb")
+        legacy_row = JobListing(
+            query_key="greenhouse:mongodb", source="greenhouse", company="MongoDB",
+            external_id="greenhouse:mongodb:1", company_id=None,
+            title="Engineer", location="Remote", work_mode="Remote",
+            apply_url="https://mongodb.com/1", skills="[]", status="open",
+        )
+        db.add(legacy_row)
+        db.commit()
+
+        new, updated, closed = crawler._reconcile_company_rows(
+            db, company,
+            [board_row("greenhouse:mongodb:1", title="Senior Engineer", company="MongoDB")],
+            not_modified=False,
+        )
+        db.commit()
+
+        assert (new, updated, closed) == (0, 1, 0)
+        assert db.query(JobListing).count() == 1
+        row = db.query(JobListing).one()
+        assert row.id == legacy_row.id
+        assert row.company_id == company.id
+        assert row.title == "Senior Engineer"
+
     def test_a_row_missing_once_is_not_yet_closed(self, db):
         company = make_company(db)
         crawler._reconcile_company_rows(db, company, [board_row("greenhouse:acme:1")], not_modified=False)
@@ -529,6 +593,31 @@ class TestRunCrawl:
         assert row.enriched_at is not None
         assert row.h1b_sponsorship == "explicitly_sponsored"
         assert run.cost_usd >= 0
+
+    def test_enrichment_failure_does_not_roll_back_the_crawl(self, db, monkeypatch):
+        """Regression test: this exact bug shipped once — an unhandled
+        exception from enrichment (e.g. a real Anthropic API error) raised
+        before the run's one and only db.commit() rolled back every company
+        crawled and every row reconciled in the same run. The crawl results
+        must survive even when enrichment blows up."""
+        make_company(db)
+        monkeypatch.setattr(crawler.ats_boards, "fetch_board", lambda *a, **k: [board_row("greenhouse:acme:1")])
+        monkeypatch.setattr(
+            crawler.ingestion, "_enrich",
+            lambda pending, report: (_ for _ in ()).throw(RuntimeError("Anthropic API error")),
+        )
+
+        run = crawler.run_crawl(db)
+
+        row = db.query(JobListing).one()
+        assert row.external_id == "greenhouse:acme:1"
+        assert run.jobs_new == 1
+        assert run.companies_succeeded == 1
+        assert run.ended_at is not None
+        assert any("enrichment failed" in e for e in json.loads(run.errors))
+
+        persisted = db.query(CrawlRun).filter(CrawlRun.id == run.id).one()
+        assert persisted.jobs_new == 1
 
     def test_a_failing_company_does_not_stop_the_run_or_touch_its_jobs(self, db, monkeypatch):
         make_company(db, name="Dead", ats_slug="dead")

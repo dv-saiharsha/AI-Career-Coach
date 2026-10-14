@@ -384,7 +384,11 @@ export function JobsPage() {
   const [minSalaryK, setMinSalaryK] = useState(0)
   const [datePosted, setDatePosted] = useState<DatePostedBucket | null>(null)
   const [sort, setSort] = useState<SortKey>('best')
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  // The filters sit beside the list only at xl and up; below that they stack above it,
+  // so start them closed on narrow screens and let the jobs come first.
+  const [filtersOpen, setFiltersOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 1280px)').matches,
+  )
 
   const [feed, setFeed] = useState<JobFeed | null>(null)
   const [loading, setLoading] = useState(true)
@@ -569,9 +573,9 @@ export function JobsPage() {
         </div>
       </div>
 
-      <div className={cn('grid items-start gap-[14px]', filtersOpen ? 'lg:grid-cols-[232px_1fr]' : 'grid-cols-1')}>
+      <div className={cn('grid items-start gap-[14px]', filtersOpen ? 'xl:grid-cols-[232px_1fr]' : 'grid-cols-1')}>
         {filtersOpen && (
-          <Card className="sticky top-[92px] p-[17px]">
+          <Card className="p-[17px] xl:sticky xl:top-[92px] xl:max-h-[calc(100vh-110px)] xl:overflow-y-auto">
             <div className="flex items-center justify-between pb-3">
               <h3 className="font-heading text-sm font-bold text-foreground">Filters</h3>
               <button

@@ -311,7 +311,7 @@ To restart only the worker (after an env change, say), without touching the API 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate worker
 ```
 
-`docker-compose.prod.yml` sets `JOB_SWEEP_ENABLED=false` on `backend` in production — `worker` now covers what `job_market/scheduler.py`'s older in-process board sweep used to do, so there's no reason to keep paying for both. Local dev (`docker-compose.yml` alone, no prod overlay) is unaffected: `JOB_SWEEP_ENABLED` defaults `true` there exactly as it did before `worker` existed, so a bare `docker compose up` still works with no extra setup. Running both at once (e.g. by also starting `worker` locally) is wasteful, not wrong — every upsert here is idempotent.
+`JOB_SWEEP_ENABLED` defaults `false` everywhere (`app/core/config.py`) as of the companies-table crawler's go-live — `worker` (`job_market/crawler.py`) is the one and only writer of `job_listings` now, with company linkage, the close-after-2-misses lifecycle, and enrichment that the older in-process board sweep (`job_market/scheduler.py`) never had. `docker-compose.prod.yml` also sets it explicitly on `backend` for clarity. To opt a specific local process back into the older sweep instead of running `worker`, set `JOB_SWEEP_ENABLED=true` in that process's env — it's still free (board reads only, never Claude) and its upserts are idempotent, so running both at once is wasteful, not wrong.
 
 The worker's crawl is guarded by a Redis distributed lock (`REDIS_URL`, already required above one `UVICORN_WORKERS`) — safe to scale `worker` to more than one replica; extra ones simply skip a tick they don't win the lock for rather than double-crawling.
 

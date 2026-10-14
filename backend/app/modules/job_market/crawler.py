@@ -68,6 +68,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -262,11 +263,42 @@ def _reconcile_company_rows(
     this. A row with no external_id (a JSON-LD posting with no @id) cannot
     be reconciled this way and is silently skipped — the same accepted,
     disclosed gap that index's own comment already names.
+
+    The existing-row lookup below also matches rows with no company_id yet
+    by (source, ats_slug) — via external_id's own embedded prefix, e.g.
+    "greenhouse:mongodb:" — not just company_id == company.id. Without
+    that, a company whose board the older ingestion.py sweep already wrote
+    rows for (company_id NULL there — that sweep never links one) crashes
+    the whole run: this crawl builds the exact same (source, company,
+    external_id) key, sees no match by company_id, and tries to INSERT a
+    second row into ix_job_listings_ats_identity's unique index, which
+    rejects it.
+
+    Matching by *name* here was tried first and is wrong: it crashed on its
+    own first live run too, against a company this same fix was meant to
+    protect. ats_boards.normalise_greenhouse() (and _lever) take a row's
+    `company` value from the board's own API response (job.company_name, or
+    the slug title-cased), never from this table's `name` column, so the
+    two can disagree in real data — the legacy row and this table both say
+    "mongodb" is the same board, but one spells it "Mongodb" and Greenhouse
+    itself spells it "MongoDB". ats_slug has no such ambiguity: every
+    adapter embeds it verbatim in external_id, so matching on that prefix
+    finds the legacy row regardless of what either side calls the company.
     """
     now = datetime.now(timezone.utc)
+    existing_filter = JobListing.company_id == company.id
+    if company.ats_slug:
+        existing_filter = or_(
+            existing_filter,
+            and_(
+                JobListing.company_id.is_(None),
+                JobListing.source == company.ats_type,
+                JobListing.external_id.like(f"{company.ats_type}:{company.ats_slug}:%"),
+            ),
+        )
     existing = {
         (row.source, row.company, row.external_id): row
-        for row in db.query(JobListing).filter(JobListing.company_id == company.id).all()
+        for row in db.query(JobListing).filter(existing_filter).all()
     }
 
     if not_modified:
@@ -490,7 +522,22 @@ def run_crawl(
         run.jobs_updated += updated_count
         run.jobs_closed += closed_count
 
-    _enrich_pending(db, run, errors)
+    # Committed here, before enrichment — not just at the very end. Every
+    # company's crawl result is the actual product of this run; enrichment
+    # is a nice-to-have on top of it. Without this checkpoint, an enrichment
+    # failure (a real one: this exact bug shipped once, and an Anthropic API
+    # error crashed the whole run before its one and only db.commit(),
+    # silently discarding every company crawled and every row reconciled)
+    # would lose the entire run's real work along with it.
+    db.commit()
+
+    try:
+        _enrich_pending(db, run, errors)
+    except Exception as exc:  # noqa: BLE001 - enrichment failing must not lose the crawl above
+        db.rollback()
+        logger.exception("crawl enrichment failed, crawl results already committed")
+        errors.append(f"enrichment failed: {exc}")
+
     run.jobs_closed += _cleanup_retention(db)
     run.errors = json.dumps(errors[:50])
     run.ended_at = datetime.now(timezone.utc)
