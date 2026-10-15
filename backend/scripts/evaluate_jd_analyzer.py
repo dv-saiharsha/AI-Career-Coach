@@ -26,8 +26,9 @@ certifications (with the required flag), skills dropped by the evidence check,
 the source of the analysis, and seconds.
 
 Skill names match when their canonical forms are equal, or one contains the
-other as whole words ("encryption" and "encryption at rest"). The same rule
-for every skill metric and every set; --match exact turns containment off, for
+other as whole words ("encryption" and "encryption at rest"), unless the
+shorter one is a single generic word (GENERIC_WORDS: "cloud" does not match
+"cloud security"). The same rule for every skill metric and every set; --match exact turns containment off, for
 comparison. Hallucinations always need the forbidden name itself (equal
 canonical forms): a forbidden "aws" is not hit by "aws sagemaker".
 
@@ -69,6 +70,20 @@ def load_set(name: str) -> list[dict]:
 
 MATCH_RULE = "containment"  # or "exact"; set from --match
 
+# Single words that name a category or a field, not a skill. A containment match
+# never rests on one of these as the shorter name. The category nouns the
+# analyzer also rejects, plus broad field words; defined here, by category, not
+# from any run's output.
+GENERIC_WORDS = frozenset({
+    "application", "applications", "code", "data", "environment", "environments", "experience", "framework",
+    "frameworks", "fundamentals", "knowledge", "language", "languages", "libraries", "library", "platform",
+    "platforms", "practice", "practices", "process", "processes", "product", "products", "project", "projects",
+    "service", "services", "skill", "skills", "software", "solution", "solutions", "stack", "system", "systems",
+    "team", "teams", "technologies", "technology", "tool", "tools",
+    "ai", "ml", "cloud", "security", "engineering", "development", "design", "infrastructure", "analytics", "web",
+    "testing", "programming", "computing", "automation", "operations", "research", "science", "model", "models",
+})
+
 
 def same_skill(a: str, b: str) -> bool:
     return canonical(a) == canonical(b)
@@ -81,7 +96,12 @@ def match(a: str, b: str) -> bool:
         return False
     if ca == cb:
         return True
-    return MATCH_RULE == "containment" and (f" {ca} " in f" {cb} " or f" {cb} " in f" {ca} ")
+    if MATCH_RULE != "containment":
+        return False
+    shorter = ca if len(ca) <= len(cb) else cb
+    if " " not in shorter and shorter in GENERIC_WORDS:
+        return False
+    return f" {ca} " in f" {cb} " or f" {cb} " in f" {ca} "
 
 
 def _words(text: str) -> list[str]:
