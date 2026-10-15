@@ -413,6 +413,31 @@ class TestReconciliation:
         changed = db.query(JobListing).filter(JobListing.external_id == "greenhouse:acme:5").one()
         assert changed.title == "Staff Engineer" and changed.status == "open" and changed.missed_streak == 0
 
+    def test_missing_rows_are_one_update_per_streak_group(self, db):
+        from sqlalchemy import event
+
+        company = make_company(db)
+        crawler._reconcile_company_rows(db, company, [board_row(f"greenhouse:acme:{i}") for i in range(30)], not_modified=False)
+        db.commit()
+        # Ten rows already missed once; the board now lists none of the 30.
+        ten = [r.id for r in db.query(JobListing).order_by(JobListing.id).limit(10)]
+        db.query(JobListing).filter(JobListing.id.in_(ten)).update({JobListing.missed_streak: 1}, synchronize_session=False)
+        db.commit()
+
+        updates = []
+        listener = lambda conn, cursor, stmt, *a: updates.append(stmt) if stmt.lstrip().upper().startswith("UPDATE") else None
+        event.listen(db.get_bind(), "before_cursor_execute", listener)
+        try:
+            new, updated, closed = crawler._reconcile_company_rows(db, company, [], not_modified=False)
+            db.commit()
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", listener)
+
+        assert (new, updated, closed) == (0, 0, 10)
+        assert len(updates) == 2, updates
+        assert {r.id for r in db.query(JobListing).filter(JobListing.status == "closed")} == set(ten)
+        assert db.query(JobListing).filter(JobListing.status == "open", JobListing.missed_streak == 1).count() == 20
+
     def test_a_row_with_no_external_id_is_skipped_not_crashed_on(self, db):
         company = make_company(db)
         row = board_row("ignored")

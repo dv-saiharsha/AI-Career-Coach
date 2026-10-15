@@ -396,14 +396,20 @@ def _reconcile_company_rows(
         JobListing.fetched_at: now,
     })
 
+    # Open rows the board no longer lists: one more miss each, closed at the
+    # threshold. Grouped by the current streak so each group is one UPDATE
+    # with literal values, for the same reason as _bulk_update.
+    by_streak: dict[int, list[int]] = {}
     for key, row in existing.items():
-        if key in seen_keys or row.status != "open":
+        if key in seen_keys or row.status != "open" or row.id is None:
             continue
-        row.missed_streak += 1
-        if row.missed_streak >= CLOSE_AFTER_MISSED_CRAWLS:
-            row.status = "closed"
-            row.closed_at = now
-            closed_count += 1
+        by_streak.setdefault(row.missed_streak or 0, []).append(row.id)
+    for streak, ids in by_streak.items():
+        values = {JobListing.missed_streak: streak + 1}
+        if streak + 1 >= CLOSE_AFTER_MISSED_CRAWLS:
+            values.update({JobListing.status: "closed", JobListing.closed_at: now})
+            closed_count += len(ids)
+        _bulk_update(db, ids, values)
 
     return new_count, updated_count, closed_count
 
