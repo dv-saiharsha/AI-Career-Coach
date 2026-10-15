@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     # embedding models are not comparable.
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
     OLLAMA_TIMEOUT_SECONDS: float = 180.0
+    # JD analyzer: after the first call, ask again on the recognised
+    # requirements section(s) only, instead of the "what did you miss" call.
+    # Off by default (an experiment: better recall, lower precision, slower).
+    JD_FOCUSED_CALL: bool = False
     # Sent as "keep_alive" on every /api/chat and /api/embed request, so the
     # model stays loaded this long after its last use (Ollama's own default is
     # 5 minutes, after which the next request pays a ~20 s reload). Setting it

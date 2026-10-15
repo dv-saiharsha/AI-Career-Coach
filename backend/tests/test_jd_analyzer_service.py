@@ -877,3 +877,42 @@ class TestToolsInTheRequirements:
         assert "datadog" not in required  # named only in the duties
         assert "vault" not in required    # its own clause says "a plus"
         assert set(report.tools_promoted) >= {"aws", "kubernetes", "terraform"}
+
+
+class TestFocusedCall:
+    TEXT = (
+        "Backend Engineer\n\nWhat you'll do\n\n- Build services\n\n"
+        "Requirements:\n\n- 3+ years of Python\n- Strong SQL and dbt\n"
+    )
+
+    def test_off_by_default_the_second_call_runs(self, llm):
+        service.analyze_with_report(self.TEXT, use_cache=False)
+        assert len(llm.calls) == 1 and len(llm.missed_calls) == 1
+
+    def test_on_it_asks_on_the_requirements_section_only_instead_of_the_second_call(self, llm, monkeypatch):
+        monkeypatch.setattr(service.settings, "JD_FOCUSED_CALL", True)
+        llm.replies = [
+            reply(job_title="Backend Engineer", seniority="unknown", min_years_experience=3,
+                  required_skills=[skill("Python")], preferred_skills=[], tools_technologies=["Python"],
+                  education=[], certifications=[]),
+            reply(job_title="Backend Engineer", seniority="unknown", min_years_experience=3,
+                  required_skills=[skill("SQL"), skill("dbt")], preferred_skills=[], tools_technologies=[],
+                  education=[], certifications=[]),
+        ]
+        analysis, report = service.analyze_with_report(self.TEXT, use_cache=False)
+        assert len(llm.calls) == 2 and llm.missed_calls == []
+        assert llm.calls[1]["user"].startswith("JOB POSTING:\nRequirements:") and "Build services" not in llm.calls[1]["user"]
+        assert {"python", "sql", "dbt"} <= {s.name for s in analysis.required_skills}
+        assert "dbt" in report.focused_added and report.attempts == 1  # SQL the rules already found
+
+    def test_a_failed_focused_call_keeps_the_first_answer(self, llm, monkeypatch):
+        monkeypatch.setattr(service.settings, "JD_FOCUSED_CALL", True)
+        llm.replies = [reply(), LLMProviderError("cut off", kind="truncated")]
+        analysis, report = service.analyze_with_report(self.TEXT, use_cache=False)
+        assert analysis.source in ("llm", "hybrid") and "cut off" in report.focused_call_error
+        assert report.llm_error is None
+
+    def test_no_requirements_section_no_focused_call(self, llm, monkeypatch):
+        monkeypatch.setattr(service.settings, "JD_FOCUSED_CALL", True)
+        service.analyze_with_report(JD, use_cache=False)
+        assert len(llm.calls) == 1 and llm.missed_calls == []

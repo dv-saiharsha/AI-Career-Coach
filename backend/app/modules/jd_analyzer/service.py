@@ -13,7 +13,9 @@ The order is fixed, because each step protects the next:
                  from the quotes
   5. second ask  one more call shown the posting and what was found, asked only
                  for what is missing; its answer goes through the same checks
-                 (cache misses only; a failure here keeps the first answer)
+                 (cache misses only; a failure here keeps the first answer).
+                 With JD_FOCUSED_CALL on, instead: the same question on the
+                 recognised requirements section(s) only, merged the same way
   6. backstop    vocabulary concepts and technology-looking terms the keyword
                  rules find and the model missed (source "hybrid")
   7. fall back   if the model cannot be used or never answers properly, the
@@ -238,6 +240,10 @@ class AnalysisReport:
     moved_to_preferred: list[str] = field(default_factory=list)
     rule_additions: list[str] = field(default_factory=list)
     second_call_attempts: int = 0
+    focused_added: list[str] = field(default_factory=list)
+    focused_call_seconds: float = 0.0
+    focused_call_attempts: int = 0
+    focused_call_error: str | None = None
     second_call_added: list[str] = field(default_factory=list)
     second_call_seconds: float = 0.0
     second_call_error: str | None = None
@@ -376,6 +382,30 @@ def _call_llm(
             raise _AnalysisFailed(report.llm_error, getattr(exc, "kind", "error")) from exc
     report.llm_error = f"invalid reply after retries: {problem}"
     raise _AnalysisFailed(report.llm_error)
+
+
+def _ask_requirements_only(cleaned: str, report: AnalysisReport) -> "_LLMOutput | None":
+    """The focused call (JD_FOCUSED_CALL): the same question, schema and checks
+    as the first call, on the recognised requirements section(s) alone, so a
+    long posting's requirements get the model's whole attention. None when the
+    posting has no recognised requirements section, or the call fails (the
+    first answer stands)."""
+    spans = rules.requirement_spans(cleaned)
+    section = "\n\n".join(cleaned[start:end].strip() for start, end in spans)
+    if not section:
+        return None
+    started, first_attempts = time.monotonic(), report.attempts
+    try:
+        return _call_llm(section[: max_chars_per_call()], report)
+    except _AnalysisFailed as exc:
+        report.focused_call_error = str(exc)
+        report.llm_error = None  # the first answer stands
+        logger.warning("jd analysis: the focused call failed (%s); keeping the first answer", exc)
+        return None
+    finally:
+        report.focused_call_attempts = report.attempts - first_attempts
+        report.attempts = first_attempts
+        report.focused_call_seconds = round(time.monotonic() - started, 2)
 
 
 def _answer_chunks(chunks: list[str], report: AnalysisReport) -> list[_LLMOutput]:
@@ -722,7 +752,16 @@ def analyze_with_report(
             chunks = cleaning.split_sections(cleaned, max_chars_per_call())
             report.chunks = len(chunks)
             first = _merge(_answer_chunks(chunks, report))
-            if SECOND_PASS:
+            if settings.JD_FOCUSED_CALL:
+                focused = _ask_requirements_only(cleaned, report)
+                if focused is not None:
+                    before = _finalize(first.model_copy(deep=True), cleaned, AnalysisReport())
+                    names_before = {s.name for s in before.required_skills + before.preferred_skills}
+                    analysis = _finalize(_merge([first, focused]), cleaned, report)
+                    report.focused_added = [
+                        s.name for s in analysis.required_skills + analysis.preferred_skills if s.name not in names_before
+                    ]
+            elif SECOND_PASS:
                 # Finalize on a scratch report: only the final pass is reported.
                 first_analysis = _finalize(first.model_copy(deep=True), cleaned, AnalysisReport())
                 extra = _ask_what_was_missed(chunks, first_analysis, report)
