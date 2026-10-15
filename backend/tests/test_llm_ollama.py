@@ -979,3 +979,66 @@ class TestCrawlerEnrichmentCap:
 
         monkeypatch.setattr(ingestion, "llm_client", ClaudeClient())
         assert crawler._enrichment_request_cap() > ingestion.settings.OLLAMA_ENRICH_MAX_PER_RUN
+
+
+# --- a reply cut off at the output cap -------------------------------------------
+
+
+def cut_off(content: str = '{"title": "Engineer", "skills": ["Py') -> dict:
+    return {**chat_reply(content), "done_reason": "length"}
+
+
+class TestTruncation:
+    def test_a_cut_off_structured_reply_is_never_re_asked(self, caplog):
+        client, seen = make_client(lambda r: httpx.Response(200, json=cut_off()))
+        with caplog.at_level(logging.WARNING), pytest.raises(LLMProviderError) as err:
+            client.complete_tool_json("s", "u", "extract", SCHEMA, max_tokens=50)
+        assert err.value.kind == "truncated" and len(seen) == 1
+        assert "output cap (50 tokens)" in str(err.value) and "not re-asked" in caplog.text
+
+    def test_even_a_cut_off_reply_that_happens_to_parse_is_rejected(self):
+        whole = json.dumps({"title": "x", "skills": []})
+        client, seen = make_client(lambda r: httpx.Response(200, json=cut_off(whole)))
+        with pytest.raises(LLMProviderError) as err:
+            client.complete_tool_json("s", "u", "extract", SCHEMA)
+        assert err.value.kind == "truncated" and len(seen) == 1
+
+    def test_malformed_json_that_was_not_cut_off_is_still_re_asked(self):
+        replies = iter([chat_reply("{not json"), {**chat_reply(json.dumps({"title": "x", "skills": []})), "done_reason": "stop"}])
+        client, seen = make_client(lambda r: httpx.Response(200, json=next(replies)))
+        assert client.complete_tool_json("s", "u", "extract", SCHEMA) == {"title": "x", "skills": []}
+        assert len(seen) == 2
+
+    def test_a_re_ask_that_comes_back_cut_off_stops_there(self):
+        replies = iter([chat_reply("{not json"), cut_off()])
+        client, seen = make_client(lambda r: httpx.Response(200, json=next(replies)))
+        with pytest.raises(LLMProviderError) as err:
+            client.complete_tool_json("s", "u", "extract", SCHEMA)
+        assert err.value.kind == "truncated" and len(seen) == 2
+
+    def test_complete_json_reports_a_cut_off_reply(self):
+        client, seen = make_client(lambda r: httpx.Response(200, json=cut_off('{"a": ')))
+        with pytest.raises(LLMProviderError) as err:
+            client.complete_json("s", "u")
+        assert err.value.kind == "truncated" and len(seen) == 1
+
+    @pytest.mark.asyncio
+    async def test_a_cut_off_stream_keeps_its_text_and_says_so_in_the_log(self, caplog):
+        payload = (
+            json.dumps({"message": {"content": "Hel"}, "done": False}) + "\n"
+            + json.dumps({"message": {"content": ""}, "done": True, "done_reason": "length"}) + "\n"
+        ).encode()
+        client, _ = make_client(lambda r: httpx.Response(200, content=payload))
+        with caplog.at_level(logging.WARNING):
+            pieces = [t async for t in client.stream_message("s", [{"role": "user", "content": "x"}])]
+        assert pieces == ["Hel"] and "hit the output cap" in caplog.text
+
+    def test_the_api_says_the_answer_was_cut_off(self):
+        import asyncio
+        from types import SimpleNamespace
+
+        from app.main import llm_provider_error_handler
+
+        request = SimpleNamespace(method="POST", url=SimpleNamespace(path="/api/jd/analyze"))
+        response = asyncio.run(llm_provider_error_handler(request, LLMProviderError("x", "truncated")))
+        assert response.status_code == 503 and b"cut off" in response.body

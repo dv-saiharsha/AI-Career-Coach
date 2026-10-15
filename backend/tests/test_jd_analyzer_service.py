@@ -797,3 +797,34 @@ class TestSecondCallFilter:
         from app.modules.jd_analyzer import rules
 
         assert rules.is_category_or_domain(name) is dropped
+
+
+# --- replies cut off at the output cap ---------------------------------------
+
+
+class TestTruncation:
+    def test_a_cut_off_first_call_falls_back_to_rules_without_re_asking(self, llm):
+        llm.replies = [LLMProviderError("cut off", kind="truncated")]
+        analysis, report = service.analyze_with_report(JD, use_cache=False)
+        assert analysis.source == "rules" and len(llm.calls) == 1 and llm.missed_calls == []
+        assert "cut off" in report.llm_error
+
+    def test_a_cut_off_second_call_keeps_the_first_answer(self, llm):
+        llm.missed_reply = LLMProviderError("cut off", kind="truncated")
+        analysis, report = service.analyze_with_report(JD, use_cache=False)
+        assert analysis.source in ("llm", "hybrid") and report.llm_error is None
+        assert "cut off" in report.second_call_error and len(llm.missed_calls) == 1
+
+    def test_a_cut_off_chunk_is_left_out_and_the_others_kept(self, llm, monkeypatch):
+        monkeypatch.setattr(service, "max_chars_per_call", lambda: 4000)
+        long_jd = JD + "\n\n" + ("Our team builds payment systems for merchants worldwide. " * 120)
+        assert len(cleaning.split_sections(cleaning.clean_jd(long_jd), 4000)) == 2
+        llm.replies = [reply(), LLMProviderError("cut off", kind="truncated")]
+        analysis, report = service.analyze_with_report(long_jd, use_cache=False)
+        assert analysis.source in ("llm", "hybrid") and report.llm_error is None
+        assert {"go", "java", "python"} <= {s.name for s in analysis.required_skills}
+
+    def test_other_failures_still_fall_back_as_before(self, llm):
+        llm.replies = [LLMProviderError("down", kind="unreachable")]
+        analysis, _ = service.analyze_with_report(JD, use_cache=False)
+        assert analysis.source == "rules"

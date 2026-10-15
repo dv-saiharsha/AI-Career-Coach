@@ -27,7 +27,7 @@ class LLMProviderError(RuntimeError):
 
     def __init__(self, message: str, kind: str = "error") -> None:
         super().__init__(message)
-        self.kind = kind  # unreachable | timeout | model_missing | bad_output | http | unsupported
+        self.kind = kind  # unreachable | timeout | model_missing | bad_output | truncated | http | unsupported
 
 
 def validate_against_schema(value, schema: dict, path: str = "$") -> str | None:
@@ -336,6 +336,18 @@ class OllamaClient:
     def _content(reply: dict) -> str:
         return ((reply.get("message") or {}).get("content")) or ""
 
+    @staticmethod
+    def _check_not_truncated(reply: dict, what: str, max_tokens: int) -> None:
+        """Raise "truncated" when Ollama stopped at the output cap
+        (done_reason "length"). A cut-off reply is never re-asked: the same
+        input under the same cap is cut off again, after minutes of decoding.
+        The caller keeps what other calls found, or falls back to rules."""
+        if reply.get("done_reason") == "length":
+            logger.warning("Ollama %s reply hit the output cap (%d tokens); not re-asked", what, max_tokens)
+            raise LLMProviderError(
+                f"Ollama reply for {what} was cut off at the output cap ({max_tokens} tokens)", "truncated"
+            )
+
     # -- the ClaudeClient surface -------------------------------------------
 
     def complete_json(self, system: str, user: str, max_tokens: int = 1500) -> str:
@@ -344,6 +356,7 @@ class OllamaClient:
             "json",
             max_tokens,
         )
+        self._check_not_truncated(reply, "a JSON reply", max_tokens)
         return self._content(reply)
 
     def complete_tool_json(
@@ -358,7 +371,11 @@ class OllamaClient:
         ]
         problem = "no reply"
         for _attempt in range(self.max_retries + 1):
-            content = self._content(self._post_chat(messages, input_schema, max_tokens))
+            reply = self._post_chat(messages, input_schema, max_tokens)
+            # Cut off at the output cap: not re-asked (see _check_not_truncated).
+            # Malformed JSON that was not cut off is re-asked below as before.
+            self._check_not_truncated(reply, tool_name, max_tokens)
+            content = self._content(reply)
             try:
                 value = json.loads(content.strip(), strict=False)
                 problem = validate_against_schema(value, input_schema) or ""
@@ -413,6 +430,9 @@ class OllamaClient:
                             if text:
                                 yield text
                             if chunk.get("done"):
+                                if chunk.get("done_reason") == "length":
+                                    # Already streamed to the reader; say so in the log.
+                                    logger.warning("Ollama chat reply hit the output cap (%d tokens)", max_tokens)
                                 return
                         return
                 except httpx.TimeoutException as exc:

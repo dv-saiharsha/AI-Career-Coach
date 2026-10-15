@@ -176,6 +176,7 @@ async def llm_provider_error_handler(request: Request, exc: LLMProviderError):
         "model_missing": f"The AI model isn't installed on this machine. Run `ollama pull {settings.OLLAMA_MODEL}` and try again.",
         "timeout": "The AI model took too long to respond. Try again, or use a shorter input.",
         "bad_output": "The AI model returned an answer we couldn't use. Please try again.",
+        "truncated": "The AI model's answer was too long and got cut off. Try again with a shorter input.",
     }.get(exc.kind, "AI features are temporarily unavailable. Nothing you did caused this — please try again shortly.")
     logger.error(
         "LLM provider failed on %s %s: %s (%s)",

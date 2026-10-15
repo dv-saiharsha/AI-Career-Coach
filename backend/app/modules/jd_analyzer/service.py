@@ -208,6 +208,10 @@ class _LLMMissed(BaseModel):
 class _AnalysisFailed(Exception):
     """The model could not be made to answer; the caller falls back to rules."""
 
+    def __init__(self, message: str, kind: str = "error") -> None:
+        super().__init__(message)
+        self.kind = kind
+
 
 @dataclass
 class AnalysisReport:
@@ -365,9 +369,31 @@ def _call_llm(
         except (LLMProviderError, ValueError) as exc:
             report.llm_error = f"{type(exc).__name__}: {exc}"
             logger.warning("jd analysis: model call failed (%s)", report.llm_error)
-            raise _AnalysisFailed(report.llm_error) from exc
+            raise _AnalysisFailed(report.llm_error, getattr(exc, "kind", "error")) from exc
     report.llm_error = f"invalid reply after retries: {problem}"
     raise _AnalysisFailed(report.llm_error)
+
+
+def _answer_chunks(chunks: list[str], report: AnalysisReport) -> list[_LLMOutput]:
+    """The first call on every chunk. A chunk whose reply was cut off at the
+    output cap is left out when another chunk answered; with none answered,
+    _AnalysisFailed reaches the caller (rules fallback)."""
+    outputs: list[_LLMOutput] = []
+    truncated: _AnalysisFailed | None = None
+    for chunk in chunks:
+        try:
+            outputs.append(_call_llm(chunk, report))
+        except _AnalysisFailed as exc:
+            if exc.kind != "truncated":
+                raise
+            truncated = exc
+    if not outputs:
+        assert truncated is not None
+        raise truncated
+    if truncated is not None:
+        report.llm_error = None  # the other chunks' answers stand
+        logger.warning("jd analysis: %d of %d chunks cut off at the output cap; kept the rest", len(chunks) - len(outputs), len(chunks))
+    return outputs
 
 
 def _ask_what_was_missed(chunks: list[str], first: JDAnalysis, report: AnalysisReport) -> _LLMOutput | None:
@@ -650,7 +676,7 @@ def analyze_with_report(
         try:
             chunks = cleaning.split_sections(cleaned, max_chars_per_call())
             report.chunks = len(chunks)
-            first = _merge([_call_llm(chunk, report) for chunk in chunks])
+            first = _merge(_answer_chunks(chunks, report))
             if SECOND_PASS:
                 # Finalize on a scratch report: only the final pass is reported.
                 first_analysis = _finalize(first.model_copy(deep=True), cleaned, AnalysisReport())
