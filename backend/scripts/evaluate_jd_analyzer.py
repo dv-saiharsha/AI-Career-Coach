@@ -25,7 +25,11 @@ plus either/or groups, seniority and its source, min_years, education and
 certifications (with the required flag), skills dropped by the evidence check,
 the source of the analysis, and seconds.
 
-Names match when their canonical forms are equal.
+Skill names match when their canonical forms are equal, or one contains the
+other as whole words ("encryption" and "encryption at rest"). The same rule
+for every skill metric and every set; --match exact turns containment off, for
+comparison. Hallucinations always need the forbidden name itself (equal
+canonical forms): a forbidden "aws" is not hit by "aws sagemaker".
 
 Targets: found_recall >= 0.80, precision >= 0.85, hallucinations 0, title
 leaks 0. bucket_accuracy is reported, not a gate.
@@ -58,8 +62,21 @@ def load_set(name: str) -> list[dict]:
     return docs
 
 
-def match(a: str, b: str) -> bool:
+MATCH_RULE = "containment"  # or "exact"; set from --match
+
+
+def same_skill(a: str, b: str) -> bool:
     return canonical(a) == canonical(b)
+
+
+def match(a: str, b: str) -> bool:
+    """Equal canonical names, or (containment) one inside the other as whole words."""
+    ca, cb = canonical(a), canonical(b)
+    if not ca or not cb:
+        return False
+    if ca == cb:
+        return True
+    return MATCH_RULE == "containment" and (f" {ca} " in f" {cb} " or f" {cb} " in f" {ca} ")
 
 
 def _words(text: str) -> list[str]:
@@ -139,7 +156,7 @@ def score(doc: dict, out: dict, rep: dict) -> dict:
     free_text = " ".join(out["responsibilities"] + [r["evidence"] for r in out["education"] + out["certifications"]]).lower()
     halluc = [
         f for f in doc["forbidden_skills"]
-        if any(match(f, n) for n in names)
+        if any(same_skill(f, n) for n in names)
         or (len(f) >= 3 and re.search(r"(?<![a-z0-9+#])" + re.escape(f) + r"(?![a-z0-9+#])", free_text))
     ]
 
@@ -282,20 +299,23 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="also run all 17 seed JDs (crash and grounding check)")
     parser.add_argument("--json", metavar="PATH", help="save the run, every analysis in full, as JSON")
     parser.add_argument("--rescore", metavar="PATH", help="score a saved run again, offline")
+    parser.add_argument("--match", choices=["containment", "exact"], default="containment", help="skill-name matching rule")
     args = parser.parse_args()
+    global MATCH_RULE
+    MATCH_RULE = args.match
     set_name = "holdout" if args.holdout else args.set
 
     if args.rescore:
         saved = json.loads(Path(args.rescore).read_text())
         docs = {d["jd_id"]: d for d in load_set(saved["set"])}
         rows = [score(docs[r["jd_id"]], r["output"], r["report"]) for r in saved["runs"]]
-        print(f"re-scored {args.rescore} (set {saved['set']}, saved {saved.get('saved_at')})")
-        print_rows(rows, saved["set"].upper())
+        print(f"re-scored {args.rescore} (set {saved['set']}, saved {saved.get('saved_at')}), match={MATCH_RULE}")
+        print_rows(rows, f"{saved['set'].upper()} [{MATCH_RULE}]")
         return 0
 
     from app.core.llm import llm_client
 
-    print(f"provider={llm_client.provider} model={getattr(llm_client, 'model', None)} available={llm_client.available} set={set_name}")
+    print(f"provider={llm_client.provider} model={getattr(llm_client, 'model', None)} available={llm_client.available} set={set_name} match={MATCH_RULE}")
     if not llm_client.available:
         print("no model available: this evaluates the model, so there is nothing to run")
         return 2
@@ -305,7 +325,7 @@ def main() -> int:
         runs.append({"jd_id": doc["jd_id"], "output": out, "report": rep})
         rows.append(score(doc, out, rep))
         print(f"  analysed {doc['jd_id']} ({rep['seconds']:.0f}s, {out['source']})", flush=True)
-    pooled = print_rows(rows, set_name.upper())
+    pooled = print_rows(rows, f"{set_name.upper()} [{MATCH_RULE}]")
     seeds = run_all_seeds() if args.all else None
     if args.json:
         Path(args.json).write_text(json.dumps(
