@@ -1,5 +1,5 @@
 import { http } from '@/lib/http'
-import type { JobFeed } from '@/types/jobs'
+import type { JobDetails, JobFeed } from '@/types/jobs'
 
 export interface JobFeedQuery {
   /** Free-text search. Under 3 significant characters is treated by the
@@ -24,7 +24,6 @@ export interface TrackApplicationPayload {
   job_description?: string | null
   status?: string
 }
-
 export const jobsService = {
   /** GET /api/jobs — cache-first job feed, optionally narrowed by search
    * text and the enrichment filters (h1b / experience / employment) plus an
@@ -32,6 +31,11 @@ export const jobsService = {
    * the returned `jobs` array on `workMode` itself. */
   getJobs: async (params: JobFeedQuery = {}): Promise<JobFeed> => {
     const { data } = await http.get<JobFeed>('/jobs', { params })
+    return data
+  },
+
+  getJob: async (jobId: string | number): Promise<JobDetails> => {
+    const { data } = await http.get<JobDetails>(`/jobs/${encodeURIComponent(String(jobId))}`)
     return data
   },
 

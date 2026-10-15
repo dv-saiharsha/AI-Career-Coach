@@ -48,6 +48,9 @@ export interface JobListing {
   // from when the crawler first saw the listing.
   dateSource?: 'posted' | 'first_seen'
   applyUrl: string
+  source?: string | null
+  externalId?: string | null
+  status?: 'open' | 'closed' | null
   companyLogo?: string | null
   domain?: string | null
   h1bSponsorship?: H1bSponsorship | null
@@ -55,6 +58,15 @@ export interface JobListing {
   experienceLevel?: ExperienceLevel | null
   employmentType?: EmploymentType | null
   match?: JobMatch | null
+}
+
+export interface JobDetails extends Omit<JobListing, 'applyUrl'> {
+  applyUrl: string | null
+  source: string | null
+  externalId: string | null
+  status: 'open' | 'closed'
+  postedAt: string | null
+  closedAt: string | null
 }
 
 export interface FilterCounts {

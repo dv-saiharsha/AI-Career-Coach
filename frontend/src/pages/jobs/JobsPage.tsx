@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowRight,
@@ -16,8 +16,8 @@ import {
   Sparkles,
   SlidersHorizontal,
   Wand2,
+  X,
 } from 'lucide-react'
-import { resumeService } from '@/services/resumeService'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -145,6 +145,15 @@ function errorMessage(err: unknown, fallback: string): string {
   return err instanceof HttpError ? err.message : fallback
 }
 
+function hasSafeApplyUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname) && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
+
 function initials(company: string): string {
   return (company || '?').trim().charAt(0).toUpperCase()
 }
@@ -228,11 +237,11 @@ function FilterCheckbox({ label, checked, onChange, count, title }: FilterCheckb
         checked={checked}
         disabled={disabled}
         onChange={onChange}
-        className="sr-only"
+        className="peer sr-only"
       />
       <span
         className={cn(
-          'grid h-4 w-4 shrink-0 place-items-center rounded border border-border text-white transition-colors',
+          'grid h-4 w-4 shrink-0 place-items-center rounded border border-border text-white transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
           checked && 'border-primary bg-primary'
         )}
       >
@@ -247,33 +256,23 @@ function FilterCheckbox({ label, checked, onChange, count, title }: FilterCheckb
 interface JobCardProps {
   job: JobListing
   trackState: TrackState
-  applied: boolean
   onOpen: (job: JobListing) => void
+  onDetails: (job: JobListing) => void
   onTrack: (job: JobListing) => void
   onApply: (job: JobListing) => void
 }
 
-function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCardProps) {
+function JobCard({ job, trackState, onOpen, onDetails, onTrack, onApply }: JobCardProps) {
   return (
     <Card
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(job)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen(job)
-        }
-      }}
-      aria-label={`View details for ${job.title} at ${job.company}`}
-      className="grid cursor-pointer grid-cols-1 items-center gap-x-[13px] gap-y-3 p-[17px] transition-all duration-150 hover:-translate-y-px hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:grid-cols-[42px_1fr_72px_auto]"
+      className="grid grid-cols-1 items-center gap-x-[13px] gap-y-3 p-[17px] transition-all duration-150 hover:border-primary/40 hover:shadow-md lg:grid-cols-[42px_minmax(0,1fr)_72px_auto]"
     >
       <CompanyMark company={job.company} logoUrl={job.companyLogo} />
 
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate font-heading text-[13px] font-bold text-foreground">{job.title}</h3>
+            <h3 className="min-w-0"><button type="button" onClick={() => onOpen(job)} className="max-w-full truncate text-left font-heading text-[13px] font-bold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{job.title}</button></h3>
             <span className="text-[11px] text-muted-foreground">{job.company}</span>
           </div>
           <span className="shrink-0 text-[8px] text-muted-foreground">{relativeDayLabel(job.postedDaysAgo, job.dateSource)}</span>
@@ -290,6 +289,7 @@ function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCard
               Sponsors H-1B
             </Badge>
           )}
+          {job.source && <Badge variant="outline" className="px-1.5 py-0 text-[8px]">{job.source}</Badge>}
         </div>
         {job.skills.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-[5px]">
@@ -327,16 +327,11 @@ function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCard
             <Bookmark className="h-4 w-4" fill={trackState === 'saved' ? 'currentColor' : 'none'} />
           )}
         </Button>
-        <Button onClick={() => onApply(job)} className="gap-1.5 whitespace-nowrap">
-          {applied ? (
-            <>
-              <Check size={15} /> Applied
-            </>
-          ) : (
-            <>
-              Quick Apply <ArrowRight size={15} />
-            </>
-          )}
+        <Button variant="outline" onClick={() => onDetails(job)} className="gap-1.5 whitespace-nowrap">
+          View details <ArrowRight size={15} />
+        </Button>
+        <Button onClick={() => onApply(job)} disabled={!hasSafeApplyUrl(job.applyUrl)} className="gap-1.5 whitespace-nowrap">
+          Apply externally <ArrowRight size={15} />
         </Button>
       </div>
     </Card>
@@ -366,26 +361,28 @@ function JobCardSkeleton() {
 
 export function JobsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Search — the free-text query real backend search runs on. The sidebar's
   // "Role" select just sets this same state, so picking a role reuses the
   // exact same billed /jobs?q= path as typing it in.
-  const [query, setQuery] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '')
 
   // Server-side filters — forwarded to jobsService.getJobs exactly as before.
-  const [h1b, setH1b] = useState<H1bSponsorship | null>(null)
-  const [experience, setExperience] = useState<ExperienceLevel | null>(null)
-  const [employment, setEmployment] = useState<EmploymentType | null>(null)
-  const [company, setCompany] = useState<string | null>(null)
+  const [h1b, setH1b] = useState<H1bSponsorship | null>(() => H1B_OPTIONS.find((option) => option.value === searchParams.get('h1b'))?.value ?? null)
+  const [experience, setExperience] = useState<ExperienceLevel | null>(() => EXPERIENCE_OPTIONS.find((option) => option.value === searchParams.get('experience'))?.value ?? null)
+  const [employment, setEmployment] = useState<EmploymentType | null>(() => EMPLOYMENT_OPTIONS.find((option) => option.value === searchParams.get('employment'))?.value ?? null)
+  const [company, setCompany] = useState<string | null>(() => searchParams.get('company'))
 
   // Client-side filters — narrow the single fetched feed, same pattern the
   // old work-mode tabs already used.
-  const [workStyles, setWorkStyles] = useState<Set<WorkMode>>(new Set())
-  const [locationFilter, setLocationFilter] = useState<string | null>(null)
-  const [minSalaryK, setMinSalaryK] = useState(0)
-  const [datePosted, setDatePosted] = useState<DatePostedBucket | null>(null)
-  const [sort, setSort] = useState<SortKey>('best')
+  const [workStyles, setWorkStyles] = useState<Set<WorkMode>>(() => new Set(searchParams.getAll('work').filter((mode): mode is WorkMode => WORK_MODES.includes(mode as WorkMode))))
+  const [locationFilter, setLocationFilter] = useState<string | null>(() => searchParams.get('location'))
+  const [minSalaryK, setMinSalaryK] = useState(() => Math.max(0, Number(searchParams.get('salary')) || 0))
+  const [datePosted, setDatePosted] = useState<DatePostedBucket | null>(() => DATE_POSTED_OPTIONS.find((option) => option.value === searchParams.get('posted'))?.value ?? null)
+  const [sort, setSort] = useState<SortKey>(() => (['best', 'newest', 'salary'].includes(searchParams.get('sort') ?? '') ? searchParams.get('sort') as SortKey : 'best'))
   // The filters sit beside the list only at xl and up; below that they stack above it,
   // so start them closed on narrow screens and let the jobs come first.
   const [filtersOpen, setFiltersOpen] = useState(
@@ -400,7 +397,6 @@ export function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<JobListing | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
   const [trackStates, setTrackStates] = useState<Record<string, TrackState>>({})
-  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
 
   const pollCount = useRef(0)
 
@@ -411,6 +407,21 @@ export function JobsPage() {
     const timer = setTimeout(() => setSearchTerm(query.trim()), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [query])
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (query.trim()) next.set('q', query.trim())
+    if (h1b) next.set('h1b', h1b)
+    if (experience) next.set('experience', experience)
+    if (employment) next.set('employment', employment)
+    if (company) next.set('company', company)
+    workStyles.forEach((mode) => next.append('work', mode))
+    if (locationFilter) next.set('location', locationFilter)
+    if (minSalaryK > 0) next.set('salary', String(minSalaryK))
+    if (datePosted) next.set('posted', datePosted)
+    if (sort !== 'best') next.set('sort', sort)
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [query, h1b, experience, employment, company, workStyles, locationFilter, minSalaryK, datePosted, sort, searchParams, setSearchParams])
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
@@ -534,24 +545,22 @@ export function JobsPage() {
   }
 
   const handleApply = (job: JobListing) => {
+    if (!hasSafeApplyUrl(job.applyUrl)) {
+      toast.error('This listing has no safe application destination.')
+      return
+    }
     window.open(job.applyUrl, '_blank', 'noopener,noreferrer')
-    setAppliedIds((prev) => new Set(prev).add(job.id))
   }
 
-  const handleTailorResume = async (job: JobListing) => {
-    try {
-      const onFile = await resumeService.getResumeOnFile()
-      if (!onFile.has_resume || !onFile.analysis_id) {
-        toast.error('Analyze a resume first to tailor it for a job.')
-        navigate('/resume/upload')
-        return
-      }
-      navigate(`/resume/tailor?jobId=${Number(job.id)}&analysisId=${onFile.analysis_id}`, {
-        state: { jobTitle: job.title, company: job.company, location: job.location, workMode: job.workMode },
-      })
-    } catch {
-      toast.error('Could not check your resume status.')
-    }
+  const handleDetails = (job: JobListing) => {
+    const returnTo = `/jobs${location.search}`
+    navigate(`/jobs/${job.id}?returnTo=${encodeURIComponent(returnTo)}`)
+  }
+
+  const handleTailorResume = (job: JobListing) => {
+    const returnTo = `/jobs/${job.id}?returnTo=${encodeURIComponent(`/jobs${location.search}`)}`
+    const params = new URLSearchParams({ jobId: String(Number(job.id)), returnTo, mode: 'tailor' })
+    navigate(`/resume/match?${params.toString()}`)
   }
 
   return (
@@ -577,7 +586,7 @@ export function JobsPage() {
 
       <div className={cn('grid items-start gap-[14px]', filtersOpen ? 'xl:grid-cols-[232px_1fr]' : 'grid-cols-1')}>
         {filtersOpen && (
-          <Card className="p-[17px] xl:sticky xl:top-[92px] xl:max-h-[calc(100vh-110px)] xl:overflow-y-auto">
+          <Card id="job-filters" className="p-[17px] xl:sticky xl:top-[92px] xl:max-h-[calc(100vh-110px)] xl:overflow-y-auto">
             <div className="flex items-center justify-between pb-3">
               <h3 className="font-heading text-sm font-bold text-foreground">Filters</h3>
               <button
@@ -730,11 +739,11 @@ export function JobsPage() {
         <section className="min-w-0">
           <div className="mb-2.5 flex min-h-[41px] flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setFiltersOpen((v) => !v)}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen} aria-controls="job-filters">
                 <SlidersHorizontal size={14} /> {filtersOpen ? 'Hide filters' : 'Show filters'}
               </Button>
               <span className="text-[10px] text-muted-foreground">
-                <strong className="text-foreground">{filteredJobs.length}</strong> roles matched to you
+                <strong className="text-foreground">{filteredJobs.length}</strong> listings returned
               </span>
               {anyFilterActive && (
                 <button
@@ -772,6 +781,21 @@ export function JobsPage() {
               </label>
             </div>
           </div>
+
+          {anyFilterActive && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5" aria-label="Active job filters">
+              {query.trim() && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setQuery('')} aria-label="Remove keyword search">Search: {query.trim()} <X size={12} /></Button>}
+              {h1b && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setH1b(null)} aria-label="Remove sponsorship filter">{H1B_OPTIONS.find((option) => option.value === h1b)?.label} <X size={12} /></Button>}
+              {experience && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setExperience(null)} aria-label="Remove experience filter">{EXPERIENCE_OPTIONS.find((option) => option.value === experience)?.label} <X size={12} /></Button>}
+              {employment && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setEmployment(null)} aria-label="Remove employment filter">{EMPLOYMENT_OPTIONS.find((option) => option.value === employment)?.label} <X size={12} /></Button>}
+              {company && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setCompany(null)} aria-label="Remove employer filter">{company} <X size={12} /></Button>}
+              {[...workStyles].map((mode) => <Button key={mode} size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => toggleWorkStyle(mode)} aria-label={`Remove ${mode} filter`}>{mode} <X size={12} /></Button>)}
+              {locationFilter && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setLocationFilter(null)} aria-label="Remove location filter">{locationFilter} <X size={12} /></Button>}
+              {minSalaryK > 0 && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setMinSalaryK(0)} aria-label="Remove salary filter">${minSalaryK}k+ <X size={12} /></Button>}
+              {datePosted && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setDatePosted(null)} aria-label="Remove posted date filter">{DATE_POSTED_OPTIONS.find((option) => option.value === datePosted)?.label} <X size={12} /></Button>}
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearFilters}>Clear all</Button>
+            </div>
+          )}
 
           {feed?.refreshing && searchTerm && (
             <div className="mb-2.5 flex items-center gap-2 text-xs text-muted-foreground">
@@ -822,8 +846,8 @@ export function JobsPage() {
                     key={job.id}
                     job={job}
                     trackState={trackStates[job.id] ?? 'idle'}
-                    applied={appliedIds.has(job.id)}
                     onOpen={setSelectedJob}
+                    onDetails={handleDetails}
                     onTrack={handleTrack}
                     onApply={handleApply}
                   />
@@ -880,7 +904,7 @@ export function JobsPage() {
                         Analyze a resume to see how well you match this role.
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => navigate('/resume/upload')}>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/resume/match')}>
                       Analyze resume
                     </Button>
                   </div>

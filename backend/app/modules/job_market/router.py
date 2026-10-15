@@ -1,13 +1,14 @@
 import json
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
 from app.modules.job_market import crawl_status, matching, services
-from app.schemas.job import JobFeedSchema
+from app.schemas.job import JobDetailSchema, JobFeedSchema
 
 router = APIRouter()
 
@@ -87,3 +88,40 @@ def scheduler_status(
     is running now, and when the next one is due. A database read; the worker
     itself runs in its own process (app/worker.py)."""
     return crawl_status.scheduler_status(db)
+
+
+@router.get("/{job_id}", response_model=JobDetailSchema)
+def get_job_details(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Return one stored posting, including closed listings opened by URL."""
+    from app.models.job import JobListing
+
+    row = db.query(JobListing).filter(JobListing.id == job_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    try:
+        parsed_url = urlsplit((row.apply_url or "").strip())
+        safe_apply_url = (
+            row.apply_url
+            if parsed_url.scheme.lower() in {"http", "https"}
+            and parsed_url.hostname
+            and parsed_url.username is None
+            and parsed_url.password is None
+            else None
+        )
+    except ValueError:
+        safe_apply_url = None
+
+    return {
+        **services.to_payload(row),
+        "applyUrl": safe_apply_url,
+        "source": row.source,
+        "externalId": row.external_id,
+        "status": row.status,
+        "postedAt": row.posted_at.isoformat() if row.posted_at else None,
+        "closedAt": row.closed_at.isoformat() if row.closed_at else None,
+    }
