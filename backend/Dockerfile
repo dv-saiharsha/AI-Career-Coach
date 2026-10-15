@@ -41,4 +41,6 @@ EXPOSE 8000
 # UVICORN_WORKERS is a real capacity decision, not a Docker concern — set it
 # per deployment. Running more than one worker requires REDIS_URL for correct
 # cross-worker realtime delivery and job-market locking; see README.md.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}"]
+# PORT: Cloud Run sets it (infra/gcp deploys with --port 8000, so it matches);
+# docker-compose leaves it unset and gets 8000.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-1}"]

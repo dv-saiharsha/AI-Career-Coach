@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Cloud SQL Auth Proxy for local development, as a macOS LaunchAgent.
+  Serves the Cloud SQL instance career-coach-pg on 127.0.0.1:5433, which is
+  what backend/.env's DB_URL points at (MIGRATION_RUNBOOK 2.5). Port 5433, not
+  5432: a local Homebrew Postgres may already own 5432.
+  Authenticates with the signed-in gcloud user (gcloud auth login).
+  Install / remove: see README "Cloud SQL proxy (macOS)".
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hireloom.cloud-sql-proxy</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/cloud-sql-proxy</string>
+    <string>--gcloud-auth</string>
+    <string>--address</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>5433</string>
+    <string>project-aeb81a89-8d57-46ee-ab2:us-east1:career-coach-pg</string>
+  </array>
+
+  <!-- gcloud must be on PATH for gcloud-auth to mint tokens. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/opt/homebrew/share/google-cloud-sdk/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/venkatasai/Library/Logs/HireLoom/cloud-sql-proxy.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/venkatasai/Library/Logs/HireLoom/cloud-sql-proxy.log</string>
+</dict>
+</plist>

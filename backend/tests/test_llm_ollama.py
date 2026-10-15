@@ -1096,3 +1096,55 @@ class TestPerCallModel:
         client, seen = make_client(handler)
         assert client.complete_tool_json("s", "u", "t", SCHEMA, model="qwen2.5:14b") == {"title": "x", "skills": []}
         assert [json.loads(r.content)["model"] for r in seen] == ["qwen2.5:14b", "llama3.1"]
+
+
+class TestGoogleIdTokenAuth:
+    """OLLAMA_AUTH=google_id_token: the header a private Cloud Run Ollama needs."""
+
+    def _client_with(self, monkeypatch, fetch):
+        seen = []
+
+        def handler(request):
+            seen.append(request.headers.get("Authorization"))
+            return httpx.Response(200, json={"models": [{"name": "llama3.1:latest"}]})
+
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_AUTH", "google_id_token")
+        client = OllamaClient(base_url="https://ollama-abc.a.run.app", model="llama3.1", timeout=5,
+                              transport=httpx.MockTransport(handler))
+        client._auth._fetch = fetch
+        client._client.auth = client._auth
+        return client, seen
+
+    def test_every_request_carries_the_token_and_it_is_reused(self, monkeypatch):
+        fetched = []
+
+        def fetch(audience):
+            fetched.append(audience)
+            return "tok-1", 10_000_000_000.0
+
+        client, seen = self._client_with(monkeypatch, fetch)
+        client.health()
+        client.health()
+        assert seen == ["Bearer tok-1", "Bearer tok-1"]
+        assert fetched == ["https://ollama-abc.a.run.app"]
+
+    def test_the_token_is_refreshed_before_it_expires(self):
+        tokens = iter([("tok-1", 1000.0), ("tok-2", 5000.0)])
+        now = {"t": 0.0}
+        auth = llm_module.GoogleIdTokenAuth("https://x", fetch=lambda a: next(tokens), clock=lambda: now["t"])
+        assert auth.token() == "tok-1"
+        now["t"] = 1000.0 - auth.REFRESH_MARGIN_SECONDS + 1
+        assert auth.token() == "tok-2"
+
+    def test_no_auth_header_by_default(self, monkeypatch):
+        seen = []
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_AUTH", "")
+        client = OllamaClient(base_url="http://localhost:11434", model="llama3.1", timeout=5,
+                              transport=httpx.MockTransport(lambda r: seen.append(r.headers.get("Authorization")) or httpx.Response(200, json={"models": []})))
+        client.health()
+        assert seen == [None]
+
+    def test_an_unknown_mode_fails_loudly(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_AUTH", "basic")
+        with pytest.raises(RuntimeError, match="OLLAMA_AUTH"):
+            OllamaClient(base_url="http://localhost:11434", model="llama3.1", timeout=5)

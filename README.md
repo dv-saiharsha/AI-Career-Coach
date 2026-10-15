@@ -222,9 +222,9 @@ rather than loopback:
 npm run backend -- -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Hourly crawl worker (macOS)
+## Crawl worker (macOS)
 
-The crawl worker (`backend/app/worker.py`) fetches every active company's ATS board (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, JSON-LD; no paid sources), then enriches up to `OLLAMA_ENRICH_MAX_PER_RUN` new postings with Ollama. It runs once an hour (`CRAWL_INTERVAL_SECONDS`, default 3600, from the start of the previous run). A lock (Postgres advisory lock locally, Redis when `REDIS_URL` is set) means a run never overlaps the previous one or an admin-triggered crawl; an overlapping tick is skipped and logged. Each run is recorded in `crawl_runs` with counts per crawler, and `GET /api/jobs/scheduler-status` reports the last run, whether one is running and when the next is due.
+The crawl worker (`backend/app/worker.py`) fetches every active company's ATS board (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, JSON-LD; no paid sources), then enriches up to `OLLAMA_ENRICH_MAX_PER_RUN` new postings with Ollama. It runs every `CRAWL_INTERVAL_SECONDS` (default 3600; this team sets 1200, every 20 minutes) from the start of the previous run; a run that takes longer is followed straight away by the next. A lock (Postgres advisory lock locally, Redis when `REDIS_URL` is set) means a run never overlaps the previous one or an admin-triggered crawl; an overlapping tick is skipped and logged. Each run is recorded in `crawl_runs` with counts per crawler, and `GET /api/jobs/scheduler-status` reports the last run, whether one is running and when the next is due.
 
 Prerequisites: local Postgres running with `backend/.env` `DB_URL` pointing at it and `alembic upgrade head` applied, companies seeded (`python scripts/seed_companies.py` from `backend/`), and Ollama running for enrichment.
 
@@ -240,7 +240,19 @@ launchctl print gui/$(id -u)/com.hireloom.crawl-worker | head -20   # state, pid
 tail -f ~/Library/Logs/HireLoom/crawl-worker.log
 ```
 
-Remove it: `launchctl bootout gui/$(id -u)/com.hireloom.crawl-worker && rm ~/Library/LaunchAgents/com.hireloom.crawl-worker.plist`. The plist's paths are this checkout's; edit them if the repo lives elsewhere. Postgres must also start at login (`brew services start postgresql@17`), or the worker logs a failed tick every hour until it does.
+Remove it: `launchctl bootout gui/$(id -u)/com.hireloom.crawl-worker && rm ~/Library/LaunchAgents/com.hireloom.crawl-worker.plist`. The plist's paths are this checkout's; edit them if the repo lives elsewhere. The database must be reachable at login: with Cloud SQL, the proxy LaunchAgent below; with a local Postgres, `brew services start postgresql@17`. Otherwise the worker logs a failed tick each interval until it is. In the cloud the same crawl runs as a Cloud Run Job on Cloud Scheduler; see `infra/gcp/README.md`.
+
+### Cloud SQL proxy (macOS)
+
+`backend/.env` reaches Cloud SQL through the Cloud SQL Auth Proxy on `127.0.0.1:5433` (port 5433 so a local Postgres can keep 5432). Run it at login:
+
+```sh
+cp scripts/com.hireloom.cloud-sql-proxy.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hireloom.cloud-sql-proxy.plist
+tail ~/Library/Logs/HireLoom/cloud-sql-proxy.log   # "ready for new connections"
+```
+
+It authenticates as your `gcloud` login. Remove it: `launchctl bootout gui/$(id -u)/com.hireloom.cloud-sql-proxy && rm ~/Library/LaunchAgents/com.hireloom.cloud-sql-proxy.plist`.
 
 ## Local AI with Ollama
 

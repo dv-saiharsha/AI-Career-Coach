@@ -124,6 +124,10 @@ class Settings(BaseSettings):
     # like "30m", or a number of seconds; "-1" keeps it loaded indefinitely and
     # "0" unloads it right after each request.
     OLLAMA_KEEP_ALIVE: str = "30m"
+    # "google_id_token": send a Google-signed identity token for OLLAMA_BASE_URL
+    # with every request, which a private Cloud Run service (the GPU Ollama in
+    # infra/gcp) requires. Empty: no auth header (a local Ollama).
+    OLLAMA_AUTH: str = ""
     # Retries per call, both for transport errors / 5xx and for a reply that
     # is not valid, schema-conforming JSON. 1 try + this many retries.
     OLLAMA_MAX_RETRIES: int = 2

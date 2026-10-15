@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  HireLoom hourly crawl worker (backend/app/worker.py) as a macOS LaunchAgent.
+  HireLoom crawl worker (backend/app/worker.py) as a macOS LaunchAgent. The
+  cadence is CRAWL_INTERVAL_SECONDS in backend/.env (1200 = every 20 minutes).
   Starts at login, restarts if it exits. NOT installed by the repo: see the
   README section "Hourly crawl worker (macOS)" for install and removal.
   The paths are this machine's checkout; change them if the repo moves.
@@ -26,6 +27,10 @@
   <dict>
     <key>PYTHONUNBUFFERED</key>
     <string>1</string>
+    <!-- No Claude credits during crawls: an empty key overrides backend/.env
+         (config.py does not ignore empty values). Enrichment uses Ollama. -->
+    <key>ANTHROPIC_API_KEY</key>
+    <string></string>
   </dict>
 
   <key>RunAtLoad</key>

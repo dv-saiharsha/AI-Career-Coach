@@ -218,6 +218,53 @@ class ClaudeClient:
                 yield text
 
 
+class GoogleIdTokenAuth(httpx.Auth):
+    """Authorization: Bearer <Google identity token> for one audience.
+
+    A private Cloud Run service only accepts requests carrying an identity
+    token minted for its URL. On Cloud Run the metadata server issues it; on
+    a laptop it needs service-account credentials. The token is reused until
+    five minutes before it expires, so this costs one fetch an hour, not one
+    per request.
+    """
+
+    REFRESH_MARGIN_SECONDS = 300
+
+    def __init__(self, audience: str, fetch=None, clock=time.time) -> None:
+        self.audience = audience
+        self._fetch = fetch or self._fetch_google
+        self._clock = clock
+        self._token: str | None = None
+        self._expires_at = 0.0
+
+    @staticmethod
+    def _fetch_google(audience: str) -> tuple[str, float]:
+        import google.auth.transport.requests
+        import google.oauth2.id_token
+        from google.auth import jwt
+
+        token = google.oauth2.id_token.fetch_id_token(google.auth.transport.requests.Request(), audience)
+        return token, float(jwt.decode(token, verify=False)["exp"])
+
+    def token(self) -> str:
+        if self._token is None or self._clock() >= self._expires_at - self.REFRESH_MARGIN_SECONDS:
+            self._token, self._expires_at = self._fetch(self.audience)
+        return self._token
+
+    def auth_flow(self, request):
+        request.headers["Authorization"] = f"Bearer {self.token()}"
+        yield request
+
+
+def _ollama_auth(base_url: str) -> "httpx.Auth | None":
+    mode = (settings.OLLAMA_AUTH or "").strip().lower()
+    if not mode:
+        return None
+    if mode == "google_id_token":
+        return GoogleIdTokenAuth(base_url)
+    raise RuntimeError(f"OLLAMA_AUTH must be '' or 'google_id_token', got {mode!r}")
+
+
 class OllamaClient:
     """The same surface as ClaudeClient (plus embeddings), served by a local Ollama.
 
@@ -256,10 +303,12 @@ class OllamaClient:
         self.timeout = timeout if timeout is not None else settings.OLLAMA_TIMEOUT_INTERACTIVE_SECONDS
         self.max_retries = max_retries if max_retries is not None else settings.OLLAMA_MAX_RETRIES
         self._transport = transport
+        self._auth = _ollama_auth(self.base_url)
         self._client = httpx.Client(
             base_url=self.base_url,
             timeout=httpx.Timeout(self.timeout, connect=5.0),
             transport=transport,
+            auth=self._auth,
         )
 
     @property
@@ -442,6 +491,7 @@ class OllamaClient:
             base_url=self.base_url,
             timeout=httpx.Timeout(limit, connect=5.0),
             transport=self._transport,
+            auth=self._auth,
         ) as client:
             for model in models:
                 try:
