@@ -26,6 +26,7 @@ from app.core.taxonomy import canonical, expand_skills, skill_candidates
 from app.ml.features import extract_features
 from app.ml.inference import model_available, predict_score
 from app.models.job import JobListing
+from app.modules.jd_analyzer import service as jd_service
 from app.models.resume import ResumeAnalysis
 from app.modules.resume_builder import cache, services
 
@@ -133,8 +134,10 @@ def build_preview(
         bullet_suggestions = cached["bullet_suggestions"]
         from_cache = True
     else:
+        # The scoring model above was fit on descriptions alone; the analysis
+        # gets the title too, as every crawled listing's analysis does.
         staged = services.stage_fixes(
-            resume_text, jd_text, experiences=None if not include_rewrites else [], db=db
+            resume_text, jd_service.listing_text(job.title, job.description), experiences=None if not include_rewrites else [], db=db
         )
         missing = staged["missing_keywords"][:MAX_KEYWORDS]
 

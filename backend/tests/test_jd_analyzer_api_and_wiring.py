@@ -222,6 +222,11 @@ class TestAnalyzeListing:
         client.get(f"/api/jd/analyze/{job.id}")
         assert client.get(f"/api/jd/analyze/{job.id}").json()["cached"] is True and len(model.calls) == 1
 
+    def test_the_listing_title_is_analysed_with_the_description(self, client, model, db):
+        job = add_job(db)
+        client.get(f"/api/jd/analyze/{job.id}")
+        assert model.calls[0]["user"].startswith("JOB POSTING:\nBackend Engineer\n\n")
+
     def test_unknown_listing_is_404(self, client, model):
         assert client.get("/api/jd/analyze/999").status_code == 404
 
@@ -339,6 +344,21 @@ class TestTailoringFlows:
         service.clear_cache()
         faang.build_preview(db, ALICE, job.id, scan.id, "Ada Lovelace", include_rewrites=False)
         assert model.tools.count(service.TOOL_NAME) == 1  # the second flow found the stored analysis
+
+    def test_handoff_analyses_title_and_description_but_scores_the_description(self, model, db, monkeypatch):
+        job, scan = add_job(db), add_scan(db)
+        scored, analysed = [], []
+        real_stage_fixes = builder_services.stage_fixes
+        monkeypatch.setattr(tailor, "model_available", lambda: True)
+        monkeypatch.setattr(tailor, "predict_score", lambda resume, jd: scored.append(jd) or 70.0)
+        monkeypatch.setattr(tailor, "extract_features", lambda resume, jd: {"tfidf_cosine": 0.5})
+        monkeypatch.setattr(
+            builder_services, "stage_fixes",
+            lambda resume, jd, experiences, **kw: analysed.append(jd) or real_stage_fixes(resume, jd, experiences, **kw),
+        )
+        tailor.build_handoff(db, ALICE, job.id, scan.id)
+        assert analysed == [service.listing_text(job.title, job.description)]
+        assert scored and all(jd == job.description for jd in scored)
 
     def test_the_free_reports_never_call_the_model_and_use_an_existing_analysis(self, model):
         builder_services.quality_report(RESUME, JD, [])

@@ -744,3 +744,31 @@ class TestSecondCall:
         service.analyze(JD)
         service.analyze(JD)
         assert len(llm.calls) == 1 and len(llm.missed_calls) == 1
+
+
+# --- a crawled listing's text ------------------------------------------------
+
+
+class TestListingText:
+    def test_the_title_goes_first(self):
+        assert service.listing_text("Software Engineer, New Grad", "We build things.") == (
+            "Software Engineer, New Grad\n\nWe build things."
+        )
+
+    def test_a_description_that_opens_with_the_title_is_left_alone(self):
+        body = "Software Engineer, New Grad\n\nWe build things."
+        assert service.listing_text("Software Engineer,  New Grad", body) == body
+        html = "<h2>Data Engineer</h2><p>Python required.</p>"
+        assert service.listing_text("Data Engineer", html) == html
+
+    def test_no_title_means_the_description_alone(self):
+        assert service.listing_text(None, "We build things.") == "We build things."
+        assert service.listing_text("  ", "We build things.") == "We build things."
+
+    def test_a_level_word_in_the_title_is_stated_and_beats_the_years(self, llm):
+        llm.replies = [reply(job_title="Software Engineer, New Grad", seniority="unknown", min_years_experience=None)]
+        text = service.listing_text("Software Engineer, New Grad", "You have 3+ years of Python. " + JD.split(". ", 1)[1])
+        analysis = service.analyze(text)
+        assert (analysis.job_title, analysis.seniority, analysis.seniority_source) == (
+            "Software Engineer, New Grad", "junior", "stated",
+        )

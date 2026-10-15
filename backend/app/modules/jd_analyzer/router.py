@@ -53,7 +53,8 @@ def analyze_listing(
         raise HTTPException(status_code=404, detail="Job listing not found")
     if not (listing.description or "").strip():
         raise HTTPException(status_code=422, detail="This listing has no description to analyse.")
-    analysis, report = service.analyze_with_report(listing.description, db=db, job_listing_id=job_listing_id)
+    text = service.listing_text(listing.title, listing.description)
+    analysis, report = service.analyze_with_report(text, db=db, job_listing_id=job_listing_id)
     return AnalyzeJDResponse(
         analysis=analysis, cached=report.cached is not None, model=service._model_name(), job_listing_id=job_listing_id
     )

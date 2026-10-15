@@ -58,6 +58,11 @@ def load_set(name: str) -> list[dict]:
     for path in sorted((FIXTURES / f"jd_{name}").glob("*.json")):
         doc = json.loads(path.read_text(encoding="utf-8"))
         doc["text"] = doc.get("jd_text") or SEED[doc["jd_id"]]["text"]
+        if doc.get("listing"):
+            # A crawled listing is analysed as the app analyses it: title, then description.
+            from app.modules.jd_analyzer.service import listing_text
+
+            doc["text"] = listing_text(doc["listing"]["title"], doc["jd_text"])
         docs.append(doc)
     return docs
 

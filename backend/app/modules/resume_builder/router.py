@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.ratelimit import RateLimit
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.job import JobListing
+from app.modules.jd_analyzer import service as jd_service
 from app.models.resume import ResumeAnalysis
 from app.modules.resume_builder import autofill, cache, faang, optimizer, services, tailor
 from app.ml.inference import ScoringModelUnavailable
@@ -284,11 +285,14 @@ def quick_tailor(
         )
 
     jd_text = payload.job_description
+    analysis_text = None
     if payload.job_id is not None:
         job = db.query(JobListing).filter(JobListing.id == payload.job_id).first()
         if job is None:
             raise HTTPException(status_code=404, detail="Job not found")
         jd_text = job.description or ""
+        # Looked up under the same text the listing was analysed with (title + description).
+        analysis_text = jd_service.listing_text(job.title, job.description)
 
         cached = cache.get_cached(
             db, current_user.id, analysis_id, payload.job_id, "quick_tailor", payload.target_pages
@@ -304,6 +308,7 @@ def quick_tailor(
             payload.target_pages,
             accepted_skills=payload.accepted_skills,
             bullet_overrides=[b.model_dump() for b in payload.bullet_overrides],
+            analysis_text=analysis_text,
         )
     except LatexToolchainMissing as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

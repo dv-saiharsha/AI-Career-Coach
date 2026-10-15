@@ -587,6 +587,23 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
 # ── public API ───────────────────────────────────────────────────────────
 
 
+def listing_text(title: str | None, description: str | None) -> str:
+    """The text to analyse for a crawled listing: its title on the first line,
+    then the description. Crawled descriptions often leave the title out, and
+    the title is where the level ("New Grad", "Staff", "Lead") is usually
+    stated. A description that already opens with the title is left as it is.
+    Pasted job descriptions are analysed as pasted, without this."""
+    title = " ".join((title or "").split())
+    body = description or ""
+    if not title:
+        return body
+    first = next((line.strip() for line in cleaning.clean_jd(body).splitlines() if line.strip()), "")
+    if first.lower() == title.lower():
+        return body
+    return f"{title}\n\n{body}"
+
+
+
 def analyze_with_report(
     jd_text: str,
     db: Session | None = None,

@@ -89,7 +89,7 @@ class TestQuickTailorCaching:
 
         calls = {"n": 0}
 
-        def fake_quick_tailor(record, full_name, jd_text, target_pages, accepted_skills=None, bullet_overrides=None):
+        def fake_quick_tailor(record, full_name, jd_text, target_pages, accepted_skills=None, bullet_overrides=None, analysis_text=None):
             calls["n"] += 1
             return self._fake_result()
 
@@ -110,7 +110,7 @@ class TestQuickTailorCaching:
         scan = add_scan(db)
         calls = {"n": 0}
 
-        def fake_quick_tailor(record, full_name, jd_text, target_pages, accepted_skills=None, bullet_overrides=None):
+        def fake_quick_tailor(record, full_name, jd_text, target_pages, accepted_skills=None, bullet_overrides=None, analysis_text=None):
             calls["n"] += 1
             return self._fake_result(target_pages=target_pages)
 
@@ -129,7 +129,7 @@ class TestQuickTailorCaching:
         scan = add_scan(db)
         calls = {"n": 0}
 
-        def fake_quick_tailor(record, full_name, jd_text, target_pages, accepted_skills=None, bullet_overrides=None):
+        def fake_quick_tailor(record, full_name, jd_text, target_pages, accepted_skills=None, bullet_overrides=None, analysis_text=None):
             calls["n"] += 1
             return self._fake_result()
 

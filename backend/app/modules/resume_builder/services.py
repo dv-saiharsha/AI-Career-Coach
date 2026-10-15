@@ -249,8 +249,13 @@ def quick_tailor(
     target_pages: int,
     accepted_skills: list[str] | None = None,
     bullet_overrides: list[dict] | None = None,
+    analysis_text: str | None = None,
 ) -> dict:
     """A finished, page-fitted FAANG-format resume from a stored scan.
+
+    `analysis_text` is the text the job was analysed under, when it differs
+    from `jd_text` (a crawled listing is analysed with its title; the score uses
+    the description alone).
 
     Everything here comes out of the candidate's own uploaded resume:
     autofill parses it into structured sections, the JD decides which of
@@ -306,7 +311,7 @@ def quick_tailor(
                 break
 
     keywords = (
-        {k.lower() for k in expand_skills(jd_service.keywords_peek(jd_text, skill_candidates))} if jd_text else set()
+        {k.lower() for k in expand_skills(jd_service.keywords_peek(analysis_text or jd_text, skill_candidates))} if jd_text else set()
     )
 
     payload = {
