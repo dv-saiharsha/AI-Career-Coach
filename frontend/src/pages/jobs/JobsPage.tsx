@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ScoreRing } from '@/components/shared/ScoreRing'
 import { HttpError } from '@/lib/http'
-import { cn } from '@/lib/utils'
+import { cn, safeExternalUrl } from '@/lib/utils'
 import { jobsService } from '@/services/jobsService'
 import {
   EMPLOYMENT_OPTIONS,
@@ -146,12 +146,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 function hasSafeApplyUrl(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname) && !url.username && !url.password
-  } catch {
-    return false
-  }
+  return safeExternalUrl(value) !== null
 }
 
 function initials(company: string): string {
@@ -532,7 +527,8 @@ export function JobsPage() {
         company: job.company,
         location: job.location,
         salary_range: job.salaryRange,
-        job_url: job.applyUrl,
+        // Only a safe link is stored: the Applications page renders it.
+        job_url: safeExternalUrl(job.applyUrl) ?? undefined,
         job_description: job.description ?? undefined,
         status: 'saved',
       })

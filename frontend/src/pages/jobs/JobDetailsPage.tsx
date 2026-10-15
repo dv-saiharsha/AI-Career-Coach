@@ -20,6 +20,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { jobsService } from '@/services/jobsService'
 import { HttpError } from '@/lib/http'
+import { safeExternalUrl } from '@/lib/utils'
 import type { JobDetails } from '@/types/jobs'
 
 function postedLabel(job: JobDetails): string {
@@ -110,7 +111,7 @@ export function JobDetailsPage() {
         company: job.company,
         location: job.location,
         salary_range: job.salaryRange,
-        job_url: job.applyUrl,
+        job_url: safeExternalUrl(job.applyUrl) ?? undefined,
         job_description: job.description ?? undefined,
         status: 'saved',
       })

@@ -55,7 +55,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
-import { cn } from '@/lib/utils'
+import { cn, safeExternalUrl } from '@/lib/utils'
 import { HttpError } from '@/lib/http'
 import { applicationsService, stageForColumn } from '@/services/applicationsService'
 import {
@@ -1044,9 +1044,9 @@ export function ApplicationsPage() {
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border py-3 text-[9px] text-muted-foreground">
                     {detail.application.location && <span>{detail.application.location}</span>}
                     {detail.application.salary_range && <span>{detail.application.salary_range}</span>}
-                    {detail.application.job_url && (
+                    {safeExternalUrl(detail.application.job_url) && (
                       <a
-                        href={detail.application.job_url}
+                        href={safeExternalUrl(detail.application.job_url)!}
                         target="_blank"
                         rel="noreferrer noopener"
                         className="inline-flex items-center gap-1 font-bold text-primary hover:underline"
