@@ -38,3 +38,20 @@ banner() {
 }
 
 gc() { gcloud --project "${PROJECT_ID}" --quiet "$@"; }
+
+# need_components alpha beta: stop with an instruction rather than let
+# --quiet silently install gcloud components on someone's machine.
+need_components() {
+  local missing=()
+  for c in "$@"; do
+    gcloud components list --only-local-state --filter="id=${c}" --format='value(id)' 2>/dev/null | grep -qx "${c}" || missing+=("${c}")
+  done
+  if (( ${#missing[@]} )); then
+    echo "This script needs gcloud components: ${missing[*]}. Install with: gcloud components install ${missing[*]}" >&2
+    exit 1
+  fi
+}
+
+# names CMD...: only the lines that are resource names (projects/...), so
+# progress or installer text can never be mistaken for a match.
+names() { "$@" 2>/dev/null | grep '^projects/' || true; }

@@ -1,0 +1,21 @@
+{
+  "displayName": "HireLoom: crawler execution failed",
+  "documentation": {
+    "content": "A hireloom-crawler Cloud Run Job execution failed (after its retry). Logs: Cloud Run > Jobs > hireloom-crawler > Executions. A run skipped because another held the lock exits 0 and does not fire this.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "failed executions > 0",
+      "conditionThreshold": {
+        "filter": "resource.type = \"cloud_run_job\" AND resource.labels.job_name = \"hireloom-crawler\" AND metric.type = \"run.googleapis.com/job/completed_execution_count\" AND metric.labels.result = \"failed\"",
+        "aggregations": [{ "alignmentPeriod": "1200s", "perSeriesAligner": "ALIGN_SUM" }],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s"
+      }
+    }
+  ],
+  "alertStrategy": { "autoClose": "86400s" }
+}

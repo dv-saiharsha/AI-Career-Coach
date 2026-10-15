@@ -45,6 +45,7 @@ applied unless the status table says so.
 | Crawler every 20 min | 🟡 Runs on the owner's Mac (LaunchAgent) against Cloud SQL until `40_jobs.sh` |
 | `10`–`40` | ⬜ Written and dry-run checked; not applied |
 | `50_api.sh` | ⛔ Owner: no deploy/publish yet. Needs `DEPLOY_APPROVED=yes` |
+| `60_monitoring.sh` | ⬜ Written and dry-run checked; not applied |
 | ATS model | ⬜ `ats_model.joblib` is not on this Mac or in any bucket. Scores show "Unavailable" until it is uploaded to `gs://hireloom-models-452189867278/` |
 | Frontend hosting | ⬜ Not scripted yet (Firebase Hosting); "don't publish" |
 
@@ -62,6 +63,7 @@ before and after each step.
 | `30_ollama.sh` | Private GPU service | **per second while up, GPU included** | owner's OK on GPU price + L4 quota in `GPU_REGION` |
 | `40_jobs.sh` | Crawler (every 20 min) + enricher (hourly) + schedules | CPU seconds per run; enricher wakes the GPU hourly | `ALLOWED_ORIGINS`, step 30 |
 | `50_api.sh` | Public API | per request (scales to zero) | **owner's deploy approval**, `ALLOWED_ORIGINS` |
+| `60_monitoring.sh` | Email alerts: failed crawl, no successful crawl for 2 h, API uptime, monthly budget (50/90/100%) | free; a budget only notifies | `BUDGET_USD` (owner's number); gcloud `alpha` + `beta` components |
 
 ```sh
 cd infra/gcp
@@ -72,6 +74,7 @@ APPLY=1 ./20_build.sh ollama
 APPLY=1 ./30_ollama.sh                                   # after the cost OK
 ALLOWED_ORIGINS=https://<web origin> APPLY=1 ./40_jobs.sh
 ALLOWED_ORIGINS=https://<web origin> APPLY=1 DEPLOY_APPROVED=yes ./50_api.sh
+BUDGET_USD=<owner's monthly limit> APPLY=1 ./60_monitoring.sh   # re-run after 50 for the uptime check
 ```
 
 When `40_jobs.sh` is live, remove the Mac crawler so the cloud is the only one:
