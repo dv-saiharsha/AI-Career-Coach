@@ -143,3 +143,66 @@ def test_the_holdout_set_has_three_hand_annotated_jds_none_of_them_golden():
     golden = {json.loads(p.read_text(encoding="utf-8"))["jd_id"] for p in FILES}
     assert len(docs) == 3 and all(d["holdout"] and d["annotated_by"] == "hand" for d in docs)
     assert not {d["jd_id"] for d in docs} & golden
+
+
+# --- the real-posting sets (tune and locked test) ----------------------------------
+
+REAL_FILES = sorted((FIXTURES.parent / "jd_real_tune").glob("*.json")) + sorted((FIXTURES.parent / "jd_real_test").glob("*.json"))
+
+
+def load_real(path):
+    from app.modules.jd_analyzer.service import listing_text
+
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    return doc, cleaning.clean_jd(listing_text(doc["listing"]["title"], doc["jd_text"]))
+
+
+def test_the_real_sets_are_ten_and_ten_and_do_not_overlap():
+    tune = {p.name for p in (FIXTURES.parent / "jd_real_tune").glob("*.json")}
+    test = {p.name for p in (FIXTURES.parent / "jd_real_test").glob("*.json")}
+    assert len(tune) == len(test) == 10 and not tune & test
+    assert "LOCKED" in (FIXTURES.parent / "jd_real_test" / "README.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("path", REAL_FILES, ids=lambda p: p.stem)
+class TestEachRealFixture:
+    """Checks on the files only. Whether the code agrees with them is what the
+    evaluation measures, so there are no code-agreement checks here."""
+
+    def test_expected_is_a_valid_analysis(self, path):
+        doc, _ = load_real(path)
+        JDAnalysis.model_validate({**doc["expected"], "source": "llm"})
+
+    def test_every_quote_is_verbatim_in_the_title_and_description(self, path):
+        doc, cleaned = load_real(path)
+        e = doc["expected"]
+        quotes = [s["evidence"] for s in e["required_skills"] + e["preferred_skills"]]
+        quotes += [r["evidence"] for r in e["education"] + e["certifications"]]
+        assert not [q for q in quotes if not quote_in_text(q, cleaned)]
+
+    def test_names_are_canonical_unique_and_never_the_title(self, path):
+        doc, _ = load_real(path)
+        e = doc["expected"]
+        names = [s["name"] for s in e["required_skills"] + e["preferred_skills"]]
+        assert all(canonical(n) == n for n in names) and len(names) == len(set(names))
+        assert not set(names) & rules.title_forms(e["job_title"])
+
+    def test_groups_share_one_quote(self, path):
+        doc, _ = load_real(path)
+        groups: dict[str, set[str]] = {}
+        for s in doc["expected"]["required_skills"] + doc["expected"]["preferred_skills"]:
+            if s["alternative_group"]:
+                groups.setdefault(s["alternative_group"], set()).add(s["evidence"])
+        assert all(len(quotes) == 1 for quotes in groups.values())
+
+    def test_nothing_forbidden_is_expected_or_in_the_text(self, path):
+        # mentions_any with the written form ("Go"), not named_in: real postings use
+        # "go" as a verb ("go into the office").
+        from app.core.skill_match import AMBIGUOUS_SKILL_WORDS, mentions_any
+
+        doc, cleaned = load_real(path)
+        e = doc["expected"]
+        everything = {s["name"] for s in e["required_skills"] + e["preferred_skills"]} | set(e["tools_technologies"])
+        assert not everything & set(doc["forbidden_skills"])
+        written = {f: f.capitalize() if f in AMBIGUOUS_SKILL_WORDS else f for f in doc["forbidden_skills"]}
+        assert not [f for f in doc["forbidden_skills"] if f != "r" and mentions_any(cleaned, [written[f]])]

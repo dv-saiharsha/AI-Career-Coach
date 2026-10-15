@@ -1,0 +1,94 @@
+{
+  "jd_id": "data-scientist-senior-23925",
+  "role": "data-scientist",
+  "level_from_title": "senior",
+  "listing": {
+    "id": 23925,
+    "title": "Senior Data Scientist, Content + Social",
+    "company": "suno",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'As a Senior Data Scientist' states the level; years 5.",
+    "'Advanced proficiency in SQL, Python, and statistical modeling' -> three required skills; 'designing and running experiments' -> experimentation (required).",
+    "'Strategic thinking' and communication are not skills.",
+    "'Bonus: Background in music, creator monetization, social products, or content discovery platforms' names domains, not technical skills: no preferred skills."
+  ],
+  "expected": {
+    "job_title": "Senior Data Scientist, Content + Social",
+    "seniority": "senior",
+    "seniority_source": "stated",
+    "min_years_experience": 5,
+    "required_skills": [
+      {
+        "name": "sql",
+        "evidence": "SQL",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python",
+        "alternative_group": null
+      },
+      {
+        "name": "statistical modeling",
+        "evidence": "statistical modeling",
+        "alternative_group": null
+      },
+      {
+        "name": "experimentation",
+        "evidence": "designing and running experiments",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "sql",
+      "python"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "build frameworks for content and social engagement",
+      "design experiments"
+    ],
+    "ats_keywords": [
+      {
+        "term": "sql",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "statistical modeling",
+        "weight": 1.0
+      },
+      {
+        "term": "experimentation",
+        "weight": 1.0
+      },
+      {
+        "term": "senior data scientist content + social",
+        "weight": 0.8
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "r",
+    "spark",
+    "tableau",
+    "airflow",
+    "dbt",
+    "java",
+    "machine learning",
+    "deep learning",
+    "pytorch",
+    "looker"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "ABOUT SUNO\n\nWe're building the world's first creative entertainment platform, where the entire world can feel the joy and fulfillment of making music. Music is for everyone: Our users include everyone from grandmothers creating songs for their loved ones, to Grammy winners using Suno Studio, our power tool, to make the most popular hits in the world.\n\nBuilding the future of entertainment requires ambition. The pace is fast, the problems are hard, and the work demands ownership and intensity. For the right people, it’s incredibly rewarding: a chance to shape a new medium, work with a small team that cares deeply about quality, make music, drink too much coffee, and build something that millions of people use to express themselves in ways that were never before possible.\n\nSuno is the fastest growing consumer entertainment company and the leader in AI music. We are backed by leading investors including Bond Capital, Menlo Ventures, Lightspeed Venture Partners, IVP, Forerunner, Union Square Ventures, Alkeon, Quiet, Matrix Partners, Schroders Capital and, NVentures (venture arm of NVIDIA).\n\n\n\n\nABOUT THE ROLE\n\nAs a Senior Data Scientist on Content + Social, you'll build the analytical foundation for how people discover, listen to, share, and engage with music on Suno. You'll partner across three product areas — content experiences (listening, playlisting, and feed), social (shaping what community and interaction look like on Suno), and artists + creators (understanding what makes creators successful and how we amplify their work). This is a high-impact role where you'll set the strategy for how we measure and grow these interconnected experiences, working closely with product, engineering, and cross-functional partners on everything from strategy to execution.\n\nCheck out the Suno version of this role here: https://suno.com/song/ca500252-9b76-442b-88bf-54befaff02ef?sh=LeSCpIrEXhGHEmS0\n\n\n\n\nWHAT YOU'LL DO\n\n - Build comprehensive frameworks for understanding how users discover and engage with content and each other and design experiments to improve these experiences\n\n - Shape the analytical approach for our emerging social experiences, helping define what healthy social engagement looks like on a music platform and how to measure it\n\n - Develop deep understanding of creator and artist success which will drive our creator programs and incentives\n\n - Surface insights that connect content, social, and creator dynamics\n\n - Collaborate closely with product, business, and music functions\n\n - Contribute to building strong data foundations as part of our awesome data science team\n\n\n\n\nWHAT YOU'LL NEED\n\n - 5+ years experience in data science roles, ideally with experience in content platforms, social products, or creator ecosystems\n\n - Advanced proficiency in SQL, Python, and statistical modeling\n\n - Experience designing and running experiments, with ability to derive clear insights and make strategic recommendations\n\n - Strategic thinking about content ecosystems and platform health, with\n\n - Excellent communication and collaboration\n\n - A self-starter mentality with the ability to thrive in ambiguity, eagerness to wear multiple hats, and passion for continuous learning\n\nBonus: Background in music, creator monetization, social products, or content discovery platforms\n\n\n\nAdditional Notes: Applicants must be eligible to work in the US.\n\n\n\n\nCOMPENSATION\n\nThe annual salary range for this role is $220k – $320k + target equity + benefits (including medical, dental, vision, and 401k)\n\n\n\n\nPERKS & BENEFITS\n\n - Company Equity Package\n\n - 401(k) with 3% Employer Match & Roth 401(k)\n\n - Medical, Dental, & Vision Insurance (PPO w/ HSA & FSA options)\n\n - 11 Paid Holidays + Unlimited PTO & Sick Time\n\n - 16 Weeks of Paid Parental Leave\n\n - Creative Education Stipend\n\n - Generous Commuter Allowance\n\n - In-Office Lunch (5 days per week)\n\n\n\nSuno is proud to be an Equal Opportunity Employer. We consider qualified applicants without regard to race, color, ancestry, religion, sex, national origin, sexual orientation, gender identity, age, marital or family status, disability, genetic information, veteran status, or any other legally protected basis under provincial, federal, state, and local laws, regulations, or ordinances. We will also consider qualified applicants with criminal histories in a manner consistent with the requirements of state and local laws, including the Massachusetts Fair Chance in Employment Act, NYC Fair Chance Act, LA City Fair Chance Ordinance, and San Francisco Fair Chance Ordinance."
+}

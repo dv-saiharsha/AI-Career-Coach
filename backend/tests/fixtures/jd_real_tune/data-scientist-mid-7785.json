@@ -1,0 +1,156 @@
+{
+  "jd_id": "data-scientist-mid-7785",
+  "role": "data-scientist",
+  "level_from_title": "mid",
+  "listing": {
+    "id": 7785,
+    "title": "Data Scientist, Optimization - Real-Time Supply Management",
+    "company": "Lyft",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "No level word; the first years figure is '2+ years': junior by the years rule (source years), although the listing title has no level.",
+    "'2+ years of hands-on experience in optimization (preferred), causal inference, or machine learning' is an either/or ('area').",
+    "'querying, aggregation, analysis, and visualization' -> data analysis and data visualization (required).",
+    "'designing, running, and analyzing A/B tests' -> A/B testing. 'Proficiency with Python' -> Python.",
+    "'mathematical programming, control theory, or operations research' describe backgrounds that 'are a great fit': preferred.",
+    "Degree: 'PhD preferred' and 'or equivalent work experience' -> not required."
+  ],
+  "expected": {
+    "job_title": "Data Scientist, Optimization - Real-Time Supply Management",
+    "seniority": "junior",
+    "seniority_source": "years",
+    "min_years_experience": 2,
+    "required_skills": [
+      {
+        "name": "optimization",
+        "evidence": "optimization (preferred), causal inference, or machine learning",
+        "alternative_group": "area"
+      },
+      {
+        "name": "causal inference",
+        "evidence": "optimization (preferred), causal inference, or machine learning",
+        "alternative_group": "area"
+      },
+      {
+        "name": "machine learning",
+        "evidence": "optimization (preferred), causal inference, or machine learning",
+        "alternative_group": "area"
+      },
+      {
+        "name": "data analysis",
+        "evidence": "querying, aggregation, analysis, and visualization",
+        "alternative_group": null
+      },
+      {
+        "name": "data visualization",
+        "evidence": "querying, aggregation, analysis, and visualization",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Proficiency with Python",
+        "alternative_group": null
+      },
+      {
+        "name": "a b testing",
+        "evidence": "A/B tests",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "mathematical programming",
+        "evidence": "mathematical programming",
+        "alternative_group": null
+      },
+      {
+        "name": "control theory",
+        "evidence": "control theory",
+        "alternative_group": null
+      },
+      {
+        "name": "operations research",
+        "evidence": "operations research",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "python"
+    ],
+    "education": [
+      {
+        "name": "MS or PhD in a quantitative field",
+        "required": false,
+        "evidence": "Advanced degree (MS or PhD, PhD preferred) in a quantitative field like Operations Research, Applied Math, Computer Science, Statistics, Engineering, or a related area; or equivalent work experience"
+      }
+    ],
+    "certifications": [],
+    "responsibilities": [
+      "design and deploy optimization models for driver incentives",
+      "perform exploratory data analysis"
+    ],
+    "ats_keywords": [
+      {
+        "term": "optimization",
+        "weight": 1.0
+      },
+      {
+        "term": "causal inference",
+        "weight": 1.0
+      },
+      {
+        "term": "machine learning",
+        "weight": 1.0
+      },
+      {
+        "term": "data analysis",
+        "weight": 1.0
+      },
+      {
+        "term": "data visualization",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "a b testing",
+        "weight": 1.0
+      },
+      {
+        "term": "data scientist optimization real time supply management",
+        "weight": 0.8
+      },
+      {
+        "term": "mathematical programming",
+        "weight": 0.5
+      },
+      {
+        "term": "control theory",
+        "weight": 0.5
+      },
+      {
+        "term": "operations research",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "sql",
+    "r",
+    "spark",
+    "tensorflow",
+    "pytorch",
+    "java",
+    "scala",
+    "tableau",
+    "aws",
+    "deep learning"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "At Lyft, our purpose is to serve and connect. We aim to achieve this by cultivating a work environment where all team members belong and have the opportunity to thrive.\n\nData Science is at the heart of Lyft’s products and decision-making. Data Scientists at Lyft operate in dynamic environments, moving quickly to build the world’s best transportation solutions. We tackle a wide range of challenges - from shaping long-term business strategy with data, to making critical short-term decisions, to developing algorithms and models that power both internal systems and customer-facing products.\n\nDriver Incentives Science owns the algorithms and systems behind incentive design, influencing driver engagement and marketplace efficiency — from real-time supply positioning to longer-horizon earnings and engagement programs. The team is responsible for designing pay and incentive mechanisms that are efficient and good for driver experience over the long run.\n\nAs a Data Scientist specializing in Algorithms, you'll partner closely with product, engineering, and operations leaders to build and scale incentive systems, shape long-term mechanism design strategy, and deliver on critical business goals tied to marketplace efficiency and driver earnings. Candidates with strong optimization backgrounds — think mathematical programming, control theory, or operations research — are a great fit, though we welcome strong candidates from machine learning or causal inference as well. The ideal candidate thrives in a fast-paced environment and brings a hands-on, entrepreneurial mindset to drive results.\n\nResponsibilities:\n\nCollaborate with engineering and product teams to design, implement, and iterate on new features and algorithmic improvements for driver incentives and pay mechanisms.\n\nDesign, develop, and deploy optimization models, algorithms, and systems for problems such as budget allocation, multidimensional cost-curve development, and incentive targeting.\n\nWrite production model code; collaborate with Software Engineers to implement algorithms in production.\n\nPerform exploratory data analysis to gain a deeper understanding of the marketplace and its users.\n\nCommunicate findings and facilitate launch decisions with technical and non-technical stakeholders.\n\nEnsure robust experimentation and causal inference methodologies are applied to measure the impact of new features and strategies.\n\nExperience:\n\nAdvanced degree (MS or PhD, PhD preferred) in a quantitative field like Operations Research, Applied Math, Computer Science, Statistics, Engineering, or a related area; or equivalent work experience.\n\nPassion for solving unstructured and non-standard mathematical problems, with 2+ years of hands-on experience in optimization (preferred), causal inference, or machine learning.\n\nEnd-to-end experience with data, including querying, aggregation, analysis, and visualization.\n\nProficiency with Python.\n\nStrong ability to collaborate and communicate with others in a team setting.\n\nExperience seeking out and adopting new methods and techniques.\n\nExperience designing, running, and analyzing A/B tests to validate hypotheses and inform decision-making.\n\nBenefits:\n\nExtended health and dental coverage options, along with life insurance and disability benefits\n\nMental health benefits\n\nFamily building benefits\n\nChild care and pet benefits\n\nAccess to a Lyft funded Health Care Savings Account\n\nRRSP plan with company match to help save for your future\n\nIn addition to provincial observed holidays, salaried team members are covered under Lyft's flexible paid time off policy. The policy allows team members to take off as much time as they need (with manager approval). Hourly team members get 15 days paid time off, with an additional day for each year of service\n\nLyft is proud to support new parents with 18 weeks of paid time off, designed as a top-up plan to complement provincial programs. Biological, adoptive, and foster parents are all eligible.\n\nSubsidized commuter benefits and Lyft ride credits\n\nLyft is committed to creating an inclusive workforce that fosters belonging. Lyft believes that every person has a right to equal employment opportunities without discrimination because of race, ancestry, place of origin, colour, ethnic origin, citizenship, creed, sex, sexual orientation, gender identity, gender expression, age, marital status, family status, disability, pardoned record of offences, or any other basis protected by applicable law or by Company policy. Lyft also strives for a healthy and safe workplace and strictly prohibits harassment of any kind. Accommodation for persons with disabilities will be provided upon request in accordance with applicable law during the application and hiring process. Please contact your recruiter if you wish to make such a request.\n\nLyft highly values having employees working in-office to foster a collaborative work environment and company culture. This role will be in-office on a hybrid schedule — Team Members will be expected to work in the office at least 3 days per week, including on Mondays, Wednesdays, and Thursdays. Lyft considers working in the office at least 3 days per week to be an essential function of this hybrid role. Your recruiter can share more information about the various in-office perks Lyft offers. Additionally, hybrid roles have the flexibility to work from anywhere for up to 4 weeks per year. #Hybrid\n\nThe expected base pay range for this position in the Toronto area is CAD $108,000 - CAD $135,000, not inclusive of potential equity offering, bonus or benefits. Salary ranges are dependent on a variety of factors, including qualifications, experience and geographic location. Your recruiter can share more information about the salary range specific to your working location and other factors during the hiring process.\n\nLyft may use artificial intelligence to screen applicants, however, Lyft employees make the ultimate selection and hiring decisions.\n\nThis job fills an existing vacancy."
+}

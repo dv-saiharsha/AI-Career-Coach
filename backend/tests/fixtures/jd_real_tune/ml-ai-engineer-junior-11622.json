@@ -1,0 +1,199 @@
+{
+  "jd_id": "ml-ai-engineer-junior-11622",
+  "role": "ml-ai-engineer",
+  "level_from_title": "junior",
+  "listing": {
+    "id": 11622,
+    "title": "Software Engineer, AI Platform - New Grad",
+    "company": "Nuro",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'New Grad' in the listing title (analysed with the description) states the level: junior (stated).",
+    "'You have experience in one or more of the following areas: ...' is an any-of list, so every area is one either/or group ('area'), even though the list is separated by semicolons rather than 'or'.",
+    "The team descriptions (Data Platform, Onboard Systems, Technical Infrastructure; CI/CD, IaaC) describe the work, not requirements.",
+    "'strong problem-solving and programming skills' is generic: not a skill.",
+    "Degree: a current Bachelor's or Master's candidate, no 'or equivalent' -> required."
+  ],
+  "expected": {
+    "job_title": "Software Engineer, AI Platform - New Grad",
+    "seniority": "junior",
+    "seniority_source": "stated",
+    "min_years_experience": null,
+    "required_skills": [
+      {
+        "name": "distributed systems",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "data storage",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "data processing",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "algorithms",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "c++",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "python",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "machine learning",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "multithreading",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "x86 architecture",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "performance tuning",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "performance optimization",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "robotics software",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "cpu",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "gpu",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      },
+      {
+        "name": "fpga",
+        "evidence": "You have experience in one or more of the following areas",
+        "alternative_group": "area"
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "c++",
+      "python"
+    ],
+    "education": [
+      {
+        "name": "Bachelor’s Degree or Master’s Degree in Computer Science",
+        "required": true,
+        "evidence": "You are a current Bachelor’s Degree or Master’s Degree candidate in Computer Science, Electrical Engineering, Robotics, or related field"
+      }
+    ],
+    "certifications": [],
+    "responsibilities": [
+      "work on Data Platform, Onboard Systems, ML Infrastructure, Simulation or Technical Infrastructure"
+    ],
+    "ats_keywords": [
+      {
+        "term": "distributed systems",
+        "weight": 1.0
+      },
+      {
+        "term": "data storage",
+        "weight": 1.0
+      },
+      {
+        "term": "data processing",
+        "weight": 1.0
+      },
+      {
+        "term": "algorithms",
+        "weight": 1.0
+      },
+      {
+        "term": "c++",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "machine learning",
+        "weight": 1.0
+      },
+      {
+        "term": "multithreading",
+        "weight": 1.0
+      },
+      {
+        "term": "x86 architecture",
+        "weight": 1.0
+      },
+      {
+        "term": "performance tuning",
+        "weight": 1.0
+      },
+      {
+        "term": "performance optimization",
+        "weight": 1.0
+      },
+      {
+        "term": "robotics software",
+        "weight": 1.0
+      },
+      {
+        "term": "cpu",
+        "weight": 1.0
+      },
+      {
+        "term": "gpu",
+        "weight": 1.0
+      },
+      {
+        "term": "fpga",
+        "weight": 1.0
+      },
+      {
+        "term": "software engineer ai platform new grad",
+        "weight": 0.8
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "java",
+    "go",
+    "rust",
+    "kubernetes",
+    "aws",
+    "gcp",
+    "pytorch",
+    "tensorflow",
+    "react",
+    "sql"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "Who We Are\n\nNuro believes self-driving vehicles are the most immediate and profound opportunity for AI to drive positive change in the physical world. Safer streets, more time for what matters, and easier access to the world around us, that’s why we’re building a universal autonomy platform: self-driving for all roads and all rides.\n\nFounded in 2016, Nuro is a physical AI company developing Level 4 autonomous driving technology for a wide range of vehicles, use cases, and markets. Powered by the Nuro Driver™, our universal autonomy platform enables the global mobility ecosystem to deploy autonomy at scale, from robotaxis and logistics fleets to personal vehicles.\n\nWith years of real-world deployment experience and a flexible, partner-led business model, Nuro is working toward a future where millions of autonomous vehicles powered by our technology help make everyday life safer, easier, and more connected.\n\nNuro has raised over $2B in capital from Uber, NVIDIA, Google, Softbank, Fidelity, T. Rowe Price, and other leading investors.\n\nAbout the Role\n\nOur software team is growing, and we are looking for talented engineers who are graduating by December 2026 to join us and be instrumental to one of the following areas: Data Platform, Onboard Systems, ML Infrastructure, Simulation, or Technical Infrastructure teams.\n\nAbout the Work\n\nDepending on your skill set and areas of interest you will work on some or all of the following:\n\nData Platform: The Data Platform serves as a comprehensive management system for Nuro AI Driver's data, labels, and metrics, facilitating seamless access functionality. The team focuses on data annotation across various domains, including 2D/3D perception, mapping, behavior trajectory, and language/text. It also handles data ingestion and mining, employing methods such as heuristics and embedding search. Additionally, the platform supports the autonomy evaluation infrastructure by providing detailed introspection.\n\nOnboard Systems: Our onboard system team’s software engineers provide a reliable and high-performance platform that allows our autonomy teams to integrate their autonomy software and algorithms that work across various self-driving platforms. This work requires close collaboration with our software teams, hardware teams, and systems/safety team to make sure new software and hardware work together safely and reliably and resolve onboard error and performance problems.\n\nTechnical Infrastructure: this group owns few fundamental services for entire engineering organizations: generic compute platform to host mission-critical workflows such as data processing and simulation, storage management service which manages hundreds of PB of data, cloud infrastructure serves as IaaC which provisions and maintains all cloud resources, engineering productivity provides tools such as build and CI/CD to make engineering work more efficient.\n\nAbout You\n\nYou have deep expertise and prior experience in some or many of the following areas:\n\nYou are a current Bachelor’s Degree or Master’s Degree candidate in Computer Science, Electrical Engineering, Robotics, or related field, graduating before December 2026.\n\nYou have experience in one or more of the following areas: large-scale distributed systems; data storage and processing systems; advanced algorithms using C++ and Python; machine learning, multithreading; x86 architecture; and software performance tuning and optimization, robotics software frameworks, different compute modalities (CPU, GPU, FPGA) etc.\n\nYou have strong problem-solving and programming skills.\n\nAt Nuro, your base pay is one part of your total compensation package. For this position, the reasonably expected base pay range is between $153,000 to $176,000 for the level at which this job has been scoped. Your base pay will depend on several factors, including your experience, qualifications, education, location, and skills. In the event that you are considered for a different level, a higher or lower pay range would apply. This position is also eligible for an annual performance bonus, equity, and a competitive benefits package\n\nAt Nuro, we celebrate differences and are committed to a diverse workplace that fosters inclusion and psychological safety for all employees. Nuro is proud to be an equal opportunity employer and expressly prohibits any form of workplace discrimination based on race, color, religion, gender, sexual orientation, gender identity or expression, national origin, age, genetic information, disability, veteran status, or any other legally protected characteristics."
+}

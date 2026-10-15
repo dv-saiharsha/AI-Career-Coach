@@ -1,0 +1,420 @@
+{
+  "jd_id": "devops-sre-mid-34132",
+  "role": "devops-sre",
+  "level_from_title": "mid",
+  "listing": {
+    "id": 34132,
+    "title": "Software Engineer, Site Reliability",
+    "company": "Fal",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'seasoned SRE' is not a level word: mid from '5+ years' (source years).",
+    "The one section is headed 'QUALIFICATIONS/NICE TO HAVE', which names both kinds. The clause rule alone decides: an item whose own clause has an optional marker is preferred, every other item required. No bullet has an optional marker, so every item is required, including GPU workloads, eBPF, XDP, Falco, Coroot, SIEM, Calico, Cilium, MetalLB, distributed storage, Ceph and Longhorn.",
+    "Named examples in parentheses are required with their bullet: Terraform, Ansible; CNI plugins, VXLAN, BGP; FluxCD, ArgoCD; Prometheus, Grafana, Loki, Thanos, VictoriaMetrics, Datadog.",
+    "'Python and either Go or Bash': Python required; Go or Bash one group ('scripting')."
+  ],
+  "expected": {
+    "job_title": "Software Engineer, Site Reliability",
+    "seniority": "mid",
+    "seniority_source": "years",
+    "min_years_experience": 5,
+    "required_skills": [
+      {
+        "name": "kubernetes",
+        "evidence": "operating Kubernetes at scale",
+        "alternative_group": null
+      },
+      {
+        "name": "infrastructure as code",
+        "evidence": "infrastructure-as-code",
+        "alternative_group": null
+      },
+      {
+        "name": "terraform",
+        "evidence": "Terraform",
+        "alternative_group": null
+      },
+      {
+        "name": "ansible",
+        "evidence": "Ansible",
+        "alternative_group": null
+      },
+      {
+        "name": "linux networking",
+        "evidence": "Linux networking",
+        "alternative_group": null
+      },
+      {
+        "name": "container networking",
+        "evidence": "container networking",
+        "alternative_group": null
+      },
+      {
+        "name": "cni",
+        "evidence": "CNI plugins",
+        "alternative_group": null
+      },
+      {
+        "name": "vxlan",
+        "evidence": "VXLAN",
+        "alternative_group": null
+      },
+      {
+        "name": "bgp",
+        "evidence": "BGP",
+        "alternative_group": null
+      },
+      {
+        "name": "dns",
+        "evidence": "DNS",
+        "alternative_group": null
+      },
+      {
+        "name": "cicd",
+        "evidence": "CI/CD systems",
+        "alternative_group": null
+      },
+      {
+        "name": "gitops",
+        "evidence": "GitOps workflows",
+        "alternative_group": null
+      },
+      {
+        "name": "fluxcd",
+        "evidence": "FluxCD",
+        "alternative_group": null
+      },
+      {
+        "name": "argocd",
+        "evidence": "ArgoCD",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python",
+        "alternative_group": null
+      },
+      {
+        "name": "go",
+        "evidence": "either Go or Bash",
+        "alternative_group": "scripting"
+      },
+      {
+        "name": "bash",
+        "evidence": "either Go or Bash",
+        "alternative_group": "scripting"
+      },
+      {
+        "name": "logging",
+        "evidence": "logging, monitoring and alerting",
+        "alternative_group": null
+      },
+      {
+        "name": "monitoring",
+        "evidence": "logging, monitoring and alerting",
+        "alternative_group": null
+      },
+      {
+        "name": "alerting",
+        "evidence": "logging, monitoring and alerting",
+        "alternative_group": null
+      },
+      {
+        "name": "prometheus",
+        "evidence": "Prometheus",
+        "alternative_group": null
+      },
+      {
+        "name": "grafana",
+        "evidence": "Grafana",
+        "alternative_group": null
+      },
+      {
+        "name": "loki",
+        "evidence": "Loki",
+        "alternative_group": null
+      },
+      {
+        "name": "thanos",
+        "evidence": "Thanos",
+        "alternative_group": null
+      },
+      {
+        "name": "victoriametrics",
+        "evidence": "VictoriaMetrics",
+        "alternative_group": null
+      },
+      {
+        "name": "datadog",
+        "evidence": "Datadog",
+        "alternative_group": null
+      },
+      {
+        "name": "gpu workloads",
+        "evidence": "managing GPU and AI/ML workloads",
+        "alternative_group": null
+      },
+      {
+        "name": "ebpf",
+        "evidence": "eBPF",
+        "alternative_group": null
+      },
+      {
+        "name": "xdp",
+        "evidence": "XDP",
+        "alternative_group": null
+      },
+      {
+        "name": "falco",
+        "evidence": "Falco",
+        "alternative_group": null
+      },
+      {
+        "name": "coroot",
+        "evidence": "Coroot",
+        "alternative_group": null
+      },
+      {
+        "name": "siem",
+        "evidence": "SIEM",
+        "alternative_group": null
+      },
+      {
+        "name": "calico",
+        "evidence": "Calico",
+        "alternative_group": null
+      },
+      {
+        "name": "cilium",
+        "evidence": "Cilium",
+        "alternative_group": null
+      },
+      {
+        "name": "metallb",
+        "evidence": "MetalLB",
+        "alternative_group": null
+      },
+      {
+        "name": "distributed storage",
+        "evidence": "distributed storage systems",
+        "alternative_group": null
+      },
+      {
+        "name": "ceph",
+        "evidence": "Ceph",
+        "alternative_group": null
+      },
+      {
+        "name": "longhorn",
+        "evidence": "Longhorn",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "kubernetes",
+      "terraform",
+      "ansible",
+      "fluxcd",
+      "argocd",
+      "python",
+      "go",
+      "bash",
+      "prometheus",
+      "grafana",
+      "loki",
+      "thanos",
+      "victoriametrics",
+      "datadog",
+      "falco",
+      "coroot",
+      "calico",
+      "cilium",
+      "metallb",
+      "ceph",
+      "longhorn"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "own and operate the Kubernetes infrastructure",
+      "build CI/CD pipelines",
+      "define SLOs and incident response"
+    ],
+    "ats_keywords": [
+      {
+        "term": "kubernetes",
+        "weight": 1.0
+      },
+      {
+        "term": "infrastructure as code",
+        "weight": 1.0
+      },
+      {
+        "term": "terraform",
+        "weight": 1.0
+      },
+      {
+        "term": "ansible",
+        "weight": 1.0
+      },
+      {
+        "term": "linux networking",
+        "weight": 1.0
+      },
+      {
+        "term": "container networking",
+        "weight": 1.0
+      },
+      {
+        "term": "cni",
+        "weight": 1.0
+      },
+      {
+        "term": "vxlan",
+        "weight": 1.0
+      },
+      {
+        "term": "bgp",
+        "weight": 1.0
+      },
+      {
+        "term": "dns",
+        "weight": 1.0
+      },
+      {
+        "term": "cicd",
+        "weight": 1.0
+      },
+      {
+        "term": "gitops",
+        "weight": 1.0
+      },
+      {
+        "term": "fluxcd",
+        "weight": 1.0
+      },
+      {
+        "term": "argocd",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "go",
+        "weight": 1.0
+      },
+      {
+        "term": "bash",
+        "weight": 1.0
+      },
+      {
+        "term": "logging",
+        "weight": 1.0
+      },
+      {
+        "term": "monitoring",
+        "weight": 1.0
+      },
+      {
+        "term": "alerting",
+        "weight": 1.0
+      },
+      {
+        "term": "prometheus",
+        "weight": 1.0
+      },
+      {
+        "term": "grafana",
+        "weight": 1.0
+      },
+      {
+        "term": "loki",
+        "weight": 1.0
+      },
+      {
+        "term": "thanos",
+        "weight": 1.0
+      },
+      {
+        "term": "victoriametrics",
+        "weight": 1.0
+      },
+      {
+        "term": "datadog",
+        "weight": 1.0
+      },
+      {
+        "term": "gpu workloads",
+        "weight": 1.0
+      },
+      {
+        "term": "ebpf",
+        "weight": 1.0
+      },
+      {
+        "term": "xdp",
+        "weight": 1.0
+      },
+      {
+        "term": "falco",
+        "weight": 1.0
+      },
+      {
+        "term": "coroot",
+        "weight": 1.0
+      },
+      {
+        "term": "siem",
+        "weight": 1.0
+      },
+      {
+        "term": "calico",
+        "weight": 1.0
+      },
+      {
+        "term": "cilium",
+        "weight": 1.0
+      },
+      {
+        "term": "metallb",
+        "weight": 1.0
+      },
+      {
+        "term": "distributed storage",
+        "weight": 1.0
+      },
+      {
+        "term": "ceph",
+        "weight": 1.0
+      },
+      {
+        "term": "longhorn",
+        "weight": 1.0
+      },
+      {
+        "term": "software engineer site reliability",
+        "weight": 0.8
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "aws",
+    "gcp",
+    "azure",
+    "docker",
+    "helm",
+    "jenkins",
+    "java",
+    "rust",
+    "splunk",
+    "istio"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "fal is the generative media ecosystem powering the next generation of AI products. We build the infrastructure, tools, and model access that teams need to move from idea to production, and do it at scale without compromise. For developers and enterprises, fal is the foundation that makes generative media not just possible, but practical: a unified platform where high-performance inference, orchestration, and observability come together to unlock new categories of AI-native products.\n\nAs generative media reshapes industries across a market projected to grow by hundreds of billions over the next decade, fal is becoming the ecosystem that ambitious teams build on.\n\n\n\nYou are a seasoned SRE who keeps production infrastructure running at scale. You own the reliability and availability of customer-facing systems — from Kubernetes clusters to deployment pipelines to the networking layer that connects it all. You think in SLOs, automate ruthlessly, and treat every incident as a chance to make the system better.\n\n\n\n\nWHAT YOU'LL DO:\n\n - Own and operate our Kubernetes infrastructure: cluster lifecycle, upgrades, networking, and multi-tenant isolation for customer workloads\n\n - Build and maintain CI/CD pipelines and deployment infrastructure\n\n - Leverage AI to an extreme level to automate analysis and resolution of production issues, and improve software development speed, reliability and maintainability\n\n - Build dashboards, alerting, and anomaly detection across our systems\n\n - Define and enforce SLOs and build out incident response processes\n\n - Manage and improve our networking, load balancing, and service mesh configurations\n\n - Drive reliability improvements across the stack through automation, runbooks, and chaos engineering\n\n\nQUALIFICATIONS/NICE TO HAVE: \n\n - 5+ years experience in managing critical production systems and software development workflows\n\n - Strong production experience setting up and operating Kubernetes at scale, using infrastructure-as-code (Terraform, Ansible)\n\n - Deep knowledge of Linux networking, container networking (CNI plugins, VXLAN, BGP), and DNS\n\n - Experience building CI/CD systems and GitOps workflows (FluxCD, ArgoCD)\n\n - Proficiency in Python and either Go or Bash for tooling and automation\n\n - Strong experience with logging, monitoring and alerting (Prometheus, Grafana, Loki, Thanos, VictoriaMetrics, Datadog)\n\n - Excellent communication and ability to drive technical decisions across teams\n\n - Self-starter who executes quickly, takes ownership, and constantly seeks improvement\n\n - Experience with managing GPU and AI/ML workloads\n\n - Experience with kernel-based monitoring and routing (eBPF, XDP)\n\n - Experience with security tooling (Falco, Coroot, SIEM)\n\n - Experience with bare metal Kubernetes networking (Calico, Cilium, MetalLB)\n\n - Experience with distributed storage systems (Ceph, Longhorn, etc.)\n\n\nWHAT WE OFFER AT FAL\n\n - Interesting and challenging work\n\n - A lot of learning and growth opportunities\n\n - Regular team events and offsites\n\n\n\nU.S. EQUAL EMPLOYMENT OPPORTUNITY INFORMATION:\n\nfal provides equal employment opportunities to applicants and employees without regard to race, color, religion, sex, sexual orientation, gender identity, national origin, protected veteran status, disability, or any other classification protected by applicable law."
+}

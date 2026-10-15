@@ -1,0 +1,328 @@
+{
+  "jd_id": "data-engineer-mid-27640",
+  "role": "data-engineer",
+  "level_from_title": "mid",
+  "listing": {
+    "id": 27640,
+    "title": "AWS Data Engineer",
+    "company": "Capgemini",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "No level word: mid from '3-8+ years' (source years).",
+    "AWS, GCP, Databricks, Snowflake and DBT in the opening line describe the platform the work runs on: tools only. 'on the AWS cloud platform' is where the work happens.",
+    "Data engineering is required: the requirements section states it ('3-8+ years of experience in data engineering or related roles').",
+    "'at least one programming language (Python, Scala, or Java)' -> one group ('language').",
+    "'ETL tools and frameworks' -> ETL. 'data modeling, warehousing, and big data concepts' -> three skills. 'distributed processing frameworks (Spark, Hadoop)' -> distributed processing, Spark, Hadoop. 'CI/CD pipelines and version control (Git)' -> CI/CD, version control, Git.",
+    "Preferred: Kafka, Databricks, data governance, security, compliance, infrastructure as code, Terraform, CloudFormation, Power BI, Tableau, BI tools; nice to have: ML data pipelines, real-time analytics, streaming, multi-cloud. Spark is already required.",
+    "AWS certifications are preferred certifications; competencies (communication, detail) are soft skills."
+  ],
+  "expected": {
+    "job_title": "AWS Data Engineer",
+    "seniority": "mid",
+    "seniority_source": "years",
+    "min_years_experience": 3,
+    "required_skills": [
+      {
+        "name": "data engineering",
+        "evidence": "experience in data engineering or related roles",
+        "alternative_group": null
+      },
+      {
+        "name": "sql",
+        "evidence": "SQL",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python, Scala, or Java",
+        "alternative_group": "language"
+      },
+      {
+        "name": "scala",
+        "evidence": "Python, Scala, or Java",
+        "alternative_group": "language"
+      },
+      {
+        "name": "java",
+        "evidence": "Python, Scala, or Java",
+        "alternative_group": "language"
+      },
+      {
+        "name": "etl",
+        "evidence": "ETL tools and frameworks",
+        "alternative_group": null
+      },
+      {
+        "name": "data modeling",
+        "evidence": "data modeling",
+        "alternative_group": null
+      },
+      {
+        "name": "data warehousing",
+        "evidence": "warehousing",
+        "alternative_group": null
+      },
+      {
+        "name": "big data",
+        "evidence": "big data",
+        "alternative_group": null
+      },
+      {
+        "name": "distributed processing",
+        "evidence": "distributed processing",
+        "alternative_group": null
+      },
+      {
+        "name": "spark",
+        "evidence": "Spark",
+        "alternative_group": null
+      },
+      {
+        "name": "hadoop",
+        "evidence": "Hadoop",
+        "alternative_group": null
+      },
+      {
+        "name": "cicd",
+        "evidence": "CI/CD",
+        "alternative_group": null
+      },
+      {
+        "name": "version control",
+        "evidence": "version control",
+        "alternative_group": null
+      },
+      {
+        "name": "git",
+        "evidence": "Git",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "kafka",
+        "evidence": "Kafka",
+        "alternative_group": null
+      },
+      {
+        "name": "databricks",
+        "evidence": "Apache Spark, Kafka, or Databricks",
+        "alternative_group": null
+      },
+      {
+        "name": "data governance",
+        "evidence": "data governance",
+        "alternative_group": null
+      },
+      {
+        "name": "infrastructure as code",
+        "evidence": "infrastructure as code",
+        "alternative_group": null
+      },
+      {
+        "name": "terraform",
+        "evidence": "Terraform",
+        "alternative_group": null
+      },
+      {
+        "name": "cloudformation",
+        "evidence": "CloudFormation",
+        "alternative_group": null
+      },
+      {
+        "name": "power bi",
+        "evidence": "Power BI",
+        "alternative_group": null
+      },
+      {
+        "name": "tableau",
+        "evidence": "Tableau",
+        "alternative_group": null
+      },
+      {
+        "name": "machine learning data pipelines",
+        "evidence": "machine learning data pipelines",
+        "alternative_group": null
+      },
+      {
+        "name": "real time analytics",
+        "evidence": "real-time analytics",
+        "alternative_group": null
+      },
+      {
+        "name": "streaming architectures",
+        "evidence": "streaming architectures",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "aws",
+      "gcp",
+      "databricks",
+      "snowflake",
+      "dbt",
+      "sql",
+      "python",
+      "scala",
+      "java",
+      "spark",
+      "hadoop",
+      "git",
+      "kafka",
+      "terraform",
+      "cloudformation",
+      "power bi",
+      "tableau"
+    ],
+    "education": [
+      {
+        "name": "Bachelor's degree in Computer Science",
+        "required": true,
+        "evidence": "Bachelor's degree in Computer Science, Engineering, or related field"
+      }
+    ],
+    "certifications": [
+      {
+        "name": "AWS Certified Data Engineer",
+        "required": false,
+        "evidence": "AWS certifications (e.g., AWS Certified Data Engineer / Solutions Architect)"
+      },
+      {
+        "name": "AWS Certified Solutions Architect",
+        "required": false,
+        "evidence": "AWS certifications (e.g., AWS Certified Data Engineer / Solutions Architect)"
+      }
+    ],
+    "responsibilities": [
+      "design and maintain ETL/ELT data pipelines using AWS services",
+      "ensure data quality and governance"
+    ],
+    "ats_keywords": [
+      {
+        "term": "data engineering",
+        "weight": 1.0
+      },
+      {
+        "term": "sql",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "scala",
+        "weight": 1.0
+      },
+      {
+        "term": "java",
+        "weight": 1.0
+      },
+      {
+        "term": "etl",
+        "weight": 1.0
+      },
+      {
+        "term": "data modeling",
+        "weight": 1.0
+      },
+      {
+        "term": "data warehousing",
+        "weight": 1.0
+      },
+      {
+        "term": "big data",
+        "weight": 1.0
+      },
+      {
+        "term": "distributed processing",
+        "weight": 1.0
+      },
+      {
+        "term": "spark",
+        "weight": 1.0
+      },
+      {
+        "term": "hadoop",
+        "weight": 1.0
+      },
+      {
+        "term": "cicd",
+        "weight": 1.0
+      },
+      {
+        "term": "version control",
+        "weight": 1.0
+      },
+      {
+        "term": "git",
+        "weight": 1.0
+      },
+      {
+        "term": "aws data engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "kafka",
+        "weight": 0.5
+      },
+      {
+        "term": "databricks",
+        "weight": 0.5
+      },
+      {
+        "term": "data governance",
+        "weight": 0.5
+      },
+      {
+        "term": "infrastructure as code",
+        "weight": 0.5
+      },
+      {
+        "term": "terraform",
+        "weight": 0.5
+      },
+      {
+        "term": "cloudformation",
+        "weight": 0.5
+      },
+      {
+        "term": "power bi",
+        "weight": 0.5
+      },
+      {
+        "term": "tableau",
+        "weight": 0.5
+      },
+      {
+        "term": "machine learning data pipelines",
+        "weight": 0.5
+      },
+      {
+        "term": "real time analytics",
+        "weight": 0.5
+      },
+      {
+        "term": "streaming architectures",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "airflow",
+    "kubernetes",
+    "docker",
+    "azure",
+    "redshift",
+    "mongodb",
+    "go",
+    "c++",
+    "looker",
+    "nosql"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "Choosing Capgemini means choosing a company where you will be empowered to shape your career in the way you’d like, where you’ll be supported and inspired by a collaborative community of colleagues around the world, and where you’ll be able to reimagine what’s possible. Join us and help the world’s leading organizations unlock the value of technology and build a more sustainable, more inclusive world.\n\nJob Description\n\nGCP/AWS/Databricks/Snowflake DBT Data Engineer to design, build, and optimize scalable data pipelines and architectures on the AWS cloud platform. The ideal candidate will have strong experience in data engineering, cloud technologies, and modern data frameworks to support analytics, reporting, and data-driven decision-making.\n\nKey Responsibilities\n\nDesign, develop, and maintain scalable ETL/ELT data pipelines using AWS services\nDevelop and optimize batch and real-time data processing systems\nEnsure data quality, integrity, and governance across systems\nWork with stakeholders to translate business requirements into technical solutions\nImplement data integration solutions across multiple sources and formats\nMonitor and troubleshoot data workflows for performance and reliability\nOptimize costs and performance of AWS/GCP data infrastructure\nCollaborate with data scientists, analysts, and DevOps teams\n\nRequired Skills & Qualifications\n\nBachelor's degree in Computer Science, Engineering, or related field\n3-8+ years of experience in data engineering or related roles\nProficiency in SQL and at least one programming language (Python, Scala, or Java)\nExperience with ETL tools and frameworks\nSolid understanding of data modeling, warehousing, and big data concepts\nFamiliarity with distributed processing frameworks (Spark, Hadoop)\nExperience with CI/CD pipelines and version control (Git)\n\nPreferred Qualifications\n\nExperience with Apache Spark, Kafka, or Databricks\nKnowledge of data governance, security, and compliance\nFamiliarity with infrastructure as code (Terraform, CloudFormation)\nAWS certifications (e.g., AWS Certified Data Engineer / Solutions Architect)\nExperience with BI tools (Power BI, Tableau)\n\nKey Competencies\n\nStrong problem-solving and analytical skills\nExcellent communication and collaboration abilities\nAttention to detail and commitment to data quality\nAbility to work in a fast-paced, agile environment\n\nNice to Have\n\nExperience with machine learning data pipelines\nKnowledge of real-time analytics and streaming architectures\nExposure to multi-cloud or hybrid environments\n\nThe base compensation range for this role in the posted location is: 70,000 - 95,000\n\nCapgemini provides compensation range information in accordance with applicable national, state, provincial, and local pay transparency laws. The base compensation range listed for this position reflects the minimum and maximum target compensation Capgemini, in good faith, believes it may pay for the role at the time of this posting. This range may be subject to change as permitted by law.\n\nThe actual compensation offered to any candidate may fall outside of the posted range and will be determined based on multiple factors legally permitted in the applicable jurisdiction.\n\nThese may include, but are not limited to: Geographic location, Education and qualifications, Certifications and licenses, Relevant experience and skills, Seniority and performance, Market and business consideration, Internal pay equity.\n\nIt is not typical for candidates to be hired at or near the top of the posted compensation range.\n\nIn addition to base salary, this role may be eligible for additional compensation such as variable incentives, bonuses, or commissions, depending on the position and applicable laws.\n\nCapgemini offers a comprehensive, non-negotiable benefits package to all regular, full-time employees. In the U.S. and Canada, available benefits are determined by local policy and eligibility and may include:\n\nPaid time off based on employee grade (A-F), defined by policy: Vacation: 12-25 days, depending on grade, Company paid holidays, Personal Days, Sick Leave\nMedical, dental, and vision coverage (or provincial healthcare coordination in Canada)\nRetirement savings plans (e.g., 401(k) in the U.S., RRSP in Canada)\nLife and disability insurance\nEmployee assistance programs\nOther benefits as provided by local policy and eligibility\n\nImportant Notice: Compensation (including bonuses, commissions, or other forms of incentive pay) is not considered earned, vested, or payable until it becomes due under the terms of applicable plans or agreements and is subject to Capgemini’s discretion, consistent with applicable laws. The Company reserves the right to amend or withdraw compensation programs at any time, within the limits of applicable legislation.\n\nDisclaimers\n\nCapgemini is an Equal Opportunity Employer encouraging inclusion in the workplace. Capgemini also participates in the Partnership Accreditation in Indigenous Relations (PAIR) program which supports meaningful engagement with Indigenous communities across Canada by promoting fairness, accessibility, inclusion and respect. We value the rich cultural heritage and contributions of Indigenous Peoples and actively work to create a welcoming and respectful environment. All qualified applicants will receive consideration for employment without regard to race, national origin, gender identity/expression, age, religion, disability, sexual orientation, genetics, veteran status, marital status or any other characteristic protected by law.\n\nThis is a general description of the Duties, Responsibilities and Qualifications required for this position. Physical, mental, sensory or environmental demands may be referenced in an attempt to communicate the manner in which this position traditionally is performed. Whenever necessary to provide individuals with disabilities an equal employment opportunity, Capgemini will consider reasonable accommodations that might involve varying job requirements and/or changing the way this job is performed, provided that such accommodation does not pose an undue hardship. Capgemini is committed to providing reasonable accommodation during our recruitment process. If you need assistance or accommodation, please reach out to your recruiting contact.\n\nPlease be aware that Capgemini may capture your image (video or screenshot) during the interview process and that image may be used for verification, including during the hiring and onboarding process.\n\nClick the following link for more information on your rights as an Applicant in the United States. http://www.capgemini.com/resources/equal-employment-opportunity-is-the-law\n\nCapgemini is a global business and technology transformation partner, helping organizations to accelerate their dual transition to a digital and sustainable world, while creating tangible impact for enterprises and society. It is a responsible and diverse group of 340,000 team members in more than 50 countries. With its strong over 55-year heritage, Capgemini is trusted by its clients to unlock the value of technology to address the entire breadth of their business needs. It delivers end-to-end services and solutions leveraging strengths from strategy and design to engineering, all fueled by its market leading capabilities in AI, generative AI, cloud and data, combined with its deep industry expertise and partner ecosystem."
+}

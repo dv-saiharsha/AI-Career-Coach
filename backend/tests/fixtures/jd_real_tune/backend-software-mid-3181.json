@@ -1,0 +1,134 @@
+{
+  "jd_id": "backend-software-mid-3181",
+  "role": "backend-software",
+  "level_from_title": "mid",
+  "listing": {
+    "id": 3181,
+    "title": "Software Engineer - Backend",
+    "company": "Databricks",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "No level word: junior from '2+ years' (source years).",
+    "'Java, Scala, C++, or similar language' -> one group ('language'). 'a SaaS platform or with Service-Oriented Architectures' -> one group ('architecture').",
+    "'large-scale distributed systems' -> distributed systems. 'Good knowledge of SQL' -> SQL.",
+    "AWS S3, Azure Blob Store, Kubernetes, Spark and Databricks appear in 'The impact you'll have' as examples of the work: tools only.",
+    "Degree: 'BS (or higher)', no 'or equivalent' -> required."
+  ],
+  "expected": {
+    "job_title": "Software Engineer - Backend",
+    "seniority": "junior",
+    "seniority_source": "years",
+    "min_years_experience": 2,
+    "required_skills": [
+      {
+        "name": "java",
+        "evidence": "Java, Scala, C++, or similar language",
+        "alternative_group": "language"
+      },
+      {
+        "name": "scala",
+        "evidence": "Java, Scala, C++, or similar language",
+        "alternative_group": "language"
+      },
+      {
+        "name": "c++",
+        "evidence": "Java, Scala, C++, or similar language",
+        "alternative_group": "language"
+      },
+      {
+        "name": "distributed systems",
+        "evidence": "large-scale distributed systems",
+        "alternative_group": null
+      },
+      {
+        "name": "saas",
+        "evidence": "a SaaS platform or with Service-Oriented Architectures",
+        "alternative_group": "architecture"
+      },
+      {
+        "name": "service oriented architecture",
+        "evidence": "a SaaS platform or with Service-Oriented Architectures",
+        "alternative_group": "architecture"
+      },
+      {
+        "name": "sql",
+        "evidence": "SQL",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "java",
+      "scala",
+      "c++",
+      "sql",
+      "aws s3",
+      "azure blob store",
+      "kubernetes",
+      "spark",
+      "databricks"
+    ],
+    "education": [
+      {
+        "name": "BS in Computer Science",
+        "required": true,
+        "evidence": "BS (or higher) in Computer Science, or a related field"
+      }
+    ],
+    "certifications": [],
+    "responsibilities": [
+      "build infrastructure and products for the Databricks platform"
+    ],
+    "ats_keywords": [
+      {
+        "term": "java",
+        "weight": 1.0
+      },
+      {
+        "term": "scala",
+        "weight": 1.0
+      },
+      {
+        "term": "c++",
+        "weight": 1.0
+      },
+      {
+        "term": "distributed systems",
+        "weight": 1.0
+      },
+      {
+        "term": "saas",
+        "weight": 1.0
+      },
+      {
+        "term": "service oriented architecture",
+        "weight": 1.0
+      },
+      {
+        "term": "sql",
+        "weight": 1.0
+      },
+      {
+        "term": "software engineer backend",
+        "weight": 0.8
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "python",
+    "go",
+    "docker",
+    "kafka",
+    "terraform",
+    "react",
+    "rust",
+    "postgresql",
+    "gcp",
+    "hadoop"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "P-1317\n\nAt Databricks, we are passionate about enabling data teams to solve the world's toughest problems — from making the next mode of transportation a reality to accelerating the development of medical breakthroughs. We do this by building and running the world's best data and AI infrastructure platform so our customers can use deep data insights to improve their business. Founded by engineers — and customer obsessed — we leap at every opportunity to solve technical challenges, from designing next-gen UI/UX for interfacing with data to scaling our services and infrastructure across millions of virtual machines. And we're only getting started.\n\nAs a software engineer with a backend focus, you will work with your team to build infrastructure and products for the Databricks platform at scale.\n\nThe impact you'll have:\n\nOur backend teams span many domains across our essential service platforms. For instance, you might work on challenges such as:\n\nProblems that span from product to infrastructure including: distributed systems, at-scale service architecture and monitoring, workflow orchestration, and developer experience.\n\nDeliver reliable and high performance services and client libraries for storing and accessing humongous amount of data on cloud storage backends, e.g., AWS S3, Azure Blob Store.\n\nBuild reliable, scalable services, e.g. Scala, Kubernetes, and data pipelines, e.g. Spark, Databricks, to power the pricing infrastructure that serves millions of cluster-hours per day and develop product features that empower customers to easily view and control platform usage.\n\nWhat we look for:\n\nBS (or higher) in Computer Science, or a related field\n\n2+ years of production level experience in one of: Java, Scala, C++, or similar language.\n\nExperience developing large-scale distributed systems.\n\nExperience working on a SaaS platform or with Service-Oriented Architectures.\n\nGood knowledge of SQL.\n\nAbout Databricks\n\nDatabricks is the Data and AI company. More than 20,000 organizations worldwide — including adidas, AT&T, Bayer, Block, Mastercard, Rivian, Unilever, and 70% of the Fortune 500 — rely on the Databricks Data + AI Platform to build and scale data and AI apps, analytics and agents. Headquartered in San Francisco with 30+ offices around the globe, Databricks offers a unified platform that includes Genie, Lakebase, Agent Bricks, Lakeflow, Lakehouse, and Unity Catalog. To learn more, follow Databricks on LinkedIn, X, YouTube, and Instagram.\n\nBenefits\n\nAt Databricks, we strive to provide comprehensive benefits and perks that meet the needs of all of our employees. For specific details on the benefits offered in your region click here.\n\nOur Commitment to Diversity and Inclusion\n\nAt Databricks, we are committed to fostering a diverse and inclusive culture where everyone can excel. We take great care to ensure that our hiring practices are inclusive and meet equal employment opportunity standards. Individuals looking for employment at Databricks are considered without regard to age, color, disability, ethnicity, family or marital status, gender identity or expression, language, national origin, physical and mental ability, political affiliation, race, religion, sexual orientation, socio-economic status, veteran status, and other protected characteristics.\n\nCompliance\n\nIf access to export-controlled technology or source code is required for performance of job duties, it is within Employer's discretion whether to apply for a U.S. government license for such positions, and Employer may decline to proceed with an applicant on this basis alone."
+}

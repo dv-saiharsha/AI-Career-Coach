@@ -1,0 +1,286 @@
+{
+  "jd_id": "devops-sre-senior-32452",
+  "role": "devops-sre",
+  "level_from_title": "senior",
+  "listing": {
+    "id": 32452,
+    "title": "Senior Site Reliability Engineer - Managed Kubernetes",
+    "company": "Lambda",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'Senior' in the listing title states the level: senior (stated).",
+    "Requirements are under the heading 'You'. Linux; Go and Python; GitOps, ArgoCD, Helm, Kubernetes operators; Kubernetes; observability, Prometheus, Grafana, FluentBit, CI/CD.",
+    "'(on-prem, EKS, GKE, or similar)' -> EKS or GKE one group ('kubernetes platform'); on-prem is not a skill. 'kubeadm, Cluster API, or similar' -> one group ('provisioning').",
+    "Nice To Have: CRDs, CSI, CNI, HPC clusters, GPU clusters, multi-cloud, CNCF.",
+    "On-call, incident response and SLOs are duties ('What You'll Do')."
+  ],
+  "expected": {
+    "job_title": "Senior Site Reliability Engineer - Managed Kubernetes",
+    "seniority": "senior",
+    "seniority_source": "stated",
+    "min_years_experience": 6,
+    "required_skills": [
+      {
+        "name": "linux",
+        "evidence": "Linux clusters",
+        "alternative_group": null
+      },
+      {
+        "name": "go",
+        "evidence": "Go and Python",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Go and Python",
+        "alternative_group": null
+      },
+      {
+        "name": "gitops",
+        "evidence": "GitOps",
+        "alternative_group": null
+      },
+      {
+        "name": "argocd",
+        "evidence": "ArgoCD",
+        "alternative_group": null
+      },
+      {
+        "name": "helm",
+        "evidence": "Helm",
+        "alternative_group": null
+      },
+      {
+        "name": "kubernetes operators",
+        "evidence": "Kubernetes operators",
+        "alternative_group": null
+      },
+      {
+        "name": "kubernetes",
+        "evidence": "operating Kubernetes clusters in production environments",
+        "alternative_group": null
+      },
+      {
+        "name": "eks",
+        "evidence": "on-prem, EKS, GKE, or similar",
+        "alternative_group": "kubernetes platform"
+      },
+      {
+        "name": "gke",
+        "evidence": "on-prem, EKS, GKE, or similar",
+        "alternative_group": "kubernetes platform"
+      },
+      {
+        "name": "observability",
+        "evidence": "observability tools",
+        "alternative_group": null
+      },
+      {
+        "name": "prometheus",
+        "evidence": "Prometheus",
+        "alternative_group": null
+      },
+      {
+        "name": "grafana",
+        "evidence": "Grafana",
+        "alternative_group": null
+      },
+      {
+        "name": "fluentbit",
+        "evidence": "FluentBit",
+        "alternative_group": null
+      },
+      {
+        "name": "cicd",
+        "evidence": "CI/CD pipelines",
+        "alternative_group": null
+      },
+      {
+        "name": "kubeadm",
+        "evidence": "kubeadm, Cluster API, or similar",
+        "alternative_group": "provisioning"
+      },
+      {
+        "name": "cluster api",
+        "evidence": "kubeadm, Cluster API, or similar",
+        "alternative_group": "provisioning"
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "crds",
+        "evidence": "CRDs",
+        "alternative_group": null
+      },
+      {
+        "name": "csi",
+        "evidence": "CSI",
+        "alternative_group": null
+      },
+      {
+        "name": "cni",
+        "evidence": "CNI",
+        "alternative_group": null
+      },
+      {
+        "name": "hpc clusters",
+        "evidence": "HPC clusters",
+        "alternative_group": null
+      },
+      {
+        "name": "gpu clusters",
+        "evidence": "large-scale GPU clusters",
+        "alternative_group": null
+      },
+      {
+        "name": "multi cloud",
+        "evidence": "multi-cloud",
+        "alternative_group": null
+      },
+      {
+        "name": "cncf",
+        "evidence": "CNCF projects",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "kubernetes",
+      "python",
+      "go",
+      "argocd",
+      "helm",
+      "eks",
+      "gke",
+      "prometheus",
+      "grafana",
+      "fluentbit",
+      "kubeadm",
+      "cluster api"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "operate bare-metal Kubernetes clusters",
+      "build control plane services and operators"
+    ],
+    "ats_keywords": [
+      {
+        "term": "linux",
+        "weight": 1.0
+      },
+      {
+        "term": "go",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "gitops",
+        "weight": 1.0
+      },
+      {
+        "term": "argocd",
+        "weight": 1.0
+      },
+      {
+        "term": "helm",
+        "weight": 1.0
+      },
+      {
+        "term": "kubernetes operators",
+        "weight": 1.0
+      },
+      {
+        "term": "kubernetes",
+        "weight": 1.0
+      },
+      {
+        "term": "eks",
+        "weight": 1.0
+      },
+      {
+        "term": "gke",
+        "weight": 1.0
+      },
+      {
+        "term": "observability",
+        "weight": 1.0
+      },
+      {
+        "term": "prometheus",
+        "weight": 1.0
+      },
+      {
+        "term": "grafana",
+        "weight": 1.0
+      },
+      {
+        "term": "fluentbit",
+        "weight": 1.0
+      },
+      {
+        "term": "cicd",
+        "weight": 1.0
+      },
+      {
+        "term": "kubeadm",
+        "weight": 1.0
+      },
+      {
+        "term": "cluster api",
+        "weight": 1.0
+      },
+      {
+        "term": "senior site reliability engineer managed kubernetes",
+        "weight": 0.8
+      },
+      {
+        "term": "crds",
+        "weight": 0.5
+      },
+      {
+        "term": "csi",
+        "weight": 0.5
+      },
+      {
+        "term": "cni",
+        "weight": 0.5
+      },
+      {
+        "term": "hpc clusters",
+        "weight": 0.5
+      },
+      {
+        "term": "gpu clusters",
+        "weight": 0.5
+      },
+      {
+        "term": "multi cloud",
+        "weight": 0.5
+      },
+      {
+        "term": "cncf",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "terraform",
+    "aws",
+    "docker",
+    "ansible",
+    "java",
+    "datadog",
+    "istio",
+    "rust",
+    "jenkins",
+    "openstack"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "Lambda, The Superintelligence Cloud, is a leader in AI cloud infrastructure serving tens of thousands of customers. Our customers range from AI researchers to enterprises and hyperscalers. Lambda's mission is to make compute as ubiquitous as electricity and give everyone the power of superintelligence. One person, one GPU.\n\n\n\nIf you'd like to build the world's best AI cloud, join us.\n\n\n\n*Note: This position requires presence in our San Francisco, San Jose, or Bellevue office location 4 days per week; Lambda’s designated work from home day is currently Tuesday.\n\n\nEngineering at Lambda is responsible for building and scaling our cloud offering. Our scope includes the Lambda website, cloud APIs and systems as well as internal tooling for system deployment, management and maintenance.\n\n\nWhat You’ll Do\n\n - Operate and maintain bare-metal Kubernetes clusters, scaling up to thousands of nodes\n\n - Handle cluster degradation, recovery, resizing, and incident response using fleet management tools\n\n - Participate in a well-managed on-call rotation for critical incidents\n\n - Assist customers with Kubernetes questions, workload integration, storage, and authentication\n\n - Work closely with our HPC Ops and Datacenter Ops teams for low-level or cross-functional issues\n\n - Use Python and Golang to create tooling and automate the validation of platform quality.\n\n - Design, build, and maintain scalable control plane services, operators, and custom controllers for Kubernetes\n\n - Develop automation for cluster lifecycle management: provisioning, upgrades, patching, and deletion.\n\n - Define and implement SLOs and SLIs for Kubernetes services, workloads, and platform reliability.\n\nYou\n\n - 6+ years of experience in a SRE, operations engineer, or similar role, with a deep knowledge of running Linux clusters and systems\n\n - Strong programming skills in Go and Python; experience with GitOps (e.g., ArgoCD), Helm, and Kubernetes operators\n\n - Proven experience operating Kubernetes clusters in production environments (on-prem, EKS, GKE, or similar)\n\n - Can work either independently with limited direction or as part of a team\n\n - Can work with customers during incidents either via tickets, live messaging, or as part of a larger call.\n\n - Familiarity with observability tools like Prometheus, Grafana, FluentBit, and CI/CD pipelines\n\n - Proven experience provisioning Kubernetes using tools such as kubeadm, Cluster API, or similar\n\nNice To Have\n\n - Deep Kubernetes expertise: CRDs, CSI, CNI, Kubernetes Operator Coding experience\n\n - Exposure to HPC clusters, AI/ML workloads, or large-scale GPU clusters\n\n - Hybrid or multi-cloud Kubernetes environment experience\n\n - Contributions to CNCF projects or Kubernetes SIGs\n\nWhy Join Us\n\n - Work on cutting-edge Managed Kubernetes platforms for AI/ML workloads\n\n - Influence the platform roadmap and help shape operations and reliability best practices\n\n - Collaborate with a highly skilled engineer\n\n - Opportunity to mentor and grow within a fast-growing, technology-driven environment\n\nSalary Range Information\n\nThe annual salary range for this position has been set based on market data and other factors. However, a salary higher or lower than this range may be appropriate for a candidate whose qualifications differ meaningfully from those listed in the job description.\n\n\n\n\nAbout Lambda\n\n - Founded in 2012, with 500+ employees, and growing fast\n\n - Our investors notably include TWG Global, US Innovative Technology Fund (USIT), Andra Capital, SGW, Andrej Karpathy, ARK Invest, Fincadia Advisors, G Squared, In-Q-Tel (IQT), KHK & Partners, NVIDIA, Pegatron, Supermicro, Wistron, Wiwynn, Gradient Ventures, Mercato Partners, SVB, 1517, and Crescent Cove\n\n - We have research papers accepted at top machine learning and graphics conferences, including NeurIPS, ICCV, SIGGRAPH, and TOG\n\n - Our values are publicly available: https://lambda.ai/careers\n\n - We offer generous cash & equity compensation\n\n - Health, dental, and vision coverage for you and your dependents\n\n - Wellness and commuter stipends for select roles\n\n - 401k Plan with 2% company match (USA employees)\n\n - Flexible paid time off plan that we all actually use\n\nEqual Opportunity Employer\n\nLambda is an Equal Opportunity employer. Applicants are considered without regard to race, color, religion, creed, national origin, age, sex, gender, marital status, sexual orientation and identity, genetic information, veteran status, citizenship, or any other factors prohibited by local, state, or federal law."
+}
