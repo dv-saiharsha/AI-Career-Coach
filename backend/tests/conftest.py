@@ -11,6 +11,13 @@ import os
 # httpx.MockTransport only.
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["LLM_PROVIDER"] = "anthropic"
+# Never a real database. backend/.env's DB_URL points at the developer's real
+# database (Cloud SQL through the proxy), and anything that opens the app's
+# default engine (SessionLocal, the startup sweep) would otherwise write there.
+# An environment variable outranks .env, so this wins whatever .env says.
+import tempfile as _tempfile
+
+os.environ["DB_URL"] = "sqlite:///" + os.path.join(_tempfile.mkdtemp(prefix="hireloom-tests-"), "app.db")
 
 import pytest
 

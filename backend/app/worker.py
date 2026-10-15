@@ -1,7 +1,8 @@
 """Standalone process for the hourly companies-table crawl
 (job_market/crawler.py).
 
-    python -m app.worker
+    python -m app.worker          # the loop: a run every CRAWL_INTERVAL_SECONDS
+    python -m app.worker --once   # one run, then exit (a Cloud Run Job on a schedule)
 
 Runs in its own container — see docker-compose.yml's `worker` service — not
 inside the API process. That is the whole point: a crawl blocking a web
@@ -194,5 +195,27 @@ def main(max_runs: int | None = None, sleep=time.sleep, clock=time.monotonic) ->
         sleep(wait)
 
 
+def run_once() -> int:
+    """One locked crawl, then exit: the Cloud Run Job form, where Cloud
+    Scheduler owns the cadence instead of this process's loop. No startup
+    delay (the job has nothing else starting up). Exit 0 for a finished run
+    or one skipped because another holds the lock; 1 for a failed run, so
+    the job execution is marked failed and retried."""
+    logging.basicConfig(
+        level=settings.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    logger.info("crawl worker: single run (lock=%s)", _lock_kind())
+    try:
+        run_locked()
+    except Exception:  # noqa: BLE001 - reported through the exit code
+        logger.exception("crawl run failed")
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
+    import sys
+
+    if "--once" in sys.argv[1:]:
+        sys.exit(run_once())
     main()

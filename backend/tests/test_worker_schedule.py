@@ -139,6 +139,12 @@ def _run(db, started, ended=True, trigger="scheduled", **stats):
 
 
 class TestSchedulerStatus:
+    @pytest.fixture(autouse=True)
+    def _hourly(self, monkeypatch):
+        # The expectations below are written for the default hourly cadence;
+        # a developer's .env (CRAWL_INTERVAL_SECONDS) must not change them.
+        monkeypatch.setattr(crawl_status.settings, "CRAWL_INTERVAL_SECONDS", 3600)
+
     def test_last_run_next_run_and_not_running(self, db):
         _run(db, NOW - timedelta(minutes=20), new=5, fetched=40)
         status = crawl_status.scheduler_status(db, now=NOW)
@@ -226,3 +232,33 @@ class TestListingDates:
         assert payload["postedDaysAgo"] == 4 and payload["dateSource"] == "first_seen"
         dated = _listing(db, 6, posted=datetime.now(timezone.utc) - timedelta(days=2, hours=1))
         assert jobs.to_payload(dated)["dateSource"] == "posted" and jobs.to_payload(dated)["postedDaysAgo"] == 2
+
+
+class TestRunOnce:
+    """python -m app.worker --once: the Cloud Run Job entry point."""
+
+    def test_a_finished_or_skipped_run_exits_zero(self, monkeypatch):
+        from app import worker
+
+        calls = []
+        monkeypatch.setattr(worker, "run_locked", lambda: calls.append(1) or True)
+        assert worker.run_once() == 0
+        monkeypatch.setattr(worker, "run_locked", lambda: False)  # lock held elsewhere
+        assert worker.run_once() == 0
+        assert calls == [1]
+
+    def test_a_failed_run_exits_one(self, monkeypatch):
+        from app import worker
+
+        def boom():
+            raise RuntimeError("board fetch exploded")
+
+        monkeypatch.setattr(worker, "run_locked", boom)
+        assert worker.run_once() == 1
+
+    def test_no_startup_delay(self, monkeypatch):
+        from app import worker
+
+        monkeypatch.setattr(worker, "run_locked", lambda: True)
+        monkeypatch.setattr(worker.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("slept")))
+        assert worker.run_once() == 0
