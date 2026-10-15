@@ -72,8 +72,16 @@ class FakeLLM:
         self.available = True
         self.replies = [reply()]
         self.calls: list[dict] = []
+        # The second "what did you miss" call is answered and logged on its own.
+        self.missed_reply: dict | Exception = {"required_skills": [], "preferred_skills": [], "tools_technologies": []}
+        self.missed_calls: list[dict] = []
 
     def complete_tool_json(self, system, user, tool_name, schema, max_tokens=1500):
+        if tool_name == service.MISSED_TOOL_NAME:
+            self.missed_calls.append({"system": system, "user": user, "schema": schema})
+            if isinstance(self.missed_reply, Exception):
+                raise self.missed_reply
+            return self.missed_reply
         self.calls.append({"system": system, "user": user, "tool": tool_name, "schema": schema, "max_tokens": max_tokens})
         index = min(len(self.calls) - 1, len(self.replies) - 1)
         item = self.replies[index]
@@ -677,3 +685,62 @@ class TestSchema:
     def test_min_years_is_not_negative(self):
         with pytest.raises(ValidationError):
             JDAnalysis(min_years_experience=-1)
+
+
+# --- the second "what did you miss" call ------------------------------------
+
+
+class TestSecondCall:
+    def test_it_is_shown_the_posting_and_what_was_found(self, llm):
+        service.analyze(JD)
+        assert len(llm.missed_calls) == 1
+        call = llm.missed_calls[0]
+        assert call["system"] == service.MISSED_PROMPT and call["schema"] is service.MISSED_SCHEMA
+        assert call["user"].startswith("JOB POSTING:\n") and "ALREADY FOUND (do not repeat): " in call["user"]
+        assert "postgresql" in call["user"] and "kubernetes" in call["user"]
+
+    def test_what_it_adds_goes_through_the_same_checks(self, llm):
+        llm.missed_reply = {
+            "required_skills": [
+                skill("ledger service design", "redesign of the ledger service"),  # quote not verbatim
+                skill("Rust"),  # not in the posting
+                skill("Senior Backend Engineer"),  # the title
+                skill("communication"),  # a soft skill
+                skill("Python", "Go, Java, or Python"),  # already found
+            ],
+            "preferred_skills": [],
+            "tools_technologies": ["Terraform"],  # not in the posting
+        }
+        analysis, report = service.analyze_with_report(JD, use_cache=False)
+        names = {s.name for s in analysis.required_skills + analysis.preferred_skills} | set(analysis.tools_technologies)
+        assert not {"rust", "terraform", "communication", "senior backend engineer", "ledger service design"} & names
+        assert report.second_call_added == []
+        assert analysis.ats_keywords  # still a whole analysis
+
+    def test_a_real_miss_is_added(self, llm):
+        # "payments" is in the posting, and neither the first answer nor the rules found it.
+        llm.missed_reply = {"required_skills": [skill("payments")], "preferred_skills": [], "tools_technologies": []}
+        analysis, report = service.analyze_with_report(JD, use_cache=False)
+        assert "payments" in {s.name for s in analysis.required_skills}
+        assert report.second_call_added == ["payments"]
+        assert report.attempts == 1 and report.second_call_attempts == 1
+
+    def test_a_miss_is_placed_by_the_jd_not_by_the_model(self, llm):
+        text = "Data Engineer. Requirements:\nSQL and Airflow\nNice to have:\nExperience with dbt\n"
+        llm.replies = [reply(job_title="Data Engineer", required_skills=[skill("SQL")], preferred_skills=[],
+                             tools_technologies=["SQL"], education=[], certifications=[])]
+        llm.missed_reply = {"required_skills": [skill("dbt")], "preferred_skills": [], "tools_technologies": []}
+        analysis, _ = service.analyze_with_report(text, use_cache=False)
+        assert "dbt" in {s.name for s in analysis.preferred_skills}
+
+    def test_a_failed_second_call_keeps_the_first_answer(self, llm):
+        llm.missed_reply = LLMProviderError("timed out", kind="timeout")
+        analysis, report = service.analyze_with_report(JD, use_cache=False)
+        assert analysis.source in ("llm", "hybrid")
+        assert report.second_call_error and report.llm_error is None
+        assert {"go", "java", "python"} <= {s.name for s in analysis.required_skills}
+
+    def test_it_never_runs_on_a_cache_hit(self, llm):
+        service.analyze(JD)
+        service.analyze(JD)
+        assert len(llm.calls) == 1 and len(llm.missed_calls) == 1

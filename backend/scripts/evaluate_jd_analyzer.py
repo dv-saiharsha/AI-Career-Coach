@@ -203,7 +203,8 @@ def print_rows(rows: list[dict], label: str) -> dict:
         f"years {sum(r['years_ok'] for r in rows)}/{n}   title {sum(r['title_ok'] for r in rows)}/{n}   "
         f"education {sum(r['education_ok'] for r in rows)}/{n}   certifications {sum(r['certifications_ok'] for r in rows)}/{n}"
     )
-    print(f"time {p['seconds']:.0f}s ({p['seconds'] / max(1, n):.0f}s per JD)")
+    second = sum(r["report"].get("second_call_seconds") or 0.0 for r in rows)
+    print(f"time {p['seconds']:.0f}s ({p['seconds'] / max(1, n):.0f}s per JD), of which the 2nd call {second:.0f}s ({second / max(1, n):.1f}s per JD)")
 
     print(f"\n== {label}: DETAILS PER JD ==")
     for r in rows:
@@ -222,7 +223,8 @@ def print_rows(rows: list[dict], label: str) -> dict:
         lines += [f"  {title:22}: {rep[key]}" for key, title in [
             ("dropped_by_evidence", "dropped by evidence"), ("rejected", "rejected (validators)"),
             ("moved_to_tools", "moved to tools"), ("rule_additions", "added by the rules"),
-            ("title_leaks", "title leaks stripped"), ("llm_error", "model error"),
+            ("title_leaks", "title leaks stripped"), ("second_call_added", "added by 2nd call"),
+            ("second_call_error", "2nd call error"), ("llm_error", "model error"),
         ] if rep.get(key)]
         print(r["jd_id"] + ("" if lines else "  (nothing to report)"))
         if lines:

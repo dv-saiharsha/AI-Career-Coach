@@ -84,6 +84,7 @@ class Router:
     def __init__(self):
         self.available = True
         self.calls: list[dict] = []
+        self.missed_calls: list[str] = []
         self.answers = {
             service.TOOL_NAME: JD_REPLY,
             "submit_analysis": SCAN_REPLY,
@@ -91,6 +92,10 @@ class Router:
         }
 
     def complete_tool_json(self, system, user, tool_name, schema, max_tokens=1500):
+        if tool_name == service.MISSED_TOOL_NAME:
+            # The analyzer's own second call; these tests are about the flows around it.
+            self.missed_calls.append(user)
+            return {"required_skills": [], "preferred_skills": [], "tools_technologies": []}
         self.calls.append({"tool": tool_name, "user": user})
         answer = self.answers[tool_name]
         if isinstance(answer, Exception):

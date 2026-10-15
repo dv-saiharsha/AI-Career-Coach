@@ -11,9 +11,12 @@ The order is fixed, because each step protects the next:
                  verbatim, the job title is kept out of the skills, the level
                  and the years come from the text, either/or groups are found
                  from the quotes
-  5. backstop    technology-looking terms the keyword rules find and the model
-                 missed go in as preferred skills (source "hybrid")
-  6. fall back   if the model cannot be used or never answers properly, the
+  5. second ask  one more call shown the posting and what was found, asked only
+                 for what is missing; its answer goes through the same checks
+                 (cache misses only; a failure here keeps the first answer)
+  6. backstop    vocabulary concepts and technology-looking terms the keyword
+                 rules find and the model missed (source "hybrid")
+  7. fall back   if the model cannot be used or never answers properly, the
                  rules-only analysis (source "rules")
 
 analyze() never raises. A flow that wanted a JD analysis and could not get a
@@ -51,24 +54,19 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 10
+ANALYZER_VERSION = 11
 
 TOOL_NAME = "analyze_job_description"
+MISSED_TOOL_NAME = "list_missed_skills"
+# The second "what did you miss" call. Off only in tests that count calls.
+SECOND_PASS = True
 MAX_OUTPUT_TOKENS = 1800
 MEMORY_CACHE_SIZE = 256
 # A responsibility is a short phrase; a sentence-length one is the model
 # pasting a paragraph.
 MAX_RESPONSIBILITY_CHARS = 200
 
-SYSTEM_PROMPT = (
-    "You analyse a job posting and report only what its text states. Never infer, never fill "
-    "a field to seem helpful: an empty list, null, or \"unknown\" is the right answer when the "
-    "posting does not say.\n\n"
-    "job_title: the title as written at the top.\n"
-    "seniority: only a level the posting states (intern, junior, mid, senior, lead, manager); "
-    "otherwise \"unknown\". Do not work it out from years of experience.\n"
-    "min_years_experience: the overall minimum years of experience, the first figure the posting "
-    "gives (for \"3-5 years\" answer 3; for \"6+\" answer 6); null if no years are stated.\n"
+_SKILL_RULES = (
     "required_skills: technical skills, technologies, methods and practices the posting requires. "
     "preferred_skills: those it marks optional (\"nice to have\", \"a plus\", \"preferred\", "
     "\"bonus\"). Never list soft skills (communication, teamwork, eagerness), the job title, "
@@ -86,13 +84,35 @@ SYSTEM_PROMPT = (
     "or Memcached\"), list EACH alternative as its own skill, give all of them the same evidence (the "
     "list copied exactly as written) and the same short alternative_group label such as \"language\"; "
     "otherwise alternative_group is null.\n"
-    "tools_technologies: every tool, language, framework, platform or service the posting names, "
+)
+
+SYSTEM_PROMPT = (
+    "You analyse a job posting and report only what its text states. Never infer, never fill "
+    "a field to seem helpful: an empty list, null, or \"unknown\" is the right answer when the "
+    "posting does not say.\n\n"
+    "job_title: the title as written at the top.\n"
+    "seniority: only a level the posting states (intern, junior, mid, senior, lead, manager); "
+    "otherwise \"unknown\". Do not work it out from years of experience.\n"
+    "min_years_experience: the overall minimum years of experience, the first figure the posting "
+    "gives (for \"3-5 years\" answer 3; for \"6+\" answer 6); null if no years are stated.\n"
+    + _SKILL_RULES
+    + "tools_technologies: every tool, language, framework, platform or service the posting names, "
     "including ones that are only where the work happens.\n"
     "education and certifications: each has name, required (false when the posting says \"or "
     "equivalent\", \"a plus\", \"preferred\", \"nice to have\" or \"not required\"), and evidence "
     "(the whole clause as written, including those words).\n"
     "responsibilities: at most 10 short phrases (under 12 words) saying what the person will do, "
     "taken from sentences such as \"You'll ...\" or a list of duties; empty only if none are stated."
+)
+
+MISSED_PROMPT = (
+    "You check an analysis of a job posting for omissions. You are given the posting and the skills "
+    "and tools already found. List ONLY skills and tools the posting states that are NOT already "
+    "found; never repeat a found one, and never add anything the posting does not say. Empty lists "
+    "are the right answer when nothing is missing.\n\n"
+    + _SKILL_RULES
+    + "tools_technologies: tools, languages, frameworks, platforms or services the posting names "
+    "that are not already found."
 )
 
 _SKILL_SCHEMA = {
@@ -131,6 +151,15 @@ LLM_SCHEMA = {
         "tools_technologies", "education", "certifications", "responsibilities",
     ],
 }
+MISSED_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "required_skills": {"type": "array", "items": _SKILL_SCHEMA},
+        "preferred_skills": {"type": "array", "items": _SKILL_SCHEMA},
+        "tools_technologies": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["required_skills", "preferred_skills", "tools_technologies"],
+}
 
 
 class _LLMSkill(BaseModel):
@@ -168,6 +197,14 @@ class _LLMOutput(BaseModel):
         )
 
 
+class _LLMMissed(BaseModel):
+    """What the second call returns: only what the first answer left out."""
+
+    required_skills: list[_LLMSkill]
+    preferred_skills: list[_LLMSkill]
+    tools_technologies: list[str]
+
+
 class _AnalysisFailed(Exception):
     """The model could not be made to answer; the caller falls back to rules."""
 
@@ -192,6 +229,10 @@ class AnalysisReport:
     unsupported_tools: list[str] = field(default_factory=list)
     moved_to_tools: list[str] = field(default_factory=list)
     rule_additions: list[str] = field(default_factory=list)
+    second_call_attempts: int = 0
+    second_call_added: list[str] = field(default_factory=list)
+    second_call_seconds: float = 0.0
+    second_call_error: str | None = None
 
 
 # ── cache ────────────────────────────────────────────────────────────────
@@ -295,12 +336,20 @@ def _short(exc: ValidationError) -> str:
     return "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()[:4])
 
 
-def _call_llm(text: str, report: AnalysisReport) -> _LLMOutput:
+def _call_llm(
+    text: str,
+    report: AnalysisReport,
+    system: str = SYSTEM_PROMPT,
+    tool: str = TOOL_NAME,
+    schema: dict = LLM_SCHEMA,
+    shape: type[BaseModel] = _LLMOutput,
+    note: str = "",
+):
     """One chunk through the model. A reply that is not valid JSON, or is JSON of
     the wrong shape, is re-asked with the problem named, up to
     OLLAMA_MAX_RETRIES more times. A provider failure is not retried here: the
     client has already retried transport errors itself."""
-    prompt = f"JOB POSTING:\n{text}"
+    prompt = f"JOB POSTING:\n{text}" + (f"\n\n{note}" if note else "")
     problem = ""
     for _ in range(1 + max(0, settings.OLLAMA_MAX_RETRIES)):
         user = prompt if not problem else (
@@ -308,8 +357,8 @@ def _call_llm(text: str, report: AnalysisReport) -> _LLMOutput:
         )
         report.attempts += 1
         try:
-            raw = llm_client.complete_tool_json(SYSTEM_PROMPT, user, TOOL_NAME, LLM_SCHEMA, max_tokens=MAX_OUTPUT_TOKENS)
-            return _LLMOutput.model_validate(raw)
+            raw = llm_client.complete_tool_json(system, user, tool, schema, max_tokens=MAX_OUTPUT_TOKENS)
+            return shape.model_validate(raw)
         except ValidationError as exc:
             problem = _short(exc)
             logger.warning("jd analysis: model reply failed validation (%s)", problem)
@@ -319,6 +368,35 @@ def _call_llm(text: str, report: AnalysisReport) -> _LLMOutput:
             raise _AnalysisFailed(report.llm_error) from exc
     report.llm_error = f"invalid reply after retries: {problem}"
     raise _AnalysisFailed(report.llm_error)
+
+
+def _ask_what_was_missed(chunks: list[str], first: JDAnalysis, report: AnalysisReport) -> _LLMOutput | None:
+    """The second call: the posting and what the first answer found, asking only
+    for what is missing. Anything it returns that was already found is ignored;
+    the rest is checked exactly like the first answer (by _finalize). A failure
+    here keeps the first answer, so it returns None rather than raising."""
+    found = [s.name for s in first.required_skills + first.preferred_skills] + list(first.tools_technologies)
+    taken = {canonical(n) for n in found}
+    note = "ALREADY FOUND (do not repeat): " + (", ".join(found) or "nothing")
+    started, first_attempts = time.monotonic(), report.attempts
+    extra = _LLMOutput.empty()
+    try:
+        for chunk in chunks:
+            missed = _call_llm(chunk, report, MISSED_PROMPT, MISSED_TOOL_NAME, MISSED_SCHEMA, _LLMMissed, note)
+            extra.required_skills += [s for s in missed.required_skills if canonical(s.name) not in taken]
+            extra.preferred_skills += [s for s in missed.preferred_skills if canonical(s.name) not in taken]
+            extra.tools_technologies += [t for t in missed.tools_technologies if canonical(t) not in taken]
+    except _AnalysisFailed as exc:
+        report.second_call_error = str(exc)
+        report.llm_error = None  # the first answer stands; this is not a failed analysis
+        logger.warning("jd analysis: the second call failed (%s); keeping the first answer", exc)
+        return None
+    finally:
+        # `attempts` stays the first answer's count; the second call's are its own.
+        report.second_call_attempts = report.attempts - first_attempts
+        report.attempts = first_attempts
+        report.second_call_seconds = round(time.monotonic() - started, 2)
+    return extra
 
 
 def _merge(outputs: list[_LLMOutput]) -> _LLMOutput:
@@ -549,7 +627,19 @@ def analyze_with_report(
         try:
             chunks = cleaning.split_sections(cleaned, max_chars_per_call())
             report.chunks = len(chunks)
-            analysis = _finalize(_merge([_call_llm(chunk, report) for chunk in chunks]), cleaned, report)
+            first = _merge([_call_llm(chunk, report) for chunk in chunks])
+            if SECOND_PASS:
+                # Finalize on a scratch report: only the final pass is reported.
+                first_analysis = _finalize(first.model_copy(deep=True), cleaned, AnalysisReport())
+                extra = _ask_what_was_missed(chunks, first_analysis, report)
+                if extra is not None:
+                    before = {s.name for s in first_analysis.required_skills + first_analysis.preferred_skills}
+                    before |= set(first_analysis.tools_technologies)
+                    analysis = _finalize(_merge([first, extra]), cleaned, report)
+                    after = [s.name for s in analysis.required_skills + analysis.preferred_skills] + analysis.tools_technologies
+                    report.second_call_added = [n for n in dict.fromkeys(after) if n not in before]
+            if analysis is None:
+                analysis = _finalize(first, cleaned, report)
         except _AnalysisFailed:
             analysis = None  # logged where it was raised; fall back below
         except Exception as exc:  # noqa: BLE001 - JD analysis is best-effort; the caller must not fail on it
