@@ -64,3 +64,38 @@ def test_salutation_is_not_a_guessed_name():
 def test_contact_line_omits_what_is_missing():
     assert contact_line("jane@x.com") == "jane@x.com"
     assert r"$\cdot$" in contact_line("jane@x.com", "555-0100")
+
+
+def test_generation_uses_the_configured_provider_not_claude_directly(monkeypatch):
+    """It built a ClaudeClient itself, so letters spent Anthropic credits even
+    with LLM_PROVIDER=ollama. It must go through the shared llm_client."""
+    from app.core import llm
+    from app.modules.cover_letter import services
+
+    calls = {}
+
+    def fake_complete(system, user, tool_name, input_schema, max_tokens=1500, model=None):
+        calls["tool"] = tool_name
+        return {"paragraphs": ["I built APIs in Python.", "I would like to join."], "grounded_in": ["Python"]}
+
+    def no_claude(*args, **kwargs):
+        raise AssertionError("cover letters must not construct a ClaudeClient")
+
+    monkeypatch.setattr(llm.llm_client, "_client", object())
+    monkeypatch.setattr(llm.llm_client, "complete_tool_json", fake_complete)
+    monkeypatch.setattr(llm, "ClaudeClient", no_claude)
+
+    draft = services.generate_letter("Built APIs in Python.", "Engineer", "Acme", "Python role", "professional")
+    assert calls["tool"] == "cover_letter"
+    assert draft["paragraphs"][0] == "I built APIs in Python."
+
+
+def test_no_configured_model_is_a_runtime_error(monkeypatch):
+    import pytest
+
+    from app.core import llm
+    from app.modules.cover_letter import services
+
+    monkeypatch.setattr(llm.llm_client, "_client", None)
+    with pytest.raises(RuntimeError):
+        services.generate_letter("r", "t", "c", "d")

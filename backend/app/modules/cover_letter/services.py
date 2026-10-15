@@ -19,14 +19,14 @@ So the generation is constrained twice, and neither is decorative:
     the failure that matters most; it is not a guarantee, and the UI says so
     rather than implying the letter has been verified true.
 
-Cost is roughly $0.017 per letter at current Sonnet pricing — about 3k input
+Under LLM_PROVIDER=ollama it costs nothing; under anthropic, roughly $0.017 per letter at Sonnet pricing — about 3k input
 tokens (resume plus posting) and 500 output.
 """
 
 import logging
 import re
 
-from app.core.llm import ClaudeClient
+from app.core.llm import llm_client
 from app.modules.resume_builder.faang import sanitize_token, split_name
 
 logger = logging.getLogger(__name__)
@@ -129,9 +129,12 @@ def generate_letter(
     job_description: str,
     tone: str = "professional",
 ) -> dict:
-    """Draft the body paragraphs. One Claude call.
+    """Draft the body paragraphs. One call to the configured model
+    (core/llm.llm_client: Ollama or Claude, per LLM_PROVIDER). It used to
+    build a ClaudeClient directly, which bypassed LLM_PROVIDER and spent
+    Anthropic credits even when the rest of the app ran on Ollama.
 
-    Raises RuntimeError when no API key is configured — there is no rule-based
+    Raises RuntimeError when no model is configured — there is no rule-based
     fallback here on purpose. A template letter with the company name slotted
     in reads as a template letter, and shipping one under the label "tailored"
     would be worse for the candidate than telling them the feature is off.
@@ -139,9 +142,9 @@ def generate_letter(
     if tone not in TONES:
         tone = "professional"
 
-    client = ClaudeClient()
+    client = llm_client
     if not client.available:
-        raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+        raise RuntimeError("No AI model is configured for cover letters")
 
     user = (
         f"TONE: {tone} — {_TONE_GUIDANCE[tone]}\n\n"
