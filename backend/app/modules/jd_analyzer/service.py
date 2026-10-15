@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 16
+ANALYZER_VERSION = 17
 
 TOOL_NAME = "analyze_job_description"
 MISSED_TOOL_NAME = "list_missed_skills"
@@ -232,6 +232,8 @@ class AnalysisReport:
     title_leaks: list[str] = field(default_factory=list)
     unsupported_tools: list[str] = field(default_factory=list)
     moved_to_tools: list[str] = field(default_factory=list)
+    # Required skills moved to preferred: named only outside the requirements section.
+    moved_to_preferred: list[str] = field(default_factory=list)
     rule_additions: list[str] = field(default_factory=list)
     second_call_attempts: int = 0
     second_call_added: list[str] = field(default_factory=list)
@@ -611,6 +613,21 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
         analysis.source = "hybrid"
         analysis.required_skills = rules.assign_alternative_groups(analysis.required_skills, cleaned)
         analysis.preferred_skills = rules.assign_alternative_groups(analysis.preferred_skills, cleaned)
+
+    # Required only from the requirements section. When the posting has a
+    # recognised requirements section, a required skill none of whose mentions
+    # is inside it (named only in the duties or the role description) is
+    # preferred. With no recognised section, nothing changes.
+    spans = rules.requirement_spans(cleaned)
+    if spans:
+        kept = []
+        for skill in analysis.required_skills:
+            if rules.named_inside(cleaned, spans, skill.name, skill.evidence):
+                kept.append(skill)
+            else:
+                analysis.preferred_skills.append(skill)
+                report.moved_to_preferred.append(skill.name)
+        analysis.required_skills = kept
 
     # A heading of the posting is never a skill, whoever proposed it.
     for key in ("required_skills", "preferred_skills"):

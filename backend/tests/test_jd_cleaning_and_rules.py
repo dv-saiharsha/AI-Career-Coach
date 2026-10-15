@@ -810,3 +810,25 @@ class TestAdditiveHeadings:
         text = "Engineer\n\nWHAT YOU'LL BRING\n\n- Python\n\nEVEN BETTER...\n\n- Experience with Go\n"
         assert rules.skill_bucket(text, "Experience with Go", "required") == "preferred"
         assert rules.skill_bucket(text, "Python", "preferred") == "required"
+
+
+class TestRequiredOnlyFromTheRequirementsSection:
+    TEXT = (
+        "Data Engineer\n\nWhat you'll do\n\n- Build Airflow pipelines in Python\n\n"
+        "Requirements:\n\n- Python and SQL\n\nAbout us\n\nWe use Kafka.\n"
+    )
+
+    def test_the_spans_cover_the_requirements_section_only(self):
+        spans = rules.requirement_spans(self.TEXT)
+        assert len(spans) == 1 and "Python and SQL" in self.TEXT[spans[0][0]:spans[0][1]]
+        assert "Kafka" not in self.TEXT[spans[0][0]:spans[0][1]]
+
+    def test_every_mention_counts_not_only_the_quote(self):
+        spans = rules.requirement_spans(self.TEXT)
+        # Quoted from the duties, but named again under Requirements.
+        assert rules.named_inside(self.TEXT, spans, "python", "Build Airflow pipelines in Python")
+        assert not rules.named_inside(self.TEXT, spans, "airflow", "Airflow")
+        assert not rules.named_inside(self.TEXT, spans, "kafka", "Kafka")
+
+    def test_no_recognised_section_means_no_spans(self):
+        assert rules.requirement_spans("Engineer\n\nYou know Python and SQL.") == []

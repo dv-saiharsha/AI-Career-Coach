@@ -352,6 +352,29 @@ def _flat_words(value: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9+#]+", " ", value.lower()).split())
 
 
+def requirement_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) of every section under a heading recognised as
+    requirements or mixed, each running to the next heading."""
+    heads = headings_in(text)
+    spans = []
+    for k, (offset, _, kind) in enumerate(heads):
+        if kind in ("required", "mixed"):
+            spans.append((offset, heads[k + 1][0] if k + 1 < len(heads) else len(text)))
+    return spans
+
+
+def named_inside(text: str, spans: list[tuple[int, int]], name: str, evidence: str = "") -> bool:
+    """Whether any mention of the skill (its name as a term, or its quote) lies
+    inside one of `spans`. Every mention counts, not only the quote the model
+    chose: a skill named in the duties and again in the requirements is a
+    requirement."""
+    spots = [m.start() for m in _concept_pattern(name).finditer(text)] if name.strip() else []
+    if evidence.strip():
+        pattern = r"\s+".join(re.escape(part) for part in evidence.split())
+        spots += [m.start() for m in re.finditer(pattern, text, re.IGNORECASE)]
+    return any(start <= spot < end for spot in spots for start, end in spans)
+
+
 def is_heading_text(text: str, name: str, evidence: str) -> bool:
     """Whether a skill is really a heading of the posting: its quote or its
     name is a whole line the posting sets out as a heading ("EVEN BETTER",

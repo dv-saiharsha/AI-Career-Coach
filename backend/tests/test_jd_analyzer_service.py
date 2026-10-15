@@ -837,3 +837,23 @@ class TestHeadingRule:
         analysis, report = service.analyze_with_report(text, use_cache=False)
         assert "our values" not in {s.name for s in analysis.required_skills + analysis.preferred_skills}
         assert "our values (a heading)" in report.rejected
+
+
+class TestRequiredOnlyFromRequirements:
+    TEXT = (
+        "Backend Engineer\n\nWhat you'll do\n\n- Build services with Kafka and Python\n\n"
+        "Requirements:\n\n- 3+ years of Python\n- Strong SQL\n"
+    )
+
+    def test_a_skill_named_only_in_the_duties_is_preferred_not_dropped(self, llm):
+        llm.replies = [reply(job_title="Backend Engineer", seniority="unknown", min_years_experience=3,
+                             required_skills=[skill("Kafka"), skill("Python"), skill("SQL")], preferred_skills=[],
+                             tools_technologies=["Kafka", "Python", "SQL"], education=[], certifications=[])]
+        analysis, report = service.analyze_with_report(self.TEXT, use_cache=False)
+        assert {"python", "sql"} <= {s.name for s in analysis.required_skills}
+        assert "kafka" in {s.name for s in analysis.preferred_skills}
+        assert "kafka" in report.moved_to_preferred
+
+    def test_without_a_recognised_section_nothing_moves(self, llm):
+        analysis, report = service.analyze_with_report(JD, use_cache=False)
+        assert report.moved_to_preferred == [] and {"go", "java", "python"} <= {s.name for s in analysis.required_skills}

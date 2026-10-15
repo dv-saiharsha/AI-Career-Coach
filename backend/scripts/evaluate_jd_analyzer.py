@@ -264,7 +264,8 @@ def print_rows(rows: list[dict], label: str) -> dict:
         lines += [f"  {title:22}: {r[key]}" for key, title in [("education_note", "education"), ("certifications_note", "certifications")] if r[key]]
         lines += [f"  {title:22}: {rep[key]}" for key, title in [
             ("dropped_by_evidence", "dropped by evidence"), ("rejected", "rejected (validators)"),
-            ("moved_to_tools", "moved to tools"), ("rule_additions", "added by the rules"),
+            ("moved_to_tools", "moved to tools"), ("moved_to_preferred", "moved to preferred"),
+            ("rule_additions", "added by the rules"),
             ("title_leaks", "title leaks stripped"), ("second_call_added", "added by 2nd call"),
             ("second_call_error", "2nd call error"), ("llm_error", "model error"),
         ] if rep.get(key)]
