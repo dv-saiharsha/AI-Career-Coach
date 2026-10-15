@@ -85,10 +85,12 @@ function toneClasses(score: number): { bar: string; text: string } {
 // Postings only carry day-granularity age (JobListingSchema.postedDaysAgo),
 // so "today" covers anything under 24h rather than Figma's fabricated
 // hour-level mock timestamps.
-function relativeDayLabel(days: number): string {
-  if (days <= 0) return 'Today'
-  if (days === 1) return '1 day ago'
-  return `${days} days ago`
+function relativeDayLabel(days: number, source: JobListing['dateSource'] = 'posted'): string {
+  // No posting date from the source: say when it was first seen, never "posted".
+  const prefix = source === 'first_seen' ? 'Seen ' : ''
+  if (days <= 0) return source === 'first_seen' ? 'Seen today' : 'Today'
+  if (days === 1) return `${prefix}1 day ago`
+  return `${prefix}${days} days ago`
 }
 
 function timeLabel(iso: string): string {
@@ -274,7 +276,7 @@ function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCard
             <h3 className="truncate font-heading text-[13px] font-bold text-foreground">{job.title}</h3>
             <span className="text-[11px] text-muted-foreground">{job.company}</span>
           </div>
-          <span className="shrink-0 text-[8px] text-muted-foreground">{relativeDayLabel(job.postedDaysAgo)}</span>
+          <span className="shrink-0 text-[8px] text-muted-foreground">{relativeDayLabel(job.postedDaysAgo, job.dateSource)}</span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-[15px] gap-y-1 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
@@ -928,7 +930,7 @@ export function JobsPage() {
                     <div className="rounded-lg bg-muted/60 p-2.5">
                       <small className="text-[7px] font-bold uppercase tracking-wide text-muted-foreground">Posted</small>
                       <strong className="mt-0.5 block text-[10px] font-bold text-foreground">
-                        {relativeDayLabel(selectedJob.postedDaysAgo)}
+                        {relativeDayLabel(selectedJob.postedDaysAgo, selectedJob.dateSource)}
                       </strong>
                     </div>
                   </div>

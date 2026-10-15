@@ -169,6 +169,20 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+def listing_date():
+    """The date a listing is ordered by: when it was posted, or, when the
+    source gave no date, when the crawler first saw it (then when it was last
+    fetched, for rows older than first_seen_at). Without the fallback, a
+    dateless posting sorts last and falls past CANDIDATE_ROW_LIMIT however new
+    it is."""
+    return func.coalesce(JobListing.posted_at, JobListing.first_seen_at, JobListing.fetched_at)
+
+
+def listing_date_of(row: JobListing) -> datetime | None:
+    """listing_date() for a loaded row."""
+    return _as_utc(row.posted_at or row.first_seen_at or row.fetched_at)
+
+
 def _age_filter():
     """Suppress postings older than JOB_MAX_AGE_DAYS. Applied to every read
     path — search and the default grid alike.
@@ -230,7 +244,7 @@ def search_jobs(db: Session, query: str) -> list[JobListing]:
         )
         rows = (
             base.filter(vector.op("@@")(func.plainto_tsquery("english", terms)))
-            .order_by(JobListing.posted_at.desc().nullslast())
+            .order_by(listing_date().desc())
             .limit(CANDIDATE_ROW_LIMIT)
             .all()
         )
@@ -244,7 +258,7 @@ def search_jobs(db: Session, query: str) -> list[JobListing]:
                     func.lower(JobListing.skills).like(pattern),
                 )
             )
-            .order_by(JobListing.posted_at.desc().nullslast())
+            .order_by(listing_date().desc())
             .limit(CANDIDATE_ROW_LIMIT)
             .all()
         )
@@ -326,7 +340,7 @@ def _warm_feed(
         # description is NOT deferred. to_payload reads it, so deferring it
         # turns one query into one lazy load per row.
         .filter(JobListing.status == "open", _age_filter())
-        .order_by(JobListing.posted_at.desc().nullslast())
+        .order_by(listing_date().desc())
         .limit(CANDIDATE_ROW_LIMIT)
         .all()
     )
@@ -336,8 +350,9 @@ def _warm_feed(
         return [], None
 
     def rank(row: JobListing) -> tuple[int, float]:
-        """Newest posting first, with the user's own roles ahead of backfill."""
-        posted = _as_utc(row.posted_at)
+        """Newest listing first (listing_date: posted, else first seen), with
+        the user's own roles ahead of backfill."""
+        posted = listing_date_of(row)
         return (
             0 if _title_matches_any(row.title, wanted_set) else 1,
             -posted.timestamp() if posted else 0.0,
@@ -426,10 +441,11 @@ def to_payload(row: JobListing) -> dict:
     except json.JSONDecodeError:
         skills = []
 
-    posted_days_ago = 0
-    if row.posted_at:
-        delta = datetime.now(timezone.utc) - row.posted_at
-        posted_days_ago = max(0, delta.days)
+    # Age from listing_date: the posting date, or, with none, when the crawler
+    # first saw it. A dateless listing used to read 0 ("Today") forever, which
+    # sorted it first and let it through every "date posted" filter.
+    dated = listing_date_of(row)
+    posted_days_ago = max(0, (datetime.now(timezone.utc) - dated).days) if dated else 0
 
     return {
         "id": str(row.id),
@@ -441,6 +457,7 @@ def to_payload(row: JobListing) -> dict:
         "description": row.description,
         "skills": skills,
         "postedDaysAgo": posted_days_ago,
+        "dateSource": "posted" if row.posted_at else "first_seen",
         "applyUrl": row.apply_url,
         "companyLogo": company_logo_url(row.company),
         "domain": domain_for(row.title),

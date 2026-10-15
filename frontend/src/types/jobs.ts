@@ -44,6 +44,9 @@ export interface JobListing {
   description?: string | null
   skills: string[]
   postedDaysAgo: number
+  // 'first_seen' when the source gave no posting date and postedDaysAgo counts
+  // from when the crawler first saw the listing.
+  dateSource?: 'posted' | 'first_seen'
   applyUrl: string
   companyLogo?: string | null
   domain?: string | null

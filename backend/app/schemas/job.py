@@ -59,6 +59,9 @@ class JobListingSchema(BaseModel):
     description: Optional[str] = None
     skills: List[str]
     postedDaysAgo: int
+    # "posted": postedDaysAgo counts from the posting date; "first_seen": the
+    # source gave none, so it counts from when the crawler first saw it.
+    dateSource: Literal["posted", "first_seen"] = "posted"
     applyUrl: str
 
     # Enrichment. All optional and all None until a posting has been through

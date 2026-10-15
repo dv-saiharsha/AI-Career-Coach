@@ -22,7 +22,7 @@ from app.modules.analytics.services import progress_buckets, summary as analytic
 from app.modules.applications.services import get_pipeline
 from app.modules.interview_coach import prep as interview_prep
 from app.modules.interview_coach.dashboard import dashboard_summary as interview_summary
-from app.modules.job_market.services import top_matches
+from app.modules.job_market.services import _us_only, listing_date, listing_date_of, top_matches
 from app.modules.resume_analyzer.rubric import band
 from app.modules.user_profile.services import dashboard_stats, recent_activity
 
@@ -61,18 +61,41 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _posted_label(posted_at: datetime | None, now: datetime) -> str:
+def _posted_label(posted_at: datetime | None, now: datetime, seen_at: datetime | None = None) -> str:
     posted = _as_utc(posted_at)
     if posted is None:
-        # Unknown, not "just now" — a missing date is not a fresh one.
-        return "Date not listed"
-    hours = int((now - posted).total_seconds() // 3600)
+        seen = _as_utc(seen_at)
+        if seen is None:
+            # Unknown, not "just now" — a missing date is not a fresh one.
+            return "Date not listed"
+        # No posting date: say when we first saw it, never "posted".
+        return f"Seen {_ago(seen, now)}"
+    return "Just now" if now - posted < timedelta(hours=1) else _ago(posted, now)
+
+
+def _ago(then: datetime, now: datetime) -> str:
+    hours = int((now - then).total_seconds() // 3600)
     if hours < 1:
-        return "Just now"
+        return "just now"
     if hours < 24:
         return f"{hours}h ago"
-    days = hours // 24
-    return f"{days}d ago"
+    return f"{hours // 24}d ago"
+
+
+def _open_us_listings(db: Session, floor: datetime, limit: int, light: bool = False) -> list[JobListing]:
+    """Open listings dated after `floor` (listing_date: posted, else first
+    seen), newest first, US only — the same rules as the Jobs page. A few
+    extra rows are read so the US filter does not leave the panel short."""
+    query = db.query(JobListing)
+    if light:
+        query = query.options(defer(JobListing.description))
+    rows = (
+        query.filter(JobListing.status == "open", listing_date() >= floor)
+        .order_by(listing_date().desc())
+        .limit(limit * 4)
+        .all()
+    )
+    return _us_only(rows)[:limit]
 
 
 def fresh_jobs(db: Session, now: datetime | None = None) -> tuple[list[JobListing], str]:
@@ -85,14 +108,7 @@ def fresh_jobs(db: Session, now: datetime | None = None) -> tuple[list[JobListin
     window_floor = now - timedelta(days=WINDOW_DAYS)
 
     def query(floor: datetime):
-        return (
-            db.query(JobListing)
-            .options(defer(JobListing.description))
-            .filter(JobListing.posted_at.isnot(None), JobListing.posted_at >= floor)
-            .order_by(JobListing.posted_at.desc())
-            .limit(MAX_FRESH_JOBS)
-            .all()
-        )
+        return _open_us_listings(db, floor, MAX_FRESH_JOBS, light=True)
 
     rows = query(now - timedelta(hours=FRESH_HOURS))
     if len(rows) >= MIN_FRESH_BEFORE_WIDENING:
@@ -196,7 +212,7 @@ def overview(db: Session, user_id: str, now: datetime | None = None) -> dict:
             "company": row.company,
             "location": row.location,
             "work_mode": row.work_mode,
-            "posted_label": _posted_label(row.posted_at, now),
+            "posted_label": _posted_label(row.posted_at, now, row.first_seen_at or row.fetched_at),
             # Verbatim from the posting when it stated one, null when it did
             # not. Never a range derived from the title or the location —
             # a guessed salary is the number a candidate would most regret
@@ -291,14 +307,8 @@ def _latest_openings(db: Session, limit: int = 6) -> list[dict]:
     and the panel says "latest openings" rather than implying a fit nobody
     computed.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.JOB_MAX_AGE_DAYS)
-    rows = (
-        db.query(JobListing)
-        .filter(JobListing.posted_at >= cutoff)
-        .order_by(JobListing.posted_at.desc())
-        .limit(limit)
-        .all()
-    )
+    now = datetime.now(timezone.utc)
+    rows = _open_us_listings(db, now - timedelta(days=settings.JOB_MAX_AGE_DAYS), limit)
     return [
         {
             "id": str(row.id),
@@ -308,9 +318,8 @@ def _latest_openings(db: Session, limit: int = 6) -> list[dict]:
             "workMode": row.work_mode or "On-site",
             "salaryRange": row.salary_range or "",
             "skills": [],
-            "postedDaysAgo": max(
-                0, (datetime.now(timezone.utc) - row.posted_at).days
-            ) if row.posted_at else 0,
+            # Days since listing_date (posted, else first seen).
+            "postedDaysAgo": max(0, (now - listing_date_of(row)).days) if listing_date_of(row) else 0,
             "applyUrl": row.apply_url or "",
         }
         for row in rows
