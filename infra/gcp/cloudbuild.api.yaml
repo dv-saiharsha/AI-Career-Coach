@@ -20,6 +20,33 @@ steps:
   - id: build
     name: gcr.io/cloud-builders/docker
     args: ["build", "-t", "${_IMAGE}:${_TAG}", "-t", "${_IMAGE}:latest", "."]
+  # Runs the image before anything is pushed: the app imports, the LaTeX
+  # engine really compiles a resume to a one-page PDF inside the container
+  # (tectonic fails at runtime, not at install, if a system library is
+  # missing), and the crawler's --once entry point exists. A failure here
+  # means no image is pushed.
+  - id: smoke
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -e
+      - DB_URL=sqlite:////tmp/smoke.db
+      - -e
+      - ANTHROPIC_API_KEY=
+      - ${_IMAGE}:${_TAG}
+      - python
+      - -c
+      - |
+        import app.main
+        from app.modules.resume_builder import latex
+        assert latex.tectonic_available(), "tectonic missing"
+        tex = latex.render_resume_tex({"candidate_name": "Smoke Test", "summary": "Builds.", "experiences": [{"title": "Engineer", "company": "Acme", "dates": "2024", "bullets": ["Built a thing."]}]})
+        pdf = latex.compile_tex_to_pdf(tex)
+        assert pdf.startswith(b"%PDF") and latex.count_pdf_pages(pdf) == 1
+        from app import worker
+        assert callable(worker.run_once)
+        print("smoke ok: app imports, tectonic compiles a 1-page PDF, worker --once present")
 images:
   - "${_IMAGE}:${_TAG}"
   - "${_IMAGE}:latest"
