@@ -4,7 +4,7 @@ Living record of what has shipped, the architecture decisions behind it, and the
 debt carried forward. **Append-only** — new milestone sections go at the top;
 previous entries are never removed or rewritten.
 
-**Last updated:** 2026-09-02
+**Last updated:** 2026-10-15
 **Current phase:** Awaiting approval to begin Milestone 12 — Performance, Security & Production Readiness
 **Last completed:** Milestone 11 — Platform Polish & User Experience — 2026-09-02
 
@@ -21,6 +21,56 @@ previous entries are never removed or rewritten.
 > swapped — Career Coach is now permanently #6, Voice Interview #7 — at the
 > user's explicit direction, so the orchestration layer exists before a
 > second interview modality is added under it.
+
+---
+
+## 2026-10-15 — Resume Match & Optimization, Cloud SQL, cloud infrastructure ✅ (not deployed)
+
+**Owner's decisions in force:** keep the tested code and build fresh, scripted GCP
+infrastructure; Supabase is gone and every account starts fresh; **no deploy or
+publish** until the owner approves; Ollama on a Cloud Run GPU pending the owner's
+cost OK; crawl every 20 minutes. See `MIGRATION_RUNBOOK.md` §0a and
+`infra/gcp/README.md`.
+
+### Shipped (committed on `migration/gcp-cutover`, not pushed)
+- **Resume Match & Optimization** (`/resume/match`) is the single resume
+  workflow: scan → ATS score and shortlist outlook → Tailor Resume (JD analysis,
+  requirements ranked critical/high/medium/low and matched exact / related /
+  transferable / missing with resume evidence, fact-checked rewrites, one-page
+  fit, validation) → edit every section → re-score edits → save a separate copy.
+  The old ATS upload/results pages and the separate tailor page are removed.
+- **One scorer** (`resume_analyzer.services.score_with_source`) for scan, match,
+  tailor, preview and save: the trained model when installed, else keyword
+  coverage, always labelled. Verified end to end with the real local model:
+  scan 40.0 = match 40.0 → tailored 55.0.
+- **Cloud SQL `career_coach`** built fresh (schema at head; 31,309 jobs + 315
+  companies from the rehearsal copy; no user data). Local dev and the crawler
+  use it through the Cloud SQL proxy LaunchAgent.
+- **Crawl worker every 20 min** (Mac LaunchAgent until the Cloud Run Job).
+  Writes made set-based and batched: a full crawl went from 40+ min to 16 min
+  over the proxy. First full run: 278/278 companies, 3,076 new, 912 updated,
+  11,541 closed (all last seen 4–30 Sep, i.e. gone from their boards).
+- **`infra/gcp/`**: dry-run-by-default scripts for registries, least-privilege
+  service accounts, secrets, Cloud Build images, private GPU Ollama, crawler and
+  enricher jobs on Cloud Scheduler, the API (extra `DEPLOY_APPROVED` guard) and
+  monitoring/budget alerts. None applied.
+
+### Defects found and fixed
+- Tailor-preview never requested AI rewrites (`experiences=[]`); the old page
+  pre-selected skills the candidate did not have; the tailored PDF dropped
+  projects, certifications and awards.
+- Cover letters called Claude directly, bypassing `LLM_PROVIDER`.
+- Tests could reach a developer's real database through `.env` (now forced to
+  SQLite in `conftest.py`).
+- Saved copies re-sorted the user's edited bullets; the data export lost its
+  real download URLs; three migration/erasure tests failed after the new table.
+
+### Waiting on the owner
+- Deploy/publish approval (`50_api.sh`, frontend hosting); GPU cost OK
+  (`30_ollama.sh`); monthly budget amount (`60_monitoring.sh`).
+- The trained ATS model (`ats_model.joblib`) is not on this Mac or in any
+  bucket; until it is, scores are labelled keyword-coverage scores.
+- Browser QA of `/resume/match` with a fresh sign-up.
 
 ---
 
