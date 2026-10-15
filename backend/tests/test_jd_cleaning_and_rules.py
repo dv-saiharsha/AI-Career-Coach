@@ -249,6 +249,46 @@ class TestOptional:
         assert rules.requirement_flag("Valid CISSP held.", "Valid CISSP held", False) is False
 
 
+class TestClauses:
+    SENTENCE = "Solid understanding of REST API design and relational databases (PostgreSQL preferred)."
+
+    def test_a_parenthetical_marker_covers_only_the_parenthetical(self):
+        assert rules.is_optional(self.SENTENCE, "PostgreSQL") is True
+        assert rules.is_optional(self.SENTENCE, "REST API design") is False
+        assert rules.is_optional(self.SENTENCE, "relational databases") is False
+
+    def test_clauses_innermost_first(self):
+        assert rules.clauses_around(self.SENTENCE, "PostgreSQL") == [
+            "PostgreSQL preferred", "Solid understanding of REST API design and relational databases",
+        ]
+        assert rules.clauses_around(self.SENTENCE, "REST API design") == [
+            "Solid understanding of REST API design and relational databases",
+        ]
+
+    def test_an_outer_marker_covers_the_items_in_its_parenthetical(self):
+        text = "Familiarity with compliance frameworks (SOC 2, HIPAA) is a plus."
+        assert rules.is_optional(text, "HIPAA") is True
+        assert rules.is_optional(text, "compliance frameworks") is True
+        # The rule-found wording has a bare "plus", so "a strong plus" covers them too.
+        text = "Familiarity with compliance frameworks (SOC 2, HIPAA) is a strong plus."
+        assert rules.classify_rule_skill(text, "HIPAA") == "preferred"
+
+    def test_a_list_is_one_clause(self):
+        assert rules.is_optional("Experience with Python, Go, or Rust is a plus.", "Python") is True
+
+    def test_separate_clauses_are_scoped_separately(self):
+        text = "Python is required; Go is a plus."
+        assert rules.is_optional(text, "Python") is False
+        assert rules.is_optional(text, "Go") is True
+        text = "Strong experience with Kafka, but Flink is nice to have."
+        assert rules.classify_rule_skill(text, "Kafka") == "required"
+        assert rules.classify_rule_skill(text, "Flink") == "preferred"
+
+    def test_a_plus_but_not_required_is_still_optional(self):
+        text = "Exposure to Docker is a plus but not required — we'll teach you."
+        assert rules.is_optional(text, "Docker") is True
+
+
 SECTIONED = (
     "About the role\n"
     "You will work with Kafka every day.\n"
@@ -279,6 +319,11 @@ class TestSections:
     def test_no_section_keeps_the_default(self):
         assert rules.skill_bucket(SECTIONED, "Kafka", "required") == "required"
         assert rules.skill_bucket(SECTIONED, "Kafka", "preferred") == "preferred"
+
+    def test_a_requirements_section_line_with_an_optional_parenthetical(self):
+        text = "Requirements:\nREST API design and relational databases (PostgreSQL preferred)\n"
+        assert rules.skill_bucket(text, "relational databases", "required") == "required"
+        assert rules.skill_bucket(text, "PostgreSQL", "required") == "preferred"
 
     def test_rule_found_skills_follow_the_section(self):
         # No requirement wording on the line, but it sits under "What you'll need".

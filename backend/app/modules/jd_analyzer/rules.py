@@ -259,13 +259,54 @@ def section_kind(text: str, quote: str) -> str | None:
     return None
 
 
-def _clause_optional(text: str, quote: str) -> bool:
-    """Whether the words around `quote` make it optional: optional wording ("is
-    a plus", "or equivalent", "not required") without requirement wording."""
+# Where one clause of a sentence ends and the next begins. Never a list comma:
+# "Python, Go, or Rust is a plus" is one clause about all three.
+_CLAUSE_BREAK = re.compile(r";|\s[—–-]\s|\s(?:but|while|whereas|although)\s", re.IGNORECASE)
+_PARENTHETICAL = re.compile(r"\([^()]*\)")
+
+
+def clauses_around(text: str, quote: str) -> list[str]:
+    """The clauses that scope `quote`, innermost first: the parenthetical it
+    sits in, if any, then the clause of its sentence around it, with every
+    parenthetical left out. In "REST API design and relational databases
+    (PostgreSQL preferred)", PostgreSQL's clauses are "PostgreSQL preferred" and
+    "REST API design and relational databases"; REST API design's is only the
+    second."""
     sentence = sentence_containing(text, quote)
-    if "not required" in sentence.lower():
-        return True
-    return bool(_OPTIONAL.search(sentence) and not _REQUIRED.search(sentence))
+    pattern = r"\s+".join(re.escape(part) for part in quote.split())
+    match = re.search(pattern, sentence, re.IGNORECASE) if pattern else None
+    if not match:
+        return [sentence]
+    where = match.start()
+    inner: list[str] = []
+    for paren in _PARENTHETICAL.finditer(sentence):
+        if paren.start() < where < paren.end():
+            inner = [paren.group(0)[1:-1].strip()]
+            where = paren.start()
+    # Blank out parentheticals, keeping positions, then take the clause at `where`.
+    outer = _PARENTHETICAL.sub(lambda m: " " * len(m.group(0)), sentence)
+    start, end = 0, len(outer)
+    for brk in _CLAUSE_BREAK.finditer(outer):
+        if brk.end() <= where:
+            start = brk.end()
+        elif brk.start() >= where:
+            end = brk.start()
+            break
+    return inner + [" ".join(outer[start:end].split()).strip(" .;,")]
+
+
+def _clause_optional(text: str, quote: str) -> bool:
+    """Whether the words scoping `quote` make it optional: the innermost clause
+    with optional wording ("is a plus", "or equivalent", "not required") or
+    requirement wording ("must", "required") decides."""
+    for clause in clauses_around(text, quote):
+        if "not required" in clause.lower():
+            return True
+        if _REQUIRED.search(clause):
+            return False
+        if _OPTIONAL.search(clause):
+            return True
+    return False
 
 
 def is_optional(text: str, quote: str) -> bool:
@@ -293,7 +334,7 @@ def requirement_flag(text: str, evidence: str, model_flag: bool) -> bool:
     makes it true, and only a quote with neither falls back to the model's flag."""
     if is_optional(text, evidence):
         return False
-    if _REQUIRED.search(sentence_containing(text, evidence)) or section_kind(text, evidence) == "required":
+    if any(_REQUIRED.search(c) for c in clauses_around(text, evidence)) or section_kind(text, evidence) == "required":
         return True
     return model_flag
 
@@ -623,11 +664,12 @@ def classify_rule_skill(text: str, written: str) -> str:
 
 
 def _rule_wording(text: str, written: str) -> str:
-    sentence = sentence_containing(text, written)
-    if _RULE_OPTIONAL.search(sentence):
-        return "preferred"
-    if _RULE_REQUIRED.search(sentence):
-        return "required"
+    # The innermost clause with either kind of wording decides (clauses_around).
+    for clause in clauses_around(text, written):
+        if _RULE_OPTIONAL.search(clause):
+            return "preferred"
+        if _RULE_REQUIRED.search(clause):
+            return "required"
     return "preferred"
 
 
@@ -708,13 +750,13 @@ def rules_requirements(text: str) -> tuple[list[Requirement], list[Requirement]]
         name = match.group(0).strip(" ,.;")
         evidence = sentence_containing(text, match.group(0)).strip()
         if name and not any(r.name.lower() == name.lower() for r in education):
-            education.append(Requirement(name=name, required=not is_optional(text, evidence), evidence=evidence))
+            education.append(Requirement(name=name, required=not is_optional(text, match.group(0)), evidence=evidence))
     certifications: list[Requirement] = []
     for match in _CERT.finditer(text):
         name = match.group(0).strip(" ,.;")
         evidence = sentence_containing(text, match.group(0)).strip()
         if name and not any(r.name.lower() == name.lower() for r in certifications):
-            certifications.append(Requirement(name=name, required=not is_optional(text, evidence), evidence=evidence))
+            certifications.append(Requirement(name=name, required=not is_optional(text, match.group(0)), evidence=evidence))
     # "Certified Kubernetes Administrator (CKA)" matches twice, as the name and as
     # its acronym; keep the name.
     initials = {"".join(w[0] for w in c.name.split()).upper() for c in certifications if len(c.name.split()) >= 2}
