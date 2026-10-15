@@ -388,6 +388,31 @@ class TestReconciliation:
         still_closed = db.get(JobListing, closed_id)
         assert still_closed.status == "closed" and still_closed.missed_streak == 1
 
+    def test_a_seen_board_is_one_bookkeeping_update_plus_real_content_changes(self, db):
+        from sqlalchemy import event
+
+        company = make_company(db)
+        rows = [board_row(f"greenhouse:acme:{i}") for i in range(30)]
+        crawler._reconcile_company_rows(db, company, rows, not_modified=False)
+        db.commit()
+
+        rows[5] = board_row("greenhouse:acme:5", title="Staff Engineer")  # one real change
+        updates = []
+        listener = lambda conn, cursor, stmt, *a: updates.append(stmt) if stmt.lstrip().upper().startswith("UPDATE") else None
+        event.listen(db.get_bind(), "before_cursor_execute", listener)
+        try:
+            new, updated, closed = crawler._reconcile_company_rows(db, company, rows, not_modified=False)
+            db.commit()
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", listener)
+
+        assert (new, updated, closed) == (0, 1, 0)
+        bookkeeping = [u for u in updates if "last_seen_at" in u]
+        assert len(bookkeeping) == 1, "seen-row bookkeeping is one set-based UPDATE"
+        assert len(updates) == 2, updates  # plus the one changed title
+        changed = db.query(JobListing).filter(JobListing.external_id == "greenhouse:acme:5").one()
+        assert changed.title == "Staff Engineer" and changed.status == "open" and changed.missed_streak == 0
+
     def test_a_row_with_no_external_id_is_skipped_not_crashed_on(self, db):
         company = make_company(db)
         row = board_row("ignored")

@@ -256,6 +256,24 @@ def _crawl_one(company: Company, min_interval_ms: int) -> CompanyResult:
 _BULK_CHUNK = 5000
 
 
+def _bulk_update(db: Session, ids: list[int], values: dict) -> None:
+    """The same values on many rows, one UPDATE per chunk of ids.
+
+    Why not per-row ORM attributes: the ORM batches only consecutive rows
+    that changed exactly the same columns, and bookkeeping like missed_streak
+    = 0 is a change on some rows and not others, so a crawl's updates went
+    out a few at a time. Over a remote database (~80 ms a round trip through
+    the Cloud SQL proxy) that was tens of minutes per crawl.
+
+    synchronize_session="evaluate" applies the same values to the objects
+    already loaded, so the rest of the run sees what was written.
+    """
+    for start in range(0, len(ids), _BULK_CHUNK):
+        db.query(JobListing).filter(JobListing.id.in_(ids[start:start + _BULK_CHUNK])).update(
+            values, synchronize_session="evaluate"
+        )
+
+
 def _reconcile_company_rows(
     db: Session, company: Company, rows: list[dict], not_modified: bool
 ) -> tuple[int, int, int]:
@@ -316,15 +334,12 @@ def _reconcile_company_rows(
         # writes went out a few at a time. Over a remote database that was
         # minutes per crawl; most boards answer 304, so this is the hot path.
         open_ids = [row.id for row in existing.values() if row.status == "open" and row.id is not None]
-        for start in range(0, len(open_ids), _BULK_CHUNK):
-            db.query(JobListing).filter(JobListing.id.in_(open_ids[start:start + _BULK_CHUNK])).update(
-                {JobListing.last_seen_at: now, JobListing.missed_streak: 0},
-                synchronize_session="evaluate",
-            )
+        _bulk_update(db, open_ids, {JobListing.last_seen_at: now, JobListing.missed_streak: 0})
         return 0, 0, 0
 
     new_count = updated_count = closed_count = 0
     seen_keys: set[tuple[str | None, str, str | None]] = set()
+    seen_ids: list[int] = []
 
     for item in rows:
         external_id = item.get("external_id")
@@ -344,6 +359,11 @@ def _reconcile_company_rows(
                 external_id=external_id,
                 company_id=company.id,
                 first_seen_at=now,
+                status="open",
+                closed_at=None,
+                missed_streak=0,
+                last_seen_at=now,
+                fetched_at=now,
             )
             db.add(row)
             existing[key] = row
@@ -351,20 +371,30 @@ def _reconcile_company_rows(
         elif row.content_hash != digest:
             updated_count += 1
 
+        # Content goes through the ORM, so only columns whose values really
+        # changed are written.
         for column in (
             "query_key", "title", "location", "work_mode", "salary_range", "description",
             "skills", "apply_url", "posted_at", "department", "salary_min", "salary_max", "salary_currency",
         ):
             if item.get(column) is not None:
                 setattr(row, column, item[column])
-
         row.content_hash = digest
-        row.company_id = company.id
-        row.status = "open"
-        row.closed_at = None
-        row.missed_streak = 0
-        row.last_seen_at = now
-        row.fetched_at = now
+
+        # The bookkeeping every seen row gets (seen now, open, no misses) is
+        # identical, so it is one set-based UPDATE after the loop instead of a
+        # dirty attribute per row: see _bulk_update.
+        if row.id is not None:
+            seen_ids.append(row.id)
+
+    _bulk_update(db, seen_ids, {
+        JobListing.company_id: company.id,
+        JobListing.status: "open",
+        JobListing.closed_at: None,
+        JobListing.missed_streak: 0,
+        JobListing.last_seen_at: now,
+        JobListing.fetched_at: now,
+    })
 
     for key, row in existing.items():
         if key in seen_keys or row.status != "open":
