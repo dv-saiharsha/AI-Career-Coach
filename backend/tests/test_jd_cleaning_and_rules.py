@@ -713,3 +713,23 @@ class TestMultiTokenNames:
         found = dict(rules.rule_found_skills(self.TEXT, exclude=set()))
         assert {"soc 2", "iso 27001", "pci dss", "c++", "c#"} <= set(found)
         assert not {"soc", "iso", "pci", "dss", "c"} & set(found)
+
+
+class TestMixedSection:
+    TEXT = (
+        "QUALIFICATIONS/NICE TO HAVE:\n"
+        "- Strong experience operating Kubernetes\n"
+        "- Experience with eBPF\n"
+        "- Familiarity with Ceph is a plus\n"
+    )
+
+    def test_a_heading_naming_both_kinds_is_mixed(self):
+        assert rules.section_kind(self.TEXT, "eBPF") == "mixed"
+        assert rules.section_kind("Preferred qualifications:\nRust\n", "Rust") == "optional"
+        assert rules.section_kind("Requirements & nice to have:\nRust\n", "Rust") == "mixed"
+
+    def test_in_a_mixed_section_only_an_optional_clause_makes_a_skill_preferred(self):
+        assert rules.skill_bucket(self.TEXT, "Kubernetes", "preferred") == "required"
+        assert rules.skill_bucket(self.TEXT, "eBPF", "preferred") == "required"
+        assert rules.skill_bucket(self.TEXT, "Ceph", "required") == "preferred"
+        assert rules.classify_rule_skill(self.TEXT, "eBPF") == "required"

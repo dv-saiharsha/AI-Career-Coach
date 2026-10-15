@@ -248,11 +248,17 @@ def section_kind(text: str, quote: str) -> str | None:
     """"optional" when `quote` sits under a nice-to-have heading ("Nice to
     have", "Preferred qualifications", "Bonus"), "required" under a heading
     that lists what the job needs ("Requirements", "Qualifications", "What
-    you'll need", "Must have"), and None under any other heading or none."""
+    you'll need", "Must have"), "mixed" under a heading that names both
+    ("Qualifications/Nice to have"), and None under any other heading or none."""
     heading = section_heading(text, quote)
     if not heading:
         return None
     if _OPTIONAL_SECTION.search(heading):
+        # "Preferred qualifications" is one optional kind; "Qualifications / Nice
+        # to have" names two, joined by a slash, "and" or "&".
+        parts = re.split(r"\s*(?:/|&|\band\b|\+)\s*", heading)
+        if len(parts) > 1 and any(_REQUIRED_SECTION.search(p) and not _OPTIONAL_SECTION.search(p) for p in parts):
+            return "mixed"
         return "optional"
     if _REQUIRED_SECTION.search(heading):
         return "required"
@@ -318,11 +324,12 @@ def is_optional(text: str, quote: str) -> bool:
 def skill_bucket(text: str, evidence: str, default: str) -> str:
     """"required" or "preferred" for a skill, by where the JD puts it. In a
     nice-to-have section: preferred. Otherwise optional wording around it:
-    preferred. In a requirements section: required. With no section to go by,
-    `default` (the model's bucket, or the wording rule for a rule-found skill)."""
+    preferred. In a requirements section, or a section that mixes both kinds:
+    required. With no section to go by, `default` (the model's bucket, or the
+    wording rule for a rule-found skill)."""
     if is_optional(text, evidence):
         return "preferred"
-    if section_kind(text, evidence) == "required":
+    if section_kind(text, evidence) in ("required", "mixed"):
         return "required"
     return default
 
@@ -334,7 +341,7 @@ def requirement_flag(text: str, evidence: str, model_flag: bool) -> bool:
     makes it true, and only a quote with neither falls back to the model's flag."""
     if is_optional(text, evidence):
         return False
-    if any(_REQUIRED.search(c) for c in clauses_around(text, evidence)) or section_kind(text, evidence) == "required":
+    if any(_REQUIRED.search(c) for c in clauses_around(text, evidence)) or section_kind(text, evidence) in ("required", "mixed"):
         return True
     return model_flag
 
