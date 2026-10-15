@@ -174,4 +174,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from app.core.llm import background
+
+    with background():  # a script: background Ollama timeout
+        main()

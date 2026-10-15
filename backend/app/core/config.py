@@ -97,7 +97,13 @@ class Settings(BaseSettings):
     # Embeddings (/api/embed). No fallback: vectors from two different
     # embedding models are not comparable.
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
-    OLLAMA_TIMEOUT_SECONDS: float = 180.0
+    # How long one Ollama request may take. Interactive requests (a user is
+    # waiting: scan, tailor, JD analysis, chat) give up sooner and fall back;
+    # background work (the crawl worker's enrichment, scripts, evaluation)
+    # can wait for a long reply. Code marks itself background with
+    # app.core.llm.background().
+    OLLAMA_TIMEOUT_INTERACTIVE_SECONDS: float = 150.0
+    OLLAMA_TIMEOUT_BACKGROUND_SECONDS: float = 300.0
     # JD analyzer: after the first call, ask again on the recognised
     # requirements section(s) only, instead of the "what did you miss" call.
     # Off by default (an experiment: better recall, lower precision, slower).

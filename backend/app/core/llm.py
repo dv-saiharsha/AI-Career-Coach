@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import json
 import logging
 import re
@@ -28,6 +30,21 @@ class LLMProviderError(RuntimeError):
     def __init__(self, message: str, kind: str = "error") -> None:
         super().__init__(message)
         self.kind = kind  # unreachable | timeout | model_missing | bad_output | truncated | http | unsupported
+
+
+_BACKGROUND: contextvars.ContextVar[bool] = contextvars.ContextVar("ollama_background", default=False)
+
+
+@contextlib.contextmanager
+def background():
+    """Mark the calls made inside as background work: they get
+    OLLAMA_TIMEOUT_BACKGROUND_SECONDS instead of the interactive limit. Used by
+    the crawl worker and the scripts, never by an API request."""
+    token = _BACKGROUND.set(True)
+    try:
+        yield
+    finally:
+        _BACKGROUND.reset(token)
 
 
 def validate_against_schema(value, schema: dict, path: str = "$") -> str | None:
@@ -231,7 +248,10 @@ class OllamaClient:
         fb = settings.OLLAMA_FALLBACK_MODEL if fallback_model is None else fallback_model
         self.fallback_model = fb if fb and fb != self.model else ""
         self.embed_model = embed_model or settings.OLLAMA_EMBED_MODEL
-        self.timeout = timeout if timeout is not None else settings.OLLAMA_TIMEOUT_SECONDS
+        # An explicit timeout (tests) applies to every request; otherwise each
+        # request takes the interactive or background value (see background()).
+        self._fixed_timeout = timeout
+        self.timeout = timeout if timeout is not None else settings.OLLAMA_TIMEOUT_INTERACTIVE_SECONDS
         self.max_retries = max_retries if max_retries is not None else settings.OLLAMA_MAX_RETRIES
         self._transport = transport
         self._client = httpx.Client(
@@ -243,6 +263,16 @@ class OllamaClient:
     @property
     def available(self) -> bool:
         return self._client is not None
+
+    def request_timeout(self) -> float:
+        """Seconds one request may take: the fixed timeout if one was given,
+        else OLLAMA_TIMEOUT_BACKGROUND_SECONDS inside background(), else
+        OLLAMA_TIMEOUT_INTERACTIVE_SECONDS."""
+        if self._fixed_timeout is not None:
+            return self._fixed_timeout
+        if _BACKGROUND.get():
+            return settings.OLLAMA_TIMEOUT_BACKGROUND_SECONDS
+        return settings.OLLAMA_TIMEOUT_INTERACTIVE_SECONDS
 
     # -- request plumbing ----------------------------------------------------
 
@@ -290,9 +320,10 @@ class OllamaClient:
         for model in models:
             for attempt in range(self.max_retries + 1):
                 try:
-                    response = self._client.post(path, json=build_payload(model))
+                    limit = self.request_timeout()
+                    response = self._client.post(path, json=build_payload(model), timeout=httpx.Timeout(limit, connect=5.0))
                 except httpx.TimeoutException as exc:
-                    last_error = LLMProviderError(f"Ollama timed out after {self.timeout}s", "timeout")
+                    last_error = LLMProviderError(f"Ollama timed out after {limit}s", "timeout")
                     last_error.__cause__ = exc
                 except httpx.TransportError as exc:
                     last_error = LLMProviderError(f"Ollama unreachable at {self.base_url}: {exc}", "unreachable")
@@ -399,9 +430,10 @@ class OllamaClient:
         """Yield text deltas from a streamed /api/chat (newline-delimited JSON)."""
         convo = [{"role": "system", "content": system}] + list(messages)
         models = self._chat_models()
+        limit = self.request_timeout()
         async with httpx.AsyncClient(
             base_url=self.base_url,
-            timeout=httpx.Timeout(self.timeout, connect=5.0),
+            timeout=httpx.Timeout(limit, connect=5.0),
             transport=self._transport,
         ) as client:
             for model in models:
@@ -436,7 +468,7 @@ class OllamaClient:
                                 return
                         return
                 except httpx.TimeoutException as exc:
-                    raise LLMProviderError(f"Ollama timed out after {self.timeout}s", "timeout") from exc
+                    raise LLMProviderError(f"Ollama timed out after {limit}s", "timeout") from exc
                 except httpx.TransportError as exc:
                     raise LLMProviderError(f"Ollama unreachable at {self.base_url}: {exc}", "unreachable") from exc
 

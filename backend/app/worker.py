@@ -27,6 +27,7 @@ import uuid
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.llm import background
 from app.modules.job_market.crawler import run_crawl
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,9 @@ def _run_once(
 ) -> None:
     db = SessionLocal()
     try:
-        run = run_crawl(db, trigger=trigger, triggered_by=triggered_by, company_ids=company_ids)
+        # Background work: enrichment calls get OLLAMA_TIMEOUT_BACKGROUND_SECONDS.
+        with background():
+            run = run_crawl(db, trigger=trigger, triggered_by=triggered_by, company_ids=company_ids)
         logger.info(
             "crawl run %s: %d/%d companies ok, %d new, %d updated, %d closed",
             run.id, run.companies_succeeded, run.companies_attempted,

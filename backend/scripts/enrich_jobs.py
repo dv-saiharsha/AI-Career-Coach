@@ -99,4 +99,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from app.core.llm import background
+
+    with background():  # a script: background Ollama timeout
+        raise SystemExit(main())

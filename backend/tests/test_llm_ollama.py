@@ -1042,3 +1042,39 @@ class TestTruncation:
         request = SimpleNamespace(method="POST", url=SimpleNamespace(path="/api/jd/analyze"))
         response = asyncio.run(llm_provider_error_handler(request, LLMProviderError("x", "truncated")))
         assert response.status_code == 503 and b"cut off" in response.body
+
+
+# --- interactive and background timeouts ---------------------------------------
+
+
+class TestTimeouts:
+    def _client(self, seen):
+        def handler(request):
+            seen.append(request.extensions["timeout"]["read"])
+            return httpx.Response(200, json=chat_reply(json.dumps({"title": "x", "skills": []})))
+
+        return OllamaClient(base_url="http://ollama.test", model="llama3.1", fallback_model="",
+                            transport=httpx.MockTransport(handler))
+
+    def test_requests_are_interactive_by_default(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_TIMEOUT_INTERACTIVE_SECONDS", 150.0)
+        seen = []
+        self._client(seen).complete_tool_json("s", "u", "t", SCHEMA)
+        assert seen == [150.0]
+
+    def test_inside_background_they_get_the_background_limit(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OLLAMA_TIMEOUT_BACKGROUND_SECONDS", 300.0)
+        seen = []
+        client = self._client(seen)
+        with llm_module.background():
+            client.complete_tool_json("s", "u", "t", SCHEMA)
+        client.complete_tool_json("s", "u", "t", SCHEMA)
+        assert seen == [300.0, llm_module.settings.OLLAMA_TIMEOUT_INTERACTIVE_SECONDS]
+
+    def test_the_worker_marks_its_crawl_as_background(self, monkeypatch):
+        from app import worker
+
+        flags = []
+        monkeypatch.setattr(worker, "run_crawl", lambda *a, **k: flags.append(llm_module._BACKGROUND.get()) or (_ for _ in ()).throw(RuntimeError("stop")))
+        worker._run_once()
+        assert flags == [True]

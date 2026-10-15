@@ -233,7 +233,7 @@ All AI features run on a local [Ollama](https://ollama.com) by default, so no AP
    ollama pull nomic-embed-text  # embeddings: semantic matching
    ollama pull llama3.2          # optional fallback, used only if llama3.1 is missing
    ```
-3. **Configure `backend/.env`** — the defaults already point at Ollama, so normally nothing is needed. Leave `ANTHROPIC_API_KEY` blank. The settings are `LLM_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_FALLBACK_MODEL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_NUM_CTX` (default 8192), `OLLAMA_TIMEOUT_SECONDS` (default 180), `OLLAMA_KEEP_ALIVE` (default `30m`), `OLLAMA_MAX_RETRIES` (default 2), `OLLAMA_TEMPERATURE` (default 0) and `OLLAMA_ENRICH_MAX_PER_RUN` (default 25); see `backend/.env.example`.
+3. **Configure `backend/.env`** — the defaults already point at Ollama, so normally nothing is needed. Leave `ANTHROPIC_API_KEY` blank. The settings are `LLM_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_FALLBACK_MODEL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_NUM_CTX` (default 8192), `OLLAMA_TIMEOUT_INTERACTIVE_SECONDS` (default 150, any request a user is waiting on) and `OLLAMA_TIMEOUT_BACKGROUND_SECONDS` (default 300, the crawl worker and scripts), `OLLAMA_KEEP_ALIVE` (default `30m`), `OLLAMA_MAX_RETRIES` (default 2), `OLLAMA_TEMPERATURE` (default 0) and `OLLAMA_ENRICH_MAX_PER_RUN` (default 25); see `backend/.env.example`.
 4. **Check it**: start the backend and open `http://localhost:8000/health/llm`. `"status": "ok"` means Ollama is reachable and both the chat and embedding models are pulled. The same problems are logged as warnings when the backend starts ("Ollama is not running…", "Run `ollama pull llama3.1`").
 
 Things to know:
