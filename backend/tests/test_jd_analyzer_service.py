@@ -857,3 +857,23 @@ class TestRequiredOnlyFromRequirements:
     def test_without_a_recognised_section_nothing_moves(self, llm):
         analysis, report = service.analyze_with_report(JD, use_cache=False)
         assert report.moved_to_preferred == [] and {"go", "java", "python"} <= {s.name for s in analysis.required_skills}
+
+
+class TestToolsInTheRequirements:
+    TEXT = (
+        "Security Engineer\n\nWhat you'll do\n\n- Own cloud security on Datadog dashboards\n\n"
+        "Requirements:\n\n- Deep hands-on experience securing a cloud provider (AWS, Kubernetes, Terraform)\n"
+        "- Vault is a plus\n"
+    )
+
+    def test_a_tool_named_in_the_requirements_becomes_a_required_skill(self, llm):
+        llm.replies = [reply(job_title="Security Engineer", seniority="unknown", min_years_experience=None,
+                             required_skills=[], preferred_skills=[],
+                             tools_technologies=["AWS", "Kubernetes", "Terraform", "Datadog", "Vault"],
+                             education=[], certifications=[])]
+        analysis, report = service.analyze_with_report(self.TEXT, use_cache=False)
+        required = {s.name: s.evidence for s in analysis.required_skills}
+        assert {"aws", "kubernetes", "terraform"} <= set(required) and required["aws"] == "AWS"
+        assert "datadog" not in required  # named only in the duties
+        assert "vault" not in required    # its own clause says "a plus"
+        assert set(report.tools_promoted) >= {"aws", "kubernetes", "terraform"}

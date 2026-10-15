@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 17
+ANALYZER_VERSION = 18
 
 TOOL_NAME = "analyze_job_description"
 MISSED_TOOL_NAME = "list_missed_skills"
@@ -232,6 +232,8 @@ class AnalysisReport:
     title_leaks: list[str] = field(default_factory=list)
     unsupported_tools: list[str] = field(default_factory=list)
     moved_to_tools: list[str] = field(default_factory=list)
+    # Tools the requirements section names, added as required skills.
+    tools_promoted: list[str] = field(default_factory=list)
     # Required skills moved to preferred: named only outside the requirements section.
     moved_to_preferred: list[str] = field(default_factory=list)
     rule_additions: list[str] = field(default_factory=list)
@@ -613,6 +615,22 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
         analysis.source = "hybrid"
         analysis.required_skills = rules.assign_alternative_groups(analysis.required_skills, cleaned)
         analysis.preferred_skills = rules.assign_alternative_groups(analysis.preferred_skills, cleaned)
+
+    # A tool the requirements section names is a required skill, not only a
+    # tool: "Deep hands-on experience ... (AWS, Kubernetes, Terraform)" under
+    # "Requirements". Only plain requirements sections; a mixed one defaults to
+    # preferred.
+    required_spans = rules.requirement_spans(cleaned, kinds=("required",))
+    if required_spans:
+        have = {s.name for s in analysis.required_skills + analysis.preferred_skills}
+        for tool in analysis.tools_technologies:
+            if tool in have or tool in leak_forms or rules.is_generic_name(tool):
+                continue
+            written = rules.mention_inside(cleaned, required_spans, tool)
+            if written and not rules.is_optional(cleaned, written):
+                analysis.required_skills.append(Skill(name=tool, evidence=written))
+                report.tools_promoted.append(tool)
+                have.add(tool)
 
     # Required only from the requirements section. When the posting has a
     # recognised requirements section, a required skill none of whose mentions

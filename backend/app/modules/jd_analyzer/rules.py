@@ -352,13 +352,13 @@ def _flat_words(value: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9+#]+", " ", value.lower()).split())
 
 
-def requirement_spans(text: str) -> list[tuple[int, int]]:
-    """(start, end) of every section under a heading recognised as
-    requirements or mixed, each running to the next heading."""
+def requirement_spans(text: str, kinds: tuple[str, ...] = ("required", "mixed")) -> list[tuple[int, int]]:
+    """(start, end) of every section under a heading of one of `kinds`
+    (requirements or mixed by default), each running to the next heading."""
     heads = headings_in(text)
     spans = []
     for k, (offset, _, kind) in enumerate(heads):
-        if kind in ("required", "mixed"):
+        if kind in kinds:
             spans.append((offset, heads[k + 1][0] if k + 1 < len(heads) else len(text)))
     return spans
 
@@ -373,6 +373,14 @@ def named_inside(text: str, spans: list[tuple[int, int]], name: str, evidence: s
         pattern = r"\s+".join(re.escape(part) for part in evidence.split())
         spots += [m.start() for m in re.finditer(pattern, text, re.IGNORECASE)]
     return any(start <= spot < end for spot in spots for start, end in spans)
+
+
+def mention_inside(text: str, spans: list[tuple[int, int]], name: str) -> str | None:
+    """The first mention of `name` inside one of `spans`, as written, or None."""
+    for match in _concept_pattern(name).finditer(text):
+        if any(start <= match.start() < end for start, end in spans):
+            return match.group(0)
+    return None
 
 
 def is_heading_text(text: str, name: str, evidence: str) -> bool:
