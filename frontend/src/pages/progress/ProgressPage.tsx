@@ -297,7 +297,7 @@ export function ProgressPage() {
               <div className="flex h-full flex-col items-center justify-center gap-2.5 text-center">
                 <p className="text-[10px] text-muted-foreground">No resume scans yet.</p>
                 <Button size="sm" variant="outline" asChild>
-                  <Link to="/resume/upload">Analyze resume</Link>
+                  <Link to="/resume/match">Analyze resume</Link>
                 </Button>
               </div>
             )}

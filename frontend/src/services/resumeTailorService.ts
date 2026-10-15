@@ -1,7 +1,24 @@
 import { http } from '@/lib/http'
-import type { BulletSuggestion, QuickTailorResult, TailorHandoff, TailorPreview } from '@/types/resumeTailor'
+import type {
+  BulletSuggestion,
+  QuickTailorResult,
+  ResumeJobMatch,
+  ReviewedPreview,
+  ResumeAutofill,
+  SavedTailoredResume,
+  SmartTailorResult,
+  TailoredResumeContent,
+  TailorDesign,
+  TailorHandoff,
+  TailorPreview,
+} from '@/types/resumeTailor'
 
 export const resumeTailorService = {
+  getAutofill: async (analysisId: number): Promise<ResumeAutofill> => {
+    const { data } = await http.get<ResumeAutofill>(`/resume-builder/autofill/${analysisId}`)
+    return data
+  },
+
   /** POST /resume-builder/tailor-handoff — free gap analysis for one resume
    *  against one job posting. No LLM call. */
   getHandoff: async (jobId: number, analysisId: number): Promise<TailorHandoff> => {
@@ -30,18 +47,84 @@ export const resumeTailorService = {
     return data
   },
 
-  /** POST /resume-builder/quick-tailor/{analysisId} — the one paid, rate
-   *  limited step that actually compiles a document and returns a real,
-   *  post-compile ATS score. `acceptedSkills` and `bulletOverrides` are the
-   *  caller's own accepted subset of a prior preview's suggestions — never
-   *  invented here.
-   *
-   *  Exactly one of `jobId` / `jobDescription` should be set. With `jobId`,
-   *  the listing's own stored description is resolved server-side (and the
-   *  result is cached). With `jobDescription` (a pasted JD, no Job Portal
-   *  listing involved), the backend scores against that text directly —
-   *  QuickTailorRequestSchema.job_description is documented for exactly this
-   *  "caller with no job_id" case. */
+  /** Match an existing scan against the selected job using the backend scorer. */
+  matchResume: async (
+    analysisId: number,
+    params: { jobId?: number; jobTitle?: string; company?: string; jobDescription?: string }
+  ): Promise<ResumeJobMatch> => {
+    const { data } = await http.post<ResumeJobMatch>(`/resume-builder/match/${analysisId}`, {
+      job_id: params.jobId,
+      job_title: params.jobTitle ?? '',
+      company: params.company ?? '',
+      job_description: params.jobDescription ?? '',
+    })
+    return data
+  },
+
+  /** Save reviewed content after the backend recompiles and scores it. */
+  /** POST /resume-builder/preview-reviewed — compile and re-score the
+   *  edited content without saving, so the preview matches the editor. */
+  previewReviewed: async (params: {
+    sourceAnalysisId: number
+    jobId?: number
+    jobTitle?: string
+    company?: string
+    jobDescription?: string
+    targetPages: 1 | 2
+    design: 'faang' | 'original'
+    content: TailoredResumeContent
+  }): Promise<ReviewedPreview> => {
+    const { data } = await http.post<ReviewedPreview>('/resume-builder/preview-reviewed', {
+      source_analysis_id: params.sourceAnalysisId,
+      job_id: params.jobId,
+      job_title: params.jobTitle ?? '',
+      company: params.company ?? '',
+      job_description: params.jobDescription ?? '',
+      target_pages: params.targetPages,
+      design: params.design,
+      content: params.content,
+    })
+    return data
+  },
+
+  saveTailored: async (params: {
+    sourceAnalysisId: number
+    jobId?: number
+    jobTitle?: string
+    company?: string
+    jobDescription?: string
+    targetPages: 1 | 2
+    design: 'faang' | 'original'
+    content: TailoredResumeContent
+  }): Promise<SavedTailoredResume> => {
+    const { data } = await http.post<SavedTailoredResume>('/resume-builder/saved-tailored', {
+      source_analysis_id: params.sourceAnalysisId,
+      job_id: params.jobId,
+      job_title: params.jobTitle ?? '',
+      company: params.company ?? '',
+      job_description: params.jobDescription ?? '',
+      target_pages: params.targetPages,
+      design: params.design,
+      content: params.content,
+    })
+    return data
+  },
+
+  listSaved: async (): Promise<SavedTailoredResume[]> => {
+    const { data } = await http.get<SavedTailoredResume[]>('/resume-builder/saved-tailored')
+    return data
+  },
+
+  downloadSaved: async (id: number): Promise<Blob> => {
+    const { data } = await http.get<Blob>(`/resume-builder/saved-tailored/${id}/file`, { responseType: 'blob' })
+    return data
+  },
+
+  deleteSaved: async (id: number): Promise<void> => {
+    await http.delete(`/resume-builder/saved-tailored/${id}`)
+  },
+
+  /** Compile a one- or two-page PDF and score it against its job description. */
   quickTailor: async (
     analysisId: number,
     params: {
@@ -61,6 +144,43 @@ export const resumeTailorService = {
       accepted_skills: params.acceptedSkills,
       bullet_overrides: params.bulletOverrides,
     })
+    return data
+  },
+
+  /** POST /resume-builder/smart-tailor/{analysisId} — the full Tailor Resume
+   *  pipeline: JD analysis, requirement matching, fact-checked rewrites,
+   *  one-page fit and validation. Writes nothing but a cache row; the stored
+   *  scan is never modified. With `jobId` the listing's own text is used;
+   *  otherwise `jobDescription`. `confirmedSkills` are skills the user states
+   *  they have — the only way a skill the resume doesn't show can be listed. */
+  smartTailor: async (
+    analysisId: number,
+    params: {
+      jobId?: number
+      jobDescription?: string
+      jobTitle?: string
+      company?: string
+      fullName: string
+      design: TailorDesign
+      targetPages: 1 | 2
+      confirmedSkills: string[]
+    },
+    signal?: AbortSignal
+  ): Promise<SmartTailorResult> => {
+    const { data } = await http.post<SmartTailorResult>(
+      `/resume-builder/smart-tailor/${analysisId}`,
+      {
+        job_id: params.jobId,
+        job_description: params.jobDescription ?? '',
+        job_title: params.jobTitle ?? '',
+        company: params.company ?? '',
+        full_name: params.fullName,
+        design: params.design,
+        target_pages: params.targetPages,
+        confirmed_skills: params.confirmedSkills,
+      },
+      { signal }
+    )
     return data
   },
 }

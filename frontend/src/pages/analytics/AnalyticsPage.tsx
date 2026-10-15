@@ -333,7 +333,7 @@ export function AnalyticsPage() {
                 <ChartEmptyState
                   message="Not enough data yet. Analyze a resume to start tracking this trend."
                   ctaLabel="Analyze a resume"
-                  ctaTo="/resume/upload"
+                  ctaTo="/resume/match"
                 />
               )
             ) : (

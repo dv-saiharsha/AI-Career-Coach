@@ -468,7 +468,7 @@ export function ProfilePage() {
               {activity && activity.length === 0 && (
                 <p className="py-3 text-[10px] text-muted-foreground">
                   No activity yet.{' '}
-                  <Link to="/resume/upload" className="font-bold text-primary hover:underline">
+                  <Link to="/resume/match" className="font-bold text-primary hover:underline">
                     Analyze a resume
                   </Link>{' '}
                   or{' '}
@@ -513,7 +513,7 @@ export function ProfilePage() {
               <h3 className="font-heading text-sm font-bold text-foreground">Skills</h3>
               {profile.primary_resume_filename && (
                 <Button variant="ghost" size="sm" asChild className="h-auto gap-1 p-0 text-[11px] text-primary">
-                  <Link to="/resume/results">Manage</Link>
+                  <Link to="/resume/match">Manage</Link>
                 </Button>
               )}
             </div>
@@ -608,14 +608,14 @@ export function ProfilePage() {
                     <span className="truncate">{profile.primary_resume_filename}</span>
                   </span>
                   <Button asChild variant="ghost" size="sm" className="h-auto shrink-0 p-0 text-[10px] text-primary">
-                    <Link to="/resume/upload">Replace</Link>
+                    <Link to="/resume/match">Replace</Link>
                   </Button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2.5 py-2 text-center">
                   <p className="text-[9px] text-muted-foreground">No resume on file yet.</p>
                   <Button asChild size="sm" variant="outline" className="gap-1.5">
-                    <Link to="/resume/upload">
+                    <Link to="/resume/match">
                       <Upload size={14} />
                       Upload resume
                     </Link>

@@ -128,7 +128,7 @@ export function HistoryPage() {
           type: 'resume',
           title: entry.resume_filename,
           detail,
-          primary: { label: 'View', onClick: () => navigate('/resume/results') },
+          primary: { label: 'Open', onClick: () => navigate(`/resume/match?analysisId=${entry.id}`) },
           secondary: isPrimary
             ? undefined
             : { label: 'Set as primary', onClick: () => setPrimaryResume(entry.id, entry.resume_filename) },
@@ -242,7 +242,7 @@ export function HistoryPage() {
             </p>
             {entries!.length === 0 && (
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => navigate('/resume/upload')}>
+                <Button size="sm" variant="outline" onClick={() => navigate('/resume/match')}>
                   Analyze resume
                 </Button>
                 <Button size="sm" onClick={() => navigate('/interview/setup')}>

@@ -332,7 +332,7 @@ export function CoverLetterPage() {
               <Skeleton className="h-14 w-full rounded-md" />
             ) : resumeScans.length === 0 ? (
               <p className="text-[11px] text-muted-foreground">
-                <Link to="/resume/upload" className="font-bold text-primary">
+                <Link to="/resume/match" className="font-bold text-primary">
                   Scan a resume
                 </Link>{' '}
                 first.

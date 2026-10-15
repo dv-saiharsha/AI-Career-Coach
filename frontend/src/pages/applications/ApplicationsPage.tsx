@@ -1241,7 +1241,7 @@ export function ApplicationsPage() {
                     <h3 className="font-heading text-[12px] font-bold text-foreground">Application assets</h3>
                     <div className="mt-2.5 grid gap-1.5">
                       <Button variant="outline" asChild className="h-auto justify-start gap-2.5 py-2.5">
-                        <Link to={`/resume/tailor?analysisId=${detail.resume.analysis_id}`}>
+                        <Link to={`/resume/match?analysisId=${detail.resume.analysis_id}`}>
                           <FileText size={16} />
                           <span className="grid text-left">
                             <small className="text-[7px] uppercase tracking-wide text-muted-foreground">Resume</small>
