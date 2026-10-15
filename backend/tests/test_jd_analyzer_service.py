@@ -916,3 +916,28 @@ class TestFocusedCall:
         monkeypatch.setattr(service.settings, "JD_FOCUSED_CALL", True)
         service.analyze_with_report(JD, use_cache=False)
         assert len(llm.calls) == 1 and llm.missed_calls == []
+
+
+class TestAnalyzerModel:
+    def test_the_analyzer_model_is_sent_only_when_set(self, llm, monkeypatch):
+        seen = []
+        original = llm.complete_tool_json
+
+        def spy(*args, **kwargs):
+            seen.append(kwargs.get("model"))
+            return original(*args, **{k: v for k, v in kwargs.items() if k != "model"})
+
+        monkeypatch.setattr(llm, "complete_tool_json", spy)
+        service.analyze_with_report(JD, use_cache=False)
+        monkeypatch.setattr(service.settings, "LLM_PROVIDER", "ollama")
+        monkeypatch.setattr(service.settings, "OLLAMA_ANALYZER_MODEL", "qwen2.5:14b")
+        service.analyze_with_report(JD, use_cache=False)
+        assert seen[0] is None and seen[-1] == "qwen2.5:14b"
+
+    def test_the_cache_key_names_the_configuration(self, monkeypatch):
+        plain = service._cache_key("abc")
+        monkeypatch.setattr(service.settings, "LLM_PROVIDER", "ollama")
+        monkeypatch.setattr(service.settings, "OLLAMA_ANALYZER_MODEL", "qwen2.5:14b")
+        assert service._cache_key("abc") != plain and "qwen2.5:14b" in service._cache_key("abc")
+        monkeypatch.setattr(service.settings, "JD_FOCUSED_CALL", True)
+        assert service._cache_key("abc").endswith(":focused")

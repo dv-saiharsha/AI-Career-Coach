@@ -110,7 +110,8 @@ class LLMProvider(Protocol):
     def complete_json(self, system: str, user: str, max_tokens: int = 1500) -> str: ...
 
     def complete_tool_json(
-        self, system: str, user: str, tool_name: str, input_schema: dict, max_tokens: int = 1500
+        self, system: str, user: str, tool_name: str, input_schema: dict, max_tokens: int = 1500,
+        model: str | None = None,
     ) -> dict: ...
 
     def stream_message(self, system: str, messages: list[dict], max_tokens: int = 1500) -> AsyncIterator[str]: ...
@@ -175,7 +176,8 @@ class ClaudeClient:
         return "".join(block.text for block in response.content if block.type == "text")
 
     def complete_tool_json(
-        self, system: str, user: str, tool_name: str, input_schema: dict, max_tokens: int = 1500
+        self, system: str, user: str, tool_name: str, input_schema: dict, max_tokens: int = 1500,
+        model: str | None = None,
     ) -> dict:
         """Forces a schema-conformant JSON response via tool use instead of
         asking the model to emit raw JSON text — the API enforces the shape,
@@ -350,17 +352,21 @@ class OllamaClient:
         assert last_error is not None
         raise last_error  # every model was missing
 
-    def _chat_models(self) -> list[str]:
-        return [self.model] + ([self.fallback_model] if self.fallback_model else [])
+    def _chat_models(self, model: str | None = None) -> list[str]:
+        """The model to ask, then the ones to fall back to if it isn't pulled.
+        A per-call `model` (the JD analyzer's OLLAMA_ANALYZER_MODEL) comes
+        first, then OLLAMA_MODEL, then OLLAMA_FALLBACK_MODEL."""
+        chain = ([model] if model else []) + [self.model] + ([self.fallback_model] if self.fallback_model else [])
+        return list(dict.fromkeys(chain))
 
-    def _post_chat(self, messages: list[dict], fmt, max_tokens: int) -> dict:
+    def _post_chat(self, messages: list[dict], fmt, max_tokens: int, model: str | None = None) -> dict:
         """POST /api/chat for a structured or JSON-mode answer: temperature
         comes from OLLAMA_TEMPERATURE (0 by default; extraction and scoring
         must be repeatable)."""
         return self._post(
             "/api/chat",
-            lambda model: self._payload(model, messages, fmt, max_tokens, False, settings.OLLAMA_TEMPERATURE),
-            self._chat_models(),
+            lambda name: self._payload(name, messages, fmt, max_tokens, False, settings.OLLAMA_TEMPERATURE),
+            self._chat_models(model),
         )
 
     @staticmethod
@@ -391,7 +397,8 @@ class OllamaClient:
         return self._content(reply)
 
     def complete_tool_json(
-        self, system: str, user: str, tool_name: str, input_schema: dict, max_tokens: int = 1500
+        self, system: str, user: str, tool_name: str, input_schema: dict, max_tokens: int = 1500,
+        model: str | None = None,
     ) -> dict:
         messages = [
             {
@@ -402,7 +409,7 @@ class OllamaClient:
         ]
         problem = "no reply"
         for _attempt in range(self.max_retries + 1):
-            reply = self._post_chat(messages, input_schema, max_tokens)
+            reply = self._post_chat(messages, input_schema, max_tokens, model=model)
             # Cut off at the output cap: not re-asked (see _check_not_truncated).
             # Malformed JSON that was not cut off is re-asked below as before.
             self._check_not_truncated(reply, tool_name, max_tokens)

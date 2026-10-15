@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     # OLLAMA_BASE_URL at http://host.docker.internal:11434.
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.1"
+    # The JD analyzer's model, when it should differ from OLLAMA_MODEL (an
+    # experiment with a larger model). Empty: OLLAMA_MODEL. Nothing else uses it.
+    OLLAMA_ANALYZER_MODEL: str = ""
     # Used only when OLLAMA_MODEL isn't pulled. Empty disables the fallback.
     OLLAMA_FALLBACK_MODEL: str = "llama3.2"
     # Embeddings (/api/embed). No fallback: vectors from two different

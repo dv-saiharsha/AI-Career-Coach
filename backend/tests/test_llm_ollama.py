@@ -1078,3 +1078,21 @@ class TestTimeouts:
         monkeypatch.setattr(worker, "run_crawl", lambda *a, **k: flags.append(llm_module._BACKGROUND.get()) or (_ for _ in ()).throw(RuntimeError("stop")))
         worker._run_once()
         assert flags == [True]
+
+
+class TestPerCallModel:
+    def test_a_per_call_model_comes_first_then_the_default_chain(self):
+        client, _ = make_client(lambda r: httpx.Response(200, json=chat_reply("{}")))
+        assert client._chat_models("qwen2.5:14b") == ["qwen2.5:14b", "llama3.1", "llama3.2"]
+        assert client._chat_models() == ["llama3.1", "llama3.2"]
+
+    def test_it_falls_back_to_the_default_model_when_not_pulled(self):
+        def handler(request):
+            model = json.loads(request.content)["model"]
+            if model == "qwen2.5:14b":
+                return httpx.Response(404, text="model 'qwen2.5:14b' not found")
+            return httpx.Response(200, json=chat_reply(json.dumps({"title": "x", "skills": []}), model=model))
+
+        client, seen = make_client(handler)
+        assert client.complete_tool_json("s", "u", "t", SCHEMA, model="qwen2.5:14b") == {"title": "x", "skills": []}
+        assert [json.loads(r.content)["model"] for r in seen] == ["qwen2.5:14b", "llama3.1"]

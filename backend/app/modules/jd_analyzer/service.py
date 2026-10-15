@@ -280,10 +280,26 @@ def _memory_put(key: str, analysis: JDAnalysis, model: str | None) -> None:
             _memory.popitem(last=False)
 
 
+def _analyzer_model() -> str | None:
+    """OLLAMA_ANALYZER_MODEL when set and the provider is Ollama; otherwise
+    None (the client's own model). Settings only: the free read paths (peek)
+    build their cache key from this and must never touch the client."""
+    if settings.LLM_PROVIDER == "ollama" and settings.OLLAMA_ANALYZER_MODEL:
+        return settings.OLLAMA_ANALYZER_MODEL
+    return None
+
+
 def _model_name() -> str | None:
-    return getattr(llm_client, "model", None) or (
+    return _analyzer_model() or getattr(llm_client, "model", None) or (
         settings.ANTHROPIC_MODEL if getattr(llm_client, "provider", "") == "anthropic" else None
     )
+
+
+def _cache_key(digest: str) -> str:
+    """The analysis cache key: the text, the analyzer version, and what
+    answered (model, and whether the focused call was on), so a change of
+    model or configuration is never served an analysis made under another."""
+    return f"{digest}:{ANALYZER_VERSION}:{_analyzer_model() or '-'}:{'focused' if settings.JD_FOCUSED_CALL else 'second'}"
 
 
 def _db_lookup(db: Session, digest: str) -> tuple[JDAnalysis, str | None] | None:
@@ -296,6 +312,7 @@ def _db_lookup(db: Session, digest: str) -> tuple[JDAnalysis, str | None] | None
             JDAnalysisRecord.jd_hash == digest,
             JDAnalysisRecord.analyzer_version == ANALYZER_VERSION,
             JDAnalysisRecord.source != "rules",
+            *([JDAnalysisRecord.model == _analyzer_model()] if _analyzer_model() else []),
         )
         .order_by(JDAnalysisRecord.id.desc())
         .first()
@@ -371,7 +388,8 @@ def _call_llm(
         )
         report.attempts += 1
         try:
-            raw = llm_client.complete_tool_json(system, user, tool, schema, max_tokens=MAX_OUTPUT_TOKENS)
+            extra = {"model": _analyzer_model()} if _analyzer_model() else {}
+            raw = llm_client.complete_tool_json(system, user, tool, schema, max_tokens=MAX_OUTPUT_TOKENS, **extra)
             return shape.model_validate(raw)
         except ValidationError as exc:
             problem = _short(exc)
@@ -723,7 +741,7 @@ def analyze_with_report(
     cleaned = cleaning.clean_jd(jd_text)
     report.cleaned_chars = len(cleaned)
     digest = jd_hash(cleaned)
-    key = f"{digest}:{ANALYZER_VERSION}"
+    key = _cache_key(digest)
 
     def done(analysis: JDAnalysis) -> tuple[JDAnalysis, AnalysisReport]:
         report.source = analysis.source
@@ -804,7 +822,7 @@ def peek(jd_text: str, db: Session | None = None) -> JDAnalysis | None:
     analysis a previous step made without ever causing one."""
     cleaned = cleaning.clean_jd(jd_text)
     digest = jd_hash(cleaned)
-    hit = _memory_get(f"{digest}:{ANALYZER_VERSION}")
+    hit = _memory_get(_cache_key(digest))
     if hit:
         return hit[0].model_copy(deep=True)
     if db is not None:
