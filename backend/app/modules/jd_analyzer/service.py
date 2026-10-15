@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 8
+ANALYZER_VERSION = 9
 
 TOOL_NAME = "analyze_job_description"
 MAX_OUTPUT_TOKENS = 1800
@@ -351,7 +351,8 @@ def _clean_skills(
     out: list[Skill] = []
     seen: set[str] = set()
     for item in items:
-        name = rules.trim_generic_suffix(canonical(item.name))
+        # A fragment of a multi-token name ("soc" of "SOC 2") becomes the whole name.
+        name = canonical(rules.full_name(cleaned, rules.trim_generic_suffix(canonical(item.name))))
         evidence = item.evidence.strip()
         if not name:
             continue
@@ -446,7 +447,7 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
 
     tools: list[str] = []
     for tool in out.tools_technologies:
-        name = rules.trim_generic_suffix(canonical(tool))
+        name = canonical(rules.full_name(cleaned, rules.trim_generic_suffix(canonical(tool))))
         if not name or name in tools:
             continue
         if name in leak_forms:

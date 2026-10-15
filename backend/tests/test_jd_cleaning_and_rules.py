@@ -684,3 +684,27 @@ class TestRulesAnalysis:
     def test_empty_text_is_an_empty_analysis_not_an_error(self):
         a = rules.rules_analysis("")
         assert a.job_title == "" and a.required_skills == [] and a.seniority == "unknown"
+
+
+class TestMultiTokenNames:
+    TEXT = "Experience with SOC 2 and ISO 27001, PCI DSS, C++ and C#. Cloud: AWS GCP. 5 years of SQL. Experience with AWS 3+ years."
+
+    def test_names_kept_whole(self):
+        names = [n for n, _, _ in rules.multi_token_names(self.TEXT)]
+        assert names == ["SOC 2", "ISO 27001", "PCI DSS", "C++", "C#"]
+
+    def test_known_acronyms_are_not_joined_and_counts_are_not_standards(self):
+        assert rules.multi_token_names("Cloud: AWS GCP.") == []
+        assert rules.multi_token_names("Experience with AWS 3+ years.") == []
+        assert rules.multi_token_names("SQL 3 years minimum.") == []
+
+    def test_a_fragment_becomes_the_whole_name(self):
+        assert rules.full_name(self.TEXT, "soc") == "soc 2"
+        assert rules.full_name(self.TEXT, "pci") == "pci dss"
+        assert rules.full_name("SOC 2 audits; SOC reports.", "soc") == "soc"  # also named alone
+        assert rules.full_name(self.TEXT, "aws") == "aws"
+
+    def test_rule_candidates_have_no_fragments(self):
+        found = dict(rules.rule_found_skills(self.TEXT, exclude=set()))
+        assert {"soc 2", "iso 27001", "pci dss", "c++", "c#"} <= set(found)
+        assert not {"soc", "iso", "pci", "dss", "c"} & set(found)

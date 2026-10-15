@@ -597,12 +597,74 @@ def _looks_like_skill(candidate: str) -> bool:
     return (candidate.isupper() and 2 <= len(candidate) <= 5) or bool(re.search(r"[0-9+#.]", candidate))
 
 
+# Names that span tokens or end in a symbol, which the single-token keyword
+# rules break apart: "SOC 2", "ISO/IEC 27001", "IEC 62443-3-3", "PCI DSS",
+# "C++", "C#". An acronym takes a following standard number, or a following
+# acronym when neither is a known name alone ("PCI DSS", never "AWS GCP").
+_SYMBOL_NAME = re.compile(r"(?<![\w+#.])[A-Za-z]{1,2}(?:\+\+|#)(?![\w+#])")
+_ACRONYM_RUN = re.compile(
+    r"(?<![\w/-])[A-Z]{2,6}(?:/[A-Z]{2,6})?(?:[ \-](?:\d{1,5}(?:-\d{1,3})*|[A-Z]{2,6}))+(?![\w+%])"
+)
+_NOT_A_STANDARD_NUMBER = re.compile(r"\s*\+|\s+(?:years?|yrs?|months?|days?|hours?|people|engineers)\b", re.IGNORECASE)
+
+
+def multi_token_names(text: str) -> list[tuple[str, int, int]]:
+    """(name as written, start, end) for every multi-token or symbol name in
+    `text`, in order."""
+    found: list[tuple[str, int, int]] = []
+    for match in _ACRONYM_RUN.finditer(text):
+        parts = re.split(r"[ \-]", match.group(0))
+        kept = [parts[0]]
+        for part in parts[1:]:
+            if part.isdigit() or re.fullmatch(r"\d+(?:-\d+)*", part):
+                kept.append(part)
+            elif not any(ch.isdigit() for ch in "".join(kept)) and canonical(kept[-1]) not in _KNOWN_NODES \
+                    and canonical(part) not in _KNOWN_NODES and part.lower() not in _NOISE:
+                kept.append(part)
+            else:
+                break
+        if len(kept) < 2:
+            continue
+        # Rebuild the span as written, up to the last kept part.
+        end = match.start()
+        for part in kept:
+            end = text.index(part, end) + len(part)
+        if kept[-1].isdigit() and _NOT_A_STANDARD_NUMBER.match(text, end):
+            continue  # "AWS 5+ years", "SQL 3 years": a count, not a standard number
+        found.append((text[match.start():end], match.start(), end))
+    found += [(m.group(0), m.start(), m.end()) for m in _SYMBOL_NAME.finditer(text) if m.group(0)[0].isupper()]
+    return sorted(found, key=lambda f: f[1])
+
+
+def full_name(text: str, name: str) -> str:
+    """`name`, or the multi-token name it is always part of in `text`: "soc"
+    becomes "soc 2" when every "SOC" in the posting is "SOC 2"."""
+    spans = multi_token_names(text)
+    pattern = re.compile(r"(?<![\w+#])" + re.escape(name) + r"(?![\w+#])", re.IGNORECASE)
+    mentions = list(pattern.finditer(text))
+    if not mentions:
+        return name
+    holders = set()
+    for mention in mentions:
+        holder = next((n for n, s, e in spans if s <= mention.start() and mention.end() <= e), None)
+        if holder is None:
+            return name
+        holders.add(canonical(holder))
+    return holders.pop() if len(holders) == 1 else name
+
+
 def rule_skill_candidates(text: str, exclude: set[str]) -> list[str]:
-    """Technology-looking terms the existing keyword rules find in `text`."""
+    """Technology-looking terms the existing keyword rules find in `text`, with
+    multi-token names kept whole and their fragments left out."""
     seen: set[str] = set()
     out: list[str] = []
+    for written, _, _ in multi_token_names(text):
+        node = canonical(written)
+        if node and node not in exclude and node not in seen:
+            seen.add(node)
+            out.append(written)
     for term in skill_candidates(text):
-        node = canonical(term)
+        node = canonical(full_name(text, term))
         if node in exclude or node in seen or not _looks_like_skill(term):
             continue
         seen.add(node)
