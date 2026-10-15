@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 13
+ANALYZER_VERSION = 14
 
 TOOL_NAME = "analyze_job_description"
 MISSED_TOOL_NAME = "list_missed_skills"
@@ -383,9 +383,15 @@ def _ask_what_was_missed(chunks: list[str], first: JDAnalysis, report: AnalysisR
     try:
         for chunk in chunks:
             missed = _call_llm(chunk, report, MISSED_PROMPT, MISSED_TOOL_NAME, MISSED_SCHEMA, _LLMMissed, note)
-            extra.required_skills += [s for s in missed.required_skills if canonical(s.name) not in taken]
-            extra.preferred_skills += [s for s in missed.preferred_skills if canonical(s.name) not in taken]
-            extra.tools_technologies += [t for t in missed.tools_technologies if canonical(t) not in taken]
+            # What a "find more" call over-reaches with: a field word, a generic
+            # category, or the company's industry. Dropped by category.
+            for name in [s.name for s in missed.required_skills + missed.preferred_skills] + missed.tools_technologies:
+                if rules.is_category_or_domain(name):
+                    report.rejected.append(f"{canonical(name)} (second call: category or domain)")
+            keep = lambda n: canonical(n) not in taken and not rules.is_category_or_domain(n)  # noqa: E731
+            extra.required_skills += [s for s in missed.required_skills if keep(s.name)]
+            extra.preferred_skills += [s for s in missed.preferred_skills if keep(s.name)]
+            extra.tools_technologies += [t for t in missed.tools_technologies if keep(t)]
     except _AnalysisFailed as exc:
         report.second_call_error = str(exc)
         report.llm_error = None  # the first answer stands; this is not a failed analysis

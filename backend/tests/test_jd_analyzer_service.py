@@ -718,11 +718,11 @@ class TestSecondCall:
         assert analysis.ats_keywords  # still a whole analysis
 
     def test_a_real_miss_is_added(self, llm):
-        # "payments" is in the posting, and neither the first answer nor the rules found it.
-        llm.missed_reply = {"required_skills": [skill("payments")], "preferred_skills": [], "tools_technologies": []}
+        # "ledger service" is in the posting, and neither the first answer nor the rules found it.
+        llm.missed_reply = {"required_skills": [skill("ledger service")], "preferred_skills": [], "tools_technologies": []}
         analysis, report = service.analyze_with_report(JD, use_cache=False)
-        assert "payments" in {s.name for s in analysis.required_skills}
-        assert report.second_call_added == ["payments"]
+        assert "ledger service" in {s.name for s in analysis.required_skills}
+        assert report.second_call_added == ["ledger service"]
         assert report.attempts == 1 and report.second_call_attempts == 1
 
     def test_a_miss_is_placed_by_the_jd_not_by_the_model(self, llm):
@@ -772,3 +772,28 @@ class TestListingText:
         assert (analysis.job_title, analysis.seniority, analysis.seniority_source) == (
             "Software Engineer, New Grad", "junior", "stated",
         )
+
+
+class TestSecondCallFilter:
+    def test_field_words_categories_and_domains_from_the_second_call_are_dropped(self, llm):
+        text = JD + " We serve the payments industry and fintech customers with cloud software."
+        llm.missed_reply = {
+            "required_skills": [skill("cloud"), skill("software"), skill("fintech"), skill("payments industry"), skill("payments")],
+            "preferred_skills": [skill("AI", "ledger")],
+            "tools_technologies": ["fintech"],
+        }
+        analysis, report = service.analyze_with_report(text, use_cache=False)
+        names = {s.name for s in analysis.required_skills + analysis.preferred_skills} | set(analysis.tools_technologies)
+        assert not {"cloud", "software", "fintech", "payments industry", "payments", "ai"} & names
+        assert any("(second call: category or domain)" in r for r in report.rejected)
+
+    @pytest.mark.parametrize("name,dropped", [
+        ("cloud", True), ("AI", True), ("data", True), ("tools", True), ("hr tech", True), ("fintech", True),
+        ("healthcare", True), ("retail industry", True), ("customer support", True),
+        ("cloud security", False), ("data modeling", False), ("Kubernetes", False), ("machine learning", False),
+        ("SaaS", False), ("A/B testing", False),
+    ])
+    def test_the_categories(self, name, dropped):
+        from app.modules.jd_analyzer import rules
+
+        assert rules.is_category_or_domain(name) is dropped
