@@ -283,12 +283,17 @@ def _drop_suggestions_naming_matched_skills(suggestions: list[str], matched_skil
     return [text for text in suggestions if not mentions_any(text, matched_skills)]
 
 
-def _refresh_keyword_score(result: dict) -> dict:
-    """Recompute a keyword-ratio score from the final skill lists. Reconciling
-    moves skills from missing to matched after the score was first computed, so
-    the ratio has to be taken afterwards. A model score is left alone."""
+def _final_keyword_score(result: dict, resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None) -> dict:
+    """Without a trained model, the scan's score is the deterministic keyword
+    coverage (score_with_source), not a ratio of the LLM's own skill lists.
+
+    The LLM's lists vary from run to run and cannot be recomputed for an edited
+    or tailored resume, so a ratio of them could never be compared with the
+    score the match, tailor, preview and save steps show for the same resume
+    and job; users saw 72.7 in the scan and 40.0 next to it. A model score is
+    left alone."""
     if result.get("score_source") == SCORE_SOURCE_KEYWORDS:
-        result["ats_score"] = _keyword_ratio(result.get("matched_skills") or [], result.get("missing_skills") or [])
+        result["ats_score"], result["score_source"] = score_with_source(resume_text, jd_text, jd_analysis)
     return result
 
 
@@ -482,7 +487,7 @@ def analyze_resume_against_job(
                 )
                 + result["suggestions"][llm_suggestion_count:]
             )
-            result = _refresh_keyword_score(result)
+            result = _final_keyword_score(result, resume_text, jd_text, jd_analysis)
             stage("diagnostics")
             result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
             return result

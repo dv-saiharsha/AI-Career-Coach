@@ -89,12 +89,16 @@ class TestScoreSource:
         assert result["score_source"] == "model"
         assert result["ats_score"] == 77.0
 
-    def test_llm_path_without_a_model_falls_back_to_the_keyword_ratio_not_zero(self, scan):
-        # 3 matched, 1 missing -> 75.0. This was 0.0.
+    def test_llm_path_without_a_model_is_the_shared_keyword_score_not_zero(self, scan):
+        """The same number match, tailor, preview and save compute for this
+        resume and job (it was 0.0 once, then a ratio of the LLM's lists)."""
+        from app.modules.jd_analyzer.schemas import JDAnalysis
+
         result = scan(llm=llm_reply(), model=None)
         assert result["_source"] == "llm"
         assert result["score_source"] == "keyword_fallback"
-        assert result["ats_score"] == 75.0
+        expected, _ = services.score_with_source(RESUME, JD, JDAnalysis.model_validate(result["jd_analysis"]))
+        assert result["ats_score"] == expected > 0
 
     def test_rule_path_with_a_model_reports_the_model_score(self, scan):
         result = scan(llm=None, model=61)
@@ -112,18 +116,15 @@ class TestScoreSource:
         assert services._keyword_ratio(["a", "b", "c"], ["d"]) == 75.0
         assert services._keyword_ratio([], []) == 0.0  # no keywords at all: 0, never a ZeroDivisionError
 
-    def test_the_fallback_ratio_is_taken_after_reconciling_not_before(self, scan):
-        # The model calls Kubernetes and Airflow missing; the resume plainly
-        # writes both, so they move to matched and the ratio must follow:
-        # 5 matched / 0 missing, not the 3 / 2 the model reported.
-        result = scan(
-            llm=llm_reply(
-                matched_skills=["Python", "PostgreSQL", "AWS"], missing_skills=["Kubernetes", "Airflow"]
-            ),
-            model=None,
-        )
-        assert result["missing_skills"] == []
-        assert result["ats_score"] == 100.0
+    def test_the_keyword_score_does_not_depend_on_the_llms_lists(self, scan):
+        # Two replies that disagree about what matched: the score is the same,
+        # because it is computed from the resume and the job, not the reply.
+        a = scan(llm=llm_reply(matched_skills=["Python", "PostgreSQL", "AWS"], missing_skills=["Terraform"]), model=None)
+        b = scan(llm=llm_reply(matched_skills=["Python"], missing_skills=["Kubernetes", "Airflow", "Terraform"]), model=None)
+        assert a["ats_score"] == b["ats_score"]
+        # Reconciling still fixes the displayed lists: written skills move to matched.
+        c = scan(llm=llm_reply(matched_skills=["Python"], missing_skills=["Kubernetes", "Airflow"]), model=None)
+        assert "Kubernetes" not in c["missing_skills"] and "Airflow" not in c["missing_skills"]
 
     def test_a_model_score_is_not_recomputed_by_reconciling(self, scan):
         result = scan(llm=llm_reply(missing_skills=["Kubernetes"]), model=42)
