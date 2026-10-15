@@ -515,10 +515,15 @@ class TestTrimAndAlias:
             ("ci cd pipelines", "cicd"), ("ml frameworks", "machine learning"), ("etl pipeline", "etl pipeline"),
             ("data pipelines", "data pipelines"), ("build tools", "build tools"), ("tools", "tools"),
             ("python", "python"), ("deployment frameworks", "deployment frameworks"),
+            ("hugging face ecosystem", "hugging face"), ("mern stack", "mern stack"), ("tech stack", "tech stack"),
+            ("python ecosystems", "python"),
         ],
     )
     def test_trim_generic_suffix(self, name, trimmed):
         assert rules.trim_generic_suffix(name) == trimmed
+
+    def test_the_trim_list(self):
+        assert rules.TRAILING_GENERIC == ("ecosystem", "stack", "tools", "frameworks", "concepts", "pipelines")
 
     def test_rag_is_retrieval_augmented_generation(self):
         from app.core.taxonomy import canonical

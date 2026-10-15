@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 9
+ANALYZER_VERSION = 10
 
 TOOL_NAME = "analyze_job_description"
 MAX_OUTPUT_TOKENS = 1800
