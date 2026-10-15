@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  HireLoom hourly crawl worker (backend/app/worker.py) as a macOS LaunchAgent.
+  Starts at login, restarts if it exits. NOT installed by the repo: see the
+  README section "Hourly crawl worker (macOS)" for install and removal.
+  The paths are this machine's checkout; change them if the repo moves.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hireloom.crawl-worker</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/venkatasai/Projects/AI-Career-Coach/backend/.venv/bin/python</string>
+    <string>-m</string>
+    <string>app.worker</string>
+  </array>
+
+  <!-- backend/: the worker reads backend/.env from here (DB_URL, OLLAMA_*). -->
+  <key>WorkingDirectory</key>
+  <string>/Users/venkatasai/Projects/AI-Career-Coach/backend</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Restart whenever it exits, but not faster than once every 60 s. -->
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/venkatasai/Library/Logs/HireLoom/crawl-worker.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/venkatasai/Library/Logs/HireLoom/crawl-worker.log</string>
+</dict>
+</plist>
