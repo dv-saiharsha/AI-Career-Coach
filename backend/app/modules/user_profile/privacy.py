@@ -66,6 +66,7 @@ from app.models.resume import ResumeAnalysis
 from app.models.story import StarStory
 from app.models.interview_prep import PrepQuestionUserState
 from app.models.tailor_cache import TailorCache
+from app.models.tailored_resume import TailoredResume
 from app.models.user_device import UserDevice
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ USER_ID_TABLES = frozenset(
         "star_stories",
         "prep_question_user_state",
         "tailor_cache",
+        "tailored_resumes",
         "coach_conversations",
     }
 )
@@ -110,6 +112,7 @@ EXPORT_SECTIONS = {
     "star_stories": "star_stories",
     "prep_question_user_state": "prep_question_user_state",
     "tailor_cache": "tailor_cache",
+    "tailored_resumes": "tailored_resumes",
     "coach_conversations": "coach_conversations",
     "coach_messages": "coach_messages",
 }
@@ -124,7 +127,13 @@ def _plain(value: Any) -> Any:
         # of every stored resume would multiply the export size for something
         # they can fetch individually from /api/resume/file/{id}, so its
         # presence and size are reported instead of its contents.
-        return {"_bytes": len(value), "_note": "download via /api/resume/file/{analysis_id}"}
+        return {
+            "_bytes": len(value),
+            "_note": (
+                "download via /api/resume/file/{analysis_id} (scanned resumes) or "
+                "/api/resume-builder/saved-tailored/{id}/file (saved tailored copies)"
+            ),
+        }
     return value
 
 
@@ -202,9 +211,10 @@ def export_user_data(db: Session, user_id: str) -> dict:
         "exported_at": datetime.now().astimezone().isoformat(),
         "user_id": user_id,
         "note": (
-            "Everything ApplyCenter holds about this account. Resume files are "
+            "Everything HireLoom holds about this account. Resume files are "
             "referenced rather than embedded — fetch each from "
-            "/api/resume/file/{analysis_id}. Job listings are not included: they "
+            "/api/resume/file/{analysis_id}, and saved tailored copies from "
+            "/api/resume-builder/saved-tailored/{id}/file. Job listings are not included: they "
             "are the shared public feed, not your data."
         ),
         "profile": _rows(db, Profile, user_id),
@@ -226,6 +236,7 @@ def export_user_data(db: Session, user_id: str) -> dict:
         "star_stories": _rows(db, StarStory, user_id),
         "prep_question_user_state": _rows(db, PrepQuestionUserState, user_id),
         "tailor_cache": _rows(db, TailorCache, user_id),
+        "tailored_resumes": _rows(db, TailoredResume, user_id),
         **_export_coach_history(db, user_id),
     }
 
@@ -312,6 +323,7 @@ def delete_user_data(db: Session, user_id: str) -> dict[str, int]:
         ("star_stories", StarStory),
         ("prep_question_user_state", PrepQuestionUserState),
         ("tailor_cache", TailorCache),
+        ("tailored_resumes", TailoredResume),
         ("interview_sessions", InterviewSession),
         ("job_offers", JobOffer),  # references job_applications (ON DELETE SET NULL)
         ("job_applications", JobApplication),

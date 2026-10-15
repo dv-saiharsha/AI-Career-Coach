@@ -98,6 +98,9 @@ class Settings(BaseSettings):
     # The JD analyzer's model, when it should differ from OLLAMA_MODEL (an
     # experiment with a larger model). Empty: OLLAMA_MODEL. Nothing else uses it.
     OLLAMA_ANALYZER_MODEL: str = ""
+    # The Tailor Resume rewrite's model, when it should differ from OLLAMA_MODEL
+    # (the rewrite benefits most from a larger model). Empty: OLLAMA_MODEL.
+    OLLAMA_TAILOR_MODEL: str = ""
     # Used only when OLLAMA_MODEL isn't pulled. Empty disables the fallback.
     OLLAMA_FALLBACK_MODEL: str = "llama3.2"
     # Embeddings (/api/embed). No fallback: vectors from two different

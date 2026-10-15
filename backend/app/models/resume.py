@@ -7,13 +7,8 @@ from app.core.database import Base
 class ResumeAnalysis(Base):
     __tablename__ = "resume_analyses"
     id = Column(Integer, primary_key=True, index=True)
-    # References auth.users(id) in Supabase Postgres — enforced at the DB
-    # level via the Alembic migration, not an SQLAlchemy FK (that table
-    # lives in the auth schema, which we don't model here).
-    # The sign-in provider's user id (a Firebase uid), stored as text. NOT a UUID:
-    # Firebase gives brand-new accounts a 28-character id; only users imported from
-    # Supabase have UUID-shaped ids. No SQLAlchemy FK either: the identity lives in
-    # Firebase, not in a table this backend owns.
+    # Firebase UID stored as text, not a UUID. Authentication is external to
+    # this database, so ownership is enforced by the API rather than an FK.
     user_id = Column(
         String, nullable=False, index=True
     )

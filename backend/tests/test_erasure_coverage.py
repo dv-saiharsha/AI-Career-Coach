@@ -30,6 +30,7 @@ from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
 from app.models.story import StarStory
 from app.models.tailor_cache import TailorCache
+from app.models.tailored_resume import TailoredResume
 from app.models.user_device import UserDevice
 from app.modules.user_profile import privacy
 
@@ -129,6 +130,11 @@ def _seed(session, user_id: str, bank_question_id: int) -> None:
     session.add(StarStory(user_id=user_id, title="story"))
     session.add(PrepQuestionUserState(user_id=user_id, prep_question_id=bank_question_id))
     session.add(TailorCache(user_id=user_id, analysis_id=1, job_id=1, kind="k", payload_json="{}"))
+    session.add(TailoredResume(
+        user_id=user_id, job_title="Engineer", job_description="Build APIs.",
+        resume_filename="tailored.pdf", resume_text="Experience", resume_content="{}",
+        pdf_bytes=b"%PDF", details_json="{}",
+    ))
     session.flush()
     conversation_id = session.execute(
         text("INSERT INTO coach_conversations (user_id, title) VALUES (:u, 't') RETURNING id"),

@@ -56,17 +56,37 @@ def test_every_user_id_column_is_text():
     assert not wrong, "user ids must be String/text: " + "; ".join(wrong)
 
 
+# Tables created after the uuid->text migration, with user_id as text from
+# their first migration. They have nothing to convert, so they are not in that
+# migration's TABLES, but erasure must still cover them. A table belongs here
+# only if its creating migration declares user_id as sa.Text().
+TEXT_FROM_CREATION = {"tailored_resumes"}
+
+
 def test_the_migration_converts_exactly_the_tables_erasure_covers():
     spec = importlib.util.spec_from_file_location("user_id_is_text", MIGRATION)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert set(module.TABLES) == set(privacy.USER_ID_TABLES), (
+    assert set(module.TABLES) | TEXT_FROM_CREATION == set(privacy.USER_ID_TABLES), (
         "a table with a user_id was added to erasure but not to the uuid->text migration "
-        "(or the reverse); new accounts would fail on it"
+        "or TEXT_FROM_CREATION (or the reverse); new accounts would fail on it"
     )
+    assert not set(module.TABLES) & TEXT_FROM_CREATION
     # and every model table that carries user_id is in that set
     modelled = {table for table, col in _user_id_columns() if col.name == "user_id"}
-    assert modelled <= set(module.TABLES)
+    assert modelled <= set(module.TABLES) | TEXT_FROM_CREATION
+
+
+def test_tables_created_as_text_really_are_text_in_their_migration():
+    versions = Path(MIGRATION).parent
+    for table in TEXT_FROM_CREATION:
+        creating = [
+            f for f in versions.glob("*.py")
+            if f'op.create_table(\n        "{table}"' in f.read_text() or f"create_table('{table}'" in f.read_text()
+        ]
+        assert creating, f"no migration creates {table}"
+        source = creating[0].read_text()
+        assert 'sa.Column("user_id", sa.Text(), nullable=False)' in source
 
 
 def test_a_firebase_style_uid_is_not_uuid_shaped():

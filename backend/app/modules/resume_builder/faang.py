@@ -28,7 +28,7 @@ from app.ml.inference import model_available, predict_score
 from app.models.job import JobListing
 from app.modules.jd_analyzer import service as jd_service
 from app.models.resume import ResumeAnalysis
-from app.modules.resume_builder import cache, services
+from app.modules.resume_builder import autofill, cache, services
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +136,13 @@ def build_preview(
     else:
         # The scoring model above was fit on descriptions alone; the analysis
         # gets the title too, as every crawled listing's analysis does.
+        # The parsed roles, not an empty list: stage_fixes only asks for
+        # rewrites when it is handed bullets, and `[]` silently meant "none".
+        # Parsed the same way quick_tailor parses, so each suggestion's
+        # experience_index points at the role quick_tailor will apply it to.
+        experiences = autofill.build_autofill(resume_text)["experiences"] if include_rewrites else None
         staged = services.stage_fixes(
-            resume_text, jd_service.listing_text(job.title, job.description), experiences=None if not include_rewrites else [], db=db
+            resume_text, jd_service.listing_text(job.title, job.description), experiences=experiences, db=db
         )
         missing = staged["missing_keywords"][:MAX_KEYWORDS]
 

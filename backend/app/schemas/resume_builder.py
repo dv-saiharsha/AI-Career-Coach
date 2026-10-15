@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -233,6 +233,13 @@ class AutofillSchema(BaseModel):
     summary: Optional[str] = None
     experiences: List[ExperienceEntry] = Field(default_factory=list)
     education: List[EducationEntry] = Field(default_factory=list)
+    # The sections autofill.py reads besides roles and degrees. Declared here
+    # so the response model does not silently strip them.
+    projects: List["TailoredProjectSchema"] = Field(default_factory=list)
+    skill_groups: List["TailoredSkillGroupSchema"] = Field(default_factory=list)
+    certifications: List[str] = Field(default_factory=list)
+    awards: List[str] = Field(default_factory=list)
+    publications: List[str] = Field(default_factory=list)
     # Which fields came from an unambiguous match rather than a positional
     # guess. The UI flags the rest for review instead of presenting all of it
     # with equal confidence.
@@ -347,3 +354,253 @@ class QuickTailorResponseSchema(BaseModel):
     # True when this skipped every tectonic compile because an identical
     # (user, analysis, job, target_pages) build was already cached.
     from_cache: bool = False
+
+
+class ResumeJobMatchRequestSchema(BaseModel):
+    job_id: Optional[int] = Field(default=None, ge=1)
+    job_description: str = Field(default="", max_length=20000)
+    job_title: str = Field(default="", max_length=200)
+    company: str = Field(default="", max_length=200)
+
+
+class TailoredSkillGroupSchema(BaseModel):
+    category: str = Field(default="Skills", max_length=80)
+    items: List[str] = Field(default_factory=list, max_length=60)
+
+
+class TailoredProjectSchema(BaseModel):
+    name: str = Field(default="", max_length=180)
+    tech: str = Field(default="", max_length=500)
+    dates: str = Field(default="", max_length=80)
+    bullets: List[str] = Field(default_factory=list, max_length=40)
+
+
+class TailoredResumeContentSchema(BaseModel):
+    candidate_name: str = Field(default="Candidate", max_length=120)
+    email: str = Field(default="", max_length=254)
+    phone: str = Field(default="", max_length=80)
+    location: str = Field(default="", max_length=160)
+    linkedin: str = Field(default="", max_length=500)
+    summary: str = Field(default="", max_length=1500)
+    technical_skills: List[str] = Field(default_factory=list, max_length=60)
+    tools_skills: List[str] = Field(default_factory=list, max_length=60)
+    skill_groups: List[TailoredSkillGroupSchema] = Field(default_factory=list, max_length=20)
+    experiences: List[ExperienceEntry] = Field(default_factory=list, max_length=30)
+    projects: List[TailoredProjectSchema] = Field(default_factory=list, max_length=30)
+    education: List[EducationEntry] = Field(default_factory=list, max_length=20)
+    certifications: List[str] = Field(default_factory=list, max_length=40)
+    awards: List[str] = Field(default_factory=list, max_length=40)
+    publications: List[str] = Field(default_factory=list, max_length=40)
+    section_order: List[str] = Field(default_factory=list, max_length=12)
+    section_titles: dict[str, str] = Field(default_factory=dict)
+
+
+class SaveTailoredResumeRequestSchema(BaseModel):
+    source_analysis_id: int = Field(ge=1)
+    job_id: Optional[int] = Field(default=None, ge=1)
+    job_description: str = Field(default="", max_length=20000)
+    job_title: str = Field(default="", max_length=200)
+    company: str = Field(default="", max_length=200)
+    target_pages: int = Field(default=1, ge=1, le=2)
+    design: Literal["faang", "original"] = "faang"
+    content: TailoredResumeContentSchema
+
+
+class ScoreChangeSchema(BaseModel):
+    delta: float
+    direction: Literal["improved", "unchanged", "declined"]
+
+
+class SavedTailoredResumeSchema(BaseModel):
+    id: int
+    source_analysis_id: Optional[int] = None
+    job_id: Optional[int] = None
+    job_title: str
+    company: Optional[str] = None
+    resume_filename: str
+    score_before: Optional[float] = None
+    score_after: Optional[float] = None
+    score_change: Optional[ScoreChangeSchema] = None
+    created_at: str
+    download_url: str
+
+
+class ReviewedPreviewSchema(BaseModel):
+    """The candidate's edits compiled and re-scored, not saved."""
+
+    pdf_base64: str
+    page_count: int
+    target_pages: int
+    fits: bool
+    adjustments: List[str] = Field(default_factory=list)
+    filename: str
+    score_before: Optional[float] = None
+    score_after: Optional[float] = None
+    score_change: Optional[ScoreChangeSchema] = None
+
+
+# ── Tailor Resume (resume_builder/smart_tailor.py) ──────────────────────────
+
+
+class SmartTailorRequestSchema(BaseModel):
+    """One stored scan, one job: a listing (job_id) or pasted text.
+
+    Exactly one of job_id / job_description is needed; job_id wins when both
+    are sent, so the listing's stored text and the pasted text can never
+    silently disagree.
+    """
+
+    job_id: Optional[int] = None
+    job_description: str = Field(default="", max_length=20000)
+    job_title: str = Field(default="", max_length=200)
+    company: str = Field(default="", max_length=200)
+    full_name: str = Field(default="", max_length=120)
+    # "faang": the clean single-column convention. "original": the candidate's
+    # own section order and heading names, set in the same ATS-safe template.
+    design: Literal["faang", "original"] = "faang"
+    target_pages: int = Field(default=1, ge=1, le=2)
+    # Skills the candidate states they have although the resume doesn't show
+    # them. Their own claim, so they may be listed; never invented here.
+    confirmed_skills: List[str] = Field(default_factory=list, max_length=15)
+
+
+class RequirementMatchSchema(BaseModel):
+    requirement: str
+    key: str
+    kind: str
+    importance: Literal["critical", "high", "medium", "low"]
+    required: bool
+    jd_evidence: str = ""
+    match: Literal["exact", "related", "transferable", "missing"]
+    resume_evidence: Optional[str] = None
+    via: Optional[str] = None
+    demonstrated: bool = False
+    section: Optional[str] = None
+    buried: bool = False
+
+
+class TransferableSchema(BaseModel):
+    requirement: str
+    via: Optional[str] = None
+    evidence: Optional[str] = None
+
+
+class MissingRequirementSchema(BaseModel):
+    requirement: str
+    importance: str
+    kind: str
+
+
+class KeywordStatusSchema(BaseModel):
+    term: str
+    importance: str
+    supported: bool
+    on_resume: bool
+
+
+class TailorAnalysisSchema(BaseModel):
+    job_title: str = ""
+    company: str = ""
+    seniority: str = "unknown"
+    hiring_intent: str = ""
+    # Importance-weighted share of requirements evidenced. Not the ATS score.
+    coverage: int
+    counts: dict[str, int]
+    requirements: List[RequirementMatchSchema]
+    strong_matches: List[str]
+    transferable: List[TransferableSchema]
+    missing: List[MissingRequirementSchema]
+    keywords: List[KeywordStatusSchema]
+    buried: List[str]
+    listed_not_shown: List[str]
+    low_value_bullets: List[str]
+    years_experience: Optional[float] = None
+    jd_analysis_source: str
+
+
+class TailorChangeSchema(BaseModel):
+    change: str
+    reason: str
+
+
+class BulletChangeSchema(BaseModel):
+    entry: str
+    original: str
+    tailored: str
+    status: Literal["rewritten", "reverted"]
+    reasons: List[str] = Field(default_factory=list)
+
+
+class TailorAiSchema(BaseModel):
+    used: bool
+    provider: Optional[str] = None
+    rewrites_accepted: int = 0
+    rewrites_reverted: int = 0
+    note: Optional[str] = None
+
+
+class TailoringSummarySchema(BaseModel):
+    changes: List[TailorChangeSchema]
+    bullet_changes: List[BulletChangeSchema]
+    ai: TailorAiSchema
+
+
+class TailoredResumeSchema(BaseModel):
+    # The structured content that was compiled — what the PDF says, as data.
+    content: dict
+    section_titles: dict[str, str] = Field(default_factory=dict)
+    text: str
+    pdf_base64: str
+    tex_source: str
+    page_count: int
+    target_pages: int
+    fits: bool
+    adjustments: List[str] = Field(default_factory=list)
+    design: Literal["faang", "original"]
+    filename: str
+
+
+class ValidationCheckSchema(BaseModel):
+    key: str
+    label: str
+    status: Literal["pass", "warn", "fail"]
+    detail: str
+
+
+class TailorValidationSchema(BaseModel):
+    status: Literal["pass", "warn", "fail"]
+    checks: List[ValidationCheckSchema]
+
+
+class ShortlistOutlookSchema(BaseModel):
+    """A band with its reasons — deliberately not a selection probability
+    (resume_builder/outlook.py)."""
+
+    band: Literal["strong", "competitive", "possible", "long_shot"]
+    label: str
+    drivers: List[str]
+    basis: Literal["ats_and_coverage", "coverage_only"]
+    note: str
+
+
+class TailorScoresSchema(BaseModel):
+    # The trained model's score, before and after. None when no model is on
+    # disk — never a placeholder.
+    before: Optional[float] = None
+    after: Optional[float] = None
+    change: Optional[ScoreChangeSchema] = None
+    outlook_before: Optional[ShortlistOutlookSchema] = None
+    outlook_after: Optional[ShortlistOutlookSchema] = None
+
+
+class SmartTailorResponseSchema(BaseModel):
+    analysis: TailorAnalysisSchema
+    tailoring: TailoringSummarySchema
+    resume: TailoredResumeSchema
+    validation: TailorValidationSchema
+    scores: TailorScoresSchema
+    from_cache: bool = False
+
+
+# Forward references (projects, skill groups) are defined further down.
+AutofillSchema.model_rebuild()

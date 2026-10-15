@@ -17,15 +17,17 @@ def columns(db_file):
         return {r[1]: r for r in conn.execute("PRAGMA table_info(crawl_runs)")}
 
 
-def test_it_is_the_one_head_on_top_of_jd_analyses():
+def test_the_chain_has_one_head_and_this_migration_sits_on_jd_analyses():
+    # One head, not "this is the head": later migrations stack on top, the
+    # same rule test_jd_analyses_migration.py follows.
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == [REVISION]
+    assert len(script.get_heads()) == 1
     assert script.get_revision(REVISION).down_revision == PARENT
 
 
 def test_upgrade_adds_stats_with_an_empty_object_default_and_downgrade_removes_it(tmp_path):
     db_file = tmp_path / "stats.db"
-    assert alembic(db_file, "upgrade", "head").returncode == 0
+    assert alembic(db_file, "upgrade", REVISION).returncode == 0
     assert version(db_file) == REVISION
     cols = columns(db_file)
     assert cols["stats"][3] == 1 and cols["stats"][4] == "'{}'"

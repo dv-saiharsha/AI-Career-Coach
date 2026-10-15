@@ -173,18 +173,37 @@ def _render_contact_line(location: str, email: str, phone: str, linkedin_url: st
     return " \\quad ".join(parts)
 
 
-def _render_summary_section(summary: str) -> str:
+def _render_summary_section(summary: str, heading: str = "Professional Summary") -> str:
     if not summary.strip():
         return ""
-    return f"\\section{{Professional Summary}}\n{escape_latex(summary)}\n"
+    return f"\\section{{{escape_latex(heading)}}}\n{escape_latex(summary)}\n"
 
 
-def _render_skills_section(technical_skills: list[str], tools_skills: list[str]) -> str:
+def _render_skills_section(
+    technical_skills: list[str],
+    tools_skills: list[str],
+    skill_groups: list[dict] | None = None,
+    heading: str = "Core Skills",
+) -> str:
+    # Labelled rows ("Languages: Python, Go") when the caller grouped them;
+    # the older two fixed rows otherwise.
+    groups = [
+        (g.get("category") or "Skills", [s for s in (g.get("items") or []) if s and s.strip()])
+        for g in (skill_groups or [])
+    ]
+    groups = [(category, items) for category, items in groups if items]
+    if groups:
+        lines = [f"\\section{{{escape_latex(heading)}}}", "\\begin{itemize}[label=]"]
+        for category, items in groups:
+            lines.append(f"    \\item \\textbf{{{escape_latex(category)}:}} {escape_latex(', '.join(items))}")
+        lines.append("\\end{itemize}")
+        return "\n".join(lines) + "\n"
+
     technical = [s for s in technical_skills if s.strip()]
     tools = [s for s in tools_skills if s.strip()]
     if not technical and not tools:
         return ""
-    lines = ["\\section{Core Skills}", "\\begin{itemize}[label=]"]
+    lines = [f"\\section{{{escape_latex(heading)}}}", "\\begin{itemize}[label=]"]
     if technical:
         lines.append(f"    \\item \\textbf{{Technical Skills:}} {escape_latex(', '.join(technical))}")
     if tools:
@@ -216,10 +235,10 @@ def _render_subheading(bold_left: str, italic_right: str, italic_below: str) -> 
     )
 
 
-def _render_experience_section(experiences: list[dict]) -> str:
+def _render_experience_section(experiences: list[dict], heading: str = "Experience") -> str:
     if not experiences:
         return ""
-    blocks = ["\\section{Experience}"]
+    blocks = [f"\\section{{{escape_latex(heading)}}}"]
     for exp in experiences:
         title = escape_latex(exp.get("title", ""))
         company = escape_latex(exp.get("company", ""))
@@ -235,10 +254,10 @@ def _render_experience_section(experiences: list[dict]) -> str:
     return "\n".join(blocks) + "\n"
 
 
-def _render_education_section(education: list[dict]) -> str:
+def _render_education_section(education: list[dict], heading: str = "Education") -> str:
     if not education:
         return ""
-    blocks = ["\\section{Education}"]
+    blocks = [f"\\section{{{escape_latex(heading)}}}"]
     for edu in education:
         degree = escape_latex(edu.get("degree", ""))
         institution = escape_latex(edu.get("institution", ""))
@@ -246,6 +265,95 @@ def _render_education_section(education: list[dict]) -> str:
         blocks.append(_render_subheading(degree, dates, institution))
         blocks.append("\\vspace{2pt}")
     return "\n".join(blocks) + "\n"
+
+
+def _render_projects_section(projects: list[dict], heading: str = "Projects") -> str:
+    """One line per project header ("Name | stack", dates right-aligned),
+    then its bullets. Same tabularx alignment as _render_subheading."""
+    projects = [p for p in projects or [] if (p.get("name") or "").strip() or p.get("bullets")]
+    if not projects:
+        return ""
+    blocks = [f"\\section{{{escape_latex(heading)}}}"]
+    for project in projects:
+        left = f"\\textbf{{{escape_latex(project.get('name', ''))}}}"
+        if (project.get("tech") or "").strip():
+            left += f" $|$ \\textit{{{escape_latex(project['tech'])}}}"
+        dates = escape_latex(project.get("dates", ""))
+        blocks.append(
+            "\\begin{tabularx}{\\linewidth}{@{}X r@{}}\n"
+            f"    {left} & \\textit{{{dates}}} \\\\\n"
+            "\\end{tabularx}"
+        )
+        bullets = [b for b in project.get("bullets", []) if b.strip()]
+        if bullets:
+            blocks.append("\\begin{itemize}")
+            for bullet in bullets:
+                blocks.append(f"    \\item {escape_latex(bullet)}")
+            blocks.append("\\end{itemize}")
+        blocks.append("\\vspace{4pt}")
+    return "\n".join(blocks) + "\n"
+
+
+def _render_list_section(items: list[str], heading: str) -> str:
+    """Certifications, awards, publications: a plain bulleted list."""
+    items = [i for i in items or [] if i and i.strip()]
+    if not items:
+        return ""
+    lines = [f"\\section{{{escape_latex(heading)}}}", "\\begin{itemize}"]
+    lines.extend(f"    \\item {escape_latex(item)}" for item in items)
+    lines.append("\\end{itemize}")
+    return "\n".join(lines) + "\n"
+
+
+# The FAANG-convention order. A caller (the "keep my structure" design) may
+# pass its own `section_order` naming any of these keys.
+DEFAULT_SECTION_ORDER = (
+    "summary", "skills", "experience", "projects", "education",
+    "certifications", "awards", "publications",
+)
+
+DEFAULT_SECTION_TITLES = {
+    "summary": "Professional Summary",
+    "skills": "Core Skills",
+    "experience": "Experience",
+    "projects": "Projects",
+    "education": "Education",
+    "certifications": "Certifications",
+    "awards": "Awards",
+    "publications": "Publications",
+}
+
+# The four sections every payload always had. They are joined even when empty
+# so a payload carrying only these renders exactly as it did before the other
+# sections existed.
+_LEGACY_SECTIONS = ("summary", "skills", "experience", "education")
+
+
+def _render_body(data: dict) -> str:
+    titles = {**DEFAULT_SECTION_TITLES, **(data.get("section_titles") or {})}
+    renderers = {
+        "summary": lambda: _render_summary_section(data.get("summary", "") or "", titles["summary"]),
+        "skills": lambda: _render_skills_section(
+            data.get("technical_skills") or [], data.get("tools_skills") or [],
+            data.get("skill_groups"), titles["skills"],
+        ),
+        "experience": lambda: _render_experience_section(data.get("experiences") or [], titles["experience"]),
+        "projects": lambda: _render_projects_section(data.get("projects") or [], titles["projects"]),
+        "education": lambda: _render_education_section(data.get("education") or [], titles["education"]),
+        "certifications": lambda: _render_list_section(data.get("certifications") or [], titles["certifications"]),
+        "awards": lambda: _render_list_section(data.get("awards") or [], titles["awards"]),
+        "publications": lambda: _render_list_section(data.get("publications") or [], titles["publications"]),
+    }
+    order = [key for key in (data.get("section_order") or DEFAULT_SECTION_ORDER) if key in renderers]
+    # Any section the caller's order leaves out still renders, at the end:
+    # an ordering choice must never be how content disappears.
+    order += [key for key in DEFAULT_SECTION_ORDER if key not in order]
+    parts = []
+    for key in order:
+        rendered = renderers[key]()
+        if rendered or key in _LEGACY_SECTIONS:
+            parts.append(rendered)
+    return "\n".join(parts)
 
 
 # Two typographic densities, not two templates.
@@ -289,12 +397,7 @@ def render_resume_tex(data: dict, density: str = "compact") -> str:
         "VAR_CONTACT_LINE": _render_contact_line(
             data.get("location", ""), data.get("email", ""), data.get("phone", ""), data.get("linkedin", "")
         ),
-        "VAR_SUMMARY_SECTION": _render_summary_section(data.get("summary", "")),
-        "VAR_SKILLS_SECTION": _render_skills_section(
-            data.get("technical_skills") or [], data.get("tools_skills") or []
-        ),
-        "VAR_EXPERIENCE_SECTION": _render_experience_section(data.get("experiences") or []),
-        "VAR_EDUCATION_SECTION": _render_education_section(data.get("education") or []),
+        "VAR_BODY_SECTIONS": _render_body(data),
     }
     for token, value in replacements.items():
         template = template.replace(token, value)

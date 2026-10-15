@@ -73,11 +73,18 @@ def _resume_text_from_payload(data: dict) -> str:
     lines: list[str] = [data.get("summary", "")]
     lines.extend(data.get("technical_skills") or [])
     lines.extend(data.get("tools_skills") or [])
+    for group in data.get("skill_groups") or []:
+        lines.append(f"{group.get('category', '')}: {', '.join(group.get('items') or [])}")
     for exp in data.get("experiences") or []:
         lines.append(f"{exp.get('title', '')} {exp.get('company', '')}")
         lines.extend(exp.get("bullets") or [])
+    for project in data.get("projects") or []:
+        lines.append(f"{project.get('name', '')} {project.get('tech', '')}".strip())
+        lines.extend(project.get("bullets") or [])
     for edu in data.get("education") or []:
         lines.append(f"{edu.get('degree', '')} {edu.get('institution', '')}")
+    for key in ("certifications", "awards", "publications"):
+        lines.extend(data.get(key) or [])
     return "\n".join(line for line in lines if line)
 
 

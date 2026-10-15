@@ -537,6 +537,132 @@ def extract_education(resume_text: str) -> list[dict]:
     return results
 
 
+def _looks_like_project_header(line: str) -> bool:
+    """A project's name line, told apart from a wrapped bullet by shape.
+
+    Short, no sentence punctuation at the end, and not starting lowercase — a
+    line that starts lowercase is the tail of the bullet above it.
+    """
+    stripped = line.strip()
+    if not stripped or _BULLET_PREFIX.match(stripped):
+        return False
+    if stripped[0].islower():
+        return False
+    if stripped.endswith((".", "!", "?", ";")):
+        return False
+    return len(stripped) < PROSE_MIN_CHARS or bool(_DATE_RANGE.search(stripped))
+
+
+def _split_project_entries(section_text: str) -> list[list[str]]:
+    """One block per project. Projects usually carry no date range, so the
+    boundary _split_entries uses is missing; a header-shaped line arriving
+    after the current project already has body text starts the next one."""
+    entries: list[list[str]] = []
+    current: list[str] = []
+    has_body = False
+    for line in (section_text or "").splitlines():
+        if not line.strip():
+            continue
+        if _looks_like_project_header(line) and has_body:
+            entries.append(current)
+            current, has_body = [], False
+        current.append(line)
+        if not _looks_like_project_header(line):
+            has_body = True
+    if current:
+        entries.append(current)
+    return entries[:MAX_ENTRIES]
+
+
+def extract_projects(resume_text: str) -> list[dict]:
+    """Projects with their bullets, from the PROJECTS section.
+
+    The header line commonly reads "Name | Python, React | 2024"; the name is
+    the first segment, a date is kept as dates, and the rest is the stack line
+    exactly as the candidate wrote it.
+    """
+    section = split_sections(resume_text).get("projects", "")
+    results: list[dict] = []
+    for entry in _split_project_entries(section):
+        header_lines, bullets = _split_header_and_bullets(entry)
+        if not header_lines and not bullets:
+            continue
+        dates = ""
+        fragments: list[str] = []
+        for line in header_lines:
+            if m := _DATE_RANGE.search(line):
+                dates = dates or (_clean(m.group(0)) or "")
+                line = line[: m.start()] + " " + line[m.end():]
+            elif not dates and (y := re.search(r"\b(19|20)\d{2}\b", line)):
+                dates = y.group(0)
+                line = line[: y.start()] + " " + line[y.end():]
+            fragments.extend(
+                c for c in (_clean(p) for p in re.split(r"\s+[|–—]\s+|\s+-\s+", line)) if c
+            )
+        name = fragments[0] if fragments else ""
+        if not name and bullets:
+            # A project with no header line at all: nothing honest to call it.
+            name = "Project"
+        tech = ", ".join(fragments[1:])
+        results.append({"name": name, "tech": tech, "dates": dates, "bullets": bullets})
+    return results
+
+
+_SKILL_SPLIT = re.compile(r"\s*[,;|•·]\s*")
+
+
+def extract_skill_groups(resume_text: str) -> list[dict]:
+    """The SKILLS section as the candidate grouped it.
+
+    "Languages: Python, Java" becomes {"category": "Languages", "items": [...]};
+    a line with no label goes under "Skills". Items are kept as written so the
+    built resume spells them the way the candidate does.
+    """
+    section = split_sections(resume_text).get("skills", "")
+    groups: list[dict] = []
+    by_category: dict[str, dict] = {}
+    for raw in section.splitlines():
+        line = _BULLET_PREFIX.sub("", raw).strip()
+        if not line:
+            continue
+        category = "Skills"
+        if ":" in line:
+            label, rest = line.split(":", 1)
+            if label.strip() and len(label.split()) <= 4:
+                category, line = label.strip(), rest
+        items = [
+            i for i in (_clean(p, 60) for p in _SKILL_SPLIT.split(line)) if i and len(i.split()) <= 5
+        ]
+        if not items:
+            continue
+        group = by_category.get(category.lower())
+        if group is None:
+            group = {"category": category, "items": []}
+            by_category[category.lower()] = group
+            groups.append(group)
+        for item in items:
+            if item.lower() not in {x.lower() for x in group["items"]}:
+                group["items"].append(item)
+    return groups
+
+
+def _section_lines(resume_text: str, section: str) -> list[str]:
+    """Each line of a list-shaped section (certifications, awards), with any
+    bullet marker removed and wrapped continuations rejoined."""
+    items: list[str] = []
+    for raw in split_sections(resume_text).get(section, "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        marked = bool(_BULLET_PREFIX.match(line))
+        line = _BULLET_PREFIX.sub("", line).strip()
+        if items and not marked and line[:1].islower():
+            items[-1] = f"{items[-1]} {line}"
+        else:
+            items.append(line)
+    return [c for c in (_clean(i, MAX_BULLET_CHARS) for i in items) if c][:MAX_ENTRIES]
+
+
 def build_autofill(resume_text: str) -> dict:
     """Everything the builder form can be pre-filled with.
 
@@ -558,6 +684,11 @@ def build_autofill(resume_text: str) -> dict:
         "summary": summary,
         "experiences": experiences,
         "education": education,
+        "projects": extract_projects(resume_text),
+        "skill_groups": extract_skill_groups(resume_text),
+        "certifications": _section_lines(resume_text, "certifications"),
+        "awards": _section_lines(resume_text, "awards"),
+        "publications": _section_lines(resume_text, "publications"),
         "confident_fields": confident,
         # Lets the UI say "we couldn't read your roles" instead of silently
         # showing an empty form that looks like nothing was tried.
