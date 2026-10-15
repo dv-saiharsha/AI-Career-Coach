@@ -207,7 +207,6 @@ _OPTIONAL = re.compile(
     re.IGNORECASE,
 )
 _REQUIRED = re.compile(r"\bmust\b|(?<!not )\brequired\b|\bminimum\b", re.IGNORECASE)
-_OPTIONAL_SECTION = re.compile(r"nice[- ]to[- ]have|bonus|preferred|desirable|optional|a plus|extra credit", re.IGNORECASE)
 
 
 def sentence_containing(text: str, quote: str) -> str:
@@ -223,25 +222,104 @@ def sentence_containing(text: str, quote: str) -> str:
     return text[start + 1 : end + 1].strip()
 
 
+# Headings, found by shape rather than by name. A line is a heading when it is
+# short (at most six words, 60 characters), is not a list item, does not end
+# like a sentence, and is set apart as one: it ends in a colon, is in upper
+# case or title case, or is followed by a list item. A heading without a
+# section stem (below) must also have two words or more and name no known
+# technology, so a list item such as "Python" or "Python and SQL" never ends a
+# section.
+_LIST_ITEM = re.compile(r"^\s*(?:[-•*·▪◦–]|\d{1,2}[.)])\s+")
+_SMALL_WORDS = {"and", "or", "of", "the", "to", "for", "a", "an", "in", "on", "at", "&", "+", "/"}
+_MAX_HEADING_WORDS = 6
+
+# What a heading says about its section, by word stem rather than exact heading.
+SECTION_STEMS = {
+    "required": (
+        "qualif", "requir", "skill", "experience", "you bring", "you'll bring", "you will bring", "look for",
+        "looking for", "what you'll need", "what you will need", "what you need", "must", "who you are",
+        "about you", "you have",
+    ),
+    "optional": ("nice", "bonus", "plus", "prefer", "desir", "optional", "extra credit", "not required"),
+}
+_STEM_PATTERNS = {
+    kind: re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(stem) for stem in stems) + r")", re.IGNORECASE)
+    for kind, stems in SECTION_STEMS.items()
+}
+
+
+def _heading_words(line: str) -> list[str]:
+    return re.findall(r"[A-Za-z][\w'’+#-]*", line)
+
+
+def heading_kind(name: str) -> str | None:
+    """"required", "optional" or "mixed" for a heading's text, by stem; None for
+    a heading that says neither ("About us", "What you'll do"). The heading is
+    read in parts joined by "/", "&", "+" or "and": a part with an optional stem
+    is optional ("Preferred qualifications"), otherwise one with a required
+    stem is required. Parts of both kinds make it mixed ("Qualifications / Nice
+    to have")."""
+    name = name.lower().replace("’", "'")
+    kinds = set()
+    for part in re.split(r"\s*(?:/|&|\+|\band\b)\s*", name):
+        if _STEM_PATTERNS["optional"].search(part):
+            kinds.add("optional")
+        elif _STEM_PATTERNS["required"].search(part):
+            kinds.add("required")
+    if kinds == {"optional", "required"}:
+        return "mixed"
+    return next(iter(kinds)) if kinds else None
+
+
+def looks_like_heading(line: str, next_line: str = "") -> bool:
+    """Whether `line` is set out as a section heading (see above)."""
+    stripped = line.strip()
+    if not stripped or _LIST_ITEM.match(stripped):
+        return False
+    body = re.sub(r"(?:\.\.\.|…)$", "", stripped.rstrip(":").strip()).strip()
+    words = _heading_words(body)
+    if not words or len(words) > _MAX_HEADING_WORDS or len(body) > 60 or body[-1] in ".,;!?":
+        return False
+    if heading_kind(body) is None and not stripped.endswith(":"):
+        # Without a section stem: two words or more, and no technology in it
+        # ("Python and SQL" is a list item, "About Us" a heading).
+        if len(words) < 2 or any(canonical(w) in _KNOWN_NODES for w in words):
+            return False
+    letters = [c for c in body if c.isalpha()]
+    return (
+        stripped.endswith(":")
+        or all(c.isupper() for c in letters)
+        or all(w[0].isupper() or w.lower() in _SMALL_WORDS for w in words)
+        or bool(_LIST_ITEM.match(next_line))
+        or cleaning.is_heading(line)
+    )
+
+
 def section_heading(text: str, quote: str) -> str:
-    """The nearest heading above `quote`, lower-cased, or ""."""
+    """The nearest heading above `quote`, lower-cased, or "". The first line is
+    taken for the job title, so it is a heading only when it ends in a colon."""
     pattern = r"\s+".join(re.escape(part) for part in quote.split())
     match = re.search(pattern, text, re.IGNORECASE) if pattern else None
     if not match:
         return ""
-    for line in reversed(text[: match.start()].splitlines()):
-        if cleaning.is_heading(line):
+    lines = text[: match.start()].split("\n")
+    rest = text[match.start():].split("\n")
+    first = next((i for i, line in enumerate(lines) if line.strip()), None)
+    for i in range(len(lines) - 1, -1, -1):
+        line = lines[i]
+        if i == first and not line.strip().endswith(":"):
+            break
+        if i == len(lines) - 1:
+            # The start of the quote's own line: only an inline "Heading: ..." counts.
+            if line.strip().endswith(":") and looks_like_heading(line):
+                return cleaning.heading_name(line)
+            continue
+        if not line.strip():
+            continue
+        after = next((nxt for nxt in lines[i + 1:] + rest[1:] if nxt.strip()), "")
+        if looks_like_heading(line, after):
             return cleaning.heading_name(line)
     return ""
-
-
-# Headings of a section that lists what the job needs. Checked after the
-# optional ones, so "preferred qualifications" is optional.
-_REQUIRED_SECTION = re.compile(
-    r"requirement|qualification|what you(?:'ll| will)? need|what you(?:'ll| will)? bring|must[- ]haves?|"
-    r"required skills|what we're looking for|who you are|about you|you have|you bring|skills",
-    re.IGNORECASE,
-)
 
 
 def section_kind(text: str, quote: str) -> str | None:
@@ -251,18 +329,7 @@ def section_kind(text: str, quote: str) -> str | None:
     you'll need", "Must have"), "mixed" under a heading that names both
     ("Qualifications/Nice to have"), and None under any other heading or none."""
     heading = section_heading(text, quote)
-    if not heading:
-        return None
-    if _OPTIONAL_SECTION.search(heading):
-        # "Preferred qualifications" is one optional kind; "Qualifications / Nice
-        # to have" names two, joined by a slash, "and" or "&".
-        parts = re.split(r"\s*(?:/|&|\band\b|\+)\s*", heading)
-        if len(parts) > 1 and any(_REQUIRED_SECTION.search(p) and not _OPTIONAL_SECTION.search(p) for p in parts):
-            return "mixed"
-        return "optional"
-    if _REQUIRED_SECTION.search(heading):
-        return "required"
-    return None
+    return heading_kind(heading) if heading else None
 
 
 # Where one clause of a sentence ends and the next begins. Never a list comma:
@@ -524,6 +591,36 @@ def trim_generic_suffix(name: str) -> str:
         if len(rest.split()) >= 2 or node in _KNOWN_NODES:
             return node
     return name
+
+
+# Single words that name a field, not a skill a posting can require.
+FIELD_WORDS = frozenset({
+    "ai", "ml", "cloud", "data", "software", "security", "engineering", "development", "design", "infrastructure",
+    "analytics", "web", "mobile", "backend", "frontend", "computing", "it", "tech",
+})
+
+# Industries and business domains, from the GICS sector names and common
+# startup verticals. What a company does or sells, not what a candidate knows.
+INDUSTRY_TERMS = frozenset({
+    "finance", "financial services", "banking", "insurance", "payments", "healthcare", "health care",
+    "life sciences", "biotech", "pharma", "pharmaceuticals", "retail", "e commerce", "ecommerce", "consumer",
+    "consumer goods", "marketplace", "logistics", "transportation", "mobility", "automotive", "aerospace",
+    "defense", "government", "public sector", "education", "media", "entertainment", "gaming", "music",
+    "advertising", "real estate", "travel", "hospitality", "telecommunications", "telecom", "energy", "utilities",
+    "manufacturing", "agriculture", "legal", "crypto", "web3", "b2b", "b2c", "enterprise", "social media",
+    "sales", "marketing", "customer support", "customer service", "human resources", "hr",
+})
+_DOMAIN_SUFFIX = re.compile(r"(?:tech| industry| domain| sector| market| vertical)$")
+
+
+def is_category_or_domain(name: str) -> bool:
+    """Whether a skill name is a single field word ("cloud", "ai"), a generic
+    category ("software", "tools"), or an industry or business domain
+    ("fintech", "hr tech", "healthcare", "retail industry")."""
+    node = canonical(name)
+    if " " not in node and (node in FIELD_WORDS or node in GENERIC_SKILL_NAMES):
+        return True
+    return node in INDUSTRY_TERMS or bool(_DOMAIN_SUFFIX.search(node))
 
 
 def is_generic_name(name: str) -> bool:

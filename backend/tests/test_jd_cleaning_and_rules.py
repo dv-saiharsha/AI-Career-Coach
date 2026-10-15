@@ -743,3 +743,47 @@ class TestMixedSection:
     def test_in_a_mixed_section_a_requirement_flag_needs_must_or_required(self):
         assert rules.requirement_flag(self.TEXT, "Experience with eBPF", True) is False
         assert rules.requirement_flag(self.TEXT, "Terraform experience required", False) is True
+
+
+class TestHeadingsByShapeAndStem:
+    @pytest.mark.parametrize("line,next_line,expected", [
+        ("Required Skills & Qualifications", "", True),     # title case
+        ("Skills And Qualifications", "", True),
+        ("WHAT YOU'LL BRING", "", True),                    # upper case
+        ("EVEN BETTER...", "", True),                       # trailing ellipsis
+        ("What we look for:", "", True),                    # colon
+        ("what you bring", "- Python", True),               # followed by a list item
+        ("Bonus", "", True),                                # one word, but a section stem
+        ("About Us", "", True),
+        ("Python", "", False),                              # a bare list item
+        ("AWS", "", False),
+        ("Python and SQL", "", False),                      # names a technology, no stem
+        ("Experience with Go and Prometheus", "", False),   # "with" is not title case
+        ("- Requirements:", "", False),                     # a list item
+        ("You will work with Kafka every day.", "", False),
+        ("You may be a great fit if you have the following:", "", False),  # too long
+    ])
+    def test_looks_like_heading(self, line, next_line, expected):
+        assert rules.looks_like_heading(line, next_line) is expected
+
+    @pytest.mark.parametrize("name,kind", [
+        ("requirements", "required"), ("basic qualifications", "required"), ("required skills & qualifications", "required"),
+        ("skills and qualifications", "required"), ("experience", "required"), ("what you'll bring", "required"),
+        ("what we look for", "required"), ("what you'll need", "required"),
+        ("nice to have", "optional"), ("bonus points", "optional"), ("pluses", "optional"),
+        ("preferred qualifications", "optional"), ("desired but not required", "optional"),
+        ("qualifications/nice to have", "mixed"), ("requirements & bonus", "mixed"),
+        ("about us", None), ("what you'll do", None), ("key responsibilities", None), ("even better", None),
+    ])
+    def test_heading_kind_by_stem(self, name, kind):
+        assert rules.heading_kind(name) == kind
+
+    def test_a_title_case_heading_classifies_its_section(self):
+        text = "Data Engineer\n\nKey Responsibilities\n\nBuild pipelines\n\nRequired Skills & Qualifications\n\nSQL and dbt\n\nNice To Have\n\nKafka\n"
+        assert rules.section_kind(text, "SQL and dbt") == "required"
+        assert rules.section_kind(text, "Kafka") == "optional"
+        assert rules.section_kind(text, "Build pipelines") is None
+
+    def test_the_first_line_is_the_title_unless_it_ends_in_a_colon(self):
+        assert rules.section_kind("Senior Engineer, Skills Platform\n\nPython\n", "Python") is None
+        assert rules.section_kind("Requirements:\nPython\n", "Python") == "required"
