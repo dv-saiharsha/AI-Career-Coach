@@ -773,7 +773,9 @@ class TestHeadingsByShapeAndStem:
         ("nice to have", "optional"), ("bonus points", "optional"), ("pluses", "optional"),
         ("preferred qualifications", "optional"), ("desired but not required", "optional"),
         ("qualifications/nice to have", "mixed"), ("requirements & bonus", "mixed"),
-        ("about us", None), ("what you'll do", None), ("key responsibilities", None), ("even better", None),
+        ("about us", None), ("what you'll do", None), ("key responsibilities", None),
+        ("even better", "optional"), ("additional skills", "required"), ("ideally you have", "required"),
+        ("extra credit", "optional"), ("stand out with", "optional"),
     ])
     def test_heading_kind_by_stem(self, name, kind):
         assert rules.heading_kind(name) == kind
@@ -794,10 +796,17 @@ class TestHeadingsAreNotSkills:
 
     def test_headings_in_lists_every_heading_with_its_kind(self):
         assert [(line, kind) for _, line, kind in rules.headings_in(self.TEXT)] == [
-            ("WHAT YOU'LL BRING", "required"), ("EVEN BETTER...", None), ("OUR VALUES", None),
+            ("WHAT YOU'LL BRING", "required"), ("EVEN BETTER...", "optional"), ("OUR VALUES", None),
         ]
 
     def test_a_heading_line_is_never_a_skill(self):
         assert rules.is_heading_text(self.TEXT, "even better", "EVEN BETTER")
         assert rules.is_heading_text(self.TEXT, "our values", "OUR VALUES")
         assert not rules.is_heading_text(self.TEXT, "python", "Python")
+
+
+class TestAdditiveHeadings:
+    def test_items_under_an_additive_heading_are_preferred(self):
+        text = "Engineer\n\nWHAT YOU'LL BRING\n\n- Python\n\nEVEN BETTER...\n\n- Experience with Go\n"
+        assert rules.skill_bucket(text, "Experience with Go", "required") == "preferred"
+        assert rules.skill_bucket(text, "Python", "preferred") == "required"

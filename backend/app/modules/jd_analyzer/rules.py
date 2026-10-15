@@ -242,6 +242,12 @@ SECTION_STEMS = {
     ),
     "optional": ("nice", "bonus", "plus", "prefer", "desir", "optional", "extra credit", "not required"),
 }
+# A heading built on an additive or comparative word introduces extra items,
+# not required ones ("Even better", "Additional skills", "Ideally", "Stand out
+# with"). Only consulted when the heading has no section stem.
+ADDITIVE_WORDS = ("better", "extra", "additional", "ideal", "ideally", "also", "even", "stand out", "edge", "great if")
+_ADDITIVE = re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(w) for w in ADDITIVE_WORDS) + r")(?![a-z])", re.IGNORECASE)
+
 _STEM_PATTERNS = {
     kind: re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(stem) for stem in stems) + r")", re.IGNORECASE)
     for kind, stems in SECTION_STEMS.items()
@@ -258,7 +264,8 @@ def heading_kind(name: str) -> str | None:
     read in parts joined by "/", "&", "+" or "and": a part with an optional stem
     is optional ("Preferred qualifications"), otherwise one with a required
     stem is required. Parts of both kinds make it mixed ("Qualifications / Nice
-    to have")."""
+    to have"). A heading with no stem but an additive or comparative word
+    (ADDITIVE_WORDS: "Even better", "Additional") is optional."""
     name = name.lower().replace("’", "'")
     kinds = set()
     for part in re.split(r"\s*(?:/|&|\+|\band\b)\s*", name):
@@ -268,6 +275,8 @@ def heading_kind(name: str) -> str | None:
             kinds.add("required")
     if kinds == {"optional", "required"}:
         return "mixed"
+    if not kinds and _ADDITIVE.search(name):
+        return "optional"
     return next(iter(kinds)) if kinds else None
 
 
