@@ -474,11 +474,11 @@ class TestRoute:
 
 class TestResumeMatchRoute:
     def test_returns_targeted_score_and_requirement_evidence(self, client, db, monkeypatch):
-        from app.modules.resume_builder import matching
+        from app.modules.resume_analyzer import services as analyzer
 
         scan = _scan(db)
-        monkeypatch.setattr(matching, "model_available", lambda: True)
-        monkeypatch.setattr(matching, "predict_score", lambda _resume, _jd: 73.5)
+        monkeypatch.setattr(analyzer, "model_available", lambda: True)
+        monkeypatch.setattr(analyzer, "predict_score", lambda _resume, _jd: 73.5)
         monkeypatch.setattr(services, "quality_report", lambda *_args, **_kwargs: {"parsing_readiness": None})
 
         response = client.post(
@@ -490,15 +490,18 @@ class TestResumeMatchRoute:
         body = response.json()
         assert body["score"] == 73.5
         assert body["score_available"] is True
-        assert body["score_label"] == "Resume-to-job compatibility estimate"
+        assert body["score_source"] == "model"
+        assert body["score_label"] == "ATS score from the trained scoring model"
         assert body["matched_requirements"]
         assert body["missing_requirements"]
 
-    def test_never_returns_a_score_when_the_model_is_unavailable(self, client, db, monkeypatch):
-        from app.modules.resume_builder import matching
+    def test_without_the_model_the_score_is_the_labelled_keyword_coverage(self, client, db, monkeypatch):
+        """No trained model: the same keyword-coverage score a scan shows,
+        labelled as such, never a blank and never a made-up model figure."""
+        from app.modules.resume_analyzer import services as analyzer
 
         scan = _scan(db)
-        monkeypatch.setattr(matching, "model_available", lambda: False)
+        monkeypatch.setattr(analyzer, "model_available", lambda: False)
         monkeypatch.setattr(services, "quality_report", lambda *_args, **_kwargs: {"parsing_readiness": None})
 
         response = client.post(
@@ -507,8 +510,10 @@ class TestResumeMatchRoute:
         )
 
         assert response.status_code == 200
-        assert response.json()["score"] is None
-        assert response.json()["score_available"] is False
+        body = response.json()
+        assert body["score_source"] == "keyword_fallback"
+        assert 0 <= body["score"] <= 100 and body["score_available"] is True
+        assert body["score_label"].startswith("Keyword match score")
 
     def test_another_users_resume_is_not_analyzable(self, client, db):
         scan = _scan(db, user_id=BOB)
@@ -521,7 +526,6 @@ class TestResumeMatchRoute:
 
 class TestSavedTailoredResumeRoutes:
     def test_saves_reviewed_copy_and_leaves_original_scan_unchanged(self, client, db, monkeypatch):
-        from app.modules.resume_builder import router as builder_router
         from app.modules.resume_builder import saved
 
         scan = _scan(db)
@@ -537,7 +541,7 @@ class TestSavedTailoredResumeRoutes:
             }],
         }
 
-        def compile_reviewed(received, description, title, company, target_pages):
+        def compile_reviewed(received, description, title, company, target_pages, jd_analysis=None):
             assert received["summary"] == content["summary"]
             assert description == JD.strip()
             assert title == "Backend Engineer"
@@ -550,11 +554,14 @@ class TestSavedTailoredResumeRoutes:
                 "adjustments": [],
                 "filename": "RAMAN_PRIYA_RESUME_BACKEND_ENGINEER_ACME.pdf",
                 "score": 78.0,
+                "score_source": "model",
             }
 
         monkeypatch.setattr(saved, "compile_reviewed_resume", compile_reviewed)
-        monkeypatch.setattr(builder_router, "model_available", lambda: True)
-        monkeypatch.setattr(builder_router, "predict_score", lambda resume, _jd: 61.0 if resume == original_text else 78.0)
+        from app.modules.resume_analyzer import services as analyzer
+
+        monkeypatch.setattr(analyzer, "model_available", lambda: True)
+        monkeypatch.setattr(analyzer, "predict_score", lambda resume, _jd: 61.0 if resume == original_text else 78.0)
 
         response = client.post("/api/resume-builder/saved-tailored", json={
             "source_analysis_id": scan.id,
@@ -568,6 +575,8 @@ class TestSavedTailoredResumeRoutes:
         saved = response.json()
         assert saved["score_before"] == 61.0
         assert saved["score_after"] == 78.0
+        assert saved["score_change"] == {"delta": 17.0, "direction": "improved"}
+        assert saved["score_source"] == "model"
         assert saved["download_url"].endswith(f"/{saved['id']}/file")
         db.refresh(scan)
         assert scan.resume_text == original_text
@@ -650,8 +659,22 @@ def test_tailor_reports_change_and_outlook(monkeypatch):
     out = smart_tailor.tailor(_record(), JD)
     scores = out["scores"]
     assert scores["outlook_before"]["band"] in {"strong", "competitive", "possible", "long_shot"}
-    if scores["before"] is not None and scores["after"] is not None:
-        assert scores["change"]["direction"] in {"improved", "unchanged", "declined"}
+    # Always a real before/after, model or not, and it says which.
+    assert scores["source"] in {"model", "keyword_fallback"}
+    assert scores["before"] is not None and scores["after"] is not None
+    assert scores["change"]["direction"] in {"improved", "unchanged", "declined"}
+
+
+@needs_tectonic
+def test_without_the_model_tailoring_scores_by_keyword_coverage(monkeypatch):
+    from app.modules.resume_analyzer import services as analyzer
+
+    monkeypatch.setattr(analyzer, "model_available", lambda: False)
+    out = smart_tailor.tailor(_record(), JD)
+    assert out["scores"]["source"] == "keyword_fallback"
+    # Supported JD terms placed on the page (e.g. "Relational Databases" from
+    # PostgreSQL) can only raise coverage; nothing unsupported is added.
+    assert out["scores"]["after"] >= out["scores"]["before"]
 
 
 # ── match, preview and saved copies ──────────────────────────────────────

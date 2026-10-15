@@ -13,7 +13,8 @@ from app.models.tailored_resume import TailoredResume
 from app.modules.jd_analyzer import service as jd_service
 from app.models.resume import ResumeAnalysis
 from app.modules.resume_builder import autofill, cache, faang, matching, optimizer, outlook, saved, services, smart_tailor, tailor
-from app.ml.inference import ScoringModelUnavailable, model_available, predict_score
+from app.ml.inference import ScoringModelUnavailable
+from app.modules.resume_analyzer.services import score_with_source
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing
 from app.schemas.resume_builder import (
     AutofillSchema,
@@ -446,6 +447,7 @@ def _saved_resume_payload(row: TailoredResume) -> dict:
         "score_before": row.score_before,
         "score_after": row.score_after,
         "score_change": outlook.score_change(row.score_before, row.score_after),
+        "score_source": json.loads(row.details_json or "{}").get("score_source"),
         "created_at": row.created_at.isoformat() if row.created_at else "",
         "download_url": f"/resume-builder/saved-tailored/{row.id}/file",
     }
@@ -485,16 +487,19 @@ def preview_reviewed_resume(
     preview and the score shown always match the text in the editor. No LLM
     call; one or more tectonic compiles, hence the rate limit."""
     record = _resume_for_user(db, current_user.id, payload.source_analysis_id)
-    description, title, company, _analysis_text = _resolve_job_context(db, payload)
+    description, title, company, analysis_text = _resolve_job_context(db, payload)
+    # The analysis the match and tailor steps already made (cached), so the
+    # before and after here are scored exactly as they were there.
+    jd_analysis = jd_service.analyze(analysis_text or description, db=db)
     try:
         compiled = saved.compile_reviewed_resume(
-            payload.content.model_dump(), description, title, company, payload.target_pages
+            payload.content.model_dump(), description, title, company, payload.target_pages, jd_analysis
         )
     except LatexToolchainMissing as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except LatexCompileError as exc:
         raise HTTPException(status_code=422, detail=f"Resume failed to compile: {exc}") from exc
-    score_before = round(float(predict_score(record.resume_text, description)), 1) if model_available() else None
+    score_before, _ = score_with_source(record.resume_text or "", description, jd_analysis)
     return {
         "pdf_base64": base64.b64encode(compiled["pdf_bytes"]).decode("ascii"),
         "page_count": compiled["page_count"],
@@ -505,6 +510,7 @@ def preview_reviewed_resume(
         "score_before": score_before,
         "score_after": compiled["score"],
         "score_change": outlook.score_change(score_before, compiled["score"]),
+        "score_source": compiled["score_source"],
     }
 
 
@@ -516,17 +522,20 @@ def save_tailored_resume(
     _limit: None = Depends(RateLimit("resume_quick_tailor", 15, HOUR, "Too many resumes saved. Try again later.")),
 ):
     record = _resume_for_user(db, current_user.id, payload.source_analysis_id)
-    description, title, company, _analysis_text = _resolve_job_context(db, payload)
+    description, title, company, analysis_text = _resolve_job_context(db, payload)
+    # The analysis the match and tailor steps already made (cached), so the
+    # before and after here are scored exactly as they were there.
+    jd_analysis = jd_service.analyze(analysis_text or description, db=db)
     try:
         compiled = saved.compile_reviewed_resume(
-            payload.content.model_dump(), description, title, company, payload.target_pages
+            payload.content.model_dump(), description, title, company, payload.target_pages, jd_analysis
         )
     except LatexToolchainMissing as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except LatexCompileError as exc:
         raise HTTPException(status_code=422, detail=f"Resume failed to compile: {exc}") from exc
 
-    score_before = round(float(predict_score(record.resume_text, description)), 1) if model_available() else None
+    score_before, _ = score_with_source(record.resume_text or "", description, jd_analysis)
     row = TailoredResume(
         user_id=current_user.id,
         source_analysis_id=record.id,
@@ -546,6 +555,7 @@ def save_tailored_resume(
             "page_count": compiled["page_count"],
             "fits": compiled["fits"],
             "adjustments": compiled["adjustments"],
+            "score_source": compiled["score_source"],
         }),
     )
     db.add(row)

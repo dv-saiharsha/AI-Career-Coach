@@ -157,6 +157,16 @@ def _score_with_source(resume_text: str, jd_text: str, fallback_ratio: float) ->
     return fallback_ratio, SCORE_SOURCE_KEYWORDS
 
 
+def score_with_source(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> tuple[float, str]:
+    """The ATS score a scan gives, for any resume text: the trained model's when
+    it is installed, otherwise the share of the job's keywords the resume covers
+    (taxonomy-aware), with the second value saying which. Every flow that shows
+    a before/after (match, tailor, preview, save) scores both sides with this
+    and the same jd_analysis, so the two numbers are always comparable."""
+    result = _rule_based_analysis(resume_text, jd_text, jd_analysis)
+    return round(float(result["ats_score"]), 1), result["score_source"]
+
+
 def _rule_based_analysis(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> dict:
     """Keyword analysis with taxonomy-aware matching.
 

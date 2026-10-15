@@ -1,6 +1,5 @@
 """Job-specific resume analysis shared by the Resume Match workflow."""
 
-from app.ml.inference import model_available, predict_score
 from app.modules.jd_analyzer import service as jd_service
 from app.modules.resume_builder import autofill, jd_match, outlook, services
 
@@ -18,7 +17,9 @@ def analyze_resume_job(record, job_description: str, *, job_title: str = "", com
     evidence = jd_match.index_resume(record.resume_text or "", parsed)
     matches = jd_match.match_requirements(requirements, evidence, years)
 
-    score = round(float(predict_score(record.resume_text, jd_text)), 1) if model_available() else None
+    from app.modules.resume_analyzer.services import score_with_source
+
+    score, score_source = score_with_source(record.resume_text or "", jd_text, analysis)
     match_rows = [match.to_dict() for match in matches]
     missing = [row for row in match_rows if row["match"] == "missing"]
     transferable = [row for row in match_rows if row["match"] == "transferable"]
@@ -60,7 +61,12 @@ def analyze_resume_job(record, job_description: str, *, job_title: str = "", com
         "company": company,
         "score": score,
         "score_available": score is not None,
-        "score_label": "Resume-to-job compatibility estimate",
+        "score_source": score_source,
+        "score_label": (
+            "ATS score from the trained scoring model"
+            if score_source == "model"
+            else "Keyword match score: the share of this job's keywords your resume covers"
+        ),
         "requirement_coverage": jd_match.coverage(matches),
         "outlook": outlook.shortlist_outlook(score, jd_match.coverage(matches), match_rows),
         "matched_requirements": matched,

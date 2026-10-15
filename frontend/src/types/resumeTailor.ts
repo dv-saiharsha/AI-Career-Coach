@@ -126,11 +126,16 @@ export interface SmartTailorResult {
     before: number | null
     after: number | null
     change: ScoreChange | null
+    /** "model": the trained ATS model; "keyword_fallback": no model installed,
+     *  so the share of the job's keywords the resume covers (as a scan shows). */
+    source: ScoreSource | null
     outlook_before: ShortlistOutlook | null
     outlook_after: ShortlistOutlook | null
   }
   from_cache: boolean
 }
+
+export type ScoreSource = 'model' | 'keyword_fallback'
 
 /** Same job, same model; moves under one point are "unchanged". */
 export interface ScoreChange {
@@ -158,6 +163,7 @@ export interface ReviewedPreview {
   score_before: number | null
   score_after: number | null
   score_change: ScoreChange | null
+  score_source: ScoreSource | null
 }
 
 export interface ResumeJobMatch {
@@ -167,6 +173,7 @@ export interface ResumeJobMatch {
   company: string
   score: number | null
   score_available: boolean
+  score_source: ScoreSource | null
   score_label: string
   requirement_coverage: number
   outlook: ShortlistOutlook
@@ -220,6 +227,7 @@ export interface SavedTailoredResume {
   score_before: number | null
   score_after: number | null
   score_change: ScoreChange | null
+  score_source: ScoreSource | null
   created_at: string
   download_url: string
 }

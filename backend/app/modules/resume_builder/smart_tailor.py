@@ -38,7 +38,6 @@ import re
 from app.core.config import settings
 from app.core.llm import llm_client
 from app.core.taxonomy import canonical, implied_skills, skill_candidates
-from app.ml.inference import model_available, predict_score
 from app.modules.jd_analyzer import service as jd_service
 from app.modules.resume_analyzer import layout_check
 from app.modules.resume_analyzer.quality import _SECTION_PATTERNS
@@ -643,10 +642,11 @@ def tailor(
     final_text = _resume_text_from_payload(content)
 
     # 8. Validate, and measure.
-    before = after = None
-    if model_available():
-        before = round(float(predict_score(resume_text, jd_text)), 1)
-        after = round(float(predict_score(final_text, jd_text)), 1)
+    # Same scorer and same analysis on both sides: comparable by construction.
+    from app.modules.resume_analyzer.services import score_with_source
+
+    before, score_source = score_with_source(resume_text, jd_text, analysis)
+    after, _ = score_with_source(final_text, jd_text, analysis)
 
     validation = _validate(content, final_text, fitted, resume_text, matches, supported, forbidden,
                            accepted, reverted, removed_duplicates, target_pages)
@@ -720,6 +720,7 @@ def tailor(
         "scores": {
             "before": before,
             "after": after,
+            "source": score_source,
             "change": outlook.score_change(before, after),
             # Coverage does not move with tailoring (nothing is added that the
             # resume did not already evidence), so the outlook changes only

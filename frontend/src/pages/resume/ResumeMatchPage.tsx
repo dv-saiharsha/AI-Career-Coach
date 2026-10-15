@@ -30,6 +30,7 @@ import {
   QualityView,
   ScoreComparison,
   TailorProgress,
+  scoreName,
 } from '@/components/resume/TailorReport'
 import { useAuth } from '@/context/AuthContext'
 import { HttpError } from '@/lib/http'
@@ -566,6 +567,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   const scoreBefore = savedCopy?.score_before ?? preview?.score_before ?? draft?.scores.before ?? match?.score ?? null
   const scoreAfter = savedCopy?.score_after ?? preview?.score_after ?? draft?.scores.after ?? null
   const scoreChange = savedCopy?.score_change ?? preview?.score_change ?? draft?.scores.change ?? null
+  const scoreSource = savedCopy?.score_source ?? preview?.score_source ?? draft?.scores.source ?? match?.score_source ?? null
   const scoreCaption = savedCopy
     ? 'Measured on the saved, edited document.'
     : preview
@@ -719,7 +721,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div><p className="text-xs font-semibold uppercase text-muted-foreground">03 · Scan result</p><h2 className="mt-1 font-heading text-xl font-bold text-foreground">{match.resume_filename} · {match.job_title}</h2><p className="mt-1 text-sm text-muted-foreground">{match.score_label}</p></div>
             <div className="grid gap-5 sm:grid-cols-2">
-              <ScorePanel label="ATS score" score={match.score} caption={match.score_available ? 'Your resume as it is, scored against this job.' : 'The scoring model is unavailable; no score was returned.'} />
+              <ScorePanel label={scoreName(match.score_source)} score={match.score} caption={match.score_source === 'keyword_fallback' ? 'Your resume as it is: the share of this job\u2019s keywords it covers.' : match.score_available ? 'Your resume as it is, scored against this job.' : 'No score could be computed for this job description.'} />
               <OutlookCard title="Shortlist outlook" outlook={match.outlook} />
             </div>
           </div>
@@ -753,7 +755,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
                 {tailoring ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Tailoring resume</> : <><Sparkles className="mr-2 h-4 w-4" />{draft ? 'Tailor again' : 'Tailor My Resume'}</>}
               </Button>
               {draft && <p className="mt-2 text-xs text-muted-foreground">Tailoring again replaces the current draft and its unsaved edits.</p>}
-              {!match.score_available && <p className="mt-2 text-xs text-muted-foreground">Tailoring remains available. The score will stay unavailable until the scoring model is installed.</p>}
+              {match.score_source === 'keyword_fallback' && <p className="mt-2 text-xs text-muted-foreground">Scores here are keyword-coverage scores, measured the same way before and after tailoring, because the trained ATS model is not installed on this server.</p>}
             </section>
           </div>
         </section>
@@ -773,7 +775,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
           </div>
 
           <div className="grid gap-6 border-b border-border pb-5 md:grid-cols-3">
-            <ScoreComparison before={scoreBefore} after={scoreAfter} change={scoreChange} afterCaption={scoreCaption} />
+            <ScoreComparison before={scoreBefore} after={scoreAfter} change={scoreChange} afterCaption={scoreCaption} source={scoreSource} />
             <section aria-label="Job-specific resume score" className="grid content-start gap-1">
               <p className="text-xs font-semibold uppercase text-muted-foreground">Score for this job</p>
               <p className="font-heading text-3xl font-bold tabular-nums text-foreground">{draft.analysis.coverage}<span className="ml-1 text-xl">%</span></p>

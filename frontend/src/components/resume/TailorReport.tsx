@@ -7,6 +7,7 @@ import type {
   MatchLevel,
   RequirementMatch,
   ScoreChange,
+  ScoreSource,
   ShortlistOutlook,
   SmartTailorResult,
 } from '@/types/resumeTailor'
@@ -382,21 +383,27 @@ const CHANGE_COPY: Record<ScoreChange['direction'], { text: (d: number) => strin
 
 /** Original → tailored ATS score for the same job and model, shown as soon
  *  as a draft exists rather than only after saving. */
+export function scoreName(source: ScoreSource | null | undefined): string {
+  return source === 'keyword_fallback' ? 'Keyword match score' : 'ATS score'
+}
+
 export function ScoreComparison({
   before,
   after,
   change,
   afterCaption,
+  source,
 }: {
   before: number | null
   after: number | null
   change: ScoreChange | null
   afterCaption: string
+  source?: ScoreSource | null
 }) {
   const fmt = (v: number | null) => (v == null ? 'Unavailable' : `${Math.round(v)}`)
   return (
     <section aria-label="ATS score comparison" className="grid gap-2">
-      <p className="text-xs font-semibold uppercase text-muted-foreground">ATS score for this job</p>
+      <p className="text-xs font-semibold uppercase text-muted-foreground">{scoreName(source)} for this job</p>
       <div className="flex items-end gap-3">
         <div>
           <p className="text-[11px] text-muted-foreground">Original</p>
@@ -417,8 +424,10 @@ export function ScoreComparison({
       )}
       <p className="text-[11px] text-muted-foreground">
         {before == null || after == null
-          ? 'The ATS scoring model is not installed on this server, so no score was computed.'
-          : afterCaption}
+          ? 'No score could be computed for this job description.'
+          : source === 'keyword_fallback'
+            ? `${afterCaption} The share of this job's keywords the resume covers; the trained ATS model is not installed on this server.`
+            : afterCaption}
       </p>
     </section>
   )

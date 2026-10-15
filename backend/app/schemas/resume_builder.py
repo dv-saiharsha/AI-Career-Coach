@@ -421,6 +421,7 @@ class SavedTailoredResumeSchema(BaseModel):
     score_before: Optional[float] = None
     score_after: Optional[float] = None
     score_change: Optional[ScoreChangeSchema] = None
+    score_source: Optional[str] = None
     created_at: str
     download_url: str
 
@@ -437,6 +438,7 @@ class ReviewedPreviewSchema(BaseModel):
     score_before: Optional[float] = None
     score_after: Optional[float] = None
     score_change: Optional[ScoreChangeSchema] = None
+    score_source: Optional[str] = None
 
 
 # ── Tailor Resume (resume_builder/smart_tailor.py) ──────────────────────────
@@ -589,6 +591,9 @@ class TailorScoresSchema(BaseModel):
     before: Optional[float] = None
     after: Optional[float] = None
     change: Optional[ScoreChangeSchema] = None
+    # "model": the trained ATS model. "keyword_fallback": no model installed,
+    # so the share of the job's keywords covered (what a scan shows too).
+    source: Optional[str] = None
     outlook_before: Optional[ShortlistOutlookSchema] = None
     outlook_after: Optional[ShortlistOutlookSchema] = None
 
