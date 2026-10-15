@@ -19,7 +19,11 @@ any posting text was read, seed 20261014:
 - 6 junior, 7 mid, 7 senior: within a level, roles in a seeded order, one posting at a time,
   one posting per company. After the first draw, two fixes made from titles only: the level
   rule above, and skipping a "Business Development" title at selection time.
-- split 10 / 10 with `random.Random(20261014).sample` of the sorted file names.
+- split 10 / 10, stratified (re-split before any analyzer output for a real posting existed):
+  of all 184,756 splits, those with the smallest total imbalance in role, annotated level and
+  level source (8, the floor: eight categories have odd totals) were tied (400); one was chosen
+  with `random.Random(20261014).choice`. There are 3 ML/AI postings (split 2/1), 6 'years'
+  cases (3/3) and 3 mid-level postings (2/1).
 
 ## File shape
 
