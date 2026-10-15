@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
-from app.modules.job_market import matching, scheduler, services
+from app.modules.job_market import crawl_status, matching, services
 from app.schemas.job import JobFeedSchema
 
 router = APIRouter()
@@ -66,12 +66,24 @@ def list_jobs(
         # compatibility. There is nothing left to queue a refresh for; the
         # crawler keeps the table current on its own schedule.
         "refreshing": refreshing,
-        # Real, or absent. next_run_at() is None until job_market/scheduler.py's
-        # older in-process sweep has completed a pass — a process with it
-        # disabled (JOB_SWEEP_ENABLED=false, the default everywhere now that
-        # the worker service is the real crawl) says nothing rather than
-        # advertising a schedule it is not keeping.
-        "next_sync_at": (
-            scheduler.next_run_at().isoformat() if scheduler.next_run_at() else None
-        ),
+        # The crawl worker's next scheduled run, from crawl_runs; absent when
+        # it has never run or is not keeping its schedule, rather than
+        # advertising a time nothing will keep.
+        "next_sync_at": _next_sync(db),
     }
+
+
+def _next_sync(db: Session) -> str | None:
+    status = crawl_status.scheduler_status(db)
+    return None if status["overdue"] else status["next_run_at"]
+
+
+@router.get("/scheduler-status")
+def scheduler_status(
+    db: Session = Depends(get_db),
+    _user: AuthenticatedUser = Depends(get_current_user),
+):
+    """The hourly crawl: last run time and counts (per crawler), whether one
+    is running now, and when the next one is due. A database read; the worker
+    itself runs in its own process (app/worker.py)."""
+    return crawl_status.scheduler_status(db)

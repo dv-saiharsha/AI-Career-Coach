@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # on alongside `worker` is wasteful rather than wrong — it just no longer
     # happens by default.
     JOB_SWEEP_ENABLED: bool = False
+    # The crawl worker's cadence (app/worker.py): one run every this many
+    # seconds, measured from the start of the previous run.
+    CRAWL_INTERVAL_SECONDS: int = 3600
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 5

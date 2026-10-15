@@ -416,7 +416,7 @@ def _enrichment_request_cap() -> int:
     return max(1, int(settings.JOB_ENRICH_MAX_COST_PER_RUN_USD / _worst_case_cost_per_request_usd()))
 
 
-def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
+def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> dict:
     """Batch-enrich currently-open rows with no enriched_at, oldest-fetched
     first, up to _enrichment_request_cap() of them. A backlog bigger than
     the cap is not lost — enriched_at stays null on whatever wasn't reached,
@@ -431,7 +431,7 @@ def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
         .all()
     )
     if not pending_rows:
-        return
+        return {"pending": 0, "cap": cap, "enriched": 0, "failed": 0}
 
     pending = {
         str(row.id): {"title": row.title, "company": row.company, "description": row.description or ""}
@@ -466,6 +466,10 @@ def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
         "crawl enrichment: %d pending (cap %d), %d enriched, %d failed, $%.4f",
         len(pending_rows), cap, report.newly_enriched, report.enrichment_failures, report.claude_cost_usd(),
     )
+    return {
+        "pending": len(pending_rows), "cap": cap,
+        "enriched": report.newly_enriched, "failed": report.enrichment_failures,
+    }
 
 
 def run_crawl(
@@ -498,10 +502,16 @@ def run_crawl(
                 results[company.id] = CompanyResult(error=str(exc))
 
     errors: list[str] = []
+    # Per crawler (ATS type): what it fetched and what that became.
+    by_crawler: dict[str, dict] = {}
     for company in companies:
         result = results[company.id]
         run.companies_attempted += 1
         company.last_crawled_at = datetime.now(timezone.utc)
+        tally = by_crawler.setdefault(company.ats_type, {
+            "companies": 0, "failed": 0, "fetched": 0, "new": 0, "updated": 0, "duplicates": 0, "errors": [],
+        })
+        tally["companies"] += 1
 
         if result.error:
             company.consecutive_failures += 1
@@ -509,6 +519,9 @@ def run_crawl(
             company.last_error = result.error[:2000]
             run.companies_failed += 1
             errors.append(f"{company.name}: {result.error}")
+            tally["failed"] += 1
+            if len(tally["errors"]) < 5:
+                tally["errors"].append(f"{company.name}: {result.error[:200]}")
             continue
 
         company.consecutive_failures = 0
@@ -526,6 +539,12 @@ def run_crawl(
         run.jobs_new += new_count
         run.jobs_updated += updated_count
         run.jobs_closed += closed_count
+        fetched = 0 if result.not_modified else len(result.rows)
+        tally["fetched"] += fetched
+        tally["new"] += new_count
+        tally["updated"] += updated_count
+        # Fetched again and already stored unchanged.
+        tally["duplicates"] += max(0, fetched - new_count - updated_count)
 
     # Committed here, before enrichment — not just at the very end. Every
     # company's crawl result is the actual product of this run; enrichment
@@ -536,8 +555,9 @@ def run_crawl(
     # would lose the entire run's real work along with it.
     db.commit()
 
+    enrichment = {"pending": 0, "cap": 0, "enriched": 0, "failed": 0}
     try:
-        _enrich_pending(db, run, errors)
+        enrichment = _enrich_pending(db, run, errors)
     except Exception as exc:  # noqa: BLE001 - enrichment failing must not lose the crawl above
         db.rollback()
         logger.exception("crawl enrichment failed, crawl results already committed")
@@ -545,12 +565,24 @@ def run_crawl(
 
     run.jobs_closed += _cleanup_retention(db)
     run.errors = json.dumps(errors[:50])
+    run.stats = json.dumps({
+        "fetched": sum(t["fetched"] for t in by_crawler.values()),
+        "duplicates": sum(t["duplicates"] for t in by_crawler.values()),
+        "enrichment": enrichment,
+        "by_crawler": by_crawler,
+    })
     run.ended_at = datetime.now(timezone.utc)
     db.commit()
 
     logger.info(
-        "crawl run %s: %d/%d companies ok, %d new, %d updated, %d closed",
+        "crawl run %s: %d/%d companies ok, %d new, %d updated, %d closed, %d enriched",
         run.id, run.companies_succeeded, run.companies_attempted,
-        run.jobs_new, run.jobs_updated, run.jobs_closed,
+        run.jobs_new, run.jobs_updated, run.jobs_closed, enrichment["enriched"],
     )
+    for crawler, tally in sorted(by_crawler.items()):
+        logger.info(
+            "crawl run %s [%s]: %d companies (%d failed), %d fetched, %d new, %d updated, %d duplicates%s",
+            run.id, crawler, tally["companies"], tally["failed"], tally["fetched"], tally["new"],
+            tally["updated"], tally["duplicates"], f", errors: {tally['errors']}" if tally["errors"] else "",
+        )
     return run

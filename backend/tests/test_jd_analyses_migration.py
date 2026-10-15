@@ -50,12 +50,12 @@ def migrated(tmp_path_factory):
 
 def test_the_chain_has_one_head_and_this_migration_sits_on_the_previous_one():
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == [REVISION]
+    assert len(script.get_heads()) == 1
     assert script.get_revision(REVISION).down_revision == PARENT
+    assert REVISION in {r.revision for r in script.walk_revisions()}
 
 
-def test_upgrade_creates_the_table_and_stamps_the_version(migrated):
-    assert version(migrated) == REVISION
+def test_upgrade_creates_the_table(migrated):
     assert "jd_analyses" in tables(migrated)
 
 
@@ -95,9 +95,9 @@ def test_job_listing_id_is_not_a_foreign_key(migrated):
 def test_downgrade_removes_the_table_and_restores_the_previous_version_then_upgrade_reapplies(tmp_path):
     db_file = tmp_path / "round_trip.db"
     assert alembic(db_file, "upgrade", "head").returncode == 0
-    down = alembic(db_file, "downgrade", "-1")
+    down = alembic(db_file, "downgrade", PARENT)
     assert down.returncode == 0, down.stderr[-2000:]
     assert version(db_file) == PARENT and "jd_analyses" not in tables(db_file)
-    up = alembic(db_file, "upgrade", "head")
+    up = alembic(db_file, "upgrade", REVISION)
     assert up.returncode == 0, up.stderr[-2000:]
     assert version(db_file) == REVISION and "jd_analyses" in tables(db_file)

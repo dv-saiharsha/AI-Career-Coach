@@ -40,6 +40,9 @@ class CrawlRun(Base):
     # variable-length list on a backend (SQLite in dev) with no array type.
     errors = Column(Text, nullable=False, default="[]", server_default="[]")
     cost_usd = Column(Float, nullable=False, default=0.0, server_default="0")
+    # JSON object: per-crawler counts (fetched, new, updated, duplicates,
+    # companies, failed, errors) and enrichment counts. See crawler.run_crawl.
+    stats = Column(Text, nullable=False, default="{}", server_default="{}")
 
     __table_args__ = (
         CheckConstraint("trigger IN ('scheduled', 'manual')", name="ck_crawl_runs_trigger"),
