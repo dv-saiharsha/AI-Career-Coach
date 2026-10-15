@@ -36,6 +36,7 @@ import { useAuth } from '@/context/AuthContext'
 import { HttpError } from '@/lib/http'
 import { cn } from '@/lib/utils'
 import { resumeService } from '@/services/resumeService'
+import { subscribeToScanStages } from '@/services/resumeProgressStream'
 import { resumeTailorService } from '@/services/resumeTailorService'
 import { jobsService } from '@/services/jobsService'
 import { profileService } from '@/services/profileService'
@@ -53,6 +54,35 @@ import type {
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 type DraftTab = 'edit' | 'analysis' | 'changes' | 'quality'
+
+// The stages the backend reports for a scan (resume_analyzer SCAN_STAGES), then
+// the requirement match this page runs after it. Only real events advance the
+// list: no timer pretends progress the server has not reported.
+const SCAN_STEPS = [
+  { key: 'extracting', label: 'Reading your resume file' },
+  { key: 'checking', label: 'Verifying this is a resume' },
+  { key: 'analyzing', label: 'Analyzing the job and comparing your resume' },
+  { key: 'reconciling', label: 'Reconciling skills your experience implies' },
+  { key: 'diagnostics', label: 'Checking formatting and bullets' },
+  { key: 'matching', label: 'Matching every requirement to your evidence' },
+] as const
+
+function ScanProgress({ stage, elapsed }: { stage: string | null; elapsed: number }) {
+  const current = SCAN_STEPS.findIndex((step) => step.key === stage)
+  return (
+    <div className="sm:col-span-2 grid gap-1.5 border-l-2 border-primary pl-3" aria-live="polite">
+      {SCAN_STEPS.map((step, index) => (
+        <div key={step.key} className={cn('flex items-center gap-2 text-xs', index <= current ? 'text-foreground' : 'text-muted-foreground')}>
+          {index < current ? <Check className="h-3.5 w-3.5 text-success" /> : index === current ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <span className="h-3.5 w-3.5 rounded-full border border-border" />}
+          {step.label}
+        </div>
+      ))}
+      <p className="text-[11px] text-muted-foreground">
+        {elapsed}s{current === -1 ? ' · waiting for the server' : ''}. A first scan against a new job takes 1–2 minutes with the local AI model.
+      </p>
+    </div>
+  )
+}
 
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof HttpError ? error.message : error instanceof Error ? error.message : fallback
@@ -252,6 +282,8 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   const [match, setMatch] = useState<ResumeJobMatch | null>(restored?.match ?? null)
   const [originalResume, setOriginalResume] = useState<ResumeAutofill | null>(restored?.originalResume ?? null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [scanStage, setScanStage] = useState<string | null>(null)
+  const [scanElapsed, setScanElapsed] = useState(0)
   const [tailoring, setTailoring] = useState(false)
   const [tailorElapsed, setTailorElapsed] = useState(0)
   const [previewing, setPreviewing] = useState(false)
@@ -328,6 +360,14 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   }, [previewPdf])
 
   useEffect(() => {
+    if (!analyzing) return
+    setScanElapsed(0)
+    const started = Date.now()
+    const timer = window.setInterval(() => setScanElapsed(Math.round((Date.now() - started) / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [analyzing])
+
+  useEffect(() => {
     if (!tailoring) return
     setTailorElapsed(0)
     const started = Date.now()
@@ -395,10 +435,16 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
       return
     }
     setAnalyzing(true)
+    setScanStage(null)
+    let unsubscribe = () => {}
     try {
       let id = analysisId
       if (selectedFile) {
-        const scanned = await resumeService.analyzeResume(selectedFile, jobDescription, crypto.randomUUID())
+        // The scan id correlates the backend's live stage events with this scan.
+        const scanId = crypto.randomUUID()
+        unsubscribe = subscribeToScanStages(scanId, setScanStage)
+        const scanned = await resumeService.analyzeResume(selectedFile, jobDescription, scanId)
+        unsubscribe()
         id = scanned.id
         setAnalysisId(id)
         setSelectedFile(null)
@@ -406,6 +452,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
         setHistory(items)
       }
       if (!id) throw new Error('Choose a resume before analyzing.')
+      setScanStage('matching')
       const result = await resumeTailorService.matchResume(id, jobParams())
       resetResults()
       setMatch(result)
@@ -417,7 +464,9 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
     } catch (err) {
       setError(messageFor(err, 'Resume analysis failed. Your selected resume and job remain available.'))
     } finally {
+      unsubscribe()
       setAnalyzing(false)
+      setScanStage(null)
     }
   }
 
@@ -663,6 +712,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
                   </Button>
                 </div>
                 {selectedFile && <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 border-l-2 border-primary pl-3 text-sm"><span className="truncate font-medium text-foreground">{selectedFile.name} · Ready to scan</span><Button size="sm" variant="ghost" onClick={() => setSelectedFile(null)}>Remove</Button></div>}
+                {analyzing && <ScanProgress stage={scanStage} elapsed={scanElapsed} />}
                 <Button className="sm:col-span-2" onClick={analyze} disabled={analyzing || tailoring || jobLoading || !jobDescription.trim()}>
                   {analyzing ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Scanning</> : <><FileSearch className="mr-2 h-4 w-4" />Scan resume for this job</>}
                 </Button>
