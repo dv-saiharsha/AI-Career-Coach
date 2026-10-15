@@ -44,7 +44,7 @@ run gc projects add-iam-policy-binding "${PROJECT_ID}" --condition=None \
 
 say "Avatars: signed upload URLs are signed by the API's own identity"
 run gcloud storage buckets add-iam-policy-binding "gs://${AVATAR_BUCKET}" \
-  --member "serviceAccount:${SA_API}" --role roles/storage.objectUser
+  --member "serviceAccount:${SA_API}" --role roles/storage.objectUser --format=none
 run gc iam service-accounts add-iam-policy-binding "${SA_API}" \
   --member "serviceAccount:${SA_API}" --role roles/iam.serviceAccountTokenCreator --format=none
 
@@ -59,7 +59,7 @@ fi
 PROJECT_NUMBER="$(gc projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 run gcloud storage buckets add-iam-policy-binding "gs://${MODELS_BUCKET}" \
   --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role roles/storage.objectViewer
+  --role roles/storage.objectViewer --format=none
 
 say "DB_URL secret (${DB_URL_SECRET}), composed from ${DB_PASSWORD_SECRET}"
 # Cloud Run connects through the Unix socket the Cloud SQL connector mounts

@@ -43,7 +43,8 @@ applied unless the status table says so.
 | Backups | ✅ Daily automated + on-demand `1792067726414` before the load |
 | Local dev on Cloud SQL | ✅ Proxy LaunchAgent on 127.0.0.1:5433, `backend/.env` points at it |
 | Crawler every 20 min | 🟡 Runs on the owner's Mac (LaunchAgent) against Cloud SQL until `40_jobs.sh` |
-| `10`–`40` | ⬜ Written and dry-run checked; not applied |
+| `10_foundation.sh` | ✅ Applied 2026-10-15: registries (us-east1, us-east4), service accounts `hireloom-jobs` / `-scheduler` / `-ollama`, grants, private models bucket, `hireloom-db-url` secret (verified equal to the expected URL without printing it) |
+| `20`–`40` | ⬜ Written and dry-run checked; `20_build.sh api` being built (no deploy) |
 | `50_api.sh` | ⛔ Owner: no deploy/publish yet. Needs `DEPLOY_APPROVED=yes` |
 | `60_monitoring.sh` | ⬜ Written and dry-run checked; not applied |
 | ATS model | ⬜ `ats_model.joblib` is not on this Mac or in any bucket. Scores show "Unavailable" until it is uploaded to `gs://hireloom-models-452189867278/` |
