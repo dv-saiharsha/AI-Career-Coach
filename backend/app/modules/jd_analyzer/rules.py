@@ -324,12 +324,17 @@ def is_optional(text: str, quote: str) -> bool:
 def skill_bucket(text: str, evidence: str, default: str) -> str:
     """"required" or "preferred" for a skill, by where the JD puts it. In a
     nice-to-have section: preferred. Otherwise optional wording around it:
-    preferred. In a requirements section, or a section that mixes both kinds:
-    required. With no section to go by, `default` (the model's bucket, or the
-    wording rule for a rule-found skill)."""
+    preferred. In a requirements section: required. In a section that mixes
+    both kinds ("Qualifications/Nice to have"): required only if its own clause
+    says so ("must", "required"), otherwise preferred. With no section to go
+    by, `default` (the model's bucket, or the wording rule for a rule-found
+    skill)."""
     if is_optional(text, evidence):
         return "preferred"
-    if section_kind(text, evidence) in ("required", "mixed"):
+    kind = section_kind(text, evidence)
+    if kind == "mixed":
+        return "required" if any(_REQUIRED.search(c) for c in clauses_around(text, evidence)) else "preferred"
+    if kind == "required":
         return "required"
     return default
 
@@ -341,9 +346,10 @@ def requirement_flag(text: str, evidence: str, model_flag: bool) -> bool:
     makes it true, and only a quote with neither falls back to the model's flag."""
     if is_optional(text, evidence):
         return False
-    if any(_REQUIRED.search(c) for c in clauses_around(text, evidence)) or section_kind(text, evidence) in ("required", "mixed"):
+    if any(_REQUIRED.search(c) for c in clauses_around(text, evidence)) or section_kind(text, evidence) == "required":
         return True
-    return model_flag
+    # In a mixed section only "must"/"required" (above) makes it required.
+    return False if section_kind(text, evidence) == "mixed" else model_flag
 
 
 # ── Either/or groups ─────────────────────────────────────────────────────

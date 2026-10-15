@@ -721,6 +721,8 @@ class TestMixedSection:
         "- Strong experience operating Kubernetes\n"
         "- Experience with eBPF\n"
         "- Familiarity with Ceph is a plus\n"
+        "- You must know Linux networking\n"
+        "- Terraform experience required\n"
     )
 
     def test_a_heading_naming_both_kinds_is_mixed(self):
@@ -728,8 +730,16 @@ class TestMixedSection:
         assert rules.section_kind("Preferred qualifications:\nRust\n", "Rust") == "optional"
         assert rules.section_kind("Requirements & nice to have:\nRust\n", "Rust") == "mixed"
 
-    def test_in_a_mixed_section_only_an_optional_clause_makes_a_skill_preferred(self):
-        assert rules.skill_bucket(self.TEXT, "Kubernetes", "preferred") == "required"
-        assert rules.skill_bucket(self.TEXT, "eBPF", "preferred") == "required"
+    def test_in_a_mixed_section_only_must_or_required_makes_a_skill_required(self):
+        assert rules.skill_bucket(self.TEXT, "Linux networking", "preferred") == "required"
+        assert rules.skill_bucket(self.TEXT, "Terraform", "preferred") == "required"
+        # "Strong experience" is not "must" / "required": preferred, whatever the model said.
+        assert rules.skill_bucket(self.TEXT, "Kubernetes", "required") == "preferred"
+        assert rules.skill_bucket(self.TEXT, "eBPF", "required") == "preferred"
         assert rules.skill_bucket(self.TEXT, "Ceph", "required") == "preferred"
-        assert rules.classify_rule_skill(self.TEXT, "eBPF") == "required"
+        assert rules.classify_rule_skill(self.TEXT, "eBPF") == "preferred"
+        assert rules.classify_rule_skill(self.TEXT, "Linux networking") == "required"
+
+    def test_in_a_mixed_section_a_requirement_flag_needs_must_or_required(self):
+        assert rules.requirement_flag(self.TEXT, "Experience with eBPF", True) is False
+        assert rules.requirement_flag(self.TEXT, "Terraform experience required", False) is True

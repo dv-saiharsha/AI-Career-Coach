@@ -12,16 +12,16 @@
   "title_in_description": false,
   "judgment_calls": [
     "'seasoned SRE' is not a level word: mid from '5+ years' (source years).",
-    "The one section is headed 'QUALIFICATIONS/NICE TO HAVE', which names both kinds. The clause rule alone decides: an item whose own clause has an optional marker is preferred, every other item required. No bullet has an optional marker, so every item is required, including GPU workloads, eBPF, XDP, Falco, Coroot, SIEM, Calico, Cilium, MetalLB, distributed storage, Ceph and Longhorn.",
-    "Named examples in parentheses are required with their bullet: Terraform, Ansible; CNI plugins, VXLAN, BGP; FluxCD, ArgoCD; Prometheus, Grafana, Loki, Thanos, VictoriaMetrics, Datadog.",
-    "'Python and either Go or Bash': Python required; Go or Bash one group ('scripting')."
+    "The one section is headed 'QUALIFICATIONS/NICE TO HAVE', which names both kinds. In a mixed section an item is required only if its own clause says 'must' or 'required'; no bullet does, so every item is preferred, including the 'Strong'/'Deep knowledge'/'Proficiency' ones. Expected required skills: none.",
+    "'Python and either Go or Bash': Go or Bash one group ('scripting'), preferred like the rest."
   ],
   "expected": {
     "job_title": "Software Engineer, Site Reliability",
     "seniority": "mid",
     "seniority_source": "years",
     "min_years_experience": 5,
-    "required_skills": [
+    "required_skills": [],
+    "preferred_skills": [
       {
         "name": "kubernetes",
         "evidence": "operating Kubernetes at scale",
@@ -213,7 +213,6 @@
         "alternative_group": null
       }
     ],
-    "preferred_skills": [],
     "tools_technologies": [
       "kubernetes",
       "terraform",
@@ -247,155 +246,155 @@
     "ats_keywords": [
       {
         "term": "kubernetes",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "infrastructure as code",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "terraform",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "ansible",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "linux networking",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "container networking",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "cni",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "vxlan",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "bgp",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "dns",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "cicd",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "gitops",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "fluxcd",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "argocd",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "python",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "go",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "bash",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "logging",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "monitoring",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "alerting",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "prometheus",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "grafana",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "loki",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "thanos",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "victoriametrics",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "datadog",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "gpu workloads",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "ebpf",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "xdp",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "falco",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "coroot",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "siem",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "calico",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "cilium",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "metallb",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "distributed storage",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "ceph",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "longhorn",
-        "weight": 1.0
+        "weight": 0.5
       },
       {
         "term": "software engineer site reliability",
