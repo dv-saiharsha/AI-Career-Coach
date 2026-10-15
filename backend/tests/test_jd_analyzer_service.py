@@ -828,3 +828,12 @@ class TestTruncation:
         llm.replies = [LLMProviderError("down", kind="unreachable")]
         analysis, _ = service.analyze_with_report(JD, use_cache=False)
         assert analysis.source == "rules"
+
+
+class TestHeadingRule:
+    def test_a_heading_proposed_as_a_skill_is_dropped(self, llm):
+        text = JD + "\n\nOUR VALUES\n\nTrust and craft.\n"
+        llm.replies = [reply(preferred_skills=[skill("Kubernetes"), skill("our values", "OUR VALUES")])]
+        analysis, report = service.analyze_with_report(text, use_cache=False)
+        assert "our values" not in {s.name for s in analysis.required_skills + analysis.preferred_skills}
+        assert "our values (a heading)" in report.rejected

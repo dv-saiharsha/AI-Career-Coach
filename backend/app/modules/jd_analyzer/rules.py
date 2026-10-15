@@ -322,6 +322,35 @@ def section_heading(text: str, quote: str) -> str:
     return ""
 
 
+def headings_in(text: str) -> list[tuple[int, str, str | None]]:
+    """Every heading in `text`, in order: (character offset, the line as
+    written, heading_kind). Same detection as section_heading: the first line
+    is the job title unless it ends in a colon."""
+    found: list[tuple[int, str, str | None]] = []
+    lines = text.split("\n")
+    first = next((i for i, line in enumerate(lines) if line.strip()), None)
+    offset = 0
+    for i, line in enumerate(lines):
+        if line.strip() and not (i == first and not line.strip().endswith(":")):
+            after = next((nxt for nxt in lines[i + 1:] if nxt.strip()), "")
+            if looks_like_heading(line, after):
+                found.append((offset, line.strip(), heading_kind(cleaning.heading_name(line))))
+        offset += len(line) + 1
+    return found
+
+
+def _flat_words(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9+#]+", " ", value.lower()).split())
+
+
+def is_heading_text(text: str, name: str, evidence: str) -> bool:
+    """Whether a skill is really a heading of the posting: its quote or its
+    name is a whole line the posting sets out as a heading ("EVEN BETTER",
+    "OUR VALUES", "Why join us")."""
+    lines = {_flat_words(re.sub(r"(?:\.\.\.|…)$", "", line.rstrip(":"))) for _, line, _ in headings_in(text)}
+    return bool({_flat_words(evidence), _flat_words(name)} & lines - {""})
+
+
 def section_kind(text: str, quote: str) -> str | None:
     """"optional" when `quote` sits under a nice-to-have heading ("Nice to
     have", "Preferred qualifications", "Bonus"), "required" under a heading

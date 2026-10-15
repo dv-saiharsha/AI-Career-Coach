@@ -787,3 +787,17 @@ class TestHeadingsByShapeAndStem:
     def test_the_first_line_is_the_title_unless_it_ends_in_a_colon(self):
         assert rules.section_kind("Senior Engineer, Skills Platform\n\nPython\n", "Python") is None
         assert rules.section_kind("Requirements:\nPython\n", "Python") == "required"
+
+
+class TestHeadingsAreNotSkills:
+    TEXT = "Software Engineer\n\nWHAT YOU'LL BRING\n\n- Python\n\nEVEN BETTER...\n\n- Go\n\nOUR VALUES\n\nTrust.\n"
+
+    def test_headings_in_lists_every_heading_with_its_kind(self):
+        assert [(line, kind) for _, line, kind in rules.headings_in(self.TEXT)] == [
+            ("WHAT YOU'LL BRING", "required"), ("EVEN BETTER...", None), ("OUR VALUES", None),
+        ]
+
+    def test_a_heading_line_is_never_a_skill(self):
+        assert rules.is_heading_text(self.TEXT, "even better", "EVEN BETTER")
+        assert rules.is_heading_text(self.TEXT, "our values", "OUR VALUES")
+        assert not rules.is_heading_text(self.TEXT, "python", "Python")

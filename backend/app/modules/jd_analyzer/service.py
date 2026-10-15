@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 14
+ANALYZER_VERSION = 15
 
 TOOL_NAME = "analyze_job_description"
 MISSED_TOOL_NAME = "list_missed_skills"
@@ -611,6 +611,16 @@ def _finalize(out: _LLMOutput, cleaned: str, report: AnalysisReport) -> JDAnalys
         analysis.source = "hybrid"
         analysis.required_skills = rules.assign_alternative_groups(analysis.required_skills, cleaned)
         analysis.preferred_skills = rules.assign_alternative_groups(analysis.preferred_skills, cleaned)
+
+    # A heading of the posting is never a skill, whoever proposed it.
+    for key in ("required_skills", "preferred_skills"):
+        kept = []
+        for skill in getattr(analysis, key):
+            if rules.is_heading_text(cleaned, skill.name, skill.evidence):
+                report.rejected.append(f"{skill.name} (a heading)")
+            else:
+                kept.append(skill)
+        setattr(analysis, key, kept)
 
     analysis.ats_keywords = rules.build_keywords(analysis)
     return analysis
