@@ -52,10 +52,12 @@ else
 fi
 
 say "GPU for Ollama (${GPU_REGION})"
-echo "  Cloud Run L4 GPUs are available in a subset of regions and need quota"
-echo "  ('Total Nvidia L4 GPU allocation without zonal redundancy, per project per region')."
-echo "  Check: https://console.cloud.google.com/iam-admin/quotas?project=${PROJECT_ID}"
-echo "  and the Cloud Run GPU region list before 30_ollama.sh."
+case "${GPU_REGION}" in
+  us-east4|us-central1|europe-west1|europe-west4|asia-southeast1) ok "${GPU_REGION} offers Cloud Run L4 GPUs (docs, 2026-10-15)" ;;
+  *) todo "${GPU_REGION} is not a Cloud Run L4 region; see README 'GPU facts'" ;;
+esac
+echo "  Quota: the first L4 deployment in a region is granted 3 GPUs automatically."
+echo "  Price: confirm the current L4 rate at https://cloud.google.com/run/pricing before 30_ollama.sh."
 
 say "Running services (read-only)"
 gc run services list --format='table(metadata.name,region,status.url)' 2>/dev/null || true

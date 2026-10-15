@@ -84,6 +84,24 @@ launchctl bootout gui/$(id -u)/com.hireloom.crawl-worker
 rm ~/Library/LaunchAgents/com.hireloom.crawl-worker.plist
 ```
 
+## GPU facts (checked 2026-10-15)
+
+From [Cloud Run GPU support for services](https://docs.cloud.google.com/run/docs/configuring/services/gpu):
+
+* NVIDIA L4 regions: `us-east4` (this setup's default; may need a quota increase to
+  scale further), `us-central1`, `europe-west1`, `europe-west4`, `asia-southeast1`
+  (`asia-south1` by invitation). `us-east1` does not offer Cloud Run GPUs, hence
+  the separate `GPU_REGION`.
+* L4 needs at least 4 CPU / 16 GiB (8 CPU / 32 GiB recommended, as configured),
+  instance-based billing (`--no-cpu-throttling`), and still scales to zero.
+* Quota: a project's first L4 deployment in a region is granted 3 GPUs (zonal
+  redundancy off) automatically; `--max-instances 1` stays well inside it.
+* Billing: the GPU is charged for the whole life of an instance, not per
+  request. Scale-to-zero plus the hourly enricher is what keeps it bounded.
+* Price: read the current per-second L4 rate on
+  [Cloud Run pricing](https://cloud.google.com/run/pricing) ("no zonal
+  redundancy" row) before `30_ollama.sh`; it is not copied here because it changes.
+
 ## Rolling back
 
 * **Jobs:** `gcloud scheduler jobs pause hireloom-crawler-every-20m --location us-east1`
