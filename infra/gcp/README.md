@@ -27,7 +27,9 @@ applied unless the status table says so.
 * **One image** (`backend/Dockerfile`) runs the API and both jobs; only the
   command differs. **One identity per workload**, each with only what it
   uses: `hireloom-api`, `hireloom-jobs`, `hireloom-scheduler` (may only
-  start the two jobs), `hireloom-ollama` (no grants at all).
+  start the two jobs), `hireloom-ollama` (no grants at all), `hireloom-build`
+  (reads build source and the models bucket, pushes to the two registries,
+  writes build logs; builds never run as the broad default compute account).
 * **Secrets** stay in Secret Manager. `DB_URL` is composed from the existing
   password secret without ever being printed.
 * **No Redis, one API instance** (MIGRATION_RUNBOOK §1). Crawls never overlap:
@@ -43,7 +45,7 @@ applied unless the status table says so.
 | Backups | ✅ Daily automated + on-demand `1792067726414` before the load |
 | Local dev on Cloud SQL | ✅ Proxy LaunchAgent on 127.0.0.1:5433, `backend/.env` points at it |
 | Crawler every 20 min | 🟡 Runs on the owner's Mac (LaunchAgent) against Cloud SQL until `40_jobs.sh` |
-| `10_foundation.sh` | ✅ Applied 2026-10-15: registries (us-east1, us-east4), service accounts `hireloom-jobs` / `-scheduler` / `-ollama`, grants, private models bucket, `hireloom-db-url` secret (verified equal to the expected URL without printing it) |
+| `10_foundation.sh` | ✅ Applied 2026-10-15: registries (us-east1, us-east4), service accounts `hireloom-jobs` / `-scheduler` / `-ollama` / `-build`, grants, private models bucket, `hireloom-db-url` secret (verified equal to the expected URL without printing it) |
 | `20`–`40` | ⬜ Written and dry-run checked; `20_build.sh api` being built (no deploy) |
 | `50_api.sh` | ⛔ Owner: no deploy/publish yet. Needs `DEPLOY_APPROVED=yes` |
 | `60_monitoring.sh` | ⬜ Written and dry-run checked; not applied |

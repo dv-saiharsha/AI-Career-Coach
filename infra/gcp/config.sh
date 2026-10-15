@@ -26,6 +26,8 @@ SA_API="hireloom-api@${PROJECT_ID}.iam.gserviceaccount.com"            # exists
 SA_JOBS="hireloom-jobs@${PROJECT_ID}.iam.gserviceaccount.com"          # crawler + enricher
 SA_SCHEDULER="hireloom-scheduler@${PROJECT_ID}.iam.gserviceaccount.com" # starts the jobs
 SA_OLLAMA="hireloom-ollama@${PROJECT_ID}.iam.gserviceaccount.com"      # runs the model, no grants
+SA_BUILD="hireloom-build@${PROJECT_ID}.iam.gserviceaccount.com"        # Cloud Build: read source, push images
+BUILD_SOURCE_BUCKET="${PROJECT_ID}_cloudbuild"                         # where gcloud builds submit uploads
 FIREBASE_ROLE="projects/${PROJECT_ID}/roles/hireloomFirebaseUserAdmin"  # exists
 AVATAR_BUCKET="hireloom-avatars-452189867278"                          # exists
 # Private; holds the trained ATS model (gitignored, so not in any build).

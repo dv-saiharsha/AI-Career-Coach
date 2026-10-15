@@ -30,6 +30,7 @@ create_sa "${SA_API}" "HireLoom API (Cloud Run)"
 create_sa "${SA_JOBS}" "HireLoom crawler and enricher (Cloud Run Jobs)"
 create_sa "${SA_SCHEDULER}" "HireLoom Cloud Scheduler: starts the jobs"
 create_sa "${SA_OLLAMA}" "HireLoom Ollama GPU service (no grants)"
+create_sa "${SA_BUILD}" "HireLoom Cloud Build: reads source, pushes images"
 
 say "Project-level grants"
 # Cloud SQL connections for both workloads that use the database.
@@ -55,11 +56,23 @@ else
   run gcloud storage buckets create "gs://${MODELS_BUCKET}" --project "${PROJECT_ID}" \
     --location "${REGION}" --uniform-bucket-level-access --public-access-prevention
 fi
-# Cloud Build's identity reads the model when it builds the API image.
-PROJECT_NUMBER="$(gc projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
-run gcloud storage buckets add-iam-policy-binding "gs://${MODELS_BUCKET}" \
-  --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role roles/storage.objectViewer --format=none
+say "Build identity: exactly what a build needs, not the broad default account"
+# Reads the uploaded source and the ATS model; pushes to the two registries;
+# writes build logs. Builds run as it (20_build.sh --service-account).
+if ! exists gcloud storage buckets describe "gs://${BUILD_SOURCE_BUCKET}"; then
+  run gcloud storage buckets create "gs://${BUILD_SOURCE_BUCKET}" --project "${PROJECT_ID}" \
+    --location US --uniform-bucket-level-access --public-access-prevention
+fi
+for bucket in "${BUILD_SOURCE_BUCKET}" "${MODELS_BUCKET}"; do
+  run gcloud storage buckets add-iam-policy-binding "gs://${bucket}" \
+    --member "serviceAccount:${SA_BUILD}" --role roles/storage.objectViewer --format=none
+done
+for loc in "${REGION}" "${GPU_REGION}"; do
+  run gc artifacts repositories add-iam-policy-binding "${REPO}" --location "${loc}" \
+    --member "serviceAccount:${SA_BUILD}" --role roles/artifactregistry.writer --format=none
+done
+run gc projects add-iam-policy-binding "${PROJECT_ID}" --condition=None \
+  --member "serviceAccount:${SA_BUILD}" --role roles/logging.logWriter --format=none
 
 say "DB_URL secret (${DB_URL_SECRET}), composed from ${DB_PASSWORD_SECRET}"
 # Cloud Run connects through the Unix socket the Cloud SQL connector mounts

@@ -22,12 +22,14 @@ case "${what}" in
   api)
     say "API/worker image ${API_IMAGE}:${tag}"
     run gc builds submit "${ROOT}/backend" --region "${REGION}" \
+      --service-account "projects/${PROJECT_ID}/serviceAccounts/${SA_BUILD}" \
       --config "${HERE}/cloudbuild.api.yaml" \
       --substitutions "_IMAGE=${API_IMAGE},_TAG=${tag},_MODELS_BUCKET=${MODELS_BUCKET}"
     ;;
   ollama)
     say "Ollama image ${OLLAMA_IMAGE}:${OLLAMA_VERSION} with: ${OLLAMA_MODELS}"
     run gc builds submit "${HERE}/ollama" --region "${GPU_REGION}" \
+      --service-account "projects/${PROJECT_ID}/serviceAccounts/${SA_BUILD}" \
       --config "${HERE}/ollama/cloudbuild.yaml" \
       --substitutions "_IMAGE=${OLLAMA_IMAGE},_OLLAMA_VERSION=${OLLAMA_VERSION},_MODEL_LIST=${OLLAMA_MODELS}"
     ;;
