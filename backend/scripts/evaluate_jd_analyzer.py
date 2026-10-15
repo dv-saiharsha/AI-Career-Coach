@@ -25,8 +25,10 @@ plus either/or groups, seniority and its source, min_years, education and
 certifications (with the required flag), skills dropped by the evidence check,
 the source of the analysis, and seconds.
 
-Skill names match when their canonical forms are equal, or one contains the
-other as whole words ("encryption" and "encryption at rest"), unless the
+Skill names match when their normal forms are equal (normal_name: the
+taxonomy's canonical form, so aliases such as GenAI -> generative AI, with
+every word singular: "risk assessments" = "risk assessment"), or one contains
+the other as whole words ("encryption" and "encryption at rest"), unless the
 shorter one is a single generic word (GENERIC_WORDS: "cloud" does not match
 "cloud security"). The same rule for every skill metric and every set; --match exact turns containment off, for
 comparison. Hallucinations always need the forbidden name itself (equal
@@ -89,9 +91,29 @@ def same_skill(a: str, b: str) -> bool:
     return canonical(a) == canonical(b)
 
 
+def _singular(word: str) -> str:
+    """One word's singular, by a plain English rule: "ies" -> "y"; a final "s"
+    dropped unless the word ends "ss", "us" or "is" ("analysis", "kubernetes"
+    and "process" stay). Words under four letters are left alone."""
+    if len(word) < 4:
+        return word
+    if word.endswith("ies"):
+        return word[:-3] + "y"
+    if word.endswith("s") and not word.endswith(("ss", "us", "is")):
+        return word[:-1]
+    return word
+
+
+def normal_name(name: str) -> str:
+    """A name for matching: the taxonomy's canonical form (aliases such as
+    GenAI -> generative AI), then every word singular."""
+    return " ".join(_singular(w) for w in canonical(name).split())
+
+
 def match(a: str, b: str) -> bool:
-    """Equal canonical names, or (containment) one inside the other as whole words."""
-    ca, cb = canonical(a), canonical(b)
+    """Equal names after normal_name, or (containment) one inside the other as
+    whole words, never resting on a single generic word."""
+    ca, cb = normal_name(a), normal_name(b)
     if not ca or not cb:
         return False
     if ca == cb:

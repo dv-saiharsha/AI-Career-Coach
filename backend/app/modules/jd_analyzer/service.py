@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped whenever the prompt or the post-processing changes what an analysis
 # looks like, so analyses cached under the old rules are not served as current.
-ANALYZER_VERSION = 18
+ANALYZER_VERSION = 19
 
 TOOL_NAME = "analyze_job_description"
 MISSED_TOOL_NAME = "list_missed_skills"
