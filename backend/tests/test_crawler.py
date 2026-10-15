@@ -356,6 +356,38 @@ class TestReconciliation:
         row = db.query(JobListing).one()
         assert row.missed_streak == 0, "a 304 re-confirms every open row rather than letting misses accrue"
 
+    def test_not_modified_is_one_update_and_leaves_closed_rows_alone(self, db):
+        from datetime import datetime, timedelta, timezone
+
+        from sqlalchemy import event
+
+        company = make_company(db)
+        rows = [board_row(f"greenhouse:acme:{i}") for i in range(30)]
+        crawler._reconcile_company_rows(db, company, rows, not_modified=False)
+        db.commit()
+        closed = db.query(JobListing).filter(JobListing.external_id == "greenhouse:acme:0").one()
+        closed.status, closed.missed_streak = "closed", 2
+        old = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        db.query(JobListing).update({JobListing.last_seen_at: old, JobListing.missed_streak: 1})
+        closed_id = closed.id
+        db.commit()
+
+        updates = []
+        listener = lambda conn, cursor, stmt, *a: updates.append(stmt) if stmt.lstrip().upper().startswith("UPDATE") else None
+        event.listen(db.get_bind(), "before_cursor_execute", listener)
+        try:
+            crawler._reconcile_company_rows(db, company, [], not_modified=True)
+            db.commit()
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", listener)
+
+        assert len(updates) == 1, updates
+        open_rows = db.query(JobListing).filter(JobListing.status == "open").all()
+        assert len(open_rows) == 29
+        assert all(r.missed_streak == 0 and r.last_seen_at.replace(tzinfo=timezone.utc) > old + timedelta(days=1) for r in open_rows)
+        still_closed = db.get(JobListing, closed_id)
+        assert still_closed.status == "closed" and still_closed.missed_streak == 1
+
     def test_a_row_with_no_external_id_is_skipped_not_crashed_on(self, db):
         company = make_company(db)
         row = board_row("ignored")

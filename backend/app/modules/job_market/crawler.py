@@ -252,6 +252,10 @@ def _crawl_one(company: Company, min_interval_ms: int) -> CompanyResult:
     )
 
 
+# IDs per set-based UPDATE: well under any driver or planner limit.
+_BULK_CHUNK = 5000
+
+
 def _reconcile_company_rows(
     db: Session, company: Company, rows: list[dict], not_modified: bool
 ) -> tuple[int, int, int]:
@@ -305,10 +309,18 @@ def _reconcile_company_rows(
         # Nothing changed on the board, by the server's own word — every
         # currently-open row is re-confirmed rather than silently aging
         # toward closure while this company's content sits still.
-        for row in existing.values():
-            if row.status == "open":
-                row.last_seen_at = now
-                row.missed_streak = 0
+        #
+        # One set-based UPDATE per chunk, not a dirty attribute per row: the
+        # ORM batches only consecutive rows that changed the same columns, and
+        # missed_streak = 0 is a change on some rows and not others, so per-row
+        # writes went out a few at a time. Over a remote database that was
+        # minutes per crawl; most boards answer 304, so this is the hot path.
+        open_ids = [row.id for row in existing.values() if row.status == "open" and row.id is not None]
+        for start in range(0, len(open_ids), _BULK_CHUNK):
+            db.query(JobListing).filter(JobListing.id.in_(open_ids[start:start + _BULK_CHUNK])).update(
+                {JobListing.last_seen_at: now, JobListing.missed_streak: 0},
+                synchronize_session="evaluate",
+            )
         return 0, 0, 0
 
     new_count = updated_count = closed_count = 0
