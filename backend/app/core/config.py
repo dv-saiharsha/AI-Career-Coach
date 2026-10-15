@@ -184,6 +184,10 @@ class Settings(BaseSettings):
     # How long a closed job_listings row is kept before the crawler
     # hard-deletes it (status transitions through job_market/crawler.py).
     JOB_CLOSED_RETENTION_DAYS: int = 90
+    # A listing closes only after 2 missed crawls AND this long unseen. With a
+    # 20-minute crawl, two misses alone is 40 minutes: a board's brief outage
+    # would close live jobs. Time makes closing independent of the cadence.
+    JOB_CLOSE_MIN_UNSEEN_HOURS: float = 6.0
 
     # Real, enforced ceiling on Claude enrichment spend per crawl run — unlike
     # ingestion.py's MAX_SWEEP_COST_USD, which that module's own sweep never

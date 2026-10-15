@@ -80,7 +80,7 @@ from app.modules.job_market import ats_boards, enrichment, geo, ingestion, jsonl
 logger = logging.getLogger(__name__)
 
 # A row closes once its company has successfully crawled it as missing this
-# many times in a row.
+# many times in a row, and it has gone unseen for JOB_CLOSE_MIN_UNSEEN_HOURS.
 CLOSE_AFTER_MISSED_CRAWLS = 2
 
 DEFAULT_TIMEOUT_SECONDS = 20
@@ -399,14 +399,20 @@ def _reconcile_company_rows(
     # Open rows the board no longer lists: one more miss each, closed at the
     # threshold. Grouped by the current streak so each group is one UPDATE
     # with literal values, for the same reason as _bulk_update.
-    by_streak: dict[int, list[int]] = {}
+    unseen_cutoff = now - timedelta(hours=settings.JOB_CLOSE_MIN_UNSEEN_HOURS)
+    groups: dict[tuple[int, bool], list[int]] = {}
     for key, row in existing.items():
         if key in seen_keys or row.status != "open" or row.id is None:
             continue
-        by_streak.setdefault(row.missed_streak or 0, []).append(row.id)
-    for streak, ids in by_streak.items():
+        streak = row.missed_streak or 0
+        last_seen = row.last_seen_at
+        if last_seen is not None and last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)  # SQLite returns naive
+        closes = streak + 1 >= CLOSE_AFTER_MISSED_CRAWLS and (last_seen is None or last_seen <= unseen_cutoff)
+        groups.setdefault((streak, closes), []).append(row.id)
+    for (streak, closes), ids in groups.items():
         values = {JobListing.missed_streak: streak + 1}
-        if streak + 1 >= CLOSE_AFTER_MISSED_CRAWLS:
+        if closes:
             values.update({JobListing.status: "closed", JobListing.closed_at: now})
             closed_count += len(ids)
         _bulk_update(db, ids, values)

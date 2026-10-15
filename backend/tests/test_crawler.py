@@ -189,6 +189,12 @@ class TestMakeFetch:
 
 
 class TestReconciliation:
+    @pytest.fixture(autouse=True)
+    def _streak_rule_only(self, monkeypatch):
+        # These tests are about the missed-crawl streak; the time rule has its
+        # own class below.
+        monkeypatch.setattr(crawler.settings, "JOB_CLOSE_MIN_UNSEEN_HOURS", 0)
+
     def test_a_new_row_is_inserted_as_open(self, db):
         company = make_company(db)
         new, updated, closed = crawler._reconcile_company_rows(
@@ -752,3 +758,51 @@ class TestRunCrawl:
 
         remaining = {row.external_id for row in db.query(JobListing).all()}
         assert remaining == {"recent"}
+
+
+class TestCloseNeedsTimeUnseen:
+    """Two missed crawls close a listing only once it has also gone unseen for
+    JOB_CLOSE_MIN_UNSEEN_HOURS, so a 20-minute cadence cannot close live jobs
+    during a board's brief outage."""
+
+    def _two_misses(self, db, company):
+        for _ in range(2):
+            out = crawler._reconcile_company_rows(db, company, [], not_modified=False)
+            db.commit()
+        return out
+
+    def test_two_quick_misses_do_not_close(self, db, monkeypatch):
+        monkeypatch.setattr(crawler.settings, "JOB_CLOSE_MIN_UNSEEN_HOURS", 6)
+        company = make_company(db)
+        crawler._reconcile_company_rows(db, company, [board_row("greenhouse:acme:1")], not_modified=False)
+        db.commit()
+        _, _, closed = self._two_misses(db, company)
+        row = db.query(JobListing).one()
+        assert closed == 0 and row.status == "open" and row.missed_streak == 2
+
+    def test_two_misses_after_the_window_close(self, db, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+
+        monkeypatch.setattr(crawler.settings, "JOB_CLOSE_MIN_UNSEEN_HOURS", 6)
+        company = make_company(db)
+        crawler._reconcile_company_rows(db, company, [board_row("greenhouse:acme:1")], not_modified=False)
+        db.query(JobListing).update({JobListing.last_seen_at: datetime.now(timezone.utc) - timedelta(hours=7)})
+        db.commit()
+        _, _, closed = self._two_misses(db, company)
+        row = db.query(JobListing).one()
+        assert closed == 1 and row.status == "closed"
+
+    def test_a_listing_kept_open_by_the_window_closes_on_a_later_miss(self, db, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+
+        monkeypatch.setattr(crawler.settings, "JOB_CLOSE_MIN_UNSEEN_HOURS", 6)
+        company = make_company(db)
+        crawler._reconcile_company_rows(db, company, [board_row("greenhouse:acme:1")], not_modified=False)
+        db.commit()
+        self._two_misses(db, company)
+        assert db.query(JobListing).one().status == "open"
+        db.query(JobListing).update({JobListing.last_seen_at: datetime.now(timezone.utc) - timedelta(hours=7)})
+        db.commit()
+        _, _, closed = crawler._reconcile_company_rows(db, company, [], not_modified=False)
+        db.commit()
+        assert closed == 1 and db.query(JobListing).one().status == "closed"
