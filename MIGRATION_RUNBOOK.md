@@ -1,9 +1,35 @@
 # Migration runbook: Supabase to Google Cloud (data move + first launch)
 
-**Status: draft.** Written while the migration is in progress. Sections marked
+**Status: superseded in part, see 0a.** Written while the migration was in progress. Sections marked
 **TODO(7g)** are filled in when the Cloud Run, Cloud Run Job and Scheduler setup is
 verified; nothing in them has been run. Everything else records what was actually
 rehearsed.
+
+## 0a. What happened on 2026-10-15 (read this first)
+
+* **Supabase no longer exists** (deleted; no access). Steps 2.2 (Supabase backup)
+  and 2.4 (Firebase import from Supabase) can no longer be run as written.
+* **Owner's decision: every account starts fresh.** All existing accounts were
+  the team's own test accounts. `career_coach` holds **no user data**; people
+  sign up again.
+* **`career_coach` was built instead of 2.3:** compat shim → `alembic upgrade
+  388e523dda7a` → `head` (`c8f2d1a07b34`), then only the shared tables were
+  copied from `career_coach_test` (the 2.3 rehearsal copy): 315 companies,
+  31,309 job listings, 3 crawl runs. Counts verified equal, sequences set, no
+  `auth`/`storage` schemas, every `user_id` column `text`.
+* **Backups:** Cloud SQL on-demand backup `1792067726414` was taken before the
+  load; automated daily backups continue. Older full dumps (29 Sep) are on the
+  owner's Mac in `~/Backups/ai-career-coach/` and `~/db-backups/ai-career-coach/`.
+  `career_coach_test` still holds the rehearsal copy, user data included; delete
+  it only on the owner's say-so.
+* **Local development now uses Cloud SQL** through the proxy LaunchAgent on
+  `127.0.0.1:5433` (README, "Cloud SQL proxy (macOS)"). The crawl worker runs
+  on the owner's Mac every 20 minutes against Cloud SQL until the Cloud Run Job
+  replaces it.
+* **Deployment** is scripted in `infra/gcp/` (dry run by default; see its
+  README for status). The owner has not approved deploying or publishing yet.
+
+The rest of this document is the original plan, kept for the record.
 
 ## 0. Situation
 
