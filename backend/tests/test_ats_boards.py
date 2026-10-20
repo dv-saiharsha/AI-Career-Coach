@@ -7,6 +7,7 @@ is having a bad afternoon.
 """
 
 import json
+from urllib.parse import parse_qs, urlsplit
 
 from app.modules.job_market import ats_boards
 
@@ -362,3 +363,347 @@ def test_work_mode_defaults_to_onsite_rather_than_guessing_remote():
     assert ats_boards._work_mode("Remote - US") == "Remote"
     assert ats_boards._work_mode("Hybrid, London") == "Hybrid"
     assert ats_boards._work_mode("") == "On-site"
+
+
+class TestWorkday:
+    def test_fetches_us_pages_and_normalises_the_shared_shape(self):
+        board = "nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        initial = {
+            "facets": [
+                {
+                    "facetParameter": "locationMainGroup",
+                    "values": [
+                        {
+                            "facetParameter": "locationHierarchy1",
+                            "values": [{"descriptor": "United States", "id": "us-id"}],
+                        }
+                    ],
+                }
+            ]
+        }
+        page = {
+            "total": 1,
+            "jobPostings": [
+                {
+                    "title": "Software Engineer",
+                    "externalPath": "/job/California-Santa-Clara/Software-Engineer_JR123",
+                    "locationsText": "Santa Clara, CA",
+                    "postedOn": "Posted Today",
+                    "bulletFields": ["JR123"],
+                }
+            ],
+        }
+        requests = []
+
+        def fetch(url, body):
+            requests.append((url, body))
+            return 200, json.dumps(initial if len(requests) == 1 else page)
+
+        rows = ats_boards.fetch_board("workday", board, fetch=fetch, display_name="NVIDIA")
+
+        assert len(requests) == 2
+        assert requests[1][1]["appliedFacets"] == {"locationHierarchy1": ["us-id"]}
+        assert requests[1][1]["limit"] == 20
+        assert len(rows) == 1
+        assert rows[0]["company"] == "NVIDIA"
+        assert rows[0]["source"] == "workday"
+        assert rows[0]["external_id"] == "workday:nvidia:JR123"
+        assert rows[0]["apply_url"] == (
+            "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/California-Santa-Clara/Software-Engineer_JR123"
+        )
+        assert rows[0]["description"] is None
+        assert rows[0]["posted_at"] is not None
+
+    def test_continues_pagination_when_later_pages_report_zero_total(self):
+        board = "nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        initial = {
+            "facets": [
+                {
+                    "facetParameter": "locationHierarchy1",
+                    "values": [{"descriptor": "United States", "id": "us-id"}],
+                }
+            ]
+        }
+
+        def postings(start, count):
+            return [
+                {
+                    "title": f"Engineer {index}",
+                    "externalPath": f"/job/US/Engineer_{index}",
+                    "locationsText": "United States",
+                    "bulletFields": [f"JR{index}"],
+                }
+                for index in range(start, start + count)
+            ]
+
+        pages = [
+            {"total": 41, "jobPostings": postings(0, 20)},
+            {"total": 0, "jobPostings": postings(20, 20)},
+            {"total": 0, "jobPostings": postings(40, 1)},
+        ]
+        requests = []
+
+        def fetch(url, body):
+            requests.append(body)
+            if len(requests) == 1:
+                return 200, json.dumps(initial)
+            return 200, json.dumps(pages[len(requests) - 2])
+
+        rows = ats_boards.fetch_board("workday", board, fetch=fetch)
+
+        assert [request["offset"] for request in requests[1:]] == [0, 20, 40]
+        assert len(rows) == 41
+
+    def test_fetches_a_board_without_a_country_facet_unfiltered(self):
+        # Intel, Cisco, Capital One...: only a city-level "locations" facet.
+        # The crawler's geo filter drops the non-U.S. rows afterwards.
+        page = {
+            "total": 1,
+            "jobPostings": [
+                {"title": "Engineer", "externalPath": "/job/US-OR-Hillsboro/Engineer_JR1", "locationsText": "US, Oregon, Hillsboro"}
+            ],
+        }
+        requests = []
+
+        def fetch(url, body):
+            requests.append(body)
+            return 200, json.dumps({"facets": [{"facetParameter": "locations", "values": []}]} if len(requests) == 1 else page)
+
+        rows = ats_boards.fetch_board("workday", "intel.wd1.myworkdayjobs.com/External", fetch=fetch)
+
+        assert requests[1]["appliedFacets"] == {}
+        assert [row["apply_url"] for row in rows] == [
+            "https://intel.wd1.myworkdayjobs.com/External/job/US-OR-Hillsboro/Engineer_JR1"
+        ]
+
+    def test_recognises_tenant_named_country_facets(self):
+        for facet_parameter in ("Location_Country", "Country_and_Jurisdiction", "CF_-_REC_-_Country_from_Job_Posting_Location"):
+            facets = [{"facetParameter": facet_parameter, "values": [{"descriptor": "United States of America", "id": "us"}]}]
+            assert ats_boards._workday_us_facet(facets) == (facet_parameter, "us")
+
+    def test_stops_at_the_page_cap(self, monkeypatch):
+        monkeypatch.setattr(ats_boards, "WORKDAY_MAX_PAGES", 2)
+        requests = []
+
+        def fetch(url, body):
+            requests.append(body)
+            if len(requests) == 1:
+                return 200, json.dumps({"facets": []})
+            offset = body["offset"]
+            postings = [{"title": f"Role {n}", "externalPath": f"/job/US/Role_{n}"} for n in range(offset, offset + 20)]
+            return 200, json.dumps({"total": 500, "jobPostings": postings})
+
+        rows = ats_boards.fetch_board("workday", "cvshealth.wd1.myworkdayjobs.com/CVS_Health_Careers", fetch=fetch)
+
+        assert len(requests) == 3
+        assert len(rows) == 40
+
+    def test_uses_country_facet_when_board_does_not_have_hierarchy_facet(self):
+        board = "motorolasolutions.wd5.myworkdayjobs.com/Careers"
+        initial = {
+            "facets": [
+                {
+                    "facetParameter": "locationMainGroup",
+                    "values": [
+                        {
+                            "facetParameter": "locationCountry",
+                            "values": [{"descriptor": "United States", "id": "us-country-id"}],
+                        }
+                    ],
+                }
+            ]
+        }
+        page = {"total": 0, "jobPostings": []}
+        requests = []
+
+        def fetch(url, body):
+            requests.append(body)
+            return 200, json.dumps(initial if len(requests) == 1 else page)
+
+        rows = ats_boards.fetch_board("workday", board, fetch=fetch)
+
+        assert rows == []
+        assert requests[1]["appliedFacets"] == {"locationCountry": ["us-country-id"]}
+
+    def test_fetches_description_and_accepts_only_same_host_apply_url(self):
+        board = "nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        response = {
+            "jobPostingInfo": {
+                "jobDescription": "<p>Build cloud systems.</p>",
+                "externalUrl": (
+                    "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US/Engineer_JR1"
+                ),
+            }
+        }
+        requested = []
+
+        def fetch(url):
+            requested.append(url)
+            return 200, json.dumps(response)
+
+        description, apply_url = ats_boards.fetch_workday_detail(
+            board, "https://nvidia.wd5.myworkdayjobs.com/job/US/Engineer_JR1", fetch=fetch
+        )
+
+        assert "Build cloud systems." in description
+        assert "<p>" not in description
+        assert apply_url == response["jobPostingInfo"]["externalUrl"]
+        assert requested[0].endswith("/job/Engineer_JR1")
+
+    def test_rejects_an_external_apply_host(self):
+        board = "nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        response = {
+            "jobPostingInfo": {
+                "jobDescription": "Role details.",
+                "externalUrl": "https://apply-redirect.example.test/role",
+            }
+        }
+        description, apply_url = ats_boards.fetch_workday_detail(
+            board,
+            "https://nvidia.wd5.myworkdayjobs.com/job/US/Engineer_JR1",
+            fetch=lambda url: (200, json.dumps(response)),
+        )
+
+        assert description == "Role details."
+        assert apply_url is None
+
+
+class TestAmazonJobs:
+    def test_only_explicit_us_postings_are_normalised(self):
+        rows = ats_boards.normalise_amazon(
+            [
+                {
+                    "id_icims": "123",
+                    "title": "Site Reliability Engineer",
+                    "company_name": "Amazon",
+                    "country_code": "USA",
+                    "location": "US, WA, Seattle",
+                    "locations": [json.dumps({"type": "REMOTE"})],
+                    "job_path": "/en/jobs/123/site-reliability-engineer",
+                    "url_next_step": "https://account.amazon.com/jobs/123/apply",
+                    "description": "<p>Keep systems reliable.</p>",
+                    "posted_date": "October 17, 2026",
+                },
+                {
+                    "id_icims": "456",
+                    "title": "Engineer",
+                    "country_code": "GBR",
+                    "location": "GB, London",
+                    "job_path": "/en/jobs/456/engineer",
+                },
+            ],
+            "amazon_jobs:amazon",
+        )
+
+        assert len(rows) == 1
+        assert rows[0]["external_id"] == "amazon:123"
+        assert rows[0]["work_mode"] == "Remote"
+        assert rows[0]["description"] == "Keep systems reliable."
+        assert rows[0]["apply_url"] == "https://www.amazon.jobs/en/jobs/123/site-reliability-engineer"
+        assert rows[0]["company"] == "Amazon"
+        assert rows[0]["posted_at"] is not None
+
+    def test_deduplicates_the_same_job_across_role_queries(self):
+        payload = {
+            "hits": 1,
+            "jobs": [
+                {
+                    "id_icims": "123",
+                    "title": "Software Engineer",
+                    "country_code": "USA",
+                    "location": "US, WA, Seattle",
+                    "job_path": "/en/jobs/123/software-engineer",
+                }
+            ],
+        }
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            return 200, json.dumps(payload)
+
+        rows = ats_boards.fetch_amazon_board("amazon_jobs:amazon", fetch=fetch, max_pages=1)
+
+        assert len(calls) == len(ats_boards.PUBLIC_ROLE_QUERIES)
+        assert len(rows) == 1
+        assert rows[0]["external_id"] == "amazon:123"
+
+
+class TestMicrosoftJobs:
+    def test_search_keeps_only_us_jobs(self):
+        payload = {
+            "data": {
+                "count": 1,
+                "positions": [
+                    {
+                        "id": 123,
+                        "displayJobId": "200123",
+                        "name": "Site Reliability Engineer",
+                        "locations": ["United States, Washington, Redmond"],
+                        "positionUrl": "/careers/job/123",
+                        "postedTs": 1792220400,
+                        "workLocationOption": "remote",
+                    },
+                    {
+                        "id": 456,
+                        "name": "Engineer",
+                        "locations": ["India, Hyderabad"],
+                        "positionUrl": "/careers/job/456",
+                    },
+                ],
+            }
+        }
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            return 200, json.dumps(payload)
+
+        rows = ats_boards.fetch_microsoft_board("microsoft_jobs:microsoft", fetch=fetch, max_pages=1)
+
+        assert len(calls) == 1
+        assert len(rows) == 1
+        assert rows[0]["external_id"] == "microsoft:200123"
+        assert rows[0]["location"] == "United States, Washington, Redmond"
+        assert rows[0]["work_mode"] == "Remote"
+        assert rows[0]["apply_url"] == "https://apply.careers.microsoft.com/careers/job/123"
+
+    def test_pages_through_the_whole_us_board_unfiltered(self):
+        def position(n):
+            return {
+                "id": n,
+                "displayJobId": str(n),
+                "name": f"Role {n}",
+                "locations": ["United States, Washington, Redmond"],
+                "positionUrl": f"/careers/job/{n}",
+            }
+
+        pages = {0: [position(n) for n in range(10)], 10: [position(n) for n in range(10, 15)]}
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            start = int(parse_qs(urlsplit(url).query)["start"][0])
+            return 200, json.dumps({"data": {"count": 15, "positions": pages[start]}})
+
+        rows = ats_boards.fetch_microsoft_board("microsoft_jobs:microsoft", fetch=fetch)
+
+        assert len(calls) == 2
+        assert all(parse_qs(urlsplit(url).query).get("query") in (None, [""]) for url in calls)
+        assert len(rows) == 15
+
+    def test_detail_fetch_reads_the_matching_job_posting_description(self):
+        html = (
+            '<script type="application/ld+json">'
+            '{"@context":"https://schema.org","@type":"JobPosting",'
+            '"title":"Software Engineer","description":"<p>Build software.</p>"}'
+            "</script>"
+        )
+
+        description = ats_boards.fetch_microsoft_detail(
+            "https://apply.careers.microsoft.com/careers/job/123",
+            "Software Engineer",
+            fetch=lambda url: (200, html),
+        )
+
+        assert description == "Build software."

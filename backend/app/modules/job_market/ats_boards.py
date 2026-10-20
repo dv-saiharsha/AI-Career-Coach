@@ -49,8 +49,11 @@ import html
 import json
 import logging
 import re
-from datetime import datetime, timezone
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable
+from urllib.parse import quote, urlencode, urljoin, urlsplit
 from app.modules.job_market import boards_registry
 
 logger = logging.getLogger(__name__)
@@ -71,6 +74,33 @@ WORKABLE_URL = "https://apply.workable.com/api/v1/widget/accounts/{board}?detail
 # tradeoff MAX_DESCRIPTION_CHARS already makes below.
 SMARTRECRUITERS_URL = "https://api.smartrecruiters.com/v1/companies/{board}/postings?limit=100"
 RECRUITEE_URL = "https://{board}.recruitee.com/api/offers/"
+WORKDAY_PAGE_SIZE = 20
+# 2,000 newest postings per board, which is also where Workday's reported
+# total tops out. Store-heavy boards (CVS ~19k, Lowe's ~12.6k) would
+# otherwise cost ~1,000 requests a crawl, every crawl.
+WORKDAY_MAX_PAGES = 100
+PUBLIC_ROLE_QUERIES = (
+    "software engineer",
+    "entry level software engineer",
+    "new grad software engineer",
+    "backend engineer",
+    "frontend engineer",
+    "full stack engineer",
+    "site reliability engineer",
+    "devops engineer",
+    "cloud engineer",
+    "cybersecurity engineer",
+    "security analyst",
+    "data engineer",
+    "data analyst",
+    "network engineer",
+    "systems engineer",
+)
+PUBLIC_BOARD_PAGE_SIZE = 100
+PUBLIC_BOARD_MAX_PAGES_PER_QUERY = 3
+# Microsoft's API serves 10 postings a page; 300 pages is headroom over its
+# ~1,250 U.S. jobs, and a bound if "count" ever stops being reported.
+MICROSOFT_MAX_PAGES = 300
 
 # Long enough for a large board, short enough that a hung host cannot stall a
 # sweep. Stripe's 611-job payload is ~380KB and returns well inside this.
@@ -239,6 +269,250 @@ def _work_mode(location: str) -> str:
     if "remote" in lowered or "anywhere" in lowered or "distributed" in lowered:
         return "Remote"
     return "On-site"
+
+
+def _workday_parts(board: str) -> tuple[str, str, str] | None:
+    parsed = urlsplit(board if "://" in board else f"https://{board}")
+    host = parsed.netloc.lower()
+    site = parsed.path.strip("/").split("/", 1)[0]
+    if not re.fullmatch(r"[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com", host) or not site:
+        return None
+    tenant = host.split(".wd", 1)[0]
+    return host, tenant, site
+
+
+def _workday_nodes(nodes):
+    for node in nodes or []:
+        if not isinstance(node, dict):
+            continue
+        yield node
+        yield from _workday_nodes(node.get("values"))
+
+
+def _is_workday_country_facet(facet_parameter: str | None) -> bool:
+    # Tenants name this facet themselves: locationCountry, Location_Country,
+    # Country_and_Jurisdiction, CF_..._Country_from_Job_Posting_Location...
+    return bool(facet_parameter) and (
+        facet_parameter == "locationHierarchy1" or "country" in facet_parameter.lower()
+    )
+
+
+def _workday_us_facet(facets: list[dict]) -> tuple[str, str] | None:
+    for node in _workday_nodes(facets):
+        facet_parameter = node.get("facetParameter")
+        if not _is_workday_country_facet(facet_parameter):
+            continue
+        for value in node.get("values") or []:
+            if (value.get("descriptor") or "").strip().lower() in {
+                "united states", "united states of america", "usa", "us"
+            }:
+                facet_id = value.get("id")
+                if facet_id:
+                    return facet_parameter, facet_id
+    return None
+
+
+def _parse_workday_posted_on(value: str | None) -> datetime | None:
+    lowered = (value or "").lower()
+    now = datetime.now(timezone.utc)
+    if "today" in lowered:
+        return now
+    if "yesterday" in lowered:
+        return now - timedelta(days=1)
+    match = re.search(r"(\d+)\+?\s+days?\s+ago", lowered)
+    if match:
+        return now - timedelta(days=int(match.group(1)))
+    return None
+
+
+def normalise_workday(
+    postings: list[dict], board: str, query_key: str, display_name: str | None = None
+) -> list[dict]:
+    """Workday CXS search results -> the shared job-listing row shape."""
+    parts = _workday_parts(board)
+    if not parts:
+        return []
+    host, tenant, site = parts
+    rows = []
+    for posting in postings:
+        title = (posting.get("title") or "").strip()
+        external_path = (posting.get("externalPath") or "").strip()
+        if not title or not external_path:
+            continue
+        if not external_path.startswith("/"):
+            external_path = f"/{external_path}"
+        # CXS returns "/job/<location>/<slug>", relative to the career site:
+        # without the site segment the public URL is a Workday 404.
+        if not external_path.startswith(f"/{site}/"):
+            external_path = f"/{site}{external_path}"
+        location = (posting.get("locationsText") or "").strip() or "United States"
+        requisition = next(iter(posting.get("bulletFields") or []), None)
+        stable_id = requisition or external_path.rsplit("/", 1)[-1]
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"workday:{tenant}:{stable_id}",
+                "title": title,
+                "company": display_name or tenant,
+                "location": location,
+                "work_mode": _work_mode(location),
+                "salary_range": None,
+                "description": None,
+                "skills": json.dumps([]),
+                "apply_url": f"https://{host}{external_path}",
+                "posted_at": _parse_workday_posted_on(posting.get("postedOn")),
+                "source": "workday",
+            }
+        )
+    return rows
+
+
+def _default_workday_fetch(url: str, body: dict) -> tuple[int, str]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "User-Agent": "HireLoomBot/1.0",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310
+            return response.status, response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", errors="replace")
+
+
+def fetch_workday_board(
+    board: str,
+    query_key: str,
+    fetch: Callable[..., tuple[int, str]] | None = None,
+    display_name: str | None = None,
+    max_pages: int | None = None,
+) -> list[dict]:
+    """Fetch one public Workday career board's U.S. postings, newest first.
+
+    Filtered server-side by the board's country facet when it has one. A
+    board without one is fetched unfiltered and its non-U.S. rows are dropped
+    by the crawler's geo filter. Bounded by WORKDAY_MAX_PAGES either way:
+    these are POSTs with no conditional-request support, so every crawl
+    refetches every page.
+    """
+    parts = _workday_parts(board)
+    if not parts:
+        return []
+    host, tenant, site = parts
+    url = f"https://{host}/wday/cxs/{tenant}/{quote(site, safe='-_')}/jobs"
+    request = fetch or _default_workday_fetch
+    try:
+        status, body = request(url, {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""})
+        if status != 200:
+            return []
+        initial = json.loads(body)
+        us_facet = _workday_us_facet(initial.get("facets") or [])
+        applied_facets = {us_facet[0]: [us_facet[1]]} if us_facet else {}
+        if max_pages is None:
+            max_pages = WORKDAY_MAX_PAGES
+        total = 0
+        offset = 0
+        pages_fetched = 0
+        seen_paths: set[str] = set()
+        rows = []
+        while True:
+            status, body = request(
+                url,
+                {
+                    "appliedFacets": applied_facets,
+                    "limit": WORKDAY_PAGE_SIZE,
+                    "offset": offset,
+                    "searchText": "",
+                },
+            )
+            if status != 200:
+                logger.info("workday board %s returned %s at offset %d", board, status, offset)
+                break
+            page = json.loads(body)
+            postings = page.get("jobPostings") or []
+            total = max(total, int(page.get("total") or 0))
+            if not postings:
+                break
+
+            new_postings = []
+            for posting in postings:
+                external_path = posting.get("externalPath")
+                if external_path and external_path in seen_paths:
+                    continue
+                if external_path:
+                    seen_paths.add(external_path)
+                new_postings.append(posting)
+            if not new_postings:
+                break
+
+            rows.extend(normalise_workday(new_postings, board, query_key, display_name))
+            offset += len(postings)
+            pages_fetched += 1
+            if total and offset >= total:
+                break
+            if len(postings) < WORKDAY_PAGE_SIZE:
+                break
+            if pages_fetched >= max_pages:
+                break
+        return rows
+    except Exception as exc:  # noqa: BLE001 - a failing board must not stop the crawl
+        logger.info("workday board %s fetch failed: %s", board, exc)
+        return []
+
+
+def _default_workday_detail_fetch(url: str) -> tuple[int, str]:
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "HireLoomBot/1.0", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310
+            return response.status, response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", errors="replace")
+
+
+def fetch_workday_detail(
+    board: str,
+    apply_url: str,
+    fetch: Callable[[str], tuple[int, str]] | None = None,
+) -> tuple[str | None, str | None]:
+    """Load one Workday description and accept only its same-host apply URL."""
+    parts = _workday_parts(board)
+    if not parts:
+        return None, None
+    host, tenant, site = parts
+    try:
+        posting_url = urlsplit(apply_url)
+        if posting_url.hostname != host or posting_url.username or posting_url.password:
+            return None, None
+        slug = posting_url.path.rstrip("/").rsplit("/", 1)[-1]
+        if not slug:
+            return None, None
+        detail_url = f"https://{host}/wday/cxs/{tenant}/{quote(site, safe='-_')}/job/{quote(slug, safe='-_.')}"
+        status, body = (fetch or _default_workday_detail_fetch)(detail_url)
+        if status != 200:
+            return None, None
+        info = json.loads(body).get("jobPostingInfo") or {}
+        description = strip_html(info.get("jobDescription")) or None
+        external_url = info.get("externalUrl")
+        parsed_external_url = urlsplit(external_url or "")
+        safe_apply_url = (
+            external_url
+            if parsed_external_url.scheme == "https"
+            and parsed_external_url.hostname == host
+            and not parsed_external_url.username
+            and not parsed_external_url.password
+            else None
+        )
+        return description, safe_apply_url
+    except Exception as exc:  # noqa: BLE001 - details are best-effort on the click path
+        logger.info("workday job detail fetch failed for %s: %s", board, exc)
+        return None, None
 
 
 def normalise_greenhouse(payload: dict, board: str, query_key: str) -> list[dict]:
@@ -523,7 +797,7 @@ def fetch_board(
     provider: str,
     board: str,
     query_key: str = "ats-board",
-    fetch: Callable[[str], tuple[int, str]] | None = None,
+    fetch: Callable[..., tuple[int, str]] | None = None,
     display_name: str | None = None,
 ) -> list[dict]:
     """One board from one provider. Returns [] on any failure.
@@ -533,6 +807,13 @@ def fetch_board(
     a 404 here means "this company does not use this ATS", which is ordinary
     and not an error worth propagating.
     """
+    if provider == "workday":
+        return fetch_workday_board(board, query_key, fetch=fetch, display_name=display_name)
+    if provider == "amazon_jobs":
+        return fetch_amazon_board(query_key, fetch=fetch, display_name=display_name)
+    if provider == "microsoft_jobs":
+        return fetch_microsoft_board(query_key, fetch=fetch, display_name=display_name)
+
     fetch = fetch or _default_fetch
     urls = {
         "greenhouse": GREENHOUSE_URL,
@@ -576,10 +857,240 @@ def fetch_board(
     return normalise_lever(payload, board, query_key)
 
 
+def _parse_amazon_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(" ".join(value.split()), "%B %d, %Y").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def normalise_amazon(
+    jobs: list[dict], query_key: str, display_name: str | None = None
+) -> list[dict]:
+    """Amazon Jobs search results, retaining explicitly U.S.-based postings only."""
+    rows = []
+    for job in jobs:
+        if (job.get("country_code") or "").upper() not in {"US", "USA"}:
+            continue
+        title = (job.get("title") or "").strip()
+        job_id = job.get("id_icims") or job.get("id")
+        job_path = (job.get("job_path") or "").strip()
+        # The public posting page, not url_next_step: that is the sign-in
+        # wall of the application flow, and the posting page links to it.
+        apply_url = urljoin("https://www.amazon.jobs", job_path) if job_path else ""
+        if not apply_url:
+            apply_url = (job.get("url_next_step") or "").strip()
+        if not title or not job_id or not apply_url:
+            continue
+
+        location = (job.get("location") or "").strip() or "United States"
+        work_mode = _work_mode(location)
+        for raw_location in job.get("locations") or []:
+            try:
+                location_data = json.loads(raw_location) if isinstance(raw_location, str) else raw_location
+            except (TypeError, ValueError):
+                continue
+            location_type = (location_data.get("type") or "").upper()
+            if location_type == "REMOTE":
+                work_mode = "Remote"
+                break
+            if location_type == "HYBRID":
+                work_mode = "Hybrid"
+
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"amazon:{job_id}",
+                "title": title,
+                # company_name is the hiring legal entity ("Amazon.com Services
+                # LLC - A57"); one employer name keeps the feed and its
+                # (source, company, external_id) identity stable.
+                "company": display_name or "Amazon",
+                "location": location,
+                "work_mode": work_mode,
+                "salary_range": None,
+                "description": strip_html(job.get("description")) or None,
+                "skills": json.dumps([]),
+                "apply_url": apply_url,
+                "posted_at": _parse_amazon_date(job.get("posted_date")),
+                "source": "amazon_jobs",
+            }
+        )
+    return rows
+
+
+def fetch_amazon_board(
+    query_key: str,
+    fetch: Callable[..., tuple[int, str]] | None = None,
+    display_name: str | None = None,
+    max_pages: int = PUBLIC_BOARD_MAX_PAGES_PER_QUERY,
+) -> list[dict]:
+    """Search Amazon's official JSON feed for target technical role families."""
+    request = fetch or _default_fetch
+    seen_ids: set[str] = set()
+    postings: list[dict] = []
+    try:
+        for term in PUBLIC_ROLE_QUERIES:
+            offset = 0
+            for _ in range(max_pages):
+                url = "https://www.amazon.jobs/en/search.json?" + urlencode(
+                    {
+                        "base_query": term,
+                        "loc_query": "United States",
+                        "result_limit": PUBLIC_BOARD_PAGE_SIZE,
+                        "offset": offset,
+                    }
+                )
+                status, body = request(url)
+                if status != 200:
+                    break
+                payload = json.loads(body)
+                page = payload.get("jobs") or []
+                if not page:
+                    break
+                for job in page:
+                    job_id = str(job.get("id_icims") or job.get("id") or "")
+                    if job_id and job_id not in seen_ids:
+                        seen_ids.add(job_id)
+                        postings.append(job)
+                offset += len(page)
+                if offset >= int(payload.get("hits") or 0) or len(page) < PUBLIC_BOARD_PAGE_SIZE:
+                    break
+        return normalise_amazon(postings, query_key, display_name)
+    except Exception as exc:  # noqa: BLE001 - one public source must not stop the crawl
+        logger.info("amazon jobs search failed: %s", exc)
+        return normalise_amazon(postings, query_key, display_name)
+
+
+def _microsoft_us_locations(position: dict) -> list[str]:
+    locations = position.get("locations") or []
+    return [location.strip() for location in locations if "united states" in location.lower()]
+
+
+def normalise_microsoft(
+    positions: list[dict], query_key: str, display_name: str | None = None
+) -> list[dict]:
+    """Microsoft's public careers search results, filtered to U.S. locations."""
+    rows = []
+    for position in positions:
+        title = (position.get("name") or "").strip()
+        position_id = position.get("displayJobId") or position.get("id")
+        url = urljoin("https://apply.careers.microsoft.com", position.get("positionUrl") or "")
+        locations = _microsoft_us_locations(position)
+        if not title or not position_id or not locations:
+            continue
+
+        workplace = (position.get("workLocationOption") or "").lower()
+        if "remote" in workplace:
+            work_mode = "Remote"
+        elif "hybrid" in workplace:
+            work_mode = "Hybrid"
+        else:
+            work_mode = _work_mode("; ".join(locations))
+        posted_ts = position.get("postedTs")
+        try:
+            posted_at = datetime.fromtimestamp(float(posted_ts), tz=timezone.utc) if posted_ts else None
+        except (OverflowError, OSError, TypeError, ValueError):
+            posted_at = None
+
+        rows.append(
+            {
+                "query_key": query_key,
+                "external_id": f"microsoft:{position_id}",
+                "title": title,
+                "company": display_name or "Microsoft",
+                "location": "; ".join(locations),
+                "work_mode": work_mode,
+                "salary_range": None,
+                "description": None,
+                "skills": json.dumps([]),
+                "apply_url": url,
+                "posted_at": posted_at,
+                "source": "microsoft_jobs",
+            }
+        )
+    return rows
+
+
+def fetch_microsoft_board(
+    query_key: str,
+    fetch: Callable[..., tuple[int, str]] | None = None,
+    display_name: str | None = None,
+    max_pages: int = MICROSOFT_MAX_PAGES,
+) -> list[dict]:
+    """Every U.S. posting from Microsoft's official careers API.
+
+    The API pages 10 at a time, so role-keyword searches capped at a few pages
+    each saw ~10% of the board; one unfiltered U.S. pass (~1,250 jobs, ~125
+    requests) sees all of it for fewer requests.
+    """
+    request = fetch or _default_fetch
+    seen_ids: set[str] = set()
+    postings: list[dict] = []
+    try:
+        start = 0
+        for _ in range(max_pages):
+            url = "https://apply.careers.microsoft.com/api/pcsx/search?" + urlencode(
+                {
+                    "domain": "microsoft.com",
+                    "query": "",
+                    "location": "United States",
+                    "start": start,
+                    "sort_by": "timestamp",
+                }
+            )
+            status, body = request(url)
+            if status != 200:
+                break
+            payload = json.loads(body).get("data") or {}
+            page = payload.get("positions") or []
+            if not page:
+                break
+            for position in page:
+                position_id = str(position.get("displayJobId") or position.get("id") or "")
+                if position_id and position_id not in seen_ids:
+                    seen_ids.add(position_id)
+                    postings.append(position)
+            start += len(page)
+            if start >= int(payload.get("count") or 0):
+                break
+        return normalise_microsoft(postings, query_key, display_name)
+    except Exception as exc:  # noqa: BLE001 - one public source must not stop the crawl
+        logger.info("microsoft jobs search failed: %s", exc)
+        return normalise_microsoft(postings, query_key, display_name)
+
+
+def fetch_microsoft_detail(
+    apply_url: str,
+    expected_title: str,
+    fetch: Callable[[str], tuple[int, str]] | None = None,
+) -> str | None:
+    """Read a Microsoft posting's JobPosting JSON-LD description from its official page."""
+    parsed_url = urlsplit(apply_url)
+    if parsed_url.scheme != "https" or parsed_url.hostname != "apply.careers.microsoft.com":
+        return None
+    try:
+        status, body = (fetch or _default_fetch)(apply_url)
+        if status != 200:
+            return None
+        from app.modules.job_market import jsonld_crawler
+
+        expected = " ".join(expected_title.lower().split())
+        for posting in jsonld_crawler._extract_jobpostings(body):
+            title = " ".join((posting.get("title") or "").lower().split())
+            if title == expected:
+                return strip_html(posting.get("description")) or None
+    except Exception as exc:  # noqa: BLE001 - details are loaded only when opened
+        logger.info("microsoft job detail fetch failed: %s", exc)
+    return None
+
+
 def fetch_boards(
     boards: Iterable[tuple[str, str]],
     query_key: str = "ats-board",
-    fetch: Callable[[str], tuple[int, str]] | None = None,
+    fetch: Callable[..., tuple[int, str]] | None = None,
 ) -> list[dict]:
     """Several boards, as (provider, board) pairs. Order is preserved."""
     rows: list[dict] = []

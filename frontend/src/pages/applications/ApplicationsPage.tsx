@@ -5,16 +5,15 @@ import {
   Briefcase,
   CalendarDays,
   Check,
-  ChevronDown,
   Clock,
   ExternalLink,
   FileText,
-  Filter,
   Inbox,
   LayoutGrid,
   List,
   Loader2,
   Mail,
+  MapPin,
   MessageSquareText,
   Plus,
   Search,
@@ -39,14 +38,6 @@ import {
   SelectLabel,
   SelectTrigger,
 } from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -168,8 +159,42 @@ interface ApplicationCardProps {
   onDragEnd: () => void
 }
 
+function CompanyMark({ company, size = 'md' }: { company: string; size?: 'sm' | 'md' }) {
+  return (
+    <span
+      className={cn(
+        'flex shrink-0 items-center justify-center rounded-lg border border-border bg-muted font-semibold text-muted-foreground',
+        size === 'sm' ? 'h-8 w-8 text-xs' : 'h-10 w-10 text-sm'
+      )}
+      aria-hidden="true"
+    >
+      {initials(company)}
+    </span>
+  )
+}
+
+function FilterChip({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active ? 'bg-foreground text-background' : 'bg-muted text-foreground hover:bg-muted/70'
+      )}
+    >
+      {label}
+      {count != null && (
+        <span className={cn('text-xs font-medium', active ? 'text-background/70' : 'text-muted-foreground')}>{count}</span>
+      )}
+    </button>
+  )
+}
+
 function ApplicationCard({ application, busy, onOpen, onDragStart, onDragEnd }: ApplicationCardProps) {
   const exactStage = STAGE_LABELS[application.status]
+  const postingUrl = safeExternalUrl(application.job_url)
   return (
     <Card
       draggable={!busy}
@@ -179,37 +204,57 @@ function ApplicationCard({ application, busy, onOpen, onDragStart, onDragEnd }: 
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           onOpen()
         }
       }}
       className={cn(
-        'cursor-grab p-3 transition-all active:cursor-grabbing hover:border-primary/40 hover:shadow-md',
+        'flex cursor-grab flex-col gap-2.5 p-3.5 transition-all active:cursor-grabbing hover:border-primary/40 hover:shadow-md',
         busy && 'pointer-events-none opacity-50'
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-foreground/80 font-heading text-[10px] font-bold text-white">
-          {initials(application.company)}
-        </span>
-        {application.match_score != null && (
-          <Badge variant="subtle" className="gap-1 text-[9px]">
-            <Target className="h-2.5 w-2.5" />
-            {Math.round(application.match_score)}%
-          </Badge>
+      <div className="flex items-center gap-2.5">
+        <CompanyMark company={application.company} size="sm" />
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">{application.company}</span>
+      </div>
+      <div className="min-w-0">
+        <h4 className="line-clamp-2 font-heading text-sm font-bold leading-snug text-foreground">{application.job_title}</h4>
+        {application.location && (
+          <p className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
+            <MapPin size={13} className="mt-px shrink-0" />
+            <span className="min-w-0 truncate">{application.location}</span>
+          </p>
         )}
       </div>
-      <h4 className="mt-2.5 truncate font-heading text-[11px] font-bold text-foreground">{application.company}</h4>
-      <p className="mt-0.5 line-clamp-2 min-h-[27px] text-[8.5px] leading-[1.45] text-muted-foreground">
-        {application.job_title}
-      </p>
-      <div className="mt-2.5 grid gap-1.5 border-t border-border pt-2.5 text-[7.5px] text-muted-foreground">
+      <div className="flex flex-wrap gap-1.5">
+        <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{exactStage}</span>
+        {application.match_score != null && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">
+            <Target className="h-3 w-3" />
+            {Math.round(application.match_score)}% match
+          </span>
+        )}
+      </div>
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
-          <CalendarDays className="h-2.5 w-2.5" />
+          <CalendarDays className="h-3.5 w-3.5" />
           {application.applied_at ? `Applied ${formatDate(application.applied_at)}` : `Added ${formatDate(application.created_at)}`}
         </span>
-        <span className="truncate font-bold text-primary">{exactStage}</span>
+        {postingUrl && (
+          <a
+            href={postingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Posting <ExternalLink className="h-3.5 w-3.5" />
+            <span className="sr-only">(opens the employer site in a new tab)</span>
+          </a>
+        )}
       </div>
     </Card>
   )
@@ -375,6 +420,22 @@ export function ApplicationsPage() {
       return { ...column, applications }
     })
   }, [pipeline, stageFilter, query])
+
+  // Chip counts follow the search box but not the stage filter, so every chip
+  // keeps showing what selecting it would reveal.
+  const stageCounts = useMemo(() => {
+    const byStage = pipeline?.pipeline ?? {}
+    const q = query.trim().toLowerCase()
+    const counts: Record<string, number> = { all: 0 }
+    for (const column of STAGE_COLUMNS) {
+      const n = column.members
+        .flatMap((stage) => byStage[stage] ?? [])
+        .filter((a) => !q || `${a.company} ${a.job_title}`.toLowerCase().includes(q)).length
+      counts[column.id] = n
+      counts.all += n
+    }
+    return counts
+  }, [pipeline, query])
 
   const total = pipeline?.total ?? 0
   const visibleTotal = columns.reduce((sum, c) => sum + c.applications.length, 0)
@@ -566,8 +627,8 @@ export function ApplicationsPage() {
     <div className="grid gap-[18px]">
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div>
-          <h2 className="font-heading text-2xl font-bold text-foreground">Applications Pipeline</h2>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl">Applications</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
             Keep every opportunity, conversation, and next step moving.
           </p>
         </div>
@@ -576,57 +637,30 @@ export function ApplicationsPage() {
         </Button>
       </div>
 
-      <Card className="flex flex-wrap items-center justify-between gap-3 p-2.5 pl-3.5">
-        <div className="flex h-9 w-full items-center gap-2 rounded-md border border-border bg-card px-3 text-muted-foreground sm:w-[260px]">
-          <Search size={16} className="shrink-0" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search applications"
-            aria-label="Search applications"
-            className="h-auto border-0 bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
-          />
+      <div className="grid gap-3">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Application stages">
+          <FilterChip label="All" count={stageCounts.all} active={stageFilter.size === 0} onClick={() => setStageFilter(new Set())} />
+          {STAGE_COLUMNS.map((column) => (
+            <FilterChip
+              key={column.id}
+              label={column.label}
+              count={stageCounts[column.id] ?? 0}
+              active={stageFilter.has(column.id)}
+              onClick={() => toggleStageFilter(column.id)}
+            />
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-1.5">
-                <Filter size={15} /> Filters
-                {stageFilter.size > 0 && (
-                  <Badge variant="subtle" className="ml-0.5 px-1.5 py-0 text-[9px]">
-                    {stageFilter.size}
-                  </Badge>
-                )}
-                <ChevronDown size={13} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Show stages</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STAGE_COLUMNS.map((column) => (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  checked={stageFilter.size === 0 || stageFilter.has(column.id)}
-                  onSelect={(e) => e.preventDefault()}
-                  onCheckedChange={() => toggleStageFilter(column.id)}
-                >
-                  {column.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-              {stageFilter.size > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <button
-                    type="button"
-                    onClick={() => setStageFilter(new Set())}
-                    className="w-full rounded-sm px-2 py-1.5 text-left text-xs font-medium text-primary hover:bg-accent"
-                  >
-                    Clear stage filter
-                  </button>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex h-10 w-full items-center gap-2 rounded-md border border-border bg-card px-3 text-muted-foreground sm:w-[320px]">
+            <Search size={16} className="shrink-0" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by company or role"
+              aria-label="Search applications"
+              className="h-auto border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+            />
+          </div>
           <div className="flex gap-[3px] rounded-lg bg-muted p-[3px]">
             <Button
               variant="ghost"
@@ -648,7 +682,7 @@ export function ApplicationsPage() {
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
       {loading && (
         <div className="flex gap-2.5 overflow-x-auto pb-2">
@@ -721,7 +755,7 @@ export function ApplicationsPage() {
       )}
 
       {!loading && !loadError && !isEmpty && !noResults && view === 'board' && (
-        <div className="grid grid-flow-col auto-cols-[minmax(218px,1fr)] gap-2.5 overflow-x-auto pb-3">
+        <div className="grid grid-flow-col auto-cols-[minmax(250px,1fr)] gap-2.5 overflow-x-auto pb-3">
           {columns.map((column) => (
             <section
               key={column.id}
@@ -743,14 +777,14 @@ export function ApplicationsPage() {
             >
               <div className="mb-1.5 flex min-h-[38px] items-center gap-1.5 px-1 pb-[7px]">
                 <span className={cn('h-2 w-2 shrink-0 rounded-full', COLUMN_DOT_CLASS[column.id])} />
-                <h3 className="flex-1 truncate text-[13px] font-bold text-foreground">{column.label}</h3>
-                <span className="grid h-5 w-5 place-items-center rounded-md bg-card text-[10px] font-mono text-muted-foreground">
+                <h3 className="flex-1 truncate text-sm font-bold text-foreground">{column.label}</h3>
+                <span className="grid h-6 min-w-6 place-items-center rounded-md bg-card px-1.5 text-xs font-medium text-muted-foreground">
                   {column.applications.length}
                 </span>
               </div>
               <div className="grid gap-2">
                 {column.applications.length === 0 && (
-                  <p className="px-1 text-[10px] italic text-muted-foreground">Nothing here.</p>
+                  <p className="px-1 text-sm italic text-muted-foreground">Nothing here.</p>
                 )}
                 {column.applications.map((application) => (
                   <ApplicationCard
@@ -771,7 +805,7 @@ export function ApplicationsPage() {
                 <button
                   type="button"
                   onClick={() => openCreate(column.entry)}
-                  className="w-full rounded-md border border-dashed border-border py-2 text-[9px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                  className="w-full rounded-md border border-dashed border-border py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
                 >
                   + Add application
                 </button>
@@ -783,7 +817,7 @@ export function ApplicationsPage() {
 
       {!loading && !loadError && !isEmpty && !noResults && view === 'table' && (
         <Card className="overflow-hidden">
-          <div className="grid grid-cols-[1fr_1.5fr_.8fr_.8fr_1.2fr_.6fr] gap-2.5 border-b border-border bg-muted/40 px-4 py-2.5 text-[7px] font-extrabold uppercase tracking-wide text-muted-foreground">
+          <div className="grid grid-cols-[1fr_1.5fr_.8fr_.8fr_1.2fr_.6fr] gap-2.5 border-b border-border bg-muted/40 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
             <span>Company</span>
             <span>Role</span>
             <span>Status</span>
@@ -798,17 +832,15 @@ export function ApplicationsPage() {
                 key={application.id}
                 type="button"
                 onClick={() => setSelectedId(application.id)}
-                className="grid w-full grid-cols-[1fr_1.5fr_.8fr_.8fr_1.2fr_.6fr] items-center gap-2.5 border-b border-border px-4 py-3 text-left text-[10px] text-muted-foreground transition-colors last:border-b-0 hover:bg-accent"
+                className="grid w-full grid-cols-[1fr_1.5fr_.8fr_.8fr_1.2fr_.6fr] items-center gap-2.5 border-b border-border px-4 py-3 text-left text-sm text-muted-foreground transition-colors last:border-b-0 hover:bg-accent"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-foreground/80 text-[9px] font-bold text-white">
-                    {initials(application.company)}
-                  </span>
+                  <CompanyMark company={application.company} size="sm" />
                   <strong className="truncate text-foreground">{application.company}</strong>
                 </span>
                 <span className="truncate">{application.job_title}</span>
                 <span>
-                  <Badge variant={badgeVariantForColumn(columnId)} className="text-[9px]">
+                  <Badge variant={badgeVariantForColumn(columnId)} className="text-xs">
                     {STAGE_COLUMNS.find((c) => c.id === columnId)?.label ?? columnId}
                   </Badge>
                 </span>
@@ -1004,14 +1036,12 @@ export function ApplicationsPage() {
           {!detailLoading && detail && editDraft && (
             <>
               <div className="flex min-h-[89px] items-center gap-[11px] border-b border-border px-[21px] py-[18px]">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-foreground/80 font-heading text-sm font-bold text-white">
-                  {initials(detail.application.company)}
-                </span>
+                <CompanyMark company={detail.application.company} />
                 <div className="min-w-0">
                   <SheetTitle className="truncate font-heading text-base font-bold text-foreground">
                     {detail.application.company}
                   </SheetTitle>
-                  <SheetDescription className="mt-[3px] truncate text-[9px]">
+                  <SheetDescription className="mt-[3px] truncate text-sm">
                     {detail.application.job_title}
                   </SheetDescription>
                 </div>
@@ -1022,7 +1052,7 @@ export function ApplicationsPage() {
                   <Badge variant={badgeVariantForColumn(STATUS_TO_COLUMN[detail.application.status] ?? 'saved')}>
                     {STAGE_LABELS[detail.application.status]}
                   </Badge>
-                  <span className="text-[8px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Last updated {relativeTime(detail.application.updated_at)}
                   </span>
                   <div className="ml-auto">
@@ -1030,7 +1060,7 @@ export function ApplicationsPage() {
                       value={detail.application.status}
                       disabled={detailStatusSaving}
                       onChange={handleDetailStatusChange}
-                      triggerClassName="h-8 gap-1.5 rounded-md border border-border bg-card px-2.5 text-[11px] font-bold text-foreground"
+                      triggerClassName="h-8 gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-bold text-foreground"
                     >
                       <span className="flex items-center gap-1">
                         {detailStatusSaving && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -1041,7 +1071,7 @@ export function ApplicationsPage() {
                 </div>
 
                 {(detail.application.location || detail.application.salary_range || detail.application.job_url) && (
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border py-3 text-[9px] text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border py-3 text-sm text-muted-foreground">
                     {detail.application.location && <span>{detail.application.location}</span>}
                     {detail.application.salary_range && <span>{detail.application.salary_range}</span>}
                     {safeExternalUrl(detail.application.job_url) && (
@@ -1051,7 +1081,7 @@ export function ApplicationsPage() {
                         rel="noreferrer noopener"
                         className="inline-flex items-center gap-1 font-bold text-primary hover:underline"
                       >
-                        View posting <ExternalLink className="h-2.5 w-2.5" />
+                        View posting <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     )}
                   </div>
@@ -1059,7 +1089,7 @@ export function ApplicationsPage() {
 
                 {detail.status_history.length > 0 && (
                   <section className="border-b border-border py-[18px]">
-                    <h3 className="font-heading text-[12px] font-bold text-foreground">Status timeline</h3>
+                    <h3 className="font-heading text-base font-bold text-foreground">Status timeline</h3>
                     <div className="mt-3 grid">
                       {detail.status_history.map((entry, index) => (
                         <div
@@ -1073,11 +1103,11 @@ export function ApplicationsPage() {
                             <Check size={11} />
                           </span>
                           <div>
-                            <strong className="text-[9px] text-foreground">
+                            <strong className="text-sm text-foreground">
                               {entry.from_status ? `${STAGE_LABELS[entry.from_status]} → ` : 'Added as '}
                               {STAGE_LABELS[entry.to_status]}
                             </strong>
-                            <p className="mt-0.5 text-[8px] text-muted-foreground">{formatDate(entry.changed_at)}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(entry.changed_at)}</p>
                           </div>
                         </div>
                       ))}
@@ -1089,7 +1119,7 @@ export function ApplicationsPage() {
                   <>
                     <section className="border-b border-border py-[18px]">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-heading text-[12px] font-bold text-foreground">Notes</h3>
+                        <h3 className="font-heading text-base font-bold text-foreground">Notes</h3>
                         <Button variant="ghost" size="sm" className="h-auto p-0 text-primary" onClick={() => setEditing(true)}>
                           Edit details
                         </Button>
@@ -1097,26 +1127,26 @@ export function ApplicationsPage() {
                       {detail.application.notes ? (
                         <div className="mt-2.5 flex gap-2 rounded-lg bg-secondary p-3 text-primary">
                           <MessageSquareText size={15} className="mt-0.5 shrink-0" />
-                          <p className="text-[9px] leading-relaxed text-foreground/80">{detail.application.notes}</p>
+                          <p className="text-sm leading-relaxed text-foreground/80">{detail.application.notes}</p>
                         </div>
                       ) : (
-                        <p className="mt-2.5 text-[9px] italic text-muted-foreground">No notes yet.</p>
+                        <p className="mt-2.5 text-sm italic text-muted-foreground">No notes yet.</p>
                       )}
                     </section>
 
                     <section className="border-b border-border py-[18px]">
-                      <h3 className="font-heading text-[12px] font-bold text-foreground">Contacts</h3>
+                      <h3 className="font-heading text-base font-bold text-foreground">Contacts</h3>
                       {detail.application.recruiter_name || detail.application.recruiter_email ? (
                         <div className="mt-2.5 grid grid-cols-[28px_1fr_28px] items-center gap-2 border-t border-border py-2.5">
-                          <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary text-[8px] font-bold text-primary">
+                          <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary text-xs font-bold text-primary">
                             {initials(detail.application.recruiter_name || detail.application.recruiter_email || '?')}
                           </span>
                           <div className="min-w-0">
-                            <strong className="block truncate text-[9px] text-foreground">
+                            <strong className="block truncate text-sm text-foreground">
                               {detail.application.recruiter_name || detail.application.recruiter_email}
                             </strong>
                             {detail.application.recruiter_name && detail.application.recruiter_email && (
-                              <small className="mt-0.5 block truncate text-[8px] text-muted-foreground">
+                              <small className="mt-0.5 block truncate text-xs text-muted-foreground">
                                 {detail.application.recruiter_email}
                               </small>
                             )}
@@ -1132,13 +1162,13 @@ export function ApplicationsPage() {
                           )}
                         </div>
                       ) : (
-                        <p className="mt-2.5 text-[9px] italic text-muted-foreground">No recruiter contact saved yet.</p>
+                        <p className="mt-2.5 text-sm italic text-muted-foreground">No recruiter contact saved yet.</p>
                       )}
                     </section>
                   </>
                 ) : (
                   <section className="border-b border-border py-[18px]">
-                    <h3 className="font-heading text-[12px] font-bold text-foreground">Edit details</h3>
+                    <h3 className="font-heading text-base font-bold text-foreground">Edit details</h3>
                     <div className="mt-3 grid gap-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
@@ -1238,14 +1268,14 @@ export function ApplicationsPage() {
 
                 {detail.resume && (
                   <section className="border-b border-border py-[18px]">
-                    <h3 className="font-heading text-[12px] font-bold text-foreground">Application assets</h3>
+                    <h3 className="font-heading text-base font-bold text-foreground">Application assets</h3>
                     <div className="mt-2.5 grid gap-1.5">
                       <Button variant="outline" asChild className="h-auto justify-start gap-2.5 py-2.5">
                         <Link to={`/resume/match?analysisId=${detail.resume.analysis_id}`}>
                           <FileText size={16} />
                           <span className="grid text-left">
-                            <small className="text-[7px] uppercase tracking-wide text-muted-foreground">Resume</small>
-                            <strong className="text-[10px] text-foreground">
+                            <small className="text-xs uppercase tracking-wide text-muted-foreground">Resume</small>
+                            <strong className="text-sm text-foreground">
                               {detail.resume.filename} · {detail.resume.ats_score}% {detail.resume.band}
                             </strong>
                           </span>
@@ -1257,10 +1287,10 @@ export function ApplicationsPage() {
 
                 {detail.application.job_description && (
                   <section className="border-b border-border py-[18px]">
-                    <h3 className="flex items-center gap-1.5 font-heading text-[12px] font-bold text-foreground">
+                    <h3 className="flex items-center gap-1.5 font-heading text-base font-bold text-foreground">
                       <Briefcase size={13} /> Job description
                     </h3>
-                    <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 text-[9px] leading-relaxed text-muted-foreground">
+                    <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
                       {detail.application.job_description}
                     </p>
                   </section>
@@ -1269,20 +1299,20 @@ export function ApplicationsPage() {
                 {detail.job_match && (
                   <section className="border-b border-border py-[18px]">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-heading text-[12px] font-bold text-foreground">Job match</h3>
+                      <h3 className="font-heading text-base font-bold text-foreground">Job match</h3>
                       {detail.job_match.overall_match != null && (
-                        <Badge variant="subtle" className="text-[9px]">
+                        <Badge variant="subtle" className="text-xs">
                           {Math.round(detail.job_match.overall_match)}% · {detail.job_match.band}
                         </Badge>
                       )}
                     </div>
-                    <p className="mt-1.5 text-[9px] text-muted-foreground">{detail.job_match.explanation}</p>
+                    <p className="mt-1.5 text-sm text-muted-foreground">{detail.job_match.explanation}</p>
                     {detail.job_match.missing_skills.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {detail.job_match.missing_skills.map((skill) => (
                           <span
                             key={skill}
-                            className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning-tint px-2 py-1 text-[8px] font-bold text-warning"
+                            className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning-tint px-2 py-1 text-xs font-bold text-warning"
                           >
                             + {skill}
                           </span>
@@ -1294,23 +1324,23 @@ export function ApplicationsPage() {
 
                 {(detail.interview || detail.has_in_progress_interview) && (
                   <section className="border-b border-border py-[18px]">
-                    <h3 className="flex items-center gap-1.5 font-heading text-[12px] font-bold text-foreground">
+                    <h3 className="flex items-center gap-1.5 font-heading text-base font-bold text-foreground">
                       <Sparkles size={13} /> Interview practice
                     </h3>
                     {detail.interview ? (
                       <div className="mt-2">
-                        <div className="flex items-center justify-between text-[9px]">
+                        <div className="flex items-center justify-between text-sm">
                           <span className="font-medium text-foreground">Overall score</span>
-                          <Badge variant="subtle" className="text-[9px]">
+                          <Badge variant="subtle" className="text-xs">
                             {Math.round(detail.interview.overall_score)}% · {detail.interview.readiness_band}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-[8px] text-muted-foreground">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Completed {formatDate(detail.interview.completed_at)}
                         </p>
                       </div>
                     ) : (
-                      <p className="mt-2 text-[9px] text-muted-foreground">A practice session for this role is in progress.</p>
+                      <p className="mt-2 text-sm text-muted-foreground">A practice session for this role is in progress.</p>
                     )}
                   </section>
                 )}

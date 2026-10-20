@@ -149,7 +149,8 @@ export function JobDetailsPage() {
   }
 
   const closed = job.status !== 'open'
-  const applyAvailable = !closed && Boolean(job.applyUrl)
+  const safeApplyUrl = safeExternalUrl(job.applyUrl)
+  const applyAvailable = !closed && Boolean(safeApplyUrl)
   const titleFacts = [job.workMode, job.employmentType?.replace('_', ' '), job.experienceLevel].filter(Boolean)
 
   return (
@@ -180,7 +181,7 @@ export function JobDetailsPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             {applyAvailable ? (
               <Button asChild>
-                <a href={job.applyUrl!} target="_blank" rel="noopener noreferrer">
+                <a href={safeApplyUrl!} target="_blank" rel="noopener noreferrer">
                   Apply Now <ArrowUpRight className="ml-2 h-4 w-4" />
                   <span className="sr-only">Opens the employer site in a new tab</span>
                 </a>

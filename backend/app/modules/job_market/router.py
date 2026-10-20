@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
-from app.modules.job_market import crawl_status, matching, services
+from app.modules.job_market import ats_boards, crawl_status, matching, services
 from app.schemas.job import JobDetailSchema, JobFeedSchema
 
 router = APIRouter()
@@ -102,6 +102,26 @@ def get_job_details(
     row = db.query(JobListing).filter(JobListing.id == job_id).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    if row.source == "workday" and not row.description:
+        board = row.query_key.split(":", 1)[1] if ":" in row.query_key else ""
+        description, apply_url = ats_boards.fetch_workday_detail(board, row.apply_url)
+        changed = False
+        if description:
+            row.description = description
+            changed = True
+        if apply_url and apply_url != row.apply_url:
+            row.apply_url = apply_url
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(row)
+    elif row.source == "microsoft_jobs" and not row.description:
+        description = ats_boards.fetch_microsoft_detail(row.apply_url, row.title)
+        if description:
+            row.description = description
+            db.commit()
+            db.refresh(row)
 
     try:
         parsed_url = urlsplit((row.apply_url or "").strip())

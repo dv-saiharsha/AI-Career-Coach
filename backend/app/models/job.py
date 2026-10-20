@@ -44,8 +44,8 @@ class JobListing(Base):
     apply_url = Column(String, nullable=False)
     posted_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Which ATS this posting came from: "greenhouse", "lever", "ashby",
-    # "workable", "smartrecruiters", "recruitee", or "jsonld".
+    # Which source produced this posting: one of the supported ATS adapters,
+    # Amazon Jobs, Microsoft Careers, or the JSON-LD fallback.
     #
     # Known by construction rather than inferred — a row fetched from
     # boards-api.greenhouse.io is a Greenhouse posting because that is where

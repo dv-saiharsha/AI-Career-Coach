@@ -321,6 +321,58 @@ class TestJobDetailsRoute:
         assert body["status"] == "closed"
         assert body["applyUrl"] == "https://jobs.example.com/role"
 
+    def test_workday_details_are_fetched_and_cached_on_first_open(self, client, db_session, monkeypatch):
+        row = add_job(db_session, "Software Engineer", description=None)
+        row.source = "workday"
+        row.query_key = "workday:nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        row.apply_url = "https://nvidia.wd5.myworkdayjobs.com/job/US/Engineer_JR1"
+        db_session.commit()
+        calls = []
+
+        def fetch_detail(board, apply_url):
+            calls.append((board, apply_url))
+            return (
+                "Build reliable cloud systems.",
+                "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US/Engineer_JR1",
+            )
+
+        monkeypatch.setattr(
+            "app.modules.job_market.router.ats_boards.fetch_workday_detail", fetch_detail
+        )
+
+        first = client.get(f"/api/jobs/{row.id}")
+        second = client.get(f"/api/jobs/{row.id}")
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["description"] == "Build reliable cloud systems."
+        assert first.json()["applyUrl"].startswith("https://nvidia.wd5.myworkdayjobs.com/")
+        assert second.json()["description"] == first.json()["description"]
+        assert len(calls) == 1
+
+    def test_microsoft_description_is_fetched_and_cached_on_first_open(self, client, db_session, monkeypatch):
+        row = add_job(db_session, "Site Reliability Engineer", description=None)
+        row.source = "microsoft_jobs"
+        row.apply_url = "https://apply.careers.microsoft.com/careers/job/123"
+        db_session.commit()
+        calls = []
+
+        def fetch_detail(apply_url, expected_title):
+            calls.append((apply_url, expected_title))
+            return "Keep production services reliable."
+
+        monkeypatch.setattr(
+            "app.modules.job_market.router.ats_boards.fetch_microsoft_detail", fetch_detail
+        )
+
+        first = client.get(f"/api/jobs/{row.id}")
+        second = client.get(f"/api/jobs/{row.id}")
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["description"] == "Keep production services reliable."
+        assert first.json()["applyUrl"] == "https://apply.careers.microsoft.com/careers/job/123"
+        assert second.json()["description"] == first.json()["description"]
+        assert len(calls) == 1
+
     def test_missing_job_returns_404(self, client):
         assert client.get("/api/jobs/999999").status_code == 404
 

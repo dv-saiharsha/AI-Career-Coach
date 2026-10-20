@@ -42,6 +42,12 @@ _HTML_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"https?://(?:jobs|api)\.smartrecruiters\.com/(?:v1/companies/)?([a-zA-Z0-9_-]+)", re.I),
     ),
     ("recruitee", re.compile(r"https?://([a-zA-Z0-9_-]+)\.recruitee\.com", re.I)),
+    (
+        "workday",
+        re.compile(r"https?://([a-zA-Z0-9.-]+\.wd\d+\.myworkdayjobs\.com)/([a-zA-Z0-9_-]+)", re.I),
+    ),
+    ("amazon_jobs", re.compile(r"https?://((?:www\.)?amazon\.jobs)(?:/|$)", re.I)),
+    ("microsoft_jobs", re.compile(r"https?://((?:apply\.)?careers\.microsoft\.com)(?:/|$)", re.I)),
 )
 
 
@@ -52,7 +58,10 @@ def find_ats_link(page_html: str) -> tuple[str, str] | None:
     for provider, pattern in _HTML_PATTERNS:
         match = pattern.search(page_html)
         if match and match.group(1).lower() not in _INVALID_TOKENS:
-            return provider, match.group(1)
+            token = match.group(1)
+            if provider == "workday":
+                token = f"{token}/{match.group(2)}"
+            return provider, token
     return None
 
 
@@ -63,6 +72,7 @@ def detect_one(row: dict, fetch=None, probe=None, jsonld_extract=None) -> tuple[
     network access — mirroring ats_boards.fetch_board's own `fetch` seam.
     """
     fetch = fetch or jsonld_crawler._default_fetch
+    use_default_probe = probe is None
     probe = probe or ats_boards.fetch_board
     jsonld_extract = jsonld_extract or jsonld_crawler._extract_jobpostings
 
@@ -86,10 +96,17 @@ def detect_one(row: dict, fetch=None, probe=None, jsonld_extract=None) -> tuple[
         row["ats_type"] = "manual_review"
         return row, f"careers_url returned {status}"
 
-    found = find_ats_link(body)
+    found = find_ats_link(careers_url) or find_ats_link(body)
     if found:
         provider, token = found
-        live_rows = probe(provider, token)
+        if provider == "workday" and use_default_probe:
+            live_rows = ats_boards.fetch_workday_board(token, "ats-probe", max_pages=1)
+        elif provider == "amazon_jobs" and use_default_probe:
+            live_rows = ats_boards.fetch_amazon_board("amazon_jobs:amazon", max_pages=1)
+        elif provider == "microsoft_jobs" and use_default_probe:
+            live_rows = ats_boards.fetch_microsoft_board("microsoft_jobs:microsoft", max_pages=1)
+        else:
+            live_rows = probe(provider, token)
         if live_rows:
             row["ats_type"] = provider
             row["ats_slug"] = token

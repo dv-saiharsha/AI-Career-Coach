@@ -89,7 +89,10 @@ RETRY_BACKOFF_BASE_SECONDS = 1.0
 
 # ATS types this module knows how to crawl. "manual_review" companies are
 # skipped outright — there is nothing to fetch until a human resolves one.
-_ATS_DISPATCH = ("greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee", "jsonld")
+_ATS_DISPATCH = (
+    "greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee",
+    "workday", "amazon_jobs", "microsoft_jobs", "jsonld",
+)
 
 
 class _Retryable(Exception):
@@ -99,9 +102,13 @@ class _Retryable(Exception):
 
 
 def _raw_fetch(
-    url: str, etag: str | None, last_modified: str | None, timeout: int
+    url: str,
+    etag: str | None,
+    last_modified: str | None,
+    timeout: int,
+    json_body: dict | None = None,
 ) -> tuple[int, str, str | None, str | None]:
-    """One HTTP GET. Returns (status, body, response_etag, response_last_modified).
+    """One HTTP request. Returns (status, body, response_etag, response_last_modified).
 
     Raises _Retryable on a timeout, connection error, or 5xx — anything else
     (200, 304, 404, ...) is returned, not raised, exactly like
@@ -112,12 +119,15 @@ def _raw_fetch(
         "User-Agent": f"HireLoomBot/1.0 (job crawler; +mailto:{contact})",
         "Accept": "application/json, text/html;q=0.9",
     }
-    if etag:
+    if json_body is not None:
+        headers["Content-Type"] = "application/json"
+    if etag and json_body is None:
         headers["If-None-Match"] = etag
-    if last_modified:
+    if last_modified and json_body is None:
         headers["If-Modified-Since"] = last_modified
 
-    request = urllib.request.Request(url, headers=headers)
+    data = json.dumps(json_body).encode("utf-8") if json_body is not None else None
+    request = urllib.request.Request(url, data=data, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             body = response.read().decode("utf-8", errors="replace")
@@ -136,12 +146,18 @@ def _raw_fetch(
 
 
 def _fetch_with_retry(
-    url: str, etag: str | None, last_modified: str | None, timeout: int = DEFAULT_TIMEOUT_SECONDS
+    url: str,
+    etag: str | None,
+    last_modified: str | None,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    json_body: dict | None = None,
 ) -> tuple[int, str, str | None, str | None]:
     last_exc: _Retryable | None = None
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            return _raw_fetch(url, etag, last_modified, timeout)
+            if json_body is None:
+                return _raw_fetch(url, etag, last_modified, timeout)
+            return _raw_fetch(url, etag, last_modified, timeout, json_body)
         except _Retryable as exc:
             last_exc = exc
             if attempt < RETRY_ATTEMPTS - 1:
@@ -184,11 +200,20 @@ def _make_fetch(company: Company, min_interval_ms: int):
     """
     captured = {"etag": None, "last_modified": None, "not_modified": False, "error": None}
 
-    def fetch(url: str) -> tuple[int, str]:
+    def fetch(url: str, json_body: dict | None = None) -> tuple[int, str]:
         domain = urlsplit(url).netloc
         _throttle(domain, min_interval_ms)
         try:
-            status, body, etag, last_modified = _fetch_with_retry(url, company.etag, company.last_modified)
+            if company.ats_type in {"amazon_jobs", "microsoft_jobs"}:
+                status, body, etag, last_modified = _fetch_with_retry(url, None, None)
+            elif json_body is None:
+                status, body, etag, last_modified = _fetch_with_retry(
+                    url, company.etag, company.last_modified
+                )
+            else:
+                status, body, etag, last_modified = _fetch_with_retry(
+                    url, None, None, json_body=json_body
+                )
         except _Retryable as exc:
             captured["error"] = str(exc)
             return 599, ""

@@ -8,12 +8,15 @@ import {
   Download,
   FileSearch,
   FileText,
+  Maximize2,
   LoaderCircle,
   RefreshCw,
   RotateCcw,
   Save,
   Sparkles,
   Trash2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -53,7 +56,7 @@ import type {
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
-type DraftTab = 'edit' | 'analysis' | 'changes' | 'quality'
+type DraftTab = 'preview' | 'edit' | 'analysis' | 'changes' | 'quality'
 
 // The stages the backend reports for a scan (resume_analyzer SCAN_STAGES), then
 // the requirement match this page runs after it. Only real events advance the
@@ -177,18 +180,17 @@ function loadSnapshot(jobId: number | null): Snapshot | null {
 }
 
 function storeSnapshot(jobId: number | null, snapshot: Snapshot): void {
+  const compact: Snapshot = {
+    ...snapshot,
+    preview: snapshot.preview ? { ...snapshot.preview, pdf_base64: '' } : null,
+    draft: snapshot.draft
+      ? { ...snapshot.draft, resume: { ...snapshot.draft.resume, pdf_base64: '' } }
+      : null,
+  }
   try {
-    window.sessionStorage.setItem(snapshotKey(jobId), JSON.stringify(snapshot))
+    window.sessionStorage.setItem(snapshotKey(jobId), JSON.stringify(compact))
   } catch {
-    // Quota or privacy mode: drop the PDFs and keep the edits, which matter most.
-    try {
-      window.sessionStorage.setItem(
-        snapshotKey(jobId),
-        JSON.stringify({ ...snapshot, preview: null, draft: snapshot.draft && { ...snapshot.draft, resume: { ...snapshot.draft.resume, pdf_base64: '' } } })
-      )
-    } catch {
-      /* the page still works without persistence */
-    }
+    // Storage can be unavailable in privacy mode; the page still works without persistence.
   }
 }
 
@@ -265,6 +267,9 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const returnTo = searchParams.get('returnTo')
   const [restored] = useState(() => loadSnapshot(jobId))
+  const [setupOpen, setSetupOpen] = useState(() => !restored?.match)
+  const [analysisExpanded, setAnalysisExpanded] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const [job, setJob] = useState<JobDetails | null>(null)
   const [jobLoading, setJobLoading] = useState(Boolean(jobId))
@@ -304,7 +309,8 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [targetPages, setTargetPages] = useState<1 | 2>(restored?.targetPages ?? 1)
   const [design, setDesign] = useState<'faang' | 'original'>(restored?.design ?? 'faang')
-  const [tab, setTab] = useState<DraftTab>('edit')
+  const [tab, setTab] = useState<DraftTab>('preview')
+  const [previewZoom, setPreviewZoom] = useState<number | 'fit'>(100)
 
   useEffect(() => {
     let cancelled = false
@@ -360,6 +366,15 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   }, [previewPdf])
 
   useEffect(() => {
+    if (!savedCopy || previewPdf || editsDirty) return
+    let cancelled = false
+    resumeTailorService.downloadSaved(savedCopy.id)
+      .then((blob) => { if (!cancelled) setPreviewPdf(blob) })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [savedCopy, previewPdf, editsDirty])
+
+  useEffect(() => {
     if (!analyzing) return
     setScanElapsed(0)
     const started = Date.now()
@@ -376,15 +391,18 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
   }, [tailoring])
 
   useEffect(() => {
-    storeSnapshot(jobId, {
-      version: 1,
-      // A listing's text is re-fetched; only a pasted job needs storing.
-      jobTitle: jobId ? '' : jobTitle,
-      company: jobId ? '' : company,
-      jobDescription: jobId ? '' : jobDescription,
-      analysisId, match, originalResume, draft, editedContent, editsDirty, preview, savedCopy,
-      confirmedSkills, targetPages, design,
-    })
+    const timer = window.setTimeout(() => {
+      storeSnapshot(jobId, {
+        version: 1,
+        // A listing's text is re-fetched; only a pasted job needs storing.
+        jobTitle: jobId ? '' : jobTitle,
+        company: jobId ? '' : company,
+        jobDescription: jobId ? '' : jobDescription,
+        analysisId, match, originalResume, draft, editedContent, editsDirty, preview, savedCopy,
+        confirmedSkills, targetPages, design,
+      })
+    }, 350)
+    return () => window.clearTimeout(timer)
   }, [jobId, jobTitle, company, jobDescription, analysisId, match, originalResume, draft, editedContent, editsDirty, preview, savedCopy, confirmedSkills, targetPages, design])
 
   const resetResults = () => {
@@ -456,11 +474,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
       const result = await resumeTailorService.matchResume(id, jobParams())
       resetResults()
       setMatch(result)
-      try {
-        setOriginalResume(await resumeTailorService.getAutofill(id))
-      } catch {
-        setOriginalResume(null)
-      }
+      setSetupOpen(false)
     } catch (err) {
       setError(messageFor(err, 'Resume analysis failed. Your selected resume and job remain available.'))
     } finally {
@@ -475,23 +489,27 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
     setError('')
     setTailoring(true)
     try {
-      const result = await resumeTailorService.smartTailor(analysisId, {
-        ...jobParams(),
-        fullName: user?.fullName ?? '',
-        design,
-        targetPages,
-        confirmedSkills,
-      })
+      const [result, original] = await Promise.all([
+        resumeTailorService.smartTailor(analysisId, {
+          ...jobParams(),
+          fullName: user?.fullName ?? '',
+          design,
+          targetPages,
+          confirmedSkills,
+        }),
+        resumeTailorService.getAutofill(analysisId).catch(() => null),
+      ])
       if (!result?.resume?.pdf_base64 || !result.analysis || !result.validation) {
         throw new Error('The tailoring service returned an incomplete result. Please try again.')
       }
       setDraft(result)
+      setOriginalResume(original)
       setEditedContent(toEditableContent(result.resume.content, result.resume.section_titles))
       setEditsDirty(false)
       setPreview(null)
       setPreviewPdf(pdfBlob(result.resume.pdf_base64))
       setSavedCopy(null)
-      setTab('edit')
+      setTab('preview')
     } catch (err) {
       setError(messageFor(err, 'Tailoring failed. Your original analysis is unchanged.'))
     } finally {
@@ -628,16 +646,32 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
     <main className="mx-auto grid w-full max-w-6xl gap-6 pb-10">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
         <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Career workspace</p>
-          <h1 className="mt-1 font-heading text-2xl font-bold text-foreground sm:text-3xl">Resume Match &amp; Optimization</h1>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Resume workspace</p>
+          <h1 className="mt-1 font-heading text-2xl font-bold text-foreground sm:text-3xl">Tailor your resume for the role</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Scan a resume against one job to see its ATS score, tailor it with fact-checked changes, and save a separate copy.
+            Choose a job and resume. We’ll compare the evidence, tailor the content, and let you review a separate copy.
           </p>
         </div>
         {jobId && <Button variant="outline" onClick={returnToJob}><ArrowLeft className="mr-2 h-4 w-4" />Return to job</Button>}
       </header>
 
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(260px,0.7fr)]">
+      <ol className="grid grid-cols-4 gap-2 border-b border-border pb-4 text-xs sm:gap-4">
+        {[
+          ['Select', !match],
+          ['Analyze', Boolean(match)],
+          ['Review', Boolean(draft)],
+          ['Download', Boolean(savedCopy)],
+        ].map(([label, current], index) => (
+          <li key={String(label)} className={cn('flex items-center gap-2', current ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+            <span className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px]', current ? 'border-primary bg-primary text-primary-foreground' : 'border-border')}>
+              {index + 1}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ol>
+
+      {setupOpen ? <section className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(260px,0.7fr)]">
         <div className="grid content-start gap-5">
           <section className="border-t-2 border-primary pt-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -714,7 +748,7 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
                 {selectedFile && <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 border-l-2 border-primary pl-3 text-sm"><span className="truncate font-medium text-foreground">{selectedFile.name} · Ready to scan</span><Button size="sm" variant="ghost" onClick={() => setSelectedFile(null)}>Remove</Button></div>}
                 {analyzing && <ScanProgress stage={scanStage} elapsed={scanElapsed} />}
                 <Button className="sm:col-span-2" onClick={analyze} disabled={analyzing || tailoring || jobLoading || !jobDescription.trim()}>
-                  {analyzing ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Scanning</> : <><FileSearch className="mr-2 h-4 w-4" />Scan resume for this job</>}
+                  {analyzing ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Analyzing match</> : <><FileSearch className="mr-2 h-4 w-4" />Analyze resume</>}
                 </Button>
               </div>
             )}
@@ -762,52 +796,105 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
             </section>
           )}
         </aside>
-      </section>
+      </section> : match ? (
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Selected for this match</p>
+            <p className="mt-1 truncate text-sm font-semibold text-foreground">{match.job_title}{match.company ? ` · ${match.company}` : ''}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{match.resume_filename}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}>Change selection</Button>
+        </section>
+      ) : null}
 
       {error && <Alert variant="destructive"><CircleAlert className="h-4 w-4" /><AlertTitle>Couldn’t complete that step</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
 
       {match && (
         <section className="grid gap-5 border-t border-border pt-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div><p className="text-xs font-semibold uppercase text-muted-foreground">03 · Scan result</p><h2 className="mt-1 font-heading text-xl font-bold text-foreground">{match.resume_filename} · {match.job_title}</h2><p className="mt-1 text-sm text-muted-foreground">{match.score_label}</p></div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <ScorePanel label={scoreName(match.score_source)} score={match.score} caption={match.score_source === 'keyword_fallback' ? 'Your resume as it is: the share of this job\u2019s keywords it covers.' : match.score_available ? 'Your resume as it is, scored against this job.' : 'No score could be computed for this job description.'} />
-              <OutlookCard title="Shortlist outlook" outlook={match.outlook} />
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Resume match estimate</p>
+              <h2 className="mt-1 font-heading text-2xl font-bold text-foreground">
+                {match.score != null ? `${Math.round(match.score)}% match` : match.requirement_coverage >= 70 ? 'Strong match' : match.requirement_coverage >= 40 ? 'Moderate match' : 'Needs improvement'}
+              </h2>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Based on skills and qualifications found in your resume and this job description. This is an internal compatibility estimate, not an employer’s ATS result.
+              </p>
             </div>
+            {match.score != null && <ScorePanel label={scoreName(match.score_source)} score={match.score} caption={match.score_source === 'keyword_fallback' ? 'Keyword coverage estimate for this job.' : 'Model estimate for this resume and job.'} />}
           </div>
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
-            <div className="grid content-start gap-5">
-              <section className="border-t border-border pt-3">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-heading text-base font-bold text-foreground">Requirements evidence</h3><span className="text-sm text-muted-foreground">Requirement coverage {match.requirement_coverage}%</span></div>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  <div><h4 className="text-sm font-semibold text-foreground">Matched or related</h4><ul className="mt-2 grid gap-2">{match.matched_requirements.length ? match.matched_requirements.map((item) => <li key={item.key} className="border-l-2 border-success pl-3 text-sm"><p className="font-medium text-foreground">{item.requirement} <span className="text-xs font-normal capitalize text-muted-foreground">· {item.importance}</span></p><p className="mt-0.5 text-xs text-muted-foreground">{item.resume_evidence || 'Evidence present'}{item.buried ? ' · appears deeper in the resume' : ''}</p></li>) : <li className="text-sm text-muted-foreground">No direct evidence found.</li>}</ul></div>
-                  <div><h4 className="text-sm font-semibold text-foreground">Gaps and transferable skills</h4><ul className="mt-2 grid gap-2">{[...match.missing_requirements, ...match.transferable_requirements].length ? [...match.missing_requirements, ...match.transferable_requirements].map((item) => <li key={`${item.key}-${item.match}`} className="border-l-2 border-warning pl-3 text-sm"><p className="font-medium text-foreground">{item.requirement}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.match === 'transferable' ? `Related evidence: ${item.via || 'see resume'}` : `${item.importance} priority · no direct evidence found`}</p></li>) : <li className="text-sm text-muted-foreground">No remaining gaps identified from this description.</li>}</ul></div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              { title: 'Strong matches', count: match.matched_requirements.length, rows: match.matched_requirements, tone: 'border-success/40' },
+              { title: 'Transferable experience', count: match.transferable_requirements.length, rows: match.transferable_requirements, tone: 'border-warning/40' },
+              { title: 'Not found in resume', count: match.missing_requirements.length, rows: match.missing_requirements, tone: 'border-border' },
+            ].map((group) => (
+              <section key={group.title} className={cn('rounded-lg border bg-card p-4', group.tone)}>
+                <p className="text-sm font-semibold text-foreground">{group.title}</p>
+                <p className="mt-1 font-heading text-2xl font-bold text-foreground">{group.count} <span className="text-sm font-medium text-muted-foreground">qualifications</span></p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {group.rows.slice(0, 5).map((item) => <Badge key={item.key} variant="outline" className="font-normal">{item.requirement}</Badge>)}
+                  {group.rows.length === 0 && <span className="text-xs text-muted-foreground">No items identified</span>}
+                  {group.rows.length > 5 && <span className="px-1 py-1 text-xs text-muted-foreground">+{group.rows.length - 5} more</span>}
                 </div>
               </section>
-              {match.diagnostics.parsing_readiness && (
-                <section className="border-t border-border pt-3">
-                  <h3 className="font-heading text-base font-bold text-foreground">Parsing and formatting</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Readiness {match.diagnostics.parsing_readiness.readiness_score}/100 · {match.diagnostics.parsing_readiness.extracted_characters.toLocaleString()} characters extracted</p>
-                  {match.diagnostics.parsing_readiness.formatting_warnings.length > 0 && <ul className="mt-2 grid gap-2">{match.diagnostics.parsing_readiness.formatting_warnings.map((warning, index) => <li key={`${warning.issue}-${index}`} className="text-sm"><strong className="text-foreground">{warning.issue}:</strong> <span className="text-muted-foreground">{warning.detail}</span></li>)}</ul>}
-                  {match.diagnostics.parsing_readiness.is_single_column === false && <p className="mt-2 text-sm text-warning">Multiple columns were detected and may affect parsing.</p>}
-                </section>
-              )}
-            </div>
-            <section className="border-t border-border pt-3">
-              <h3 className="font-heading text-base font-bold text-foreground">Recommendations</h3>
-              {match.recommendations.length ? <ul className="mt-3 grid gap-3">{match.recommendations.slice(0, 8).map((item) => <li key={`${item.requirement}-${item.importance}`} className="border-l-2 border-primary pl-3"><p className="text-sm font-medium text-foreground">{item.requirement}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.message}</p></li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">No high-priority gaps were identified from the available job description.</p>}
-              {match.missing_requirements.some((item) => item.kind === 'skill') && <div className="mt-4 border-t border-border pt-3"><p className="text-sm font-semibold text-foreground">Confirm skills you actually have</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Only selected skills with no resume evidence may be listed. Do not select a skill unless you can support it.</p><div className="mt-2 flex flex-wrap gap-2">{match.missing_requirements.filter((item) => item.kind === 'skill').map((item) => <label key={item.key} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border border-border px-3 text-sm"><input type="checkbox" checked={confirmedSkills.includes(item.requirement)} onChange={() => setConfirmedSkills((items) => items.includes(item.requirement) ? items.filter((skill) => skill !== item.requirement) : [...items, item.requirement])} />{item.requirement}</label>)}</div></div>}
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm"><span className="font-medium text-foreground">Layout</span><select value={design} onChange={(event) => setDesign(event.target.value as 'faang' | 'original')} className="h-10 rounded-md border border-input bg-background px-3"><option value="faang">Clean ATS format</option><option value="original">Keep my section order</option></select></label>
-                <label className="grid gap-1.5 text-sm"><span className="font-medium text-foreground">Length</span><select value={targetPages} onChange={(event) => setTargetPages(Number(event.target.value) as 1 | 2)} className="h-10 rounded-md border border-input bg-background px-3"><option value={1}>1 page</option><option value={2}>2 pages</option></select></label>
-              </div>
-              <Button className="mt-3 w-full" onClick={tailor} disabled={tailoring || analyzing}>
-                {tailoring ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Tailoring resume</> : <><Sparkles className="mr-2 h-4 w-4" />{draft ? 'Tailor again' : 'Tailor My Resume'}</>}
-              </Button>
-              {draft && <p className="mt-2 text-xs text-muted-foreground">Tailoring again replaces the current draft and its unsaved edits.</p>}
-              {match.score_source === 'keyword_fallback' && <p className="mt-2 text-xs text-muted-foreground">Scores here are keyword-coverage scores, measured the same way before and after tailoring, because the trained ATS model is not installed on this server.</p>}
-            </section>
+            ))}
           </div>
+
+          <details open={analysisExpanded} onToggle={(event) => setAnalysisExpanded(event.currentTarget.open)} className="rounded-lg border border-border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-foreground">View detailed analysis</summary>
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+              <section>
+                <h3 className="text-sm font-semibold text-foreground">Requirement evidence</h3>
+                <ul className="mt-2 grid gap-2">
+                  {[...match.matched_requirements, ...match.transferable_requirements, ...match.missing_requirements].map((item) => (
+                    <li key={item.key} className="border-l-2 border-border pl-3 text-sm">
+                      <p className="font-medium text-foreground">{item.requirement} <span className="text-xs font-normal capitalize text-muted-foreground">· {item.match} · {item.importance}</span></p>
+                      {item.resume_evidence && <p className="mt-0.5 text-xs text-muted-foreground">{item.resume_evidence}</p>}
+                      {item.match === 'transferable' && <p className="mt-0.5 text-xs text-muted-foreground">Related evidence: {item.via || 'see resume'}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h3 className="text-sm font-semibold text-foreground">Formatting and recommendations</h3>
+                {match.diagnostics.parsing_readiness && <p className="mt-2 text-xs text-muted-foreground">Formatting readiness {match.diagnostics.parsing_readiness.readiness_score}/100{match.diagnostics.parsing_readiness.is_single_column === false ? ' · multiple columns detected' : ''}</p>}
+                <ul className="mt-2 grid gap-2">{match.recommendations.slice(0, 8).map((item) => <li key={`${item.requirement}-${item.importance}`} className="text-sm"><strong className="font-medium text-foreground">{item.requirement}</strong><p className="text-xs text-muted-foreground">{item.message}</p></li>)}</ul>
+              </section>
+            </div>
+          </details>
+
+          {match.missing_requirements.some((item) => item.kind === 'skill') && (
+            <details className="rounded-lg border border-border p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-foreground">Skills to confirm <span className="font-normal text-muted-foreground">· optional</span></summary>
+              <p className="mt-2 text-xs text-muted-foreground">Only confirm skills you can support with real experience. Confirmed skills may appear in the skills section, never as invented experience.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {match.missing_requirements.filter((item) => item.kind === 'skill').map((item) => (
+                  <label key={item.key} className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border border-border px-3 text-sm">
+                    <input type="checkbox" checked={confirmedSkills.includes(item.requirement)} onChange={() => setConfirmedSkills((items) => items.includes(item.requirement) ? items.filter((skill) => skill !== item.requirement) : [...items, item.requirement])} />
+                    I have {item.requirement}
+                  </label>
+                ))}
+              </div>
+            </details>
+          )}
+
+          <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-lg border border-border p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-foreground">Advanced options</summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm"><span className="font-medium text-foreground">Resume style</span><select value={design} onChange={(event) => setDesign(event.target.value as 'faang' | 'original')} className="h-10 rounded-md border border-input bg-background px-3"><option value="faang">Clean ATS format</option><option value="original">Preserve my section order</option></select></label>
+              <label className="grid gap-1.5 text-sm"><span className="font-medium text-foreground">Length</span><select value={targetPages} onChange={(event) => setTargetPages(Number(event.target.value) as 1 | 2)} className="h-10 rounded-md border border-input bg-background px-3"><option value={1}>1 page (recommended)</option><option value={2}>2 pages</option></select></label>
+            </div>
+          </details>
+
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:px-4">
+            <p className="min-w-0 truncate text-sm text-muted-foreground">{match.job_title}{match.company ? ` · ${match.company}` : ''}</p>
+            <Button onClick={tailor} disabled={tailoring || analyzing}>
+              {tailoring ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Tailoring resume</> : <><Sparkles className="mr-2 h-4 w-4" />{draft ? 'Tailor again' : 'Tailor my resume'}</>}
+            </Button>
+          </div>
+          {match.score_source === 'keyword_fallback' && <p className="text-xs text-muted-foreground">This estimate uses keyword coverage because the trained ATS scoring model is not available here.</p>}
         </section>
       )}
 
@@ -820,29 +907,19 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
       {draft && editedContent && !tailoring && (
         <section className="grid gap-5 border-t border-border pt-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div><p className="text-xs font-semibold uppercase text-muted-foreground">04 · Tailored result</p><h2 className="mt-1 font-heading text-xl font-bold text-foreground">Tailored draft</h2><p className="mt-1 text-sm text-muted-foreground">Review every change and edit anything before saving this separate copy.</p></div>
+            <div><p className="text-xs font-semibold uppercase text-muted-foreground">03 · Review</p><h2 className="mt-1 font-heading text-xl font-bold text-foreground">Your tailored resume</h2><p className="mt-1 text-sm text-muted-foreground">Review the document, make edits, then save a separate copy.</p></div>
             {draft.tailoring.ai.note && <p className="max-w-md text-xs text-warning">{draft.tailoring.ai.note}</p>}
           </div>
 
-          <div className="grid gap-6 border-b border-border pb-5 md:grid-cols-3">
-            <ScoreComparison before={scoreBefore} after={scoreAfter} change={scoreChange} afterCaption={scoreCaption} source={scoreSource} />
-            <section aria-label="Job-specific resume score" className="grid content-start gap-1">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Score for this job</p>
-              <p className="font-heading text-3xl font-bold tabular-nums text-foreground">{draft.analysis.coverage}<span className="ml-1 text-xl">%</span></p>
-              <p className="text-xs text-muted-foreground">
-                Requirement coverage: {draft.analysis.counts.exact} exact, {draft.analysis.counts.related} related, {draft.analysis.counts.transferable} transferable, {draft.analysis.counts.missing} missing. Tailoring changes how evidence is presented, never what you have, so this moves only with skills you confirm.
-              </p>
-            </section>
-            {draft.scores.outlook_after && <OutlookCard title="Shortlist outlook after tailoring" outlook={draft.scores.outlook_after} />}
-          </div>
           {editsDirty && <p className="text-xs text-warning">You have edits the score and preview don’t reflect yet. Use “Update preview” to re-score them.</p>}
 
           <div role="tablist" aria-label="Tailored result" className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1">
             {([
+              ['preview', 'Final resume'],
               ['edit', 'Review & edit'],
-              ['analysis', 'Resume ↔ JD analysis'],
-              ['changes', 'What changed'],
-              ['quality', 'Quality check'],
+              ['changes', 'Changes'],
+              ['analysis', 'Detailed analysis'],
+              ['quality', 'Quality'],
             ] as [DraftTab, string][]).map(([key, label]) => (
               <button
                 key={key}
@@ -855,6 +932,56 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
               </button>
             ))}
           </div>
+
+          {tab === 'preview' && (
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.8fr)]">
+              <section className="min-w-0" aria-label="Final resume preview">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">Page 1 of {pages?.page_count ?? 1}{pages && !pages.fits ? ' · longer than the selected target' : ''}</p>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" aria-label="Zoom out" title="Zoom out" onClick={() => setPreviewZoom((value) => Math.max(60, (value === 'fit' ? 100 : value) - 10))} disabled={previewZoom !== 'fit' && previewZoom <= 60}><ZoomOut className="h-4 w-4" /></Button>
+                    <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{previewZoom === 'fit' ? 'Fit' : `${previewZoom}%`}</span>
+                    <Button variant="outline" size="icon" aria-label="Zoom in" title="Zoom in" onClick={() => setPreviewZoom((value) => Math.min(130, (value === 'fit' ? 100 : value) + 10))} disabled={previewZoom !== 'fit' && previewZoom >= 130}><ZoomIn className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="icon" aria-label="Fit page" title="Fit page" onClick={() => setPreviewZoom('fit')}><Maximize2 className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+                {previewUrl && (!editsDirty || preview || !draft.resume.pdf_base64) ? (
+                  <iframe title="Tailored resume preview" src={`${previewUrl}#toolbar=0&navpanes=0&zoom=${previewZoom === 'fit' ? 'page-fit' : previewZoom}`} className="h-[min(78vh,900px)] min-h-[520px] w-full rounded-md border border-border bg-white" />
+                ) : (
+                  <div className="grid min-h-[420px] place-items-center rounded-md border border-dashed border-border bg-muted/30 p-8 text-center">
+                    <div className="grid justify-items-center gap-3">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                      <div><p className="font-semibold text-foreground">{editsDirty ? 'Your edits need a refreshed preview' : 'Generate the resume preview'}</p><p className="mt-1 text-sm text-muted-foreground">This recompiles your current content without another AI tailoring run.</p></div>
+                      <Button variant="outline" onClick={updatePreview} disabled={previewing || saving}>{previewing ? 'Updating preview…' : editsDirty ? 'Update preview' : 'Generate preview'}</Button>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <aside className="grid content-start gap-5 lg:sticky lg:top-20">
+                <section className="grid gap-3 rounded-lg border border-border p-4">
+                  <div><p className="text-xs font-semibold uppercase text-muted-foreground">Optimization complete</p><h3 className="mt-1 text-sm font-semibold text-foreground">Compatibility estimate</h3></div>
+                  <ScoreComparison before={scoreBefore} after={scoreAfter} change={scoreChange} afterCaption={scoreCaption} source={scoreSource} />
+                  <p className="text-xs text-muted-foreground">Internal estimate only. It is not an employer ATS result or screening guarantee.</p>
+                </section>
+                <section>
+                  <h3 className="text-sm font-semibold text-foreground">Improvements</h3>
+                  <ul className="mt-2 grid gap-2">
+                    {draft.tailoring.changes.slice(0, 5).map((change, index) => <li key={`${change.change}-${index}`} className="flex gap-2 text-sm"><Check className="mt-0.5 h-4 w-4 shrink-0 text-success" /><span className="text-foreground">{change.change}</span></li>)}
+                    <li className="flex gap-2 text-sm"><Check className="mt-0.5 h-4 w-4 shrink-0 text-success" /><span className="text-foreground">{draft.tailoring.bullet_changes.filter((change) => change.status === 'rewritten').length} experience bullets strengthened</span></li>
+                    <li className="flex gap-2 text-sm"><Check className="mt-0.5 h-4 w-4 shrink-0 text-success" /><span className="text-foreground">{pages?.fits ? `Optimized to ${pages.target_pages} page${pages.target_pages === 1 ? '' : 's'}` : `${pages?.page_count ?? draft.resume.page_count} pages; selected target not met`}</span></li>
+                  </ul>
+                </section>
+                {editsDirty && <Button variant="outline" onClick={updatePreview} disabled={previewing || saving}><RefreshCw className="mr-2 h-4 w-4" />Update preview and score</Button>}
+                {savedCopy && !editsDirty ? (
+                  <Button onClick={() => downloadSaved(savedCopy.id, savedCopy.resume_filename)}><Download className="mr-2 h-4 w-4" />Download PDF</Button>
+                ) : (
+                  <Button onClick={saveDraft} disabled={saving || previewing}><Save className="mr-2 h-4 w-4" />{saving ? 'Saving separate copy…' : 'Save tailored copy'}</Button>
+                )}
+                <p className="text-xs text-muted-foreground">Your original resume remains unchanged. Saving creates a separate PDF version.</p>
+              </aside>
+            </div>
+          )}
 
           {tab === 'analysis' && <AnalysisView result={draft} />}
           {tab === 'changes' && <ChangesView result={draft} />}
@@ -893,8 +1020,8 @@ function ResumeMatchWorkspace({ jobId }: { jobId: number | null }) {
                   </div>
                   <Button variant="outline" size="sm" onClick={downloadPreview} disabled={!previewUrl}><Download className="mr-2 h-4 w-4" />Download</Button>
                 </div>
-                <Button variant="outline" onClick={updatePreview} disabled={!editsDirty || previewing || saving}>
-                  {previewing ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating preview</> : <><RefreshCw className="mr-2 h-4 w-4" />Update preview and score</>}
+                <Button variant="outline" onClick={updatePreview} disabled={(!editsDirty && Boolean(previewUrl)) || previewing || saving}>
+                  {previewing ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Updating preview</> : <><RefreshCw className="mr-2 h-4 w-4" />{editsDirty ? 'Update preview and score' : 'Generate preview'}</>}
                 </Button>
                 {previewUrl && <iframe title="Tailored resume preview" src={previewUrl} className="h-[640px] w-full rounded-md border border-border bg-white" />}
                 {savedCopy && !editsDirty ? (
