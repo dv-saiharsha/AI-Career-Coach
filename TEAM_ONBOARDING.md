@@ -11,47 +11,27 @@ order.
 
 ---
 
-## 0. Before anyone can pull anything — do this first
+## 0. Which branch to use
 
-**The active branch is not on GitHub yet.** All current work is on
-`redesign/violet-neumorphic`, which is **87 commits ahead of `origin/main`**
-and has never been pushed. `main` on GitHub is several weeks stale relative
-to what's actually running locally. Nobody can clone or pull the real state
-of the project until this is fixed.
-
-**Team lead — do this before assigning anything below:**
+Current work is on **`migration/gcp-cutover`** (pushed to GitHub). It is far
+ahead of `origin/main`, which is stale, so branch off it, not `main`:
 
 ```
-git push -u origin redesign/violet-neumorphic
+git clone https://github.com/dv-saiharsha/AI-Career-Coach.git
+cd AI-Career-Coach
+git checkout migration/gcp-cutover
+git checkout -b feature/<your-feature>
 ```
 
-Then decide, and tell the team which:
+Open pull requests into `migration/gcp-cutover` until the team agrees to merge
+it into `main`. Pull before starting new work: `git pull origin migration/gcp-cutover`.
 
-- **Everyone branches off `redesign/violet-neumorphic`** until it's judged
-  stable enough to merge into `main` (recommended — it's where all recent
-  work lives, and branching off a stale `main` means redoing weeks of
-  redesign work in every new branch).
-- Or merge `redesign/violet-neumorphic` into `main` now via a reviewed PR,
-  and have the team branch off `main` as usual.
-
-Whichever you pick, **say it explicitly to the team** — don't leave people to
-guess which branch is "current."
-
-### A second thing to resolve before anyone pulls
-
-There is an **uncommitted, uncertain change** sitting in the working tree
-right now: `frontend/src/app/page.tsx` differs from what's committed, and the
-difference reverts the landing page back to an older, pre-redesign version
-(the components it imports — `HeroSection`, `FeaturesGrid`, `TeamSection`,
-etc. — were already superseded and removed earlier in this branch's history).
-This was not made deliberately in this session and its origin isn't known —
-possibly a stray editor autosave, a merge artifact, or something else. It has
-**not** been committed or discarded.
-
-**Resolve this yourself before pushing:** either `git checkout --
-frontend/src/app/page.tsx` if it's unwanted, or commit it deliberately if
-it's something you actually meant to change. Don't hand this off — it's a
-one-person decision about intent, not a task to assign.
+**Known-stale docs:** the project is moving from Supabase to GCP (Cloud SQL,
+Firebase Auth). The README still describes Supabase and `VITE_SUPABASE_*`
+variables in places; `backend/.env.example` and `frontend/.env.local.example`
+(`FIREBASE_*`, `DB_URL`, `OLLAMA_*`) are the current source of truth. See
+`MIGRATION_RUNBOOK.md` and `infra/gcp/README.md`. Real secrets come from the
+project owner over a secure channel, never through git or chat.
 
 ---
 

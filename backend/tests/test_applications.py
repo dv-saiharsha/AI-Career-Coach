@@ -191,3 +191,26 @@ def test_unauthenticated_requests_rejected(db_session):
         assert unauthenticated.post("/api/applications", json=PAYLOAD).status_code == 401
     finally:
         app.dependency_overrides.clear()
+
+
+class TestJobUrlIsAnExternalLink:
+    """job_url is rendered as a link; only http(s) may be stored."""
+
+    def test_unsafe_schemes_are_rejected(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from app.schemas.application import ApplicationCreateSchema, ApplicationUpdateSchema
+
+        for bad in ("javascript:alert(1)", "data:text/html,<script>x</script>", "https://user:pw@x.com/j", "ftp://x.com/j", "not a url"):
+            with pytest.raises(ValidationError):
+                ApplicationCreateSchema(job_title="Eng", company="Acme", job_url=bad)
+            with pytest.raises(ValidationError):
+                ApplicationUpdateSchema(job_url=bad)
+
+    def test_http_links_and_blanks_are_kept(self):
+        from app.schemas.application import ApplicationCreateSchema
+
+        assert ApplicationCreateSchema(job_title="Eng", company="Acme", job_url=" https://boards.greenhouse.io/x/jobs/1 ").job_url == "https://boards.greenhouse.io/x/jobs/1"
+        assert ApplicationCreateSchema(job_title="Eng", company="Acme", job_url="").job_url is None
+        assert ApplicationCreateSchema(job_title="Eng", company="Acme").job_url is None

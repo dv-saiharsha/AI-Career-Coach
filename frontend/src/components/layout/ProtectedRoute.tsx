@@ -17,5 +17,12 @@ export function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
+  // The API refuses unverified email accounts, so every page behind this guard
+  // would only show errors. Send them to the screen that explains and lets them
+  // resend the email. Google accounts arrive verified and never see it.
+  if (!user.emailVerified) {
+    return <Navigate to="/verify-email" replace />
+  }
+
   return <Outlet />
 }

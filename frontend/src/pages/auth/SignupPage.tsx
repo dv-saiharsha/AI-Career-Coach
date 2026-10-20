@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { GoogleIcon } from '@/components/shared/GoogleIcon'
 import { PasswordField } from '@/components/shared/PasswordField'
-import { useAuth } from '@/context/AuthContext'
+import { AccountExistsError, useAuth } from '@/context/AuthContext'
+import { friendlyAuthError } from '@/lib/authErrors'
 import { getPasswordStrength } from '@/lib/passwordStrength'
 import { cn } from '@/lib/utils'
 
@@ -35,14 +36,14 @@ export function SignupPage() {
     setIsLoading(true)
     try {
       await register(email, password, `${firstName} ${lastName}`.trim())
-      toast.success('Account created! Welcome to HireLoom.')
-      // There is no /onboarding route — a dedicated onboarding flow was never
-      // built (needs a product decision on which backend fields it writes
-      // to; see MIGRATION_PLAN.md). Route to the real dashboard instead of a
-      // dead link.
-      navigate('/dashboard')
+      toast.success('Account created. Check your email to verify your address.')
+      // New email/password accounts must confirm their address before the API
+      // will talk to them, so go straight to the screen that explains that
+      // (and lets them resend the email) rather than to a dashboard that
+      // would only show errors.
+      navigate('/verify-email')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create account.')
+      toast.error(friendlyAuthError(err, 'Could not create account.'))
     } finally {
       setIsLoading(false)
     }
@@ -51,9 +52,17 @@ export function SignupPage() {
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true)
     try {
-      await loginWithGoogle()
+      const outcome = await loginWithGoogle()
+      if (outcome === 'signed-in') navigate('/dashboard')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not start Google sign-in.')
+      if (err instanceof AccountExistsError) {
+        // The account already exists under another sign-in method: finish the
+        // connection on the sign-in page, where the password prompt lives.
+        navigate('/login')
+      } else {
+        toast.error(friendlyAuthError(err, 'Could not sign in with Google.'))
+      }
+    } finally {
       setIsGoogleLoading(false)
     }
   }
@@ -77,7 +86,7 @@ export function SignupPage() {
         disabled={isGoogleLoading || isLoading}
       >
         <GoogleIcon className="h-5 w-5" />
-        {isGoogleLoading ? 'Redirecting to Google...' : 'Continue with Google'}
+        {isGoogleLoading ? 'Opening Google...' : 'Continue with Google'}
       </Button>
 
       <div className="my-[22px] flex items-center gap-3">

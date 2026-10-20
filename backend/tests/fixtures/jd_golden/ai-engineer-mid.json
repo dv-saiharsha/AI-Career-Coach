@@ -1,0 +1,131 @@
+{
+  "jd_id": "ai-engineer-mid",
+  "role": "ai-engineer",
+  "seniority_in_seed": "mid",
+  "why_chosen": "The mid-level case: seniority is never stated, only implied by '3-4 years'. Also a RAG vocabulary test (acronym plus its components).",
+  "judgment_calls": [
+    "SENIORITY: the JD never says 'mid'. Decided: map stated years to a level in code (0-2 junior, 3-5 mid, 6+ senior) only when no level word is stated, so 'mid' with seniority_source 'years'.",
+    "'RAG pipelines' and its three components (chunking strategy, embedding models, vector search) are all required: all are named under 'Experience with'.",
+    "'FastAPI or a similar framework' -> FastAPI is required; 'a similar framework' names nothing, so no alternative_group.",
+    "'at least 1 year working directly with LLM APIs' -> skill 'LLM APIs'; the 1 year is not min_years_experience (that is 3).",
+    "No vector database, model vendor or ML framework is named, so none may be reported."
+  ],
+  "expected": {
+    "job_title": "AI Engineer",
+    "seniority": "mid",
+    "seniority_source": "years",
+    "min_years_experience": 3,
+    "required_skills": [
+      {
+        "name": "llm apis",
+        "evidence": "LLM APIs",
+        "alternative_group": null
+      },
+      {
+        "name": "retrieval augmented generation",
+        "evidence": "retrieval-augmented generation (RAG)",
+        "alternative_group": null
+      },
+      {
+        "name": "chunking strategy",
+        "evidence": "chunking strategy",
+        "alternative_group": null
+      },
+      {
+        "name": "embedding models",
+        "evidence": "embedding models",
+        "alternative_group": null
+      },
+      {
+        "name": "vector search",
+        "evidence": "vector search",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python",
+        "alternative_group": null
+      },
+      {
+        "name": "fastapi",
+        "evidence": "FastAPI",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "python",
+      "fastapi"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "build resume screening features",
+      "build job-matching features"
+    ],
+    "ats_keywords": [
+      {
+        "term": "llm apis",
+        "weight": 1.0
+      },
+      {
+        "term": "retrieval augmented generation",
+        "weight": 1.0
+      },
+      {
+        "term": "rag",
+        "weight": 1.0
+      },
+      {
+        "term": "chunking strategy",
+        "weight": 1.0
+      },
+      {
+        "term": "embedding models",
+        "weight": 1.0
+      },
+      {
+        "term": "vector search",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "fastapi",
+        "weight": 1.0
+      },
+      {
+        "term": "ai engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "resume screening",
+        "weight": 0.4
+      },
+      {
+        "term": "job matching",
+        "weight": 0.4
+      },
+      {
+        "term": "hr-tech",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "pytorch",
+    "tensorflow",
+    "langchain",
+    "openai",
+    "anthropic",
+    "pinecone",
+    "weaviate",
+    "pgvector",
+    "docker",
+    "aws",
+    "kubernetes"
+  ],
+  "annotated_by": "hand"
+}

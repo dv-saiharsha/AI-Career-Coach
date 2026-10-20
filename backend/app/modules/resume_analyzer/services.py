@@ -3,9 +3,12 @@ import re
 from typing import Callable
 
 from app.core.llm import llm_client
+from app.core.skill_match import mentions_any
 from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import integrity, layout_check, quality
 from app.ml.inference import model_available, predict_score
+from app.modules.jd_analyzer import service as jd_service
+from app.modules.jd_analyzer.schemas import JDAnalysis
 
 SYSTEM_PROMPT = (
     "You are an ATS (applicant tracking system) resume screening engine combined with a "
@@ -14,7 +17,8 @@ SYSTEM_PROMPT = (
     "If it is not a resume, set is_resume to false and give the other fields reasonable "
     "empty/zero defaults, since they won't be used. If it is a resume, set is_resume to "
     "true and identify matched/missing/extracted skills, a keyword-frequency breakdown, "
-    "and specific, actionable feedback. Do not compute a numeric match score — that is "
+    "and specific, actionable feedback. Never suggest adding a skill that already appears "
+    "on the resume. Do not compute a numeric match score — that is "
     "handled separately by a dedicated scoring model."
 )
 
@@ -131,16 +135,39 @@ def extract_text(filename: str, content: bytes) -> str:
     raise ValueError("Unsupported file type. Upload a PDF or DOCX resume.")
 
 
-def _score(resume_text: str, jd_text: str, fallback_ratio: float) -> float:
+# Where ats_score came from. Returned with every scan so a number is never
+# shown without saying what produced it.
+SCORE_SOURCE_MODEL = "model"
+SCORE_SOURCE_KEYWORDS = "keyword_fallback"
+
+
+def _keyword_ratio(matched: list, missing: list) -> float:
+    """Share of the job's keywords the resume covers, 0-100. The same figure
+    on both paths, so a scan scores the same whichever one produced the lists."""
+    return round(100 * len(matched) / ((len(matched) + len(missing)) or 1), 1)
+
+
+def _score_with_source(resume_text: str, jd_text: str, fallback_ratio: float) -> tuple[float, str]:
     """ats_score always comes from the trained model when one exists — it's
     deterministic and free, unlike asking the LLM for a number. The keyword-
-    ratio fallback only applies before anyone has ever run train_ats_model.py."""
+    ratio fallback only applies before anyone has ever run train_ats_model.py,
+    and the second value says which of the two this is."""
     if model_available():
-        return float(predict_score(resume_text, jd_text))
-    return fallback_ratio
+        return float(predict_score(resume_text, jd_text)), SCORE_SOURCE_MODEL
+    return fallback_ratio, SCORE_SOURCE_KEYWORDS
 
 
-def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
+def score_with_source(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> tuple[float, str]:
+    """The ATS score a scan gives, for any resume text: the trained model's when
+    it is installed, otherwise the share of the job's keywords the resume covers
+    (taxonomy-aware), with the second value saying which. Every flow that shows
+    a before/after (match, tailor, preview, save) scores both sides with this
+    and the same jd_analysis, so the two numbers are always comparable."""
+    result = _rule_based_analysis(resume_text, jd_text, jd_analysis)
+    return round(float(result["ats_score"]), 1), result["score_source"]
+
+
+def _rule_based_analysis(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> dict:
     """Keyword analysis with taxonomy-aware matching.
 
     A JD keyword counts as present when the resume states it literally OR when
@@ -156,7 +183,13 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
     # Single tokens from the shared extractor, plus multi-word skills it can't
     # see ("deep learning", "rest apis") — without these the taxonomy never
     # fires on the phrases that most need it.
-    candidates = skill_candidates(jd_text)
+    # The keyword list the analysis yields (the older flat list, derived from
+    # it); with no analysis, or a rules-only one, exactly skill_candidates.
+    candidates = (
+        jd_service.keywords_from(jd_analysis, jd_text, skill_candidates)
+        if jd_analysis is not None
+        else skill_candidates(jd_text)
+    )
     resume_implied = expand_skills(skill_candidates(resume_text))
 
     matched, missing, keyword_analysis = [], [], []
@@ -177,7 +210,7 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
         })
 
     total = len(candidates) or 1
-    ats_score = _score(resume_text, jd_text, round(100 * len(matched) / total, 1))
+    ats_score, score_source = _score_with_source(resume_text, jd_text, round(100 * len(matched) / total, 1))
     suggestions = [
         f'Add or emphasize "{kw}" — it appears in the job description but not your resume.'
         for kw in missing[:6]
@@ -196,6 +229,7 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
 
     return {
         "ats_score": ats_score,
+        "score_source": score_source,
         "missing_skills": missing[:15],
         "matched_skills": matched[:15],
         "extracted_skills": matched[:15],
@@ -204,10 +238,19 @@ def _rule_based_analysis(resume_text: str, jd_text: str) -> dict:
     }
 
 
-def _llm_analysis(resume_text: str, jd_text: str) -> dict:
+def _llm_analysis(resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None = None) -> dict:
+    # The job, already analysed: what it requires and what it only prefers, so
+    # the model compares the resume against that and not against its own first
+    # reading of the posting.
+    summary = (
+        f"STRUCTURED SUMMARY OF THE JOB:\n{jd_service.structured_summary(jd_analysis)}\n\n"
+        if jd_analysis is not None and jd_analysis.source != "rules"
+        else ""
+    )
     user_prompt = (
         f"RESUME:\n{resume_text[:8000]}\n\n"
         f"JOB DESCRIPTION:\n{jd_text[:4000]}\n\n"
+        f"{summary}"
         "Score how well the resume matches the job description as an ATS would."
     )
     data = llm_client.complete_tool_json(SYSTEM_PROMPT, user_prompt, "submit_analysis", ANALYSIS_TOOL_SCHEMA)
@@ -219,42 +262,86 @@ def _llm_analysis(resume_text: str, jd_text: str) -> dict:
     data.setdefault("keyword_analysis", [])
     data.setdefault("suggestions", [])
     # The LLM no longer produces a score at all (see SYSTEM_PROMPT) — the
-    # trained model is the sole, deterministic source of ats_score.
-    data["ats_score"] = _score(resume_text, jd_text, 0.0)
+    # trained model is the sole, deterministic source of ats_score. Without a
+    # model the score falls back to the keyword ratio, as on the rule-based
+    # path; it used to fall back to 0.0 here, which a user reads as "your
+    # resume matches nothing".
+    data["ats_score"], data["score_source"] = _score_with_source(
+        resume_text, jd_text, _keyword_ratio(data["matched_skills"], data["missing_skills"])
+    )
     return data
 
 
+def _drop_suggestions_naming_matched_skills(suggestions: list[str], matched_skills: list[str]) -> list[str]:
+    """Remove suggestions that tell the candidate to add a skill they already
+    have. The prompt asks the model not to, but a model that is told is not a
+    model that complies, and "Consider adding Kubernetes" beside a matched
+    Kubernetes is the kind of contradiction that makes the rest of the advice
+    look untrustworthy. Checked here, against the final matched list."""
+    if not matched_skills:
+        return suggestions
+    return [text for text in suggestions if not mentions_any(text, matched_skills)]
+
+
+def _final_keyword_score(result: dict, resume_text: str, jd_text: str, jd_analysis: JDAnalysis | None) -> dict:
+    """Without a trained model, the scan's score is the deterministic keyword
+    coverage (score_with_source), not a ratio of the LLM's own skill lists.
+
+    The LLM's lists vary from run to run and cannot be recomputed for an edited
+    or tailored resume, so a ratio of them could never be compared with the
+    score the match, tailor, preview and save steps show for the same resume
+    and job; users saw 72.7 in the scan and 40.0 next to it. A model score is
+    left alone."""
+    if result.get("score_source") == SCORE_SOURCE_KEYWORDS:
+        result["ats_score"], result["score_source"] = score_with_source(resume_text, jd_text, jd_analysis)
+    return result
+
+
 def _reconcile_implied(resume_text: str, result: dict) -> dict:
-    """Move skills the resume demonstrably implies out of `missing_skills`.
+    """Move skills the resume demonstrably has out of `missing_skills`.
 
     The LLM path builds its own skill lists, so without this the taxonomy only
     ever applied to the rule-based fallback — and since Claude is normally
     configured, the false negative it exists to fix (PyTorch listed, "deep
     learning" reported missing) would survive in production.
 
-    Implied skills move to matched and are flagged, not silently merged: the
-    candidate still needs to write the phrase down for a literal ATS search.
+    Two different things can be hiding in `missing_skills`:
+
+      * the resume WRITES the skill (the model simply got it wrong — a small
+        local model does, now and then). It moves to matched with nothing said
+        about it: there is nothing for the candidate to fix.
+      * the resume only IMPLIES it. It moves to matched and is flagged, not
+        silently merged: the candidate still needs to write the phrase down
+        for a literal ATS search, so that one earns a suggestion.
     """
     implied_pool = expand_skills(skill_candidates(resume_text))
-    still_missing, newly_implied = [], []
+    still_missing, literal, newly_implied = [], [], []
 
     for skill in result.get("missing_skills") or []:
-        if canonical(skill) in implied_pool:
+        if mentions_any(resume_text, [skill]):
+            literal.append(skill)
+        elif canonical(skill) in implied_pool:
             newly_implied.append(skill)
         else:
             still_missing.append(skill)
 
-    if not newly_implied:
+    if not literal and not newly_implied:
         return result
 
     result["missing_skills"] = still_missing
-    result["matched_skills"] = (result.get("matched_skills") or []) + newly_implied
+    result["matched_skills"] = (result.get("matched_skills") or []) + literal + newly_implied
 
     implied_set = {s.lower() for s in newly_implied}
+    literal_set = {s.lower() for s in literal}
     for item in result.get("keyword_analysis") or []:
-        if item.get("keyword", "").lower() in implied_set:
+        keyword = item.get("keyword", "").lower()
+        if keyword in implied_set:
             item["present"] = True
             item["implied"] = True
+        elif keyword in literal_set:
+            item["present"] = True
+            item["implied"] = False
+            item["frequency"] = max(int(item.get("frequency") or 0), 1)
 
     result["suggestions"] = (result.get("suggestions") or []) + [
         f'State "{skill}" explicitly — your other skills imply it, but an ATS keyword '
@@ -374,16 +461,33 @@ def analyze_resume_against_job(
     if not looks_like_resume(resume_text):
         raise NotAResumeError(NOT_A_RESUME_MESSAGE)
 
+    # The job description is analysed first, once, and both paths below work
+    # from the result. analyze() never raises: with no model it returns the
+    # rules-only analysis, which keeps the older keyword list exactly.
+    jd_analysis: JDAnalysis | None = None
+
     if llm_client.available:
         try:
             stage("analyzing")
-            result = _llm_analysis(resume_text, jd_text)
+            jd_analysis = jd_service.analyze(jd_text)
+            result = _llm_analysis(resume_text, jd_text, jd_analysis)
             result["_source"] = "llm"
+            result["jd_analysis"] = jd_analysis.model_dump(mode="json")
             result["resume_text"] = resume_text
             # Applied here too, not just on the fallback: this is the path
             # that actually runs in production.
             stage("reconciling")
+            llm_suggestion_count = len(result["suggestions"])
             result = _reconcile_implied(resume_text, result)
+            # Only what the model wrote is filtered; the "state it explicitly"
+            # lines reconcile just added name matched skills on purpose.
+            result["suggestions"] = (
+                _drop_suggestions_naming_matched_skills(
+                    result["suggestions"][:llm_suggestion_count], result["matched_skills"]
+                )
+                + result["suggestions"][llm_suggestion_count:]
+            )
+            result = _final_keyword_score(result, resume_text, jd_text, jd_analysis)
             stage("diagnostics")
             result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)
             return result
@@ -396,8 +500,11 @@ def analyze_resume_against_job(
     # LLM mid-scan sees the checklist continue rather than stall on
     # "analyzing" while rule-based scoring quietly finishes the job.
     stage("analyzing")
-    result = _rule_based_analysis(resume_text, jd_text)
+    if jd_analysis is None:
+        jd_analysis = jd_service.analyze(jd_text)
+    result = _rule_based_analysis(resume_text, jd_text, jd_analysis)
     result["_source"] = "rules"
+    result["jd_analysis"] = jd_analysis.model_dump(mode="json")
     result["resume_text"] = resume_text
     stage("diagnostics")
     result["diagnostics"] = build_diagnostics(resume_text, jd_text, result, content)

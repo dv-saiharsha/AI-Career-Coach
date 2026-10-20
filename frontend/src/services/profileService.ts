@@ -2,6 +2,7 @@ import { http } from '@/lib/http'
 import type {
   AccountDeletionResult,
   ActivityResponseSchema,
+  AvatarUploadDescriptor,
   ProfileSchema,
   ProfileUpdatePayload,
   UserStatsSchema,
@@ -19,6 +20,42 @@ export const profileService = {
 
   updateProfile: async (payload: ProfileUpdatePayload): Promise<ProfileSchema> => {
     const { data } = await http.patch<ProfileSchema>('/user/profile', payload)
+    return data
+  },
+
+  // Profile photos go browser -> Cloud Storage directly; the API only signs the upload and
+  // then checks what landed. Three steps: ask for a signed policy, post the file to it,
+  // confirm. The storage POST is a plain multipart form (not the API client): it carries no
+  // Authorization header, the signed fields are the credential.
+  requestAvatarUpload: async (contentType: string): Promise<AvatarUploadDescriptor> => {
+    const { data } = await http.post<AvatarUploadDescriptor>('/user/avatar/upload-url', {
+      content_type: contentType,
+    })
+    return data
+  },
+
+  uploadAvatarToStorage: async (upload: AvatarUploadDescriptor, file: File): Promise<void> => {
+    const form = new FormData()
+    for (const [name, value] of Object.entries(upload.fields)) form.append(name, value)
+    // Cloud Storage requires the file to be the LAST field of the form.
+    form.append('file', file)
+    const response = await fetch(upload.url, { method: 'POST', body: form })
+    if (!response.ok) {
+      throw new Error(
+        response.status === 400 || response.status === 403
+          ? 'That photo was not accepted. Use a JPEG, PNG or WebP image under the size limit.'
+          : 'Could not upload your photo. Please try again.'
+      )
+    }
+  },
+
+  confirmAvatar: async (path: string): Promise<ProfileSchema> => {
+    const { data } = await http.post<ProfileSchema>('/user/avatar/confirm', { path })
+    return data
+  },
+
+  removeAvatar: async (): Promise<ProfileSchema> => {
+    const { data } = await http.delete<ProfileSchema>('/user/avatar')
     return data
   },
 

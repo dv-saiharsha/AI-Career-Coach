@@ -1,6 +1,28 @@
-from typing import Dict, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
+
+
+def _external_link(value: Optional[str]) -> Optional[str]:
+    """A posting link the app will render as an <a href>: http(s) with a host
+    and no embedded credentials, or nothing. A javascript: or data: URL here
+    would run in the app's origin when clicked, and job_url can come from a
+    crawled board via "Track", not only from the user's own typing."""
+    if value is None or not value.strip():
+        return None
+    value = value.strip()
+    try:
+        parts = urlsplit(value)
+        ok = parts.scheme.lower() in {"http", "https"} and bool(parts.hostname) and not parts.username and not parts.password
+    except ValueError:
+        ok = False
+    if not ok:
+        raise ValueError("job_url must be an http(s) link")
+    return value
+
+
+ExternalLink = Annotated[Optional[str], AfterValidator(_external_link)]
 
 # Literal rather than str: an invalid stage is rejected by FastAPI as a 422
 # with the allowed values listed, instead of reaching the database and failing
@@ -28,7 +50,7 @@ class ApplicationCreateSchema(BaseModel):
     location: Optional[str] = None
     salary_range: Optional[str] = None
     status: ApplicationStatus = "saved"
-    job_url: Optional[str] = None
+    job_url: ExternalLink = None
     job_description: Optional[str] = None
     tailored_resume_id: Optional[int] = None
     notes: Optional[str] = None
@@ -45,7 +67,7 @@ class ApplicationUpdateSchema(BaseModel):
     location: Optional[str] = None
     salary_range: Optional[str] = None
     status: Optional[ApplicationStatus] = None
-    job_url: Optional[str] = None
+    job_url: ExternalLink = None
     notes: Optional[str] = None
     tailored_resume_id: Optional[int] = None
     recruiter_name: Optional[str] = None

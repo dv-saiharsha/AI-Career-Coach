@@ -1,0 +1,147 @@
+{
+  "jd_id": "ml-engineer-mid",
+  "role": "ml-engineer",
+  "seniority_in_seed": "mid",
+  "holdout": true,
+  "why_chosen": "Holdout. A mid-level ML role with no level word (years decide), a framework ecosystem with named components, and practice skills (testing, review, CI/CD).",
+  "judgment_calls": [
+    "No level word in the title, so seniority is 'mid' from '3-5 years' (seniority_source 'years').",
+    "'Hugging Face ecosystem (transformers, tokenizers)': the ecosystem and its two named components are all skills, as with the RAG components in the golden set.",
+    "'classification or extraction tasks' names kinds of task, not skills, so no alternative group and no skill.",
+    "'NLP team' and 'customer-support SaaS' are domain context: keywords only, not skills.",
+    "'CI/CD familiarity, unit testing, code review' are practices stated under 'Solid Python engineering practices': required."
+  ],
+  "expected": {
+    "job_title": "ML Engineer",
+    "seniority": "mid",
+    "seniority_source": "years",
+    "min_years_experience": 3,
+    "required_skills": [
+      {
+        "name": "pytorch",
+        "evidence": "PyTorch",
+        "alternative_group": null
+      },
+      {
+        "name": "hugging face",
+        "evidence": "Hugging Face ecosystem",
+        "alternative_group": null
+      },
+      {
+        "name": "transformers",
+        "evidence": "transformers",
+        "alternative_group": null
+      },
+      {
+        "name": "tokenizers",
+        "evidence": "tokenizers",
+        "alternative_group": null
+      },
+      {
+        "name": "fine tuning",
+        "evidence": "fine-tuning pretrained language models",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python",
+        "alternative_group": null
+      },
+      {
+        "name": "cicd",
+        "evidence": "CI/CD",
+        "alternative_group": null
+      },
+      {
+        "name": "unit testing",
+        "evidence": "unit testing",
+        "alternative_group": null
+      },
+      {
+        "name": "code review",
+        "evidence": "code review",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "pytorch",
+      "hugging face",
+      "transformers",
+      "tokenizers",
+      "python"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "build and maintain the ticket-classification model"
+    ],
+    "ats_keywords": [
+      {
+        "term": "pytorch",
+        "weight": 1.0
+      },
+      {
+        "term": "hugging face",
+        "weight": 1.0
+      },
+      {
+        "term": "transformers",
+        "weight": 1.0
+      },
+      {
+        "term": "tokenizers",
+        "weight": 1.0
+      },
+      {
+        "term": "fine tuning",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "cicd",
+        "weight": 1.0
+      },
+      {
+        "term": "unit testing",
+        "weight": 1.0
+      },
+      {
+        "term": "code review",
+        "weight": 1.0
+      },
+      {
+        "term": "ml engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "nlp",
+        "weight": 0.4
+      },
+      {
+        "term": "customer support",
+        "weight": 0.4
+      },
+      {
+        "term": "saas",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "tensorflow",
+    "docker",
+    "kubernetes",
+    "aws",
+    "scikit-learn",
+    "spacy",
+    "bert",
+    "java",
+    "sql",
+    "gpt"
+  ],
+  "annotated_by": "hand"
+}

@@ -1,0 +1,221 @@
+{
+  "jd_id": "backend-software-senior-5490",
+  "role": "backend-software",
+  "level_from_title": "senior",
+  "listing": {
+    "id": 5490,
+    "title": "Senior Software Engineer - Storage Engine - Elasticsearch",
+    "company": "Elastic",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'Senior' in the title (and 'We're looking for a Senior Software Engineer') states the level; no years.",
+    "A skill is required only if the requirements section ('What You Bring') states it. 'The ideal candidate has experience building high-performance, scalable database, search, or distributed systems, with a strong focus on storage, indexing, query execution, and performance optimization' is in 'What is The Role', not the requirements section: query execution, performance optimization and the database/search/distributed group are not required. Indexing and data storage are required because 'What You Bring' states them ('efficiently index, store, and query time-series or logs data'; 'one or more data storage technologies').",
+    "'Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus' -> one group ('data store').",
+    "'strong core Java skills, a deep understanding of its concurrency primitives ... data structures and algorithms' -> Java, concurrency, data structures, algorithms.",
+    "Prompt engineering is required: it is stated inside the requirements section, in the same 'You ...' form as every other requirement there: 'You bring a prompt-engineering mindset to know how to leverage AI agents effectively, using sound engineering judgment to validate results and recognize its limitations.'",
+    "Using AI, collaboration and communication are not skills. GitHub, Zoom and Slack are collaboration tools; GitHub is listed as a tool.",
+    "Bonus: open source, source control, continuous integration, databases and search engines ('database, search engine, OS, or cloud service development')."
+  ],
+  "expected": {
+    "job_title": "Senior Software Engineer - Storage Engine - Elasticsearch",
+    "seniority": "senior",
+    "seniority_source": "stated",
+    "min_years_experience": null,
+    "required_skills": [
+      {
+        "name": "indexing",
+        "evidence": "efficiently index, store, and query time-series or logs data",
+        "alternative_group": null
+      },
+      {
+        "name": "data storage",
+        "evidence": "data storage technologies",
+        "alternative_group": null
+      },
+      {
+        "name": "elasticsearch",
+        "evidence": "Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus",
+        "alternative_group": "data store"
+      },
+      {
+        "name": "solr",
+        "evidence": "Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus",
+        "alternative_group": "data store"
+      },
+      {
+        "name": "postgresql",
+        "evidence": "Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus",
+        "alternative_group": "data store"
+      },
+      {
+        "name": "mongodb",
+        "evidence": "Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus",
+        "alternative_group": "data store"
+      },
+      {
+        "name": "prometheus",
+        "evidence": "Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus",
+        "alternative_group": "data store"
+      },
+      {
+        "name": "java",
+        "evidence": "core Java",
+        "alternative_group": null
+      },
+      {
+        "name": "concurrency",
+        "evidence": "concurrency primitives",
+        "alternative_group": null
+      },
+      {
+        "name": "data structures",
+        "evidence": "data structures",
+        "alternative_group": null
+      },
+      {
+        "name": "algorithms",
+        "evidence": "algorithms",
+        "alternative_group": null
+      },
+      {
+        "name": "prompt engineering",
+        "evidence": "prompt-engineering",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "open source",
+        "evidence": "open source projects",
+        "alternative_group": null
+      },
+      {
+        "name": "source control",
+        "evidence": "source control workflow",
+        "alternative_group": null
+      },
+      {
+        "name": "cicd",
+        "evidence": "continuous integration",
+        "alternative_group": null
+      },
+      {
+        "name": "databases",
+        "evidence": "database, search engine, OS, or cloud service development",
+        "alternative_group": null
+      },
+      {
+        "name": "search engines",
+        "evidence": "database, search engine, OS, or cloud service development",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "elasticsearch",
+      "solr",
+      "postgresql",
+      "mongodb",
+      "prometheus",
+      "java",
+      "github",
+      "es ql"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "design and optimize Elasticsearch's core storage and query engine",
+      "write modern Java"
+    ],
+    "ats_keywords": [
+      {
+        "term": "indexing",
+        "weight": 1.0
+      },
+      {
+        "term": "data storage",
+        "weight": 1.0
+      },
+      {
+        "term": "elasticsearch",
+        "weight": 1.0
+      },
+      {
+        "term": "solr",
+        "weight": 1.0
+      },
+      {
+        "term": "postgresql",
+        "weight": 1.0
+      },
+      {
+        "term": "mongodb",
+        "weight": 1.0
+      },
+      {
+        "term": "prometheus",
+        "weight": 1.0
+      },
+      {
+        "term": "java",
+        "weight": 1.0
+      },
+      {
+        "term": "concurrency",
+        "weight": 1.0
+      },
+      {
+        "term": "data structures",
+        "weight": 1.0
+      },
+      {
+        "term": "algorithms",
+        "weight": 1.0
+      },
+      {
+        "term": "prompt engineering",
+        "weight": 1.0
+      },
+      {
+        "term": "senior software engineer storage engine elasticsearch",
+        "weight": 0.8
+      },
+      {
+        "term": "open source",
+        "weight": 0.5
+      },
+      {
+        "term": "source control",
+        "weight": 0.5
+      },
+      {
+        "term": "cicd",
+        "weight": 0.5
+      },
+      {
+        "term": "databases",
+        "weight": 0.5
+      },
+      {
+        "term": "search engines",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "python",
+    "go",
+    "kafka",
+    "kubernetes",
+    "aws",
+    "lucene",
+    "c++",
+    "rust",
+    "scala",
+    "spark"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "Elastic, the Search AI Company, enables everyone to find the answers they need in real time, using all their data, at scale — unleashing the potential of businesses and people. The Elastic Search AI Platform, used by more than 50% of the Fortune 500, brings together the precision of search and the intelligence of AI to enable everyone to accelerate the results that matter. By taking advantage of all structured and unstructured data — securing and protecting private information more effectively — Elastic’s complete, cloud-based solutions for search, security, and observability help organizations deliver on the promise of AI.\n\nWhat is The Role\n\nWe're looking for a Senior Software Engineer to join the Elasticsearch - Storage Engine team. This globally distributed, fully remote team of experienced engineers develops core storage and query technologies for observability workloads, including improving storage efficiency, advancing ES|QL query processing and performance, and optimizing data layouts for object storage.\n\nThis role is responsible for designing, implementing, and optimizing Elasticsearch's core storage and query engine. The ideal candidate has experience building high-performance, scalable database, search, or distributed systems, with a strong focus on storage, indexing, query execution, and performance optimization.\n\nOur company is distributed by intention. We hire the best engineers we can find wherever they are, whoever they are. We collaborate across continents every day over email, GitHub, Zoom, and Slack. At our best, we write fast, scalable, intuitive and high-quality software. We believe that the best way to do that is to empower individual engineers, code review every change, decide big things by consensus, and strive for incremental improvements.\n\nWhat You Will Be Doing\n\nLead the architectural evolution of core storage engine components, continuously identifying and resolving performance bottlenecks in indexing layouts, serialization formats, and resource utilization.\n\nLead cross organizational initiatives to drive and build industry-leading observability solutions.\n\nWork with a globally distributed team of experienced engineers focused on the logs and metrics capabilities of Elasticsearch.\n\nDrive continuous operational and system improvements by introducing best practices for clean coding standards, demystifying complex system behaviors, untangling complexity to bring architectural clarity across the platform.\n\nServe as a subject matter expert (SME) across key areas of Elasticsearch, acting as a trusted technical advisor and mentor to the wider engineering organization.\n\nWork with a global community to triage, resolve, and review issues and pull requests, collaborating with domain experts as needed.\n\nWrite idiomatic modern Java -- Elasticsearch is 99.8% Java!\n\nWhat You Bring\n\nYou possess the ability to collaborate across functions and teams and seamlessly transition between different projects, codebases, or teams based on business priorities\n\nYou work autonomously and can drive decisions and results in a distributed team by leveraging asynchronous, direct, and transparent communication.\n\nYou have a proven track record of using AI to accelerate development, debug complex systems, and optimize code, while still owning the final outcomes.\n\nYou bring a prompt-engineering mindset to know how to leverage AI agents effectively, using sound engineering judgment to validate results and recognize its limitations.\n\nYou have implemented novel techniques to efficiently index, store, and query time-series or logs data.\n\nYou have experience with one or more data storage technologies like Elasticsearch, Solr, PostgreSQL, MongoDB, or Prometheus and have some idea how they work and why they work that way.\n\nYou have strong core Java skills, a deep understanding of its concurrency primitives, with a proven ability to design and optimize efficient data structures and algorithms.\n\nYou excel in a collaborative environment, actively participate in technical discussions, and work effectively across distributed teams. Because it's the best way we know how to build software.\n\nYou have excellent verbal and written communication skills and collaborate with respect, empathy, and professionalism in a distributed team.\n\nBonus Points\n\nYou've built things with Elasticsearch before.\n\nYou've worked with open source projects and are familiar with different styles of source control workflow and continuous integration.\n\nYou’ve worked on data storage technology.\n\nYou have experience designing, leading, and owning cross-functional initiatives.\n\nYou have past working experience with database, search engine, OS, or cloud service development.\n\nCompensation for this role is in the form of base salary. This role does not have a variable compensation component.\n\nThe typical starting salary range for new hires in this role is listed below. In select locations (including Seattle WA, Los Angeles CA, the San Francisco Bay Area CA, and the New York City Metro Area), an alternate range may apply as specified below.\n\nThese ranges represent the lowest to highest salary we reasonably and in good faith believe we would pay for this role at the time of this posting. We may ultimately pay more or less than the posted range, and the ranges may be modified in the future.\n\nAn employee's position within the salary range will be based on several factors including, but not limited to, relevant education, qualifications, certifications, experience, skills, geographic location, performance, and business or organizational needs.\n\nElastic believes that employees should have the opportunity to share in the value that we create together for our shareholders. Therefore, in addition to cash compensation, this role is currently eligible to participate in Elastic's stock program. Our total rewards package also includes a company-matched 401k with dollar-for-dollar matching up to 6% of eligible earnings, along with a range of other benefits offered with a holistic emphasis on employee well-being.\n\nThe typical starting salary range for this role is:\n$133,100—$210,600 USD\n\nThe typical starting salary range for this role in the select locations listed above is:\n$159,900—$252,900 USD\n\nAdditional Information - We Take Care of Our People\n\nAs a distributed company, diversity drives our identity. Whether you’re looking to launch a new career or grow an existing one, Elastic is the type of company where you can balance great work with great life. Your age is only a number. It doesn’t matter if you’re just out of college or your children are; we need you for what you can do.\n\nWe strive to have parity of benefits across regions and while regulations differ from place to place, we believe taking care of our people is the right thing to do.\n\nCompetitive pay based on the work you do here and not your previous salary\n\nHealth coverage for you and your family in many locations\n\nAbility to craft your calendar with flexible locations and schedules for many roles\n\nGenerous number of vacation days each year\n\nIncrease your impact - We match up to $2000 (or local currency equivalent) for financial donations and service\n\nUp to 40 hours each year to use toward volunteer projects you love\n\nEmbracing parenthood with minimum of 16 weeks of parental leave\n\nDifferent people approach problems differently. We need that. Elastic is an equal opportunity employer and is committed to creating an inclusive culture that celebrates different perspectives, experiences, and backgrounds. Qualified applicants will receive consideration for employment without regard to race, ethnicity, color, religion, sex, pregnancy, sexual orientation, gender perception or identity, national origin, age, marital status, protected veteran status, disability status, or any other basis protected by federal, state or local law, ordinance or regulation.\n\nWe welcome individuals with disabilities and strive to create an accessible and inclusive experience for all individuals. To request an accommodation during the application or the recruiting process, please email candidate_accessibility@elastic.co. We will reply to your request within 24 business hours of submission.\n\nApplicants have rights under Federal Employment Laws, view posters linked below: Family and Medical Leave Act (FMLA) Poster; Pay Transparency Nondiscrimination Provision Poster; Employee Polygraph Protection Act (EPPA) Poster and Know Your Rights (Poster)\n\nElasticsearch develops and distributes technology and information that is subject to U.S. and other countries’ export controls and licensing requirements for individuals who are located in or are nationals of the following sanctioned countries and regions: Belarus, Cuba, Iran, North Korea, Syria, or Russia, including the Ukrainian territories annexed by Russia (The Crimea region of Ukraine, The Donetsk People's Republic (DNR), The Luhansk People's Republic (LNR), Kherson or Zaporizhzhia). If you are located in or are a national of one of the listed countries or regions, an export license may be required as a condition of your employment in this role. Please note that national origin and/or nationality do not affect eligibility for employment with Elastic.\n\nPlease see here for our Privacy Statement."
+}

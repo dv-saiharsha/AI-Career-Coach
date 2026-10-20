@@ -1,0 +1,162 @@
+{
+  "jd_id": "ml-ai-engineer-senior-19564",
+  "role": "ml-ai-engineer",
+  "level_from_title": "senior",
+  "listing": {
+    "id": 19564,
+    "title": "AI Engagement Lead",
+    "company": "Turing",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "Probably a client-facing delivery role, kept as drawn. 'Lead' in the listing title states the level: lead (stated); a level word in the title beats the '10+ years'.",
+    "'4+ years in driving Machine Learning & AI projects' -> machine learning. 'people with GenAI experience' and 'GenAI agentic designs and frameworks like Langchain, Langgraph' -> generative AI, agentic design, LangChain, LangGraph.",
+    "'Cloud services including Azure, GCP, or AWS' -> one group ('cloud'). 'Agile methodologies and project management tools like JIRA, Confluence' -> Agile, Jira, Confluence.",
+    "Communication, stakeholder management and a founder's mindset are not skills. Multi-agent LLM systems, RAG and open source LLM deployments describe past projects of the team, not requirements."
+  ],
+  "expected": {
+    "job_title": "AI Engagement Lead",
+    "seniority": "lead",
+    "seniority_source": "stated",
+    "min_years_experience": 10,
+    "required_skills": [
+      {
+        "name": "machine learning",
+        "evidence": "Machine Learning",
+        "alternative_group": null
+      },
+      {
+        "name": "generative ai",
+        "evidence": "GenAI agentic designs and frameworks",
+        "alternative_group": null
+      },
+      {
+        "name": "agentic design",
+        "evidence": "GenAI agentic designs",
+        "alternative_group": null
+      },
+      {
+        "name": "langchain",
+        "evidence": "Langchain",
+        "alternative_group": null
+      },
+      {
+        "name": "langgraph",
+        "evidence": "Langgraph",
+        "alternative_group": null
+      },
+      {
+        "name": "azure",
+        "evidence": "Azure, GCP, or AWS",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "gcp",
+        "evidence": "Azure, GCP, or AWS",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "aws",
+        "evidence": "Azure, GCP, or AWS",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "agile",
+        "evidence": "Agile methodologies",
+        "alternative_group": null
+      },
+      {
+        "name": "jira",
+        "evidence": "JIRA",
+        "alternative_group": null
+      },
+      {
+        "name": "confluence",
+        "evidence": "Confluence",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "langchain",
+      "langgraph",
+      "azure",
+      "gcp",
+      "aws",
+      "jira",
+      "confluence"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "lead GenAI projects from POC to implementation",
+      "provide technical direction to the engineering team"
+    ],
+    "ats_keywords": [
+      {
+        "term": "machine learning",
+        "weight": 1.0
+      },
+      {
+        "term": "generative ai",
+        "weight": 1.0
+      },
+      {
+        "term": "agentic design",
+        "weight": 1.0
+      },
+      {
+        "term": "langchain",
+        "weight": 1.0
+      },
+      {
+        "term": "langgraph",
+        "weight": 1.0
+      },
+      {
+        "term": "azure",
+        "weight": 1.0
+      },
+      {
+        "term": "gcp",
+        "weight": 1.0
+      },
+      {
+        "term": "aws",
+        "weight": 1.0
+      },
+      {
+        "term": "agile",
+        "weight": 1.0
+      },
+      {
+        "term": "jira",
+        "weight": 1.0
+      },
+      {
+        "term": "confluence",
+        "weight": 1.0
+      },
+      {
+        "term": "ai engagement lead",
+        "weight": 0.8
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "python",
+    "pytorch",
+    "tensorflow",
+    "kubernetes",
+    "java",
+    "sql",
+    "docker",
+    "scrum",
+    "llamaindex",
+    "openai"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "About Turing\n\nTuring’s mission is to accelerate superintelligence to drive real economic progress. Headquartered in San Francisco, Turing works with frontier AI labs to generate high-quality datasets, reinforcement learning environments, and frontier research benchmarks that improve model capabilities in software engineering, enterprise knowledge work, and advanced STEM reasoning. In software engineering, Turing is the largest and longest-running data provider in the category. Turing also works with Fortune 500 enterprises across financial services, life sciences, healthcare, retail, automotive, and CPG to build and deploy end-to-end agentic AI systems inside mission-critical workflows. By operating on both sides, Turing closes the loop between frontier research and enterprise deployment, turning real-world deployment signals into better data, evaluations, and more capable models. Learn more at www.turing.com.\n\nAbout the role:\n\nTuring is looking for people with GenAI experience to join us in solving business problems for our Fortune 500 customers. You will be a key member of the Turing GenAI delivery organization leading a GenAI project end-to-end from POC to full-scale implementation and you will be leading a team of other Turing engineers across different skill sets. In the past, the Turing GenAI delivery organization has implemented industry-leading multi-agent LLM systems, RAG systems, and Open Source LLM deployments for major enterprises.\n\nRole responsibilities\n\nClient Relationship and Communication:\n\nLead discussions with clients and prospects to build AI product pipeline and expand to more processes.\n\nPrioritize client engagement, strengthen relationships, and manage expectations proactively.\n\nAct as a point of contact for client communication, feedback and escalations.\n\nEvaluate and select use-cases for new product development and unlock new revenue opportunities for the client\n\nParticipate in client’s internal stakeholder meetings (when applicable) to capture, clarify, and consolidate requirements across functions, ensuring all inputs are properly documented and mapped into actionable product needs.\n\nTech Leadership:\n\nProvide technical direction to the engineering team on appropriate solutioning & system design for a given problem statement\n\nAlign the engineering team toward a technical roadmap and ensure timely execution of the roadmap to achieve customer satisfaction.\n\nStudy new LLM research topics and engage in conversation on same with client stakeholders to showcase technical prowess and build value for Turing.\n\nTeam Leadership and Coordination:\n\nDrive cross-functional alignment across engineering, product, and client success teams.\n\nRemove blockers for both the client & internal teams by ensuring smooth communication and effective prioritization flows.\n\nConduct regular 1:1 meetings focused on support, expectations, delivery alignment, and general well-being.\n\nProject Planning and Oversight:\n\nManage the big-picture program timeline (releases, phases, go-live plans) using engineering velocity and capacity inputs provided by the Engagement Manager.\n\nCo-own delivery planning by managing the program-level timeline and facilitating Sprint Planning sessions ensuring release milestones and sprint goals are aligned with business priorities, clearly defined requirements, and the engineering capacity and feasibility inputs provided by the Engagement Manager.\n\nOwn overall delivery to ensure quality, scope, and timelines are consistently met.\n\nEnsure robust business-facing documentation, including requirements documents, BRDs/PRDs, implementation plans, product roadmaps, and client-facing marketing or enablement materials.\n\nEnsure delivery decisions reflect an understanding of operational costs, ROI, and long-term business impact.\n\nIdentify delivery risks, create proactive mitigation plans, and track program health across all milestones with keen insight.\n\nAcknowledge new client requests promptly and partner with the Engagement Manager to assess feasibility, capacity, and timeline impact before providing any commitment to the client.\n\nRequired skills\n\nExcellent communication skills & stakeholder management to effectively collaborate with client SMEs\n\nEntrepreneurial & founders mindset to own end-to-end GenAI project deliveries and guide customers through various phases\n\n10+ years of professional experience with at least 4+ years in driving Machine Learning & AI projects\n\nGood understanding of the latest GenAI agentic designs and frameworks like Langchain, Langgraph, etc.\n\nUnderstanding of Cloud services including Azure, GCP, or AWS\n\nUnderstanding of Agile methodologies and project management tools like JIRA, Confluence.\n\nCompensation Range: $240k - $260K\nValues\n\nWe are client first: We put our clients at the center of everything we do, because their success is the ultimate measure of our value.\n\nWe work at Start-Up Speed: We move fast, stay agile and favor action because momentum is the foundation of perfection\n\nWe are AI forward: We help our clients build the future of Al and implement it in our own roles and workflow to amplify productivity.\n\nAdvantages of joining Turing\n\nWork at the frontier of AI, helping the world’s leading AI labs improve their most advanced models by building expert datasets, RL environments, and first-of-a-kind benchmarks.\n\nContribute to leading-edge AI research and showcase your work at top conferences such as ICLR, ICML, and NeurIPS.\n\nBring frontier AI innovation to the enterprise, applying lessons learned from leading AI labs to solve real-world business challenges.\n\nCollaborate with and learn from exceptional colleagues with deep AI experience from Google, Meta, Amazon, and other leading technology companies.\n\nMove at the pace of AI innovation, with the speed, ownership, and impact of a startup.\n\nTuring is proud to be an equal opportunity employer. We do not discriminate on the basis of race, religion, color, national origin, gender, gender identity, sexual orientation, age, marital status, disability, protected veteran status, or any other legally protected characteristics. At Turing we are dedicated to building a diverse, inclusive and authentic workplace and celebrate authenticity, so if you’re excited about this role but your past experience doesn’t align perfectly with every qualification in the job description, we encourage you to apply anyways. You may be just the right candidate for this or other roles.\n\nFor applicants from the European Union, please review Turing's GDPR notice here."
+}

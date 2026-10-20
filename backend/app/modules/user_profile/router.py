@@ -4,10 +4,15 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
-from app.modules.user_profile import services, privacy
+from app.modules.user_profile import avatars, services, privacy
+from app.core import deps, security
+from app.core.ratelimit import RateLimit
 from app.modules.user_profile.auth_admin import delete_auth_user
 from app.schemas.profile import (
     ActivityResponseSchema,
+    AvatarConfirmSchema,
+    AvatarUploadRequestSchema,
+    AvatarUploadSchema,
     OnboardingRequestSchema,
     ProfileSchema,
     ProfileUpdateSchema,
@@ -19,7 +24,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Every endpoint takes its user id from get_current_user, which verifies the
-# Supabase JWT signature. None of them accept a user id from the request —
+# Firebase ID token signature. None of them accept a user id from the request —
 # a client-supplied identifier (header, query param, or body field) is not an
 # identity, and trusting one here would let any caller read any user's data by
 # changing a string.
@@ -101,6 +106,57 @@ def update_profile(
     return services.profile_payload(profile)
 
 
+HOUR = 3600
+
+
+@router.post("/avatar/upload-url", response_model=AvatarUploadSchema)
+def create_avatar_upload(
+    req: AvatarUploadRequestSchema,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    _limit: None = Depends(RateLimit("avatar_upload", 10, HOUR, "Too many photo uploads. Try again in a while.")),
+):
+    """A signed policy for uploading one profile photo straight to Cloud Storage.
+
+    The response says which type and size will be accepted; Cloud Storage enforces them,
+    and /avatar/confirm checks the stored object again before anything is recorded.
+    """
+    try:
+        return avatars.create_upload(current_user.id, req.content_type)
+    except avatars.AvatarRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except avatars.AvatarUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/avatar/confirm", response_model=ProfileSchema)
+def confirm_avatar(
+    req: AvatarConfirmSchema,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Record an uploaded photo on the profile, after checking what actually landed."""
+    try:
+        avatars.confirm_upload(current_user.id, req.path)
+    except avatars.AvatarRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except avatars.AvatarUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    profile = services.set_avatar_path(db, current_user.id, req.path)
+    avatars.purge(current_user.id, keep=req.path)  # older photos; best effort
+    return services.profile_payload(profile)
+
+
+@router.delete("/avatar", response_model=ProfileSchema)
+def remove_avatar(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Remove the stored photo. The sign-in provider's picture, if any, shows again."""
+    profile = services.set_avatar_path(db, current_user.id, None)
+    avatars.purge(current_user.id)
+    return services.profile_payload(profile)
+
+
 @router.get("/stats", response_model=UserStatsSchema)
 def read_stats(
     db: Session = Depends(get_db),
@@ -162,10 +218,14 @@ def delete_my_account(
     THE IDENTITY GOES TOO, AND IT GOES SECOND
 
     Erasing the rows while leaving the login intact is a half-deletion, and
-    the person has been told their account is gone. So the Supabase identity
+    the person has been told their account is gone. So the Firebase identity
     is removed as well — but after the data, never before. See auth_admin for
     why that order is not arbitrary: the reverse leaves someone unable to
     authenticate and therefore unable to retry, with data still held.
+
+    The user is blocked in this process BEFORE anything is erased, so a request
+    already in flight cannot recreate rows in the gap before the identity goes.
+    The block is lifted only if the erasure itself fails, so they can retry.
 
     A failure in that second half is reported, not raised. The rows really
     are gone by then, and a 500 would tell the caller nothing had happened.
@@ -176,7 +236,16 @@ def delete_my_account(
             detail="Pass confirm=DELETE to erase your data. This cannot be undone.",
         )
 
-    deleted = privacy.delete_user_data(db, current_user.id)
+    security.block_user(current_user.id)
+    # Photos first: a storage hiccup is reported, not fatal, and deleting them while the
+    # profile row still names them leaves nothing pointing at a missing object.
+    avatar_deleted = avatars.purge(current_user.id)
+    try:
+        deleted = privacy.delete_user_data(db, current_user.id)
+    except Exception:
+        security.unblock_user(current_user.id)
+        raise
+    deps.forget_profile_cache(current_user.id)
     identity_removed = delete_auth_user(current_user.id)
 
     if not identity_removed:
@@ -190,4 +259,6 @@ def delete_my_account(
         # Named for what the user experiences rather than for the system it
         # touches: what they need to know is whether signing in still works.
         "sign_in_disabled": identity_removed,
+        # False means a photo may still be in storage and needs an operator.
+        "avatar_deleted": avatar_deleted,
     }

@@ -1,0 +1,185 @@
+{
+  "jd_id": "data-engineer-senior-28494",
+  "role": "data-engineer",
+  "level_from_title": "senior",
+  "listing": {
+    "id": 28494,
+    "title": "Staff Software, Engineering – Analytics Engineering, Core Data Science",
+    "company": "Pinterest",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'We are looking for a Staff Software Engineer' states the level: staff -> lead (stated). Years 6.",
+    "'fluency in SQL (or other database languages) and a scripting language (Python or R)': SQL required; Python or R one group ('scripting'); plus window functions, query optimization, data partitioning.",
+    "'workflow orchestration and ETL/ELT' -> workflow orchestration, ETL, ELT.",
+    "Using AI well, analytics solutions and partnering are not skills.",
+    "'Desired but not required': automation, anomaly detection, workflow optimization, internal tooling.",
+    "Degree: 'or equivalent experience' -> not required."
+  ],
+  "expected": {
+    "job_title": "Staff Software, Engineering – Analytics Engineering, Core Data Science",
+    "seniority": "lead",
+    "seniority_source": "stated",
+    "min_years_experience": 6,
+    "required_skills": [
+      {
+        "name": "sql",
+        "evidence": "SQL",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python or R",
+        "alternative_group": "scripting"
+      },
+      {
+        "name": "r",
+        "evidence": "Python or R",
+        "alternative_group": "scripting"
+      },
+      {
+        "name": "window functions",
+        "evidence": "windowing functions",
+        "alternative_group": null
+      },
+      {
+        "name": "query optimization",
+        "evidence": "query optimization",
+        "alternative_group": null
+      },
+      {
+        "name": "data partitioning",
+        "evidence": "data partitioning",
+        "alternative_group": null
+      },
+      {
+        "name": "workflow orchestration",
+        "evidence": "workflow orchestration",
+        "alternative_group": null
+      },
+      {
+        "name": "etl",
+        "evidence": "ETL/ELT",
+        "alternative_group": null
+      },
+      {
+        "name": "elt",
+        "evidence": "ETL/ELT",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "automation",
+        "evidence": "automation",
+        "alternative_group": null
+      },
+      {
+        "name": "anomaly detection",
+        "evidence": "anomaly detection",
+        "alternative_group": null
+      },
+      {
+        "name": "workflow optimization",
+        "evidence": "infrastructure/workflow optimization",
+        "alternative_group": null
+      },
+      {
+        "name": "internal tooling",
+        "evidence": "internal tooling",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "sql",
+      "python",
+      "r"
+    ],
+    "education": [
+      {
+        "name": "Bachelor's, Master's, or PhD in a quantitative field",
+        "required": false,
+        "evidence": "Bachelor's, Master's, or PhD in a quantitative field such as Computer Science, Statistics, Mathematics, or a related discipline, or equivalent experience"
+      }
+    ],
+    "certifications": [],
+    "responsibilities": [
+      "lead and mentor a team of analytics engineers",
+      "build AI tools and analysis pipelines"
+    ],
+    "ats_keywords": [
+      {
+        "term": "sql",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "r",
+        "weight": 1.0
+      },
+      {
+        "term": "window functions",
+        "weight": 1.0
+      },
+      {
+        "term": "query optimization",
+        "weight": 1.0
+      },
+      {
+        "term": "data partitioning",
+        "weight": 1.0
+      },
+      {
+        "term": "workflow orchestration",
+        "weight": 1.0
+      },
+      {
+        "term": "etl",
+        "weight": 1.0
+      },
+      {
+        "term": "elt",
+        "weight": 1.0
+      },
+      {
+        "term": "staff software engineering analytics engineering core data science",
+        "weight": 0.8
+      },
+      {
+        "term": "automation",
+        "weight": 0.5
+      },
+      {
+        "term": "anomaly detection",
+        "weight": 0.5
+      },
+      {
+        "term": "workflow optimization",
+        "weight": 0.5
+      },
+      {
+        "term": "internal tooling",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "spark",
+    "airflow",
+    "java",
+    "scala",
+    "tableau",
+    "looker",
+    "dbt",
+    "kubernetes",
+    "aws",
+    "hive"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "About Pinterest:\n\nMillions of people around the world come to our platform to find creative ideas, dream about new possibilities and plan for memories that will last a lifetime. At Pinterest, we’re on a mission to bring everyone the inspiration to create a life they love, and that starts with the people behind the product.\n\nDiscover a career where you ignite innovation for millions, transform passion into growth opportunities, celebrate each other’s unique experiences and embrace the flexibility to do your best work. Creating a career you love? It’s Possible.\n\nAt Pinterest, AI isn't just a feature, it's a powerful partner that augments our creativity and amplifies our impact, and we’re looking for candidates who are excited to be a part of that. To get a complete picture of your experience and abilities, we’ll explore your foundational skills and how you collaborate with AI.\n\nThrough our interview process, what matters most is that you can always explain your approach, showing us not just what you know, but how you think. You can read more about our AI interview philosophy and how we use AI in our recruiting process here.\n\nWe are looking for a Staff Software Engineer to help improve the quality and velocity of data science at Pinterest. You will shape the future of the people-facing and business-facing products we build by creating rock-solid data foundations and tooling, and by leading a high-performance team that partners closely with our Core Data Science organization.\n\nWhat you'll do:\n\nLead by example, and mentor a diverse team of analytics engineers with an inclusive culture.\n\nDevelop best practices for instrumentation and experimentation and communicate those to product engineering teams.\n\nBuild and prototype AI tools and analysis pipelines iteratively to provide insights at scale while developing comprehensive knowledge of data structures and metrics, advocating for changes where needed.\n\nUse AI to accelerate analysis, prototyping, and iteration—drafting pipelines, exploring approaches, and automating repeatable documentation and QA—while applying judgment and verification to ensure correctness and quality.\n\nWork closely with Data Scientists and Engineers to build tools and processes that enable self-service of key datasets, insights, and metric investigations.\n\nContribute to comprehensive documentation of tools and datasets, and drive the strategy for better data quality and data democratization within Pinterest.\n\nWork cross-functionally to build and communicate key insights, collaborating with product managers, engineers, designers, and researchers to help build the next experiences on Pinterest.\n\nWhat we're looking for:\n\n6+ years of experience working with data in a fast-paced, data-driven environment.\n\nAbility to manipulate large data sets with high dimensionality and complexity; fluency in SQL (or other database languages) and a scripting language (Python or R), including nested data structure manipulation, windowing functions, query optimization, and data partitioning techniques.\n\nExperience conducting workflow orchestration and ETL/ELT with huge, complicated datasets and handling DAG data dependencies.\n\nConsistent track record of supplying analytics solutions to existing teams, with the ability to take open-ended goals and scope them into defined, impactful objectives.\n\nA team player able to partner with cross-functional leadership to quickly turn insights into actions, and an accountable operator who proactively identifies project opportunities amid competing priorities.\n\nDemonstrated ability to use AI to improve speed and quality in your day-to-day workflow, with a strong track record of critical evaluation and verification of AI-assisted work (testing, source-checking, data validation, peer review).\n\nHigh integrity and ownership: you protect sensitive data, avoid over-reliance on AI, and remain accountable for final decisions and deliverables.\n\nBachelor's, Master's, or PhD in a quantitative field such as Computer Science, Statistics, Mathematics, or a related discipline, or equivalent experience.\n\nDesired but not required:\n\nExperience in automation, anomaly detection, or infrastructure/workflow optimization.\n\nExperience building internal tooling to maximize engineering velocity.\n\nRelocation Statement:\n\nThis position is not eligible for relocation assistance. Visit our PinFlex page to learn more about our working model.\n\nIn-Office Requirement Statement:\n\nWe recognize that the ideal environment for work is situational and may differ across departments. What this looks like day-to-day can vary based on the needs of each organization or role.\n\nThis role will need to be in the office for in-person collaboration 1-2 times/month and therefore can be situated anywhere in the country.\n\n#LI-REMOTE\n\n#LI-AG8\nAt Pinterest we believe the workplace should be equitable, inclusive, and inspiring for every employee. In an effort to provide greater transparency, we are sharing the base salary range for this position. The position is also eligible for equity. Final salary is based on a number of factors including location, travel, relevant prior experience, or particular skills and expertise.\n\nInformation regarding the culture at Pinterest and benefits available for this position can be found here.\n\nUS based applicants only\n$177,185—$364,795 USD\n\nOur Commitment to Inclusion:\n\nPinterest is an equal opportunity employer and makes employment decisions on the basis of merit. We want to have the best qualified people in every job. All qualified applicants will receive consideration for employment without regard to race, color, ancestry, national origin, religion or religious creed, sex (including pregnancy, childbirth, or related medical conditions), sexual orientation, gender, gender identity, gender expression, age, marital status, status as a protected veteran, physical or mental disability, medical condition, genetic information or characteristics (or those of a family member) or any other consideration made unlawful by applicable federal, state or local laws. We also consider qualified applicants regardless of criminal histories, consistent with legal requirements. If you require a medical or religious accommodation during the job application process, please complete this form for support.\n\nBy submitting this application, I certify that all information submitted in my application and throughout the hiring process is true, accurate, and complete to the best of my knowledge. I understand that any false statement, omission, or misrepresentation may disqualify me from employment consideration or result in termination if discovered after hire."
+}

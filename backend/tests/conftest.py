@@ -1,8 +1,48 @@
 """Shared test fixtures."""
 
+import os
+
+# Set before any `app` import (Settings reads the environment once). The suite
+# must never reach a real model: a blank Claude key means nothing can bill, and
+# LLM_PROVIDER=anthropic means the shared llm_client is the Claude client that
+# the existing tests already patch (`llm_client._client = object()` and
+# `complete_tool_json`) instead of an Ollama client that would try
+# localhost:11434. Ollama is covered in tests/test_llm_ollama.py through
+# httpx.MockTransport only.
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["LLM_PROVIDER"] = "anthropic"
+# Never a real database. backend/.env's DB_URL points at the developer's real
+# database (Cloud SQL through the proxy), and anything that opens the app's
+# default engine (SessionLocal, the startup sweep) would otherwise write there.
+# An environment variable outranks .env, so this wins whatever .env says.
+import tempfile as _tempfile
+
+os.environ["DB_URL"] = "sqlite:///" + os.path.join(_tempfile.mkdtemp(prefix="hireloom-tests-"), "app.db")
+
 import pytest
 
 from app.modules.job_market import services
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_state():
+    """Process-wide auth state must not leak between tests.
+
+    security.block_user and the verification cache, and deps' known-profile
+    set, are module-level on purpose (they are per-process caches in production).
+    A test that erases ALICE would otherwise leave her blocked for every
+    later test in the run.
+    """
+    from app.core import deps, security
+
+    def clear():
+        security._cache.clear()
+        security._blocked.clear()
+        deps._profile_ensured.clear()
+
+    clear()
+    yield
+    clear()
 
 
 @pytest.fixture(autouse=True)

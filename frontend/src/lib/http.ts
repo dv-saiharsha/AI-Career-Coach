@@ -1,8 +1,9 @@
-import { supabase } from './supabase'
+import { signOut } from 'firebase/auth'
+import { auth, getIdToken } from './firebase'
 
 /* A very small fetch-based HTTP client with a consistent shape across the
    app: `.get`, `.post`, `.patch`, `.delete`, each resolving to `{ data,
-   status }`, every call carrying the signed-in user's Supabase access token.
+   status }`, every call carrying the signed-in user's Firebase ID token.
 
    Three behaviours matter to callers:
      1. A non-2xx response throws HttpError, which carries `response.status`
@@ -53,11 +54,57 @@ function buildUrl(path: string, params?: RequestConfig['params']): string {
   return query ? `${url}?${query}` : url
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+async function authHeaders(forceRefresh = false): Promise<Record<string, string>> {
+  const token = await getIdToken(forceRefresh)
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+/** The API's way of saying "this email address has not been verified". */
+export const EMAIL_NOT_VERIFIED = 'email_not_verified'
+
+export function isEmailNotVerified(err: unknown): boolean {
+  if (!(err instanceof HttpError) || err.response.status !== 403) return false
+  const data = err.response.data
+  return typeof data === 'object' && data !== null && (data as Record<string, unknown>).detail === EMAIL_NOT_VERIFIED
+}
+
+async function send(
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body: unknown,
+  config: RequestConfig,
+  forceRefresh: boolean
+): Promise<Response> {
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+  const headers: Record<string, string> = {
+    ...(await authHeaders(forceRefresh)),
+    ...config.headers,
+  }
+  if (isForm) delete headers['Content-Type']
+  else if (body !== undefined && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  return fetch(buildUrl(path, config.params), {
+    method,
+    headers,
+    signal: config.signal,
+    body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+  })
+}
+
+/** Whether a fresh token could change the answer: the token was rejected, or it
+ * predates the person verifying their email (the verified flag is a claim
+ * baked into the token when it was minted). */
+async function tokenMayBeStale(response: Response): Promise<boolean> {
+  if (response.status === 401) return true
+  if (response.status !== 403) return false
+  try {
+    const data = await response.clone().json()
+    return data?.detail === EMAIL_NOT_VERIFIED
+  } catch {
+    return false
+  }
 }
 
 async function request<T>(
@@ -66,22 +113,18 @@ async function request<T>(
   body?: unknown,
   config: RequestConfig = {}
 ): Promise<HttpResponse<T>> {
-  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
-  const headers: Record<string, string> = {
-    ...(await authHeaders()),
-    ...config.headers,
-  }
-  if (isForm) delete headers['Content-Type']
-  else if (body !== undefined && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json'
-  }
+  let response = await send(method, path, body, config, false)
 
-  const response = await fetch(buildUrl(path, config.params), {
-    method,
-    headers,
-    signal: config.signal,
-    body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
-  })
+  // One retry with a forced-fresh token, never more. If that is rejected too
+  // the account is gone or disabled server-side, so end the local session;
+  // ProtectedRoute then sends the person to /login. A 503 is deliberately NOT
+  // handled here: it means authentication is temporarily unavailable, not that
+  // the person is signed out, and signing them out would turn a blip into a
+  // forced re-login.
+  if (auth.currentUser && (await tokenMayBeStale(response))) {
+    response = await send(method, path, body, config, true)
+    if (response.status === 401) void signOut(auth)
+  }
 
   if (!response.ok) {
     let data: unknown = null

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowRight,
@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Clock,
   Copy,
+  ExternalLink,
   Loader2,
   MapPin,
   RefreshCcw,
@@ -16,8 +17,8 @@ import {
   Sparkles,
   SlidersHorizontal,
   Wand2,
+  X,
 } from 'lucide-react'
-import { resumeService } from '@/services/resumeService'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,8 +27,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { ScoreRing } from '@/components/shared/ScoreRing'
+import { useAuth } from '@/context/AuthContext'
 import { HttpError } from '@/lib/http'
-import { cn } from '@/lib/utils'
+import { cn, safeExternalUrl } from '@/lib/utils'
 import { jobsService } from '@/services/jobsService'
 import {
   EMPLOYMENT_OPTIONS,
@@ -41,7 +43,7 @@ import {
   type WorkMode,
 } from '@/types/jobs'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 12
 const SEARCH_DEBOUNCE_MS = 500
 // A stale-but-cached feed is served immediately while the backend queues a
 // live scrape in the background (see job_market/services.get_jobs). Polling
@@ -85,10 +87,12 @@ function toneClasses(score: number): { bar: string; text: string } {
 // Postings only carry day-granularity age (JobListingSchema.postedDaysAgo),
 // so "today" covers anything under 24h rather than Figma's fabricated
 // hour-level mock timestamps.
-function relativeDayLabel(days: number): string {
-  if (days <= 0) return 'Today'
-  if (days === 1) return '1 day ago'
-  return `${days} days ago`
+function relativeDayLabel(days: number, source: JobListing['dateSource'] = 'posted'): string {
+  // No posting date from the source: say when it was first seen, never "posted".
+  const prefix = source === 'first_seen' ? 'Seen ' : ''
+  if (days <= 0) return source === 'first_seen' ? 'Seen today' : 'Today'
+  if (days === 1) return `${prefix}1 day ago`
+  return `${prefix}${days} days ago`
 }
 
 function timeLabel(iso: string): string {
@@ -226,11 +230,11 @@ function FilterCheckbox({ label, checked, onChange, count, title }: FilterCheckb
         checked={checked}
         disabled={disabled}
         onChange={onChange}
-        className="sr-only"
+        className="peer sr-only"
       />
       <span
         className={cn(
-          'grid h-4 w-4 shrink-0 place-items-center rounded border border-border text-white transition-colors',
+          'grid h-4 w-4 shrink-0 place-items-center rounded border border-border text-white transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
           checked && 'border-primary bg-primary'
         )}
       >
@@ -245,79 +249,31 @@ function FilterCheckbox({ label, checked, onChange, count, title }: FilterCheckb
 interface JobCardProps {
   job: JobListing
   trackState: TrackState
-  applied: boolean
   onOpen: (job: JobListing) => void
+  onDetails: (job: JobListing) => void
   onTrack: (job: JobListing) => void
   onApply: (job: JobListing) => void
 }
 
-function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCardProps) {
+function JobCard({ job, trackState, onOpen, onDetails, onTrack, onApply }: JobCardProps) {
   return (
     <Card
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(job)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen(job)
-        }
-      }}
-      aria-label={`View details for ${job.title} at ${job.company}`}
-      className="grid cursor-pointer grid-cols-1 items-center gap-x-[13px] gap-y-3 p-[17px] transition-all duration-150 hover:-translate-y-px hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:grid-cols-[42px_1fr_72px_auto]"
+      onClick={() => onDetails(job)}
+      className="group flex h-full cursor-pointer flex-col gap-3 p-4 transition-all duration-150 hover:border-primary/40 hover:shadow-md"
     >
-      <CompanyMark company={job.company} logoUrl={job.companyLogo} />
-
-      <div className="min-w-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate font-heading text-[13px] font-bold text-foreground">{job.title}</h3>
-            <span className="text-[11px] text-muted-foreground">{job.company}</span>
-          </div>
-          <span className="shrink-0 text-[8px] text-muted-foreground">{relativeDayLabel(job.postedDaysAgo)}</span>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-[15px] gap-y-1 text-[10px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <MapPin size={13} /> {job.location}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Briefcase size={13} /> {job.salaryRange}
-          </span>
-          {job.h1bSponsorship === 'explicitly_sponsored' && (
-            <Badge variant="success" className="px-1.5 py-0 text-[8px]" title={job.h1bEvidence ?? undefined}>
-              Sponsors H-1B
-            </Badge>
-          )}
-        </div>
-        {job.skills.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-[5px]">
-            {job.skills.slice(0, 6).map((skill) => (
-              <span key={skill} className="rounded-full bg-muted px-[7px] py-1 text-[8px] font-semibold text-muted-foreground">
-                {skill}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 lg:flex-col lg:justify-center lg:gap-[3px]">
-        {job.match?.overallMatch != null ? (
-          <>
-            <ScoreRing score={job.match.overallMatch} size="sm" variant="ats" showPercentageSign={false} />
-            <span className="text-[7px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">match</span>
-          </>
-        ) : (
-          <span className="max-w-[64px] text-center text-[8px] leading-tight text-muted-foreground">No match yet</span>
-        )}
-      </div>
-
-      <div className="flex items-center gap-[7px]" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-2.5">
+        <CompanyMark company={job.company} logoUrl={job.companyLogo} />
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">{job.company}</span>
         <Button
-          variant={trackState === 'saved' ? 'subtle' : 'outline'}
+          variant="ghost"
           size="icon"
-          aria-label="Save job"
+          className={cn('-mr-1.5 h-8 w-8 shrink-0', trackState === 'saved' && 'text-primary')}
+          aria-label={trackState === 'saved' ? 'Saved' : 'Save job'}
           disabled={trackState === 'saving' || trackState === 'saved'}
-          onClick={() => onTrack(job)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onTrack(job)
+          }}
         >
           {trackState === 'saving' ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -325,16 +281,71 @@ function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCard
             <Bookmark className="h-4 w-4" fill={trackState === 'saved' ? 'currentColor' : 'none'} />
           )}
         </Button>
-        <Button onClick={() => onApply(job)} className="gap-1.5 whitespace-nowrap">
-          {applied ? (
-            <>
-              <Check size={15} /> Applied
-            </>
-          ) : (
-            <>
-              Quick Apply <ArrowRight size={15} />
-            </>
+      </div>
+
+      <div className="min-w-0">
+        <h3 className="font-heading text-base font-bold leading-snug text-foreground">
+          <button
+            type="button"
+            className="line-clamp-3 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {job.title}
+          </button>
+        </h3>
+        <p className="mt-1.5 flex items-start gap-1 text-sm text-muted-foreground">
+          <MapPin size={14} className="mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            {job.location} · {job.workMode}
+          </span>
+        </p>
+        <p
+          className={cn(
+            'mt-1 text-sm',
+            job.salaryRange && !/not disclosed/i.test(job.salaryRange)
+              ? 'font-semibold text-foreground'
+              : 'text-muted-foreground'
           )}
+        >
+          {job.salaryRange || 'Not disclosed'}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {job.h1bSponsorship === 'explicitly_sponsored' && (
+          <span
+            className="inline-flex items-center rounded-md bg-success/10 px-2 py-1 text-xs font-medium text-success"
+            title={job.h1bEvidence ?? undefined}
+          >
+            Sponsors H-1B
+          </span>
+        )}
+        {job.employmentType && (
+          <span className="inline-flex items-center rounded-md bg-success/10 px-2 py-1 text-xs font-medium text-success">
+            {EMPLOYMENT_OPTIONS.find((opt) => opt.value === job.employmentType)?.label ?? job.employmentType}
+          </span>
+        )}
+        {job.skills.slice(0, 3).map((skill) => (
+          <span key={skill} className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+            {skill}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+        <span>{relativeDayLabel(job.postedDaysAgo, job.dateSource)}</span>
+        {job.match?.overallMatch != null ? (
+          <span className="font-semibold text-foreground">{Math.round(job.match.overallMatch)}% match</span>
+        ) : (
+          <span>No match yet</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
+        <Button variant="outline" onClick={() => onDetails(job)} className="gap-1.5 whitespace-nowrap">
+          View details
+        </Button>
+        <Button onClick={() => onApply(job)} className="gap-1.5 whitespace-nowrap">
+          Apply <ExternalLink size={15} />
         </Button>
       </div>
     </Card>
@@ -343,48 +354,79 @@ function JobCard({ job, trackState, applied, onOpen, onTrack, onApply }: JobCard
 
 function JobCardSkeleton() {
   return (
-    <Card className="grid grid-cols-1 items-center gap-x-[13px] gap-y-3 p-[17px] lg:grid-cols-[42px_1fr_72px_auto]">
-      <Skeleton className="h-10 w-10 rounded-lg" />
-      <div className="min-w-0 space-y-2">
-        <Skeleton className="h-4 w-1/2" />
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex items-center gap-2.5">
+        <Skeleton className="h-10 w-10 rounded-lg" />
         <Skeleton className="h-3 w-1/3" />
-        <div className="flex gap-1.5 pt-1">
-          <Skeleton className="h-4 w-14 rounded-full" />
-          <Skeleton className="h-4 w-16 rounded-full" />
-        </div>
       </div>
-      <Skeleton className="h-12 w-12 rounded-full justify-self-center" />
-      <div className="flex gap-2">
-        <Skeleton className="h-[38px] w-[38px] rounded-md" />
-        <Skeleton className="h-[38px] w-[118px] rounded-md" />
+      <Skeleton className="h-5 w-4/5" />
+      <Skeleton className="h-3 w-1/2" />
+      <Skeleton className="h-3 w-1/3" />
+      <div className="flex gap-1.5">
+        <Skeleton className="h-6 w-14 rounded-md" />
+        <Skeleton className="h-6 w-16 rounded-md" />
+      </div>
+      <div className="grid grid-cols-2 gap-2 pt-2">
+        <Skeleton className="h-9 rounded-md" />
+        <Skeleton className="h-9 rounded-md" />
       </div>
     </Card>
   )
 }
 
+function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good Morning'
+  if (hour < 18) return 'Good Afternoon'
+  return 'Good Evening'
+}
+
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active ? 'bg-foreground text-background' : 'bg-muted text-foreground hover:bg-muted/70'
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
 export function JobsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Search — the free-text query real backend search runs on. The sidebar's
   // "Role" select just sets this same state, so picking a role reuses the
   // exact same billed /jobs?q= path as typing it in.
-  const [query, setQuery] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '')
 
   // Server-side filters — forwarded to jobsService.getJobs exactly as before.
-  const [h1b, setH1b] = useState<H1bSponsorship | null>(null)
-  const [experience, setExperience] = useState<ExperienceLevel | null>(null)
-  const [employment, setEmployment] = useState<EmploymentType | null>(null)
-  const [company, setCompany] = useState<string | null>(null)
+  const [h1b, setH1b] = useState<H1bSponsorship | null>(() => H1B_OPTIONS.find((option) => option.value === searchParams.get('h1b'))?.value ?? null)
+  const [experience, setExperience] = useState<ExperienceLevel | null>(() => EXPERIENCE_OPTIONS.find((option) => option.value === searchParams.get('experience'))?.value ?? null)
+  const [employment, setEmployment] = useState<EmploymentType | null>(() => EMPLOYMENT_OPTIONS.find((option) => option.value === searchParams.get('employment'))?.value ?? null)
+  const [company, setCompany] = useState<string | null>(() => searchParams.get('company'))
 
   // Client-side filters — narrow the single fetched feed, same pattern the
   // old work-mode tabs already used.
-  const [workStyles, setWorkStyles] = useState<Set<WorkMode>>(new Set())
-  const [locationFilter, setLocationFilter] = useState<string | null>(null)
-  const [minSalaryK, setMinSalaryK] = useState(0)
-  const [datePosted, setDatePosted] = useState<DatePostedBucket | null>(null)
-  const [sort, setSort] = useState<SortKey>('best')
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [workStyles, setWorkStyles] = useState<Set<WorkMode>>(() => new Set(searchParams.getAll('work').filter((mode): mode is WorkMode => WORK_MODES.includes(mode as WorkMode))))
+  const [locationFilter, setLocationFilter] = useState<string | null>(() => searchParams.get('location'))
+  const [minSalaryK, setMinSalaryK] = useState(() => Math.max(0, Number(searchParams.get('salary')) || 0))
+  const [datePosted, setDatePosted] = useState<DatePostedBucket | null>(() => DATE_POSTED_OPTIONS.find((option) => option.value === searchParams.get('posted'))?.value ?? null)
+  const [sort, setSort] = useState<SortKey>(() => (['best', 'newest', 'salary'].includes(searchParams.get('sort') ?? '') ? searchParams.get('sort') as SortKey : 'best'))
+  // The filters sit beside the list only at xl and up; below that they stack above it,
+  // so start them closed on narrow screens and let the jobs come first.
+  const [filtersOpen, setFiltersOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 1280px)').matches,
+  )
 
   const [feed, setFeed] = useState<JobFeed | null>(null)
   const [loading, setLoading] = useState(true)
@@ -394,7 +436,6 @@ export function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<JobListing | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
   const [trackStates, setTrackStates] = useState<Record<string, TrackState>>({})
-  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
 
   const pollCount = useRef(0)
 
@@ -405,6 +446,21 @@ export function JobsPage() {
     const timer = setTimeout(() => setSearchTerm(query.trim()), SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [query])
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (query.trim()) next.set('q', query.trim())
+    if (h1b) next.set('h1b', h1b)
+    if (experience) next.set('experience', experience)
+    if (employment) next.set('employment', employment)
+    if (company) next.set('company', company)
+    workStyles.forEach((mode) => next.append('work', mode))
+    if (locationFilter) next.set('location', locationFilter)
+    if (minSalaryK > 0) next.set('salary', String(minSalaryK))
+    if (datePosted) next.set('posted', datePosted)
+    if (sort !== 'best') next.set('sort', sort)
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+  }, [query, h1b, experience, employment, company, workStyles, locationFilter, minSalaryK, datePosted, sort, searchParams, setSearchParams])
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
@@ -515,7 +571,8 @@ export function JobsPage() {
         company: job.company,
         location: job.location,
         salary_range: job.salaryRange,
-        job_url: job.applyUrl,
+        // Only a safe link is stored: the Applications page renders it.
+        job_url: safeExternalUrl(job.applyUrl) ?? undefined,
         job_description: job.description ?? undefined,
         status: 'saved',
       })
@@ -527,33 +584,45 @@ export function JobsPage() {
     }
   }
 
-  const handleApply = (job: JobListing) => {
-    window.open(job.applyUrl, '_blank', 'noopener,noreferrer')
-    setAppliedIds((prev) => new Set(prev).add(job.id))
+  const handleDetails = (job: JobListing) => {
+    const returnTo = `/jobs${location.search}`
+    navigate(`/jobs/${job.id}?returnTo=${encodeURIComponent(returnTo)}`)
   }
 
-  const handleTailorResume = async (job: JobListing) => {
-    try {
-      const onFile = await resumeService.getResumeOnFile()
-      if (!onFile.has_resume || !onFile.analysis_id) {
-        toast.error('Analyze a resume first to tailor it for a job.')
-        navigate('/resume/upload')
-        return
-      }
-      navigate(`/resume/tailor?jobId=${Number(job.id)}&analysisId=${onFile.analysis_id}`, {
-        state: { jobTitle: job.title, company: job.company, location: job.location, workMode: job.workMode },
-      })
-    } catch {
-      toast.error('Could not check your resume status.')
-    }
+  const handleApply = (job: JobListing) => {
+    handleDetails(job)
+  }
+
+  const handleTailorResume = (job: JobListing) => {
+    const returnTo = `/jobs/${job.id}?returnTo=${encodeURIComponent(`/jobs${location.search}`)}`
+    const params = new URLSearchParams({ jobId: String(Number(job.id)), returnTo, mode: 'tailor' })
+    navigate(`/resume/match?${params.toString()}`)
+  }
+
+  const SOFTWARE_QUERY = 'Software engineer'
+  const jobGridClass = cn(
+    'grid grid-cols-1 gap-4 sm:grid-cols-2',
+    filtersOpen ? '2xl:grid-cols-3' : 'xl:grid-cols-3 2xl:grid-cols-4'
+  )
+  const forYouActive = !query.trim() && !h1b && workStyles.size === 0 && !datePosted && sort === 'best'
+  const remoteActive = workStyles.size === 1 && workStyles.has('Remote')
+  const showForYou = () => {
+    setQuery('')
+    setSearchTerm('')
+    setH1b(null)
+    setWorkStyles(new Set())
+    setDatePosted(null)
+    setSort('best')
   }
 
   return (
     <div className="grid gap-[18px]">
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div>
-          <h2 className="font-heading text-2xl font-bold text-foreground">Find your next opportunity</h2>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl">
+            {greeting()}{user?.fullName ? `, ${user.fullName}` : ''}
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
             AI-ranked roles based on your experience, preferences, and career goals.
           </p>
         </div>
@@ -569,9 +638,9 @@ export function JobsPage() {
         </div>
       </div>
 
-      <div className={cn('grid items-start gap-[14px]', filtersOpen ? 'lg:grid-cols-[232px_1fr]' : 'grid-cols-1')}>
+      <div className={cn('grid items-start gap-[14px]', filtersOpen ? 'xl:grid-cols-[232px_1fr]' : 'grid-cols-1')}>
         {filtersOpen && (
-          <Card className="sticky top-[92px] p-[17px]">
+          <Card id="job-filters" className="p-[17px] xl:sticky xl:top-[92px] xl:max-h-[calc(100vh-110px)] xl:overflow-y-auto">
             <div className="flex items-center justify-between pb-3">
               <h3 className="font-heading text-sm font-bold text-foreground">Filters</h3>
               <button
@@ -722,13 +791,37 @@ export function JobsPage() {
         )}
 
         <section className="min-w-0">
+          <div className="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Job categories">
+            <FilterChip label="For you" active={forYouActive} onClick={showForYou} />
+            <FilterChip
+              label={SOFTWARE_QUERY}
+              active={query.trim().toLowerCase() === SOFTWARE_QUERY.toLowerCase()}
+              onClick={() => setQuery(query.trim().toLowerCase() === SOFTWARE_QUERY.toLowerCase() ? '' : SOFTWARE_QUERY)}
+            />
+            <FilterChip
+              label="Remote jobs"
+              active={remoteActive}
+              onClick={() => setWorkStyles(remoteActive ? new Set() : new Set<WorkMode>(['Remote']))}
+            />
+            <FilterChip
+              label="Sponsors H-1B"
+              active={h1b === 'explicitly_sponsored'}
+              onClick={() => setH1b(h1b === 'explicitly_sponsored' ? null : 'explicitly_sponsored')}
+            />
+            <FilterChip
+              label="New for you"
+              active={datePosted === 'week'}
+              onClick={() => setDatePosted(datePosted === 'week' ? null : 'week')}
+            />
+          </div>
+
           <div className="mb-2.5 flex min-h-[41px] flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setFiltersOpen((v) => !v)}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen} aria-controls="job-filters">
                 <SlidersHorizontal size={14} /> {filtersOpen ? 'Hide filters' : 'Show filters'}
               </Button>
               <span className="text-[10px] text-muted-foreground">
-                <strong className="text-foreground">{filteredJobs.length}</strong> roles matched to you
+                <strong className="text-foreground">{filteredJobs.length}</strong> listings returned
               </span>
               {anyFilterActive && (
                 <button
@@ -767,6 +860,21 @@ export function JobsPage() {
             </div>
           </div>
 
+          {anyFilterActive && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5" aria-label="Active job filters">
+              {query.trim() && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setQuery('')} aria-label="Remove keyword search">Search: {query.trim()} <X size={12} /></Button>}
+              {h1b && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setH1b(null)} aria-label="Remove sponsorship filter">{H1B_OPTIONS.find((option) => option.value === h1b)?.label} <X size={12} /></Button>}
+              {experience && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setExperience(null)} aria-label="Remove experience filter">{EXPERIENCE_OPTIONS.find((option) => option.value === experience)?.label} <X size={12} /></Button>}
+              {employment && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setEmployment(null)} aria-label="Remove employment filter">{EMPLOYMENT_OPTIONS.find((option) => option.value === employment)?.label} <X size={12} /></Button>}
+              {company && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setCompany(null)} aria-label="Remove employer filter">{company} <X size={12} /></Button>}
+              {[...workStyles].map((mode) => <Button key={mode} size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => toggleWorkStyle(mode)} aria-label={`Remove ${mode} filter`}>{mode} <X size={12} /></Button>)}
+              {locationFilter && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setLocationFilter(null)} aria-label="Remove location filter">{locationFilter} <X size={12} /></Button>}
+              {minSalaryK > 0 && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setMinSalaryK(0)} aria-label="Remove salary filter">${minSalaryK}k+ <X size={12} /></Button>}
+              {datePosted && <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setDatePosted(null)} aria-label="Remove posted date filter">{DATE_POSTED_OPTIONS.find((option) => option.value === datePosted)?.label} <X size={12} /></Button>}
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearFilters}>Clear all</Button>
+            </div>
+          )}
+
           {feed?.refreshing && searchTerm && (
             <div className="mb-2.5 flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -775,8 +883,8 @@ export function JobsPage() {
           )}
 
           {loading && !feed ? (
-            <div className="grid gap-2.5">
-              {Array.from({ length: 5 }).map((_, i) => (
+            <div className={jobGridClass}>
+              {Array.from({ length: 8 }).map((_, i) => (
                 <JobCardSkeleton key={i} />
               ))}
             </div>
@@ -810,14 +918,14 @@ export function JobsPage() {
             </Card>
           ) : (
             <>
-              <div className="grid gap-2.5">
+              <div className={jobGridClass}>
                 {visibleJobs.map((job) => (
                   <JobCard
                     key={job.id}
                     job={job}
                     trackState={trackStates[job.id] ?? 'idle'}
-                    applied={appliedIds.has(job.id)}
                     onOpen={setSelectedJob}
+                    onDetails={handleDetails}
                     onTrack={handleTrack}
                     onApply={handleApply}
                   />
@@ -874,7 +982,7 @@ export function JobsPage() {
                         Analyze a resume to see how well you match this role.
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => navigate('/resume/upload')}>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/resume/match')}>
                       Analyze resume
                     </Button>
                   </div>
@@ -924,7 +1032,7 @@ export function JobsPage() {
                     <div className="rounded-lg bg-muted/60 p-2.5">
                       <small className="text-[7px] font-bold uppercase tracking-wide text-muted-foreground">Posted</small>
                       <strong className="mt-0.5 block text-[10px] font-bold text-foreground">
-                        {relativeDayLabel(selectedJob.postedDaysAgo)}
+                        {relativeDayLabel(selectedJob.postedDaysAgo, selectedJob.dateSource)}
                       </strong>
                     </div>
                   </div>

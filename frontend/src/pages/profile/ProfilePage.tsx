@@ -29,7 +29,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
 import { profileService } from '@/services/profileService'
 import { resumeService } from '@/services/resumeService'
 import {
@@ -42,7 +41,6 @@ import {
 } from '@/types/profile'
 
 const SENIORITY_OPTIONS = ['Entry Level', 'Mid Level', 'Senior', 'Staff', 'Lead', 'Principal', 'Executive']
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -66,6 +64,9 @@ function formatDate(value: string | null): string {
 // Every dimension the real Profile model actually has — Figma's mock
 // "completeness" is a fixed 86% with no formula behind it; this is a real
 // one, computed from the same fields this page lets you edit.
+/** The types the API will sign an upload for; it enforces the same list server-side. */
+const ACCEPTED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
 function completenessChecks(profile: ProfileSchema, hasAvatar: boolean) {
   return [
     { done: hasAvatar, hint: 'Add a profile photo' },
@@ -79,7 +80,9 @@ function completenessChecks(profile: ProfileSchema, hasAvatar: boolean) {
 }
 
 export function ProfilePage() {
-  const { user, session } = useAuth()
+  const { user } = useAuth()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   const [profile, setProfile] = useState<ProfileSchema | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -98,8 +101,6 @@ export function ProfilePage() {
   const [targetRoles, setTargetRoles] = useState<string[]>([])
   const [roleInput, setRoleInput] = useState('')
   const [saving, setSaving] = useState(false)
-  const [avatarUploading, setAvatarUploading] = useState(false)
-  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const loadProfile = async () => {
     setProfileLoading(true)
@@ -223,25 +224,19 @@ export function ProfilePage() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file || !user) return
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please choose an image file.')
-      return
-    }
-    if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('Image must be under 5MB.')
+    if (!ACCEPTED_AVATAR_TYPES.includes(file.type)) {
+      toast.error('Choose a JPEG, PNG or WebP image.')
       return
     }
     setAvatarUploading(true)
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const path = `${user.id}/${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true, cacheControl: '3600' })
-      if (uploadError) throw uploadError
-      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path)
-      const updated = await profileService.updateProfile({ avatar_url: publicUrlData.publicUrl, avatar_path: path })
-      setProfile(updated)
+      const upload = await profileService.requestAvatarUpload(file.type)
+      if (file.size > upload.max_bytes) {
+        toast.error(`Image must be under ${Math.round(upload.max_bytes / (1024 * 1024))}MB.`)
+        return
+      }
+      await profileService.uploadAvatarToStorage(upload, file)
+      setProfile(await profileService.confirmAvatar(upload.path))
       toast.success('Profile photo updated.')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not upload your photo.')
@@ -250,8 +245,8 @@ export function ProfilePage() {
     }
   }
 
-  const providers = session?.user.identities?.map((identity) => identity.provider) ?? []
-  const memberSince = session?.user.created_at ? formatDate(session.user.created_at) : null
+  const providers = user?.providers ?? []
+  const memberSince = user?.createdAt ? formatDate(user.createdAt) : null
   const displayName = user?.fullName || 'Unnamed user'
 
   const checks = profile ? completenessChecks(profile, Boolean(profile.avatar_url)) : []
@@ -303,7 +298,13 @@ export function ProfilePage() {
           >
             {avatarUploading ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
           </button>
-          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept={ACCEPTED_AVATAR_TYPES.join(',')}
+            className="hidden"
+            onChange={handleAvatarFile}
+          />
         </div>
 
         <div className="min-w-0 text-center sm:text-left">
@@ -467,7 +468,7 @@ export function ProfilePage() {
               {activity && activity.length === 0 && (
                 <p className="py-3 text-[10px] text-muted-foreground">
                   No activity yet.{' '}
-                  <Link to="/resume/upload" className="font-bold text-primary hover:underline">
+                  <Link to="/resume/match" className="font-bold text-primary hover:underline">
                     Analyze a resume
                   </Link>{' '}
                   or{' '}
@@ -512,7 +513,7 @@ export function ProfilePage() {
               <h3 className="font-heading text-sm font-bold text-foreground">Skills</h3>
               {profile.primary_resume_filename && (
                 <Button variant="ghost" size="sm" asChild className="h-auto gap-1 p-0 text-[11px] text-primary">
-                  <Link to="/resume/results">Manage</Link>
+                  <Link to="/resume/match">Manage</Link>
                 </Button>
               )}
             </div>
@@ -607,14 +608,14 @@ export function ProfilePage() {
                     <span className="truncate">{profile.primary_resume_filename}</span>
                   </span>
                   <Button asChild variant="ghost" size="sm" className="h-auto shrink-0 p-0 text-[10px] text-primary">
-                    <Link to="/resume/upload">Replace</Link>
+                    <Link to="/resume/match">Replace</Link>
                   </Button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2.5 py-2 text-center">
                   <p className="text-[9px] text-muted-foreground">No resume on file yet.</p>
                   <Button asChild size="sm" variant="outline" className="gap-1.5">
-                    <Link to="/resume/upload">
+                    <Link to="/resume/match">
                       <Upload size={14} />
                       Upload resume
                     </Link>
@@ -636,8 +637,8 @@ export function ProfilePage() {
                 providers.map((provider) => (
                   <div key={provider} className="flex items-center justify-between gap-2 border-b border-border py-2.5 last:border-b-0">
                     <span className="flex items-center gap-2 text-[10px] font-medium capitalize text-foreground">
-                      {provider === 'email' ? <Mail size={14} className="text-muted-foreground" /> : <Sparkles size={14} className="text-muted-foreground" />}
-                      {provider}
+                      {provider === 'password' ? <Mail size={14} className="text-muted-foreground" /> : <Sparkles size={14} className="text-muted-foreground" />}
+                      {provider === 'password' ? 'email & password' : provider}
                       <ExternalLink size={10} className="text-muted-foreground" />
                     </span>
                     <Badge variant="success" className="gap-1 text-[9px]">

@@ -7,14 +7,31 @@ sqlalchemy==2.0.35
 # file. FastAPI 0.115.0 and pydantic-settings 2.5.2 both run clean on 2.13.x.
 pydantic==2.13.4
 pydantic-settings==2.5.2
-anthropic==0.39.0
+anthropic==0.40.0
 # Test-only since resume extraction moved to PyMuPDF. tests/test_extraction.py
 # keeps it as the comparand that proves the two agree, so removing it deletes
 # the evidence for the swap rather than a live dependency.
 pdfplumber==0.11.4
 python-docx==1.1.2
 reportlab==4.2.5
-PyJWT==2.9.0
+# firebase-admin 7.7.0 requires pyjwt[crypto]>=2.10.1 (pip check enforces it).
+PyJWT==2.10.1
+# Verifies Firebase ID tokens (check_revoked) and deletes Firebase users. Pulls in
+# google-auth, google-api-core, grpcio and others.
+firebase-admin==7.7.0
+# firebase-admin's own dependencies, pinned to the newest releases that were at least
+# 14 days old when chosen (resolved with `pip install --uploaded-prior-to P14D`) so an
+# install is reproducible and never picks up a brand-new release. google-cloud-storage
+# is also imported directly (avatars). Review and bump deliberately, not by accident.
+google-cloud-storage==3.15.0
+google-api-core==2.39.0
+google-auth==2.59.0
+google-cloud-core==2.7.0
+google-cloud-firestore==2.32.0
+google-resumable-media==2.10.2
+googleapis-common-protos==1.75.4
+opentelemetry-api==1.45.0
+proto-plus==1.28.4
 psycopg2-binary==2.9.10
 alembic==1.13.3
 pytest==8.3.3
@@ -42,7 +59,7 @@ numpy==2.5.1
 # breakage. (Previously pinned for job_market/jsearch.py, since removed in
 # the migration to Apify as the job source — httpx stayed because it's still
 # a real transitive need.)
-httpx==0.27.2
+httpx==0.28.1
 
 # Apify platform client (scraper/actor runs), added for job-listing ingestion.
 # Drags in pydantic[email] (hence email-validator + dnspython) and impit as

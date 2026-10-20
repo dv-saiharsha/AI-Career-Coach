@@ -1,0 +1,55 @@
+# Builds the API/worker image from backend/ (the build source; see
+# backend/.gcloudignore for what is uploaded). One image serves the API
+# service and both jobs; only the command differs.
+#
+# The trained ATS model is gitignored, so it is copied in from the private
+# models bucket when present. Without it the image still works and scores
+# show "Unavailable" instead of a made-up number.
+steps:
+  - id: ats-model
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        if gcloud storage cp "gs://${_MODELS_BUCKET}/ats_model.joblib" app/ml/models/ats_model.joblib; then
+          echo "ATS model included"
+        else
+          echo "WARNING: no ATS model in gs://${_MODELS_BUCKET}; scores will be unavailable"
+        fi
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_IMAGE}:${_TAG}", "-t", "${_IMAGE}:latest", "."]
+  # Runs the image before anything is pushed: the app imports, the LaTeX
+  # engine really compiles a resume to a one-page PDF inside the container
+  # (tectonic fails at runtime, not at install, if a system library is
+  # missing), and the crawler's --once entry point exists. A failure here
+  # means no image is pushed.
+  - id: smoke
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -e
+      - DB_URL=sqlite:////tmp/smoke.db
+      - -e
+      - ANTHROPIC_API_KEY=
+      - ${_IMAGE}:${_TAG}
+      - python
+      - -c
+      - |
+        import app.main
+        from app.modules.resume_builder import latex
+        assert latex.tectonic_available(), "tectonic missing"
+        tex = latex.render_resume_tex({"candidate_name": "Smoke Test", "summary": "Builds.", "experiences": [{"title": "Engineer", "company": "Acme", "dates": "2024", "bullets": ["Built a thing."]}]})
+        pdf = latex.compile_tex_to_pdf(tex)
+        assert pdf.startswith(b"%PDF") and latex.count_pdf_pages(pdf) == 1
+        from app import worker
+        assert callable(worker.run_once)
+        print("smoke ok: app imports, tectonic compiles a 1-page PDF, worker --once present")
+images:
+  - "${_IMAGE}:${_TAG}"
+  - "${_IMAGE}:latest"
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1800s

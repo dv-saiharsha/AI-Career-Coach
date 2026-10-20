@@ -1,0 +1,22 @@
+# Builds the GPU Ollama image (~15 GB with three models), so a large disk
+# and a long timeout. Source: infra/gcp/ollama/.
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=OLLAMA_VERSION=${_OLLAMA_VERSION}
+      - --build-arg=MODEL_LIST=${_MODEL_LIST}
+      - -t
+      - ${_IMAGE}:${_OLLAMA_VERSION}
+      - -t
+      - ${_IMAGE}:latest
+      - .
+images:
+  - "${_IMAGE}:${_OLLAMA_VERSION}"
+  - "${_IMAGE}:latest"
+options:
+  machineType: E2_HIGHCPU_8
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+timeout: 3600s

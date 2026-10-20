@@ -74,3 +74,6 @@ skills-lock.json
 figma-export/
 figma-landing/
 design-refs/
+
+# Supabase CLI scratch (project-ref cache) — local only
+supabase/.temp/

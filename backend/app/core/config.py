@@ -52,14 +52,19 @@ class Settings(BaseSettings):
     # Ashby sweep, not job_market/crawler.py's companies-table crawl, which
     # the separate `worker` service runs unconditionally).
     #
-    # Free — board reads only, never Claude — so leaving it on costs nothing
-    # but requests. Turn it off for a process that should not sweep: a
-    # one-off script, or a second replica where one worker already covers it,
-    # or (the production default, set in docker-compose.prod.yml) the API
-    # service once the `worker` service covers the same ground and more.
-    # Upserts are idempotent on content_hash, so two workers sweeping is
-    # wasteful rather than wrong.
-    JOB_SWEEP_ENABLED: bool = True
+    # Defaults OFF as of the companies-table crawler's go-live: the `worker`
+    # service (job_market/crawler.py) is now the one and only writer of
+    # job_listings, with company_id linkage, the close-after-2-misses
+    # lifecycle, and enrichment — the older sweep has none of those. Opt back
+    # in per-process (e.g. local dev without `worker` running) by setting
+    # JOB_SWEEP_ENABLED=true; it is still free (board reads only, never
+    # Claude) and its upserts are idempotent on content_hash, so turning it
+    # on alongside `worker` is wasteful rather than wrong — it just no longer
+    # happens by default.
+    JOB_SWEEP_ENABLED: bool = False
+    # The crawl worker's cadence (app/worker.py): one run every this many
+    # seconds, measured from the start of the previous run.
+    CRAWL_INTERVAL_SECONDS: int = 3600
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 5
@@ -69,8 +74,73 @@ class Settings(BaseSettings):
     # re-querying. The feed is identical for every user sharing a target-role
     # set, so this turns N concurrent readers into one query.
     JOB_FEED_CACHE_SECONDS: int = 60
+    # Which model serves every AI feature (analysis, tailoring, cover letters,
+    # interview coach): "ollama" (a local model, free) or "anthropic" (Claude,
+    # billed, needs ANTHROPIC_API_KEY). See core/llm.py. Defaults to ollama
+    # while no Anthropic credits are available; switching back is this one
+    # setting. Job enrichment uses Anthropic's Batch API under
+    # LLM_PROVIDER=anthropic and one capped request at a time under ollama
+    # (OLLAMA_ENRICH_MAX_PER_RUN).
+    LLM_PROVIDER: str = "ollama"
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"
+
+    # Ollama (LLM_PROVIDER=ollama). The timeout is per request and generous
+    # because an 8B model on a laptop can take a minute on a long resume.
+    # NUM_CTX must cover the largest prompt we send (JD up to ~6k chars plus
+    # resume up to ~8k chars, roughly 4-5k tokens); Ollama's own default
+    # context is much smaller and silently truncates the prompt.
+    #
+    # Ollama runs natively on the host, not in Docker. From a container, point
+    # OLLAMA_BASE_URL at http://host.docker.internal:11434.
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.1"
+    # The JD analyzer's model, when it should differ from OLLAMA_MODEL (an
+    # experiment with a larger model). Empty: OLLAMA_MODEL. Nothing else uses it.
+    OLLAMA_ANALYZER_MODEL: str = ""
+    # The Tailor Resume rewrite's model, when it should differ from OLLAMA_MODEL
+    # (the rewrite benefits most from a larger model). Empty: OLLAMA_MODEL.
+    OLLAMA_TAILOR_MODEL: str = ""
+    # Used only when OLLAMA_MODEL isn't pulled. Empty disables the fallback.
+    OLLAMA_FALLBACK_MODEL: str = "llama3.2"
+    # Embeddings (/api/embed). No fallback: vectors from two different
+    # embedding models are not comparable.
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+    # How long one Ollama request may take. Interactive requests (a user is
+    # waiting: scan, tailor, JD analysis, chat) give up sooner and fall back;
+    # background work (the crawl worker's enrichment, scripts, evaluation)
+    # can wait for a long reply. Code marks itself background with
+    # app.core.llm.background().
+    OLLAMA_TIMEOUT_INTERACTIVE_SECONDS: float = 150.0
+    OLLAMA_TIMEOUT_BACKGROUND_SECONDS: float = 300.0
+    # JD analyzer: after the first call, ask again on the recognised
+    # requirements section(s) only, instead of the "what did you miss" call.
+    # Off by default (an experiment: better recall, lower precision, slower).
+    JD_FOCUSED_CALL: bool = False
+    # Sent as "keep_alive" on every /api/chat and /api/embed request, so the
+    # model stays loaded this long after its last use (Ollama's own default is
+    # 5 minutes, after which the next request pays a ~20 s reload). Setting it
+    # per request means no change to how `ollama serve` is started. A duration
+    # like "30m", or a number of seconds; "-1" keeps it loaded indefinitely and
+    # "0" unloads it right after each request.
+    OLLAMA_KEEP_ALIVE: str = "30m"
+    # "google_id_token": send a Google-signed identity token for OLLAMA_BASE_URL
+    # with every request, which a private Cloud Run service (the GPU Ollama in
+    # infra/gcp) requires. Empty: no auth header (a local Ollama).
+    OLLAMA_AUTH: str = ""
+    # Retries per call, both for transport errors / 5xx and for a reply that
+    # is not valid, schema-conforming JSON. 1 try + this many retries.
+    OLLAMA_MAX_RETRIES: int = 2
+    OLLAMA_NUM_CTX: int = 8192
+    # Structured calls (extraction, scoring, tailoring) must be repeatable, so
+    # 0. Streaming chat (Career Coach) gets a little variety.
+    OLLAMA_TEMPERATURE: float = 0.0
+    OLLAMA_CHAT_TEMPERATURE: float = 0.3
+    # Under Ollama, job enrichment is one request per posting, sequentially, so
+    # a crawl run must not be held for hours by a large backlog. At most this
+    # many postings per run; the rest keep enriched_at NULL and are picked up
+    # by the next run.
+    OLLAMA_ENRICH_MAX_PER_RUN: int = 25
 
     # Voice Interview's speech-to-text provider. Unset means the feature
     # degrades to "unavailable" (a clear error, not a crash) — same shape as
@@ -114,6 +184,10 @@ class Settings(BaseSettings):
     # How long a closed job_listings row is kept before the crawler
     # hard-deletes it (status transitions through job_market/crawler.py).
     JOB_CLOSED_RETENTION_DAYS: int = 90
+    # A listing closes only after 2 missed crawls AND this long unseen. With a
+    # 20-minute crawl, two misses alone is 40 minutes: a board's brief outage
+    # would close live jobs. Time makes closing independent of the cadence.
+    JOB_CLOSE_MIN_UNSEEN_HOURS: float = 6.0
 
     # Real, enforced ceiling on Claude enrichment spend per crawl run — unlike
     # ingestion.py's MAX_SWEEP_COST_USD, which that module's own sweep never
@@ -137,14 +211,27 @@ class Settings(BaseSettings):
     # for local dev and CI.
     ALERT_WEBHOOK_URL: str = ""
 
-    # Supabase Auth — the FastAPI backend verifies tokens Supabase issues,
-    # it no longer signs its own. SUPABASE_JWT_SECRET is under
-    # Project Settings -> API -> JWT Settings in the Supabase dashboard.
-    SUPABASE_URL: str = ""
-    SUPABASE_JWT_SECRET: str = ""
-    # Elevated-privilege key for calling Supabase's own APIs directly (admin
-    # user management, etc). Not used by the token-verification path above.
-    SUPABASE_SECRET_API_KEY: str = ""
+    # Firebase Authentication — the backend verifies the ID tokens Firebase
+    # issues and never signs its own. The project id is all the verifier needs;
+    # there is no shared secret to configure. Credentials for the calls that DO
+    # need privilege (checking a user still exists, deleting a user) come from
+    # Application Default Credentials: the Cloud Run service account in
+    # production, `gcloud auth application-default login` locally.
+    FIREBASE_PROJECT_ID: str = ""
+
+    # Profile photos live in a private Cloud Storage bucket. Unset AVATAR_BUCKET
+    # turns custom photos off (the sign-in provider's picture is shown instead).
+    AVATAR_BUCKET: str = ""
+    # The service account that signs upload and read URLs through the IAM
+    # Credentials signBlob API. On Cloud Run the service already runs as this
+    # account; it needs roles/iam.serviceAccountTokenCreator on itself.
+    AVATAR_SIGNER_SERVICE_ACCOUNT: str = ""
+    # LOCAL DEVELOPMENT ONLY. A developer's own login cannot sign, so the backend
+    # impersonates AVATAR_SIGNER_SERVICE_ACCOUNT instead (the developer needs
+    # roles/iam.serviceAccountTokenCreator on it). Leave false anywhere the
+    # service already runs as that account.
+    AVATAR_IMPERSONATE_SIGNER: bool = False
+    AVATAR_MAX_BYTES: int = 5 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -221,12 +308,18 @@ def validate_startup() -> None:
     missing: list[str] = []
     if settings.DB_URL.startswith("sqlite"):
         missing.append("DB_URL (still the local SQLite default — set it to the production Postgres URL)")
-    if not settings.SUPABASE_URL:
-        missing.append("SUPABASE_URL")
-    if not settings.SUPABASE_JWT_SECRET:
-        missing.append("SUPABASE_JWT_SECRET")
-    if not settings.ANTHROPIC_API_KEY:
-        missing.append("ANTHROPIC_API_KEY")
+    if not settings.FIREBASE_PROJECT_ID:
+        missing.append("FIREBASE_PROJECT_ID")
+    provider = settings.LLM_PROVIDER.strip().lower()
+    if provider == "anthropic":
+        if not settings.ANTHROPIC_API_KEY:
+            missing.append("ANTHROPIC_API_KEY (LLM_PROVIDER=anthropic)")
+    elif provider != "ollama":
+        # Ollama needs nothing here: whether the server is reachable and the
+        # models are pulled is checked when the app starts (main.log_startup_state),
+        # as a warning, because validate_startup runs at import time and must
+        # not make network calls.
+        missing.append(f"LLM_PROVIDER (must be 'ollama' or 'anthropic', got {provider!r})")
     if not settings.allowed_origins_list or settings.ALLOWED_ORIGINS.strip() == "*":
         missing.append("ALLOWED_ORIGINS (must be a real, non-wildcard origin list in production)")
 

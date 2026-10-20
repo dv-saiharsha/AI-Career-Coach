@@ -23,7 +23,6 @@ export interface ProfileUpdatePayload {
   seniority?: string
   primary_target_role?: string
   avatar_url?: string
-  avatar_path?: string
   primary_resume_analysis_id?: number
   primary_resume_filename?: string
   target_roles?: string[]
@@ -58,3 +57,12 @@ export interface AccountDeletionResult {
 // MIN_TARGET_ROLES / MAX_TARGET_ROLES in backend/app/schemas/profile.py.
 export const MIN_TARGET_ROLES = 3
 export const MAX_TARGET_ROLES = 5
+
+/** What the browser needs to POST one profile photo straight to Cloud Storage. */
+export interface AvatarUploadDescriptor {
+  url: string
+  fields: Record<string, string>
+  path: string
+  max_bytes: number
+  expires_in: number
+}

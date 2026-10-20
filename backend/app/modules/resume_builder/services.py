@@ -18,11 +18,12 @@ import json
 import logging
 
 from app.core.keywords import keyword_candidates
+from app.modules.jd_analyzer import service as jd_service
 from app.core.llm import llm_client
 from app.core.taxonomy import canonical, expand_skills, group_by_domain, skill_candidates
 from app.modules.resume_analyzer import layout_check, quality
 from app.ml.features import extract_features
-from app.ml.inference import model_available, predict_score
+from app.ml.inference import ScoringModelUnavailable, model_available, predict_score
 from app.modules.resume_builder import autofill, fit, guards, latex
 from app.modules.resume_builder.latex import LatexCompileError, LatexToolchainMissing  # noqa: F401 (re-exported)
 
@@ -72,22 +73,36 @@ def _resume_text_from_payload(data: dict) -> str:
     lines: list[str] = [data.get("summary", "")]
     lines.extend(data.get("technical_skills") or [])
     lines.extend(data.get("tools_skills") or [])
+    for group in data.get("skill_groups") or []:
+        lines.append(f"{group.get('category', '')}: {', '.join(group.get('items') or [])}")
     for exp in data.get("experiences") or []:
         lines.append(f"{exp.get('title', '')} {exp.get('company', '')}")
         lines.extend(exp.get("bullets") or [])
+    for project in data.get("projects") or []:
+        lines.append(f"{project.get('name', '')} {project.get('tech', '')}".strip())
+        lines.extend(project.get("bullets") or [])
     for edu in data.get("education") or []:
         lines.append(f"{edu.get('degree', '')} {edu.get('institution', '')}")
+    for key in ("certifications", "awards", "publications"):
+        lines.extend(data.get(key) or [])
     return "\n".join(line for line in lines if line)
 
 
-def stage_fixes(resume_text: str, jd_text: str, experiences: list[dict] | None) -> dict:
-    """Missing keywords (always, free) plus bullet rewrite suggestions
-    (only if `experiences` is given and Claude is configured — one LLM
-    call, same cost shape as the existing resume analyzer's per-request
-    calls, not a batch operation)."""
-    missing_keywords = [
-        kw for kw in keyword_candidates(jd_text) if kw.lower() not in resume_text.lower()
-    ]
+def stage_fixes(resume_text: str, jd_text: str, experiences: list[dict] | None, db=None) -> dict:
+    """Missing keywords plus bullet rewrite suggestions (only if
+    `experiences` is given and a model is configured: one LLM call).
+
+    The job description is analysed first and the keyword list is derived from
+    that analysis (the older single-token list when there is only a rules-only
+    one). `db`, when a caller has one, lets the analysis be stored and reused.
+    """
+    jd_analysis = jd_service.analyze(jd_text, db=db) if (jd_text or "").strip() else None
+    jd_keywords = (
+        jd_service.keywords_from(jd_analysis, jd_text, keyword_candidates)
+        if jd_analysis is not None
+        else keyword_candidates(jd_text)
+    )
+    missing_keywords = [kw for kw in jd_keywords if kw.lower() not in resume_text.lower()]
 
     suggestions: list[dict] = []
     if experiences and llm_client.available:
@@ -95,8 +110,14 @@ def stage_fixes(resume_text: str, jd_text: str, experiences: list[dict] | None) 
             f"[{i}] {b}" for i, exp in enumerate(experiences) for b in exp.get("bullets", [])
         )
         if bullets_block:
+            summary = (
+                f"STRUCTURED SUMMARY OF THE JOB:\n{jd_service.structured_summary(jd_analysis)}\n\n"
+                if jd_analysis is not None and jd_analysis.source != "rules"
+                else ""
+            )
             user_prompt = (
                 f"JOB DESCRIPTION:\n{jd_text[:4000]}\n\n"
+                f"{summary}"
                 f"MISSING KEYWORDS:\n{', '.join(missing_keywords[:15]) or 'none'}\n\n"
                 f"CURRENT BULLETS (indexed by experience entry):\n{bullets_block[:6000]}\n\n"
                 "Suggest rewrites for the weakest bullets only."
@@ -142,6 +163,12 @@ def compile_and_score(payload: dict) -> dict:
     """Render the resume to LaTeX, compile to PDF, and score it with the
     real trained model — the honest hybrid: a computed keyword overlap, a
     computed TF-IDF cosine, and a model-predicted score, no invented weights."""
+    # Checked first so a missing model costs nothing: the compile below takes
+    # about a second and needs the tectonic binary, and its output would be
+    # thrown away anyway because the score is the point of this call.
+    if not model_available():
+        raise ScoringModelUnavailable("the ATS scoring model file is not installed")
+
     resume_text = _resume_text_from_payload(payload)
     jd_text = payload.get("job_description", "")
 
@@ -196,7 +223,9 @@ def quality_report(
     # skill_candidates, not keyword_candidates: the phrase-aware version, so
     # domain gaps report "deep learning" rather than the fragments "Deep" and
     # "Learning" landing in the Other bucket.
-    jd_keywords = skill_candidates(jd_text)
+    # From an analysis the scan or tailoring steps already made, if there is one;
+    # this report is free and never calls the model itself.
+    jd_keywords = jd_service.keywords_peek(jd_text, skill_candidates)
     contexts = [quality.skill_context(resume_text, kw) for kw in jd_keywords[:15]]
     missing = [c["skill"] for c in contexts if not c["found"]]
 
@@ -227,8 +256,13 @@ def quick_tailor(
     target_pages: int,
     accepted_skills: list[str] | None = None,
     bullet_overrides: list[dict] | None = None,
+    analysis_text: str | None = None,
 ) -> dict:
     """A finished, page-fitted FAANG-format resume from a stored scan.
+
+    `analysis_text` is the text the job was analysed under, when it differs
+    from `jd_text` (a crawled listing is analysed with its title; the score uses
+    the description alone).
 
     Everything here comes out of the candidate's own uploaded resume:
     autofill parses it into structured sections, the JD decides which of
@@ -283,7 +317,9 @@ def quick_tailor(
                 bullets[i] = suggested
                 break
 
-    keywords = {k.lower() for k in expand_skills(skill_candidates(jd_text))} if jd_text else set()
+    keywords = (
+        {k.lower() for k in expand_skills(jd_service.keywords_peek(analysis_text or jd_text, skill_candidates))} if jd_text else set()
+    )
 
     payload = {
         "candidate_name": (full_name or "").strip() or parsed.get("name") or "Candidate",

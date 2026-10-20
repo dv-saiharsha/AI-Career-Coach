@@ -12,7 +12,7 @@ graph LR
     UI --> AUTH[Supabase Auth]
     API --> AUTH
     API --> DB[(Supabase Postgres)]
-    API --> LLM[Anthropic Claude API]
+    API --> LLM[Ollama (local, default) or Anthropic Claude]
     API --> ML[Trained ATS scoring model]
 ```
 
@@ -67,7 +67,7 @@ font, and shared primitive below is defined directly in `frontend/src/`.
 
 - **Auth**: Supabase Auth (email/password + verification, password reset, Google OAuth). The frontend talks to Supabase directly via `@supabase/supabase-js` (`frontend/src/lib/supabase.ts`), holding the session client-side (no server to hold an httpOnly cookie in a static SPA); the backend verifies the same Supabase-issued JWT on every API request (JWKS-based, no shared secret needed on modern Supabase projects).
 - **Database**: Supabase Postgres. Schema is managed with Alembic migrations (`backend/alembic/`) — never edited by hand against the live DB.
-- **LLM**: Anthropic Claude (Messages API, tool-use-forced JSON) for resume scoring, interview question generation, and answer evaluation. If `ANTHROPIC_API_KEY` is unset or a call fails, the resume analyzer falls back to a rule-based keyword scorer and the interview coach falls back to a seed question dataset, so the app still works without a key.
+- **LLM**: a local Ollama model by default (`llama3.1`, schema-constrained JSON), or Anthropic Claude when `LLM_PROVIDER=anthropic` — one setting, selected in `backend/app/core/llm.py`. It serves resume analysis, tailoring, cover letters, interview questions and evaluation. If the model is unavailable or a call fails, the resume analyzer falls back to a rule-based keyword scorer and the interview coach falls back to a seed question dataset, so the app still works. See "Local AI with Ollama" below.
 - **Trained ATS model** (`backend/app/ml/`): a small, fast regression model trained on LLM-labeled `(resume, job description, score)` pairs — see "ATS scoring model" below. Optional; the LLM/rule-based path above is what the live app uses today.
 
 ### Frontend dependencies
@@ -91,7 +91,7 @@ management library is installed — the app doesn't use one.
 - **Node.js 24** (ships npm 11) — 24 is what CI pins and what generated `package-lock.json`. Node 20 is too old for `@supabase/supabase-js` (needs >= 22), and Node 22 ships npm 10, which resolves optional wasm bindings into a different tree and makes `npm ci` fail. Use 24 and `npm ci` works everywhere.
 - **Git**
 - A **Supabase** project (ask a teammate for shared dev credentials, or create your own at [supabase.com](https://supabase.com))
-- An **Anthropic API key** (optional but recommended — [console.anthropic.com](https://console.anthropic.com)); the app works in a degraded mode without one
+- **Ollama** with `llama3.1` and `nomic-embed-text` pulled (see "Local AI with Ollama" below) — or, instead, an **Anthropic API key** ([console.anthropic.com](https://console.anthropic.com)) with `LLM_PROVIDER=anthropic`. The app works in a degraded, rule-based mode with neither.
 
 ## Setup Instructions
 
@@ -222,6 +222,63 @@ rather than loopback:
 npm run backend -- -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+## Crawl worker (macOS)
+
+The crawl worker (`backend/app/worker.py`) fetches every active company's ATS board (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, JSON-LD; no paid sources), then enriches up to `OLLAMA_ENRICH_MAX_PER_RUN` new postings with Ollama. It runs every `CRAWL_INTERVAL_SECONDS` (default 3600; this team sets 1200, every 20 minutes) from the start of the previous run; a run that takes longer is followed straight away by the next. A lock (Postgres advisory lock locally, Redis when `REDIS_URL` is set) means a run never overlaps the previous one or an admin-triggered crawl; an overlapping tick is skipped and logged. Each run is recorded in `crawl_runs` with counts per crawler, and `GET /api/jobs/scheduler-status` reports the last run, whether one is running and when the next is due.
+
+Prerequisites: local Postgres running with `backend/.env` `DB_URL` pointing at it and `alembic upgrade head` applied, companies seeded (`python scripts/seed_companies.py` from `backend/`), and Ollama running for enrichment.
+
+Run it in a terminal: `cd backend && .venv/bin/python -m app.worker`.
+
+Run it at login, restarted if it crashes (a LaunchAgent; nothing is installed by the repo):
+
+```bash
+mkdir -p ~/Library/Logs/HireLoom
+cp scripts/com.hireloom.crawl-worker.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hireloom.crawl-worker.plist
+launchctl print gui/$(id -u)/com.hireloom.crawl-worker | head -20   # state, pid
+tail -f ~/Library/Logs/HireLoom/crawl-worker.log
+```
+
+Remove it: `launchctl bootout gui/$(id -u)/com.hireloom.crawl-worker && rm ~/Library/LaunchAgents/com.hireloom.crawl-worker.plist`. The plist's paths are this checkout's; edit them if the repo lives elsewhere. The database must be reachable at login: with Cloud SQL, the proxy LaunchAgent below; with a local Postgres, `brew services start postgresql@17`. Otherwise the worker logs a failed tick each interval until it is. In the cloud the same crawl runs as a Cloud Run Job on Cloud Scheduler; see `infra/gcp/README.md`.
+
+### Cloud SQL proxy (macOS)
+
+`backend/.env` reaches Cloud SQL through the Cloud SQL Auth Proxy on `127.0.0.1:5433` (port 5433 so a local Postgres can keep 5432). Run it at login:
+
+```sh
+cp scripts/com.hireloom.cloud-sql-proxy.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.hireloom.cloud-sql-proxy.plist
+tail ~/Library/Logs/HireLoom/cloud-sql-proxy.log   # "ready for new connections"
+```
+
+It authenticates as your `gcloud` login. Remove it: `launchctl bootout gui/$(id -u)/com.hireloom.cloud-sql-proxy && rm ~/Library/LaunchAgents/com.hireloom.cloud-sql-proxy.plist`.
+
+## Local AI with Ollama
+
+All AI features run on a local [Ollama](https://ollama.com) by default, so no API key or credits are needed. Ollama runs natively on your machine (not in Docker).
+
+1. **Install and start it** (macOS): `brew install ollama`, then `ollama serve` — or open the Ollama app. Skip this if `ollama --version` already works.
+2. **Pull the models** (about 5 GB for the chat model; the fallback is optional):
+   ```
+   ollama pull llama3.1          # chat model: analysis, tailoring, cover letters, interview coach
+   ollama pull nomic-embed-text  # embeddings: semantic matching
+   ollama pull llama3.2          # optional fallback, used only if llama3.1 is missing
+   ```
+3. **Configure `backend/.env`** — the defaults already point at Ollama, so normally nothing is needed. Leave `ANTHROPIC_API_KEY` blank. The settings are `LLM_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_FALLBACK_MODEL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_NUM_CTX` (default 8192), `OLLAMA_TIMEOUT_INTERACTIVE_SECONDS` (default 150, any request a user is waiting on) and `OLLAMA_TIMEOUT_BACKGROUND_SECONDS` (default 300, the crawl worker and scripts), `OLLAMA_KEEP_ALIVE` (default `30m`), `OLLAMA_MAX_RETRIES` (default 2), `OLLAMA_TEMPERATURE` (default 0) and `OLLAMA_ENRICH_MAX_PER_RUN` (default 25); see `backend/.env.example`.
+4. **Check it**: start the backend and open `http://localhost:8000/health/llm`. `"status": "ok"` means Ollama is reachable and both the chat and embedding models are pulled. The same problems are logged as warnings when the backend starts ("Ollama is not running…", "Run `ollama pull llama3.1`").
+
+Things to know:
+
+- **First request is slow.** Ollama loads the model on first use (about 20 s on an M-series Mac), then answers in seconds. By default it unloads a model after 5 idle minutes, so the next request after a pause pays that load again.
+- **The model stays loaded for 30 minutes.** The backend sends `keep_alive` (`OLLAMA_KEEP_ALIVE`, default `30m`) with every `/api/chat` and `/api/embed` request, so **nothing needs to change on the Ollama side** — no `launchd` plist edit, no `ollama serve` flag. This replaces the server-side setting an earlier version of this README described. Use a duration (`30m`, `2h`), a number of seconds, or `-1` to never unload. To check it, make any request and run `ollama ps`: the `UNTIL` column shows about 30 minutes ahead instead of 5. While loaded, `llama3.1` holds roughly 5-6 GB of memory. (A server-side `OLLAMA_KEEP_ALIVE` still applies to any other program that talks to your Ollama; this app's per-request value overrides it for its own calls.)
+- **From a container** use `OLLAMA_BASE_URL=http://host.docker.internal:11434`.
+- **Structured calls** send the JSON schema in Ollama's `format` field with `temperature` 0, validate the reply, and retry up to `OLLAMA_MAX_RETRIES` times before the caller falls back to its rule-based path.
+- **Job enrichment** (H-1B, seniority, skills) uses Anthropic's Batch API under `LLM_PROVIDER=anthropic`. Under Ollama there is no batch API, so each crawl run enriches at most `OLLAMA_ENRICH_MAX_PER_RUN` postings one at a time; the rest are picked up by later runs.
+- **Embeddings** come from `OLLAMA_EMBED_MODEL` only. Anthropic has no embeddings API, so features that need them require Ollama.
+- **Switching back to Claude**: set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. Nothing else changes. Under `ENVIRONMENT=production` the key is then required at startup.
+- **This is a local setup.** A server running in the cloud cannot reach `localhost:11434`.
+
 ## ATS scoring model (optional, in progress)
 `backend/app/ml/` holds a trained regression model that scores resumes numerically instead of via an LLM call — faster, free to run, and deterministic. It's trained on data produced by scripts in `backend/scripts/`:
 
@@ -311,7 +368,7 @@ To restart only the worker (after an env change, say), without touching the API 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate worker
 ```
 
-`docker-compose.prod.yml` sets `JOB_SWEEP_ENABLED=false` on `backend` in production — `worker` now covers what `job_market/scheduler.py`'s older in-process board sweep used to do, so there's no reason to keep paying for both. Local dev (`docker-compose.yml` alone, no prod overlay) is unaffected: `JOB_SWEEP_ENABLED` defaults `true` there exactly as it did before `worker` existed, so a bare `docker compose up` still works with no extra setup. Running both at once (e.g. by also starting `worker` locally) is wasteful, not wrong — every upsert here is idempotent.
+`JOB_SWEEP_ENABLED` defaults `false` everywhere (`app/core/config.py`) as of the companies-table crawler's go-live — `worker` (`job_market/crawler.py`) is the one and only writer of `job_listings` now, with company linkage, the close-after-2-misses lifecycle, and enrichment that the older in-process board sweep (`job_market/scheduler.py`) never had. `docker-compose.prod.yml` also sets it explicitly on `backend` for clarity. To opt a specific local process back into the older sweep instead of running `worker`, set `JOB_SWEEP_ENABLED=true` in that process's env — it's still free (board reads only, never Claude) and its upserts are idempotent, so running both at once is wasteful, not wrong.
 
 The worker's crawl is guarded by a Redis distributed lock (`REDIS_URL`, already required above one `UVICORN_WORKERS`) — safe to scale `worker` to more than one replica; extra ones simply skip a tick they don't win the lock for rather than double-crawling.
 
@@ -325,7 +382,7 @@ python scripts/run_crawl.py                               # or scripts/run_crawl
 
 Both scripts are safe to re-run — `detect_ats.py` never re-probes a row that already has an `ats_type`, and `seed_companies.py` upserts by `(ats_type, ats_slug)` (falling back to `name`), never duplicating a row. Crawl history and per-company health are readable at runtime through the admin API (`GET /api/admin/crawl/runs`, `GET /api/admin/crawl/companies` — gated by `ADMIN_EMAILS`), or triggered on demand with `POST /api/admin/crawl/run` / `POST /api/admin/crawl/companies/{id}/run`.
 
-**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY`, `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
+**Fail-fast configuration.** `app/core/config.py`'s `validate_startup()` refuses to boot at all — not "boots and fails on the first request" — when `ENVIRONMENT=production` and any of these are missing or still at their development default: `DB_URL` (must not be the local SQLite fallback), `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `ANTHROPIC_API_KEY` (only when `LLM_PROVIDER=anthropic`), `ALLOWED_ORIGINS` (must not be empty or `*`). Every other setting (`DEEPGRAM_API_KEY`, `REDIS_URL`) stays optional in every environment, since those features are designed to degrade gracefully when unset — see the Architecture section above.
 
 **CORS.** `ALLOWED_ORIGINS` is a comma-separated list, read from settings rather than hardcoded — set it to your real frontend origin(s) in production. It is never `*` in production; `validate_startup()` enforces that directly.
 

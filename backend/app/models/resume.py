@@ -1,5 +1,4 @@
 from sqlalchemy import Column, DateTime, Float, Integer, LargeBinary, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -8,13 +7,10 @@ from app.core.database import Base
 class ResumeAnalysis(Base):
     __tablename__ = "resume_analyses"
     id = Column(Integer, primary_key=True, index=True)
-    # References auth.users(id) in Supabase Postgres — enforced at the DB
-    # level via the Alembic migration, not an SQLAlchemy FK (that table
-    # lives in the auth schema, which we don't model here).
-    # with_variant: Postgres' UUID type raises on SQLite, which DB_URL
-    # defaults to. Postgres DDL and behaviour are unchanged.
+    # Firebase UID stored as text, not a UUID. Authentication is external to
+    # this database, so ownership is enforced by the API rather than an FK.
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
     resume_filename = Column(String, nullable=False)
     job_description = Column(Text, nullable=False)

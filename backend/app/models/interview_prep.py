@@ -1,5 +1,4 @@
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -62,7 +61,7 @@ class PrepQuestionUserState(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
     prep_question_id = Column(Integer, ForeignKey("prep_questions.id", ondelete="CASCADE"), nullable=False, index=True)
     bookmarked = Column(Boolean, nullable=False, default=False, server_default="false")

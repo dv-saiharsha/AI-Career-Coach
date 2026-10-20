@@ -16,29 +16,60 @@ from sqlalchemy.orm import Session
 from app.models.interview import InterviewAnswer, InterviewQuestion, InterviewSession
 from app.models.profile import Profile
 from app.models.resume import ResumeAnalysis
+from app.modules.user_profile import avatars
 
 logger = logging.getLogger(__name__)
 
 ACTIVITY_LIMIT = 6
 
+# Columns a client may never write through the generic update, whatever it sends.
+# avatar_path is set only by the confirm step, after the object it names has been
+# checked to belong to the caller.
+_SERVER_ONLY_FIELDS = frozenset({"avatar_path", "user_id", "created_at", "updated_at"})
+
+
+def ensure_profile(db: Session, user_id: str, avatar_url: str | None = None) -> Profile:
+    """Return the user's profile, creating an empty one if there is none.
+
+    Safe under concurrent first requests. A browser opens several tabs and a
+    page fires many requests at once, so two requests for a brand-new user can
+    both find no row. A plain SELECT-then-INSERT lets the second one hit the
+    primary key and fail with a 500; INSERT ... ON CONFLICT DO NOTHING makes
+    the loser a no-op, and the row is read back afterwards either way.
+
+    This replaces the signup trigger the database used to have. The backend
+    never observes signup itself, so the row is created the first time the
+    person is seen authenticated (see core/deps.py) and, as a backstop, the
+    first time anything reads it. A missing row and a row with
+    onboarding_completed=False mean the same thing to every caller.
+
+    avatar_url (the sign-in provider's picture) is stored only when the row is
+    created, which is what the trigger did for Google avatars; an existing
+    profile, including one the person has since edited, is never overwritten.
+    """
+    dialect = db.get_bind().dialect.name
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    elif dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    else:  # pragma: no cover - the app only runs on these two
+        raise RuntimeError(f"ensure_profile does not support dialect {dialect!r}")
+
+    db.execute(
+        insert(Profile)
+        .values(user_id=user_id, onboarding_completed=False, target_roles="[]", avatar_url=avatar_url)
+        .on_conflict_do_nothing(index_elements=["user_id"])
+    )
+    db.commit()
+    return db.query(Profile).filter(Profile.user_id == user_id).one()
+
 
 def get_or_create_profile(db: Session, user_id: str) -> Profile:
-    """Fetch the profile, creating an empty one on first access.
-
-    Lazy creation because the backend never observes signup — Supabase owns
-    that flow — so there is no earlier point at which a row could be inserted.
-    A missing row and a row with onboarding_completed=False mean the same
-    thing, which keeps the caller from having to distinguish them.
-    """
+    """Fetch the profile, creating an empty one on first access."""
     profile = db.query(Profile).filter(Profile.user_id == user_id).first()
     if profile is not None:
         return profile
-
-    profile = Profile(user_id=user_id, onboarding_completed=False, target_roles="[]")
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return profile
+    return ensure_profile(db, user_id)
 
 
 def read_target_roles(profile: Profile) -> list[str]:
@@ -89,7 +120,9 @@ def profile_payload(profile: Profile) -> dict:
         "current_title": profile.current_title,
         "seniority": profile.seniority,
         "primary_target_role": profile.primary_target_role,
-        "avatar_url": profile.avatar_url,
+        # The stored photo (a short-lived signed link) if there is one, otherwise the
+        # sign-in provider's picture.
+        "avatar_url": avatars.display_url(profile.avatar_path, profile.avatar_url),
     }
 
 
@@ -103,7 +136,7 @@ def update_profile(db: Session, user_id: str, fields: dict) -> Profile:
     """
     profile = get_or_create_profile(db, user_id)
     for key, value in fields.items():
-        if not hasattr(profile, key):
+        if not hasattr(profile, key) or key in _SERVER_ONLY_FIELDS:
             continue
         if key == "target_roles":
             # A JSON-encoded Text column, not a scalar. A raw setattr would
@@ -113,6 +146,15 @@ def update_profile(db: Session, user_id: str, fields: dict) -> Profile:
             profile.target_roles = json.dumps(value or [])
             continue
         setattr(profile, key, value if value not in ("", None) else None)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+def set_avatar_path(db: Session, user_id: str, path: str | None) -> Profile:
+    """Record (or clear) the stored photo. Callers must have checked `path` first."""
+    profile = get_or_create_profile(db, user_id)
+    profile.avatar_path = path
     db.commit()
     db.refresh(profile)
     return profile

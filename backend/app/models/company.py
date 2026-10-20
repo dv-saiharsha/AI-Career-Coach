@@ -9,7 +9,7 @@ from app.core.database import Base
 # left there is a queue for a human, not a bug.
 ATS_TYPES = (
     "greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee",
-    "jsonld", "manual_review",
+    "workday", "amazon_jobs", "microsoft_jobs", "jsonld", "manual_review",
 )
 CRAWL_STATUSES = ("never_run", "ok", "failing")
 

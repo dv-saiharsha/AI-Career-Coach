@@ -1,5 +1,4 @@
 from sqlalchemy import Column, DateTime, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -24,10 +23,12 @@ class TailorCache(Base):
     __tablename__ = "tailor_cache"
 
     id = Column(Integer, primary_key=True, index=True)
-    # with_variant: Postgres' UUID type raises on SQLite, which DB_URL
-    # defaults to locally. Matches resume_analyses.user_id exactly.
+    # The sign-in provider's user id (a Firebase uid), stored as text. NOT a UUID:
+    # Firebase gives brand-new accounts a 28-character id; only users imported from
+    # Supabase have UUID-shaped ids. No SQLAlchemy FK either: the identity lives in
+    # Firebase, not in a table this backend owns.
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
     analysis_id = Column(Integer, nullable=False, index=True)
     job_id = Column(Integer, nullable=False, index=True)

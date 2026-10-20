@@ -1,0 +1,183 @@
+{
+  "jd_id": "data-scientist-senior",
+  "role": "data-scientist",
+  "seniority_in_seed": "senior",
+  "why_chosen": "A senior role with a 'plus' clause, a skill named only as the work environment (SageMaker), and an either/or model library and data warehouse.",
+  "judgment_calls": [
+    "SAGEMAKER: 'you'll own ... deployment on AWS SageMaker' names where the work happens, not a prerequisite. tools_technologies only, not required_skills (agreed).",
+    "'either XGBoost or LightGBM' and 'Snowflake, BigQuery, or Redshift' are either/or groups.",
+    "'HIPAA-adjacent data handling is a plus' -> preferred, name 'hipaa'.",
+    "'(not just notebooks)' names nothing and states a negative; no skill is reported for it.",
+    "Mentoring and presenting to stakeholders are responsibilities; model monitoring and drift detection are required skills."
+  ],
+  "expected": {
+    "job_title": "Senior Data Scientist",
+    "seniority": "senior",
+    "seniority_source": "stated",
+    "min_years_experience": 6,
+    "required_skills": [
+      {
+        "name": "predictive models",
+        "evidence": "predictive models",
+        "alternative_group": null
+      },
+      {
+        "name": "python",
+        "evidence": "Python",
+        "alternative_group": null
+      },
+      {
+        "name": "scikit-learn",
+        "evidence": "scikit-learn",
+        "alternative_group": null
+      },
+      {
+        "name": "xgboost",
+        "evidence": "either XGBoost or LightGBM",
+        "alternative_group": "gradient-boosting"
+      },
+      {
+        "name": "lightgbm",
+        "evidence": "either XGBoost or LightGBM",
+        "alternative_group": "gradient-boosting"
+      },
+      {
+        "name": "sql",
+        "evidence": "SQL",
+        "alternative_group": null
+      },
+      {
+        "name": "cloud data warehouse",
+        "evidence": "cloud data warehouse",
+        "alternative_group": null
+      },
+      {
+        "name": "snowflake",
+        "evidence": "Snowflake, BigQuery, or Redshift",
+        "alternative_group": "warehouse"
+      },
+      {
+        "name": "bigquery",
+        "evidence": "Snowflake, BigQuery, or Redshift",
+        "alternative_group": "warehouse"
+      },
+      {
+        "name": "redshift",
+        "evidence": "Snowflake, BigQuery, or Redshift",
+        "alternative_group": "warehouse"
+      },
+      {
+        "name": "model monitoring",
+        "evidence": "model monitoring",
+        "alternative_group": null
+      },
+      {
+        "name": "drift detection",
+        "evidence": "drift detection",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "hipaa",
+        "evidence": "HIPAA-adjacent data handling",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "python",
+      "scikit-learn",
+      "xgboost",
+      "lightgbm",
+      "sql",
+      "snowflake",
+      "bigquery",
+      "redshift",
+      "aws sagemaker"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "own the full lifecycle from problem framing to production deployment",
+      "mentor junior data scientists",
+      "present findings to non-technical stakeholders"
+    ],
+    "ats_keywords": [
+      {
+        "term": "predictive models",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "scikit-learn",
+        "weight": 1.0
+      },
+      {
+        "term": "xgboost",
+        "weight": 1.0
+      },
+      {
+        "term": "lightgbm",
+        "weight": 1.0
+      },
+      {
+        "term": "sql",
+        "weight": 1.0
+      },
+      {
+        "term": "cloud data warehouse",
+        "weight": 1.0
+      },
+      {
+        "term": "snowflake",
+        "weight": 1.0
+      },
+      {
+        "term": "bigquery",
+        "weight": 1.0
+      },
+      {
+        "term": "redshift",
+        "weight": 1.0
+      },
+      {
+        "term": "model monitoring",
+        "weight": 1.0
+      },
+      {
+        "term": "drift detection",
+        "weight": 1.0
+      },
+      {
+        "term": "data scientist",
+        "weight": 0.8
+      },
+      {
+        "term": "hipaa",
+        "weight": 0.5
+      },
+      {
+        "term": "aws sagemaker",
+        "weight": 0.4
+      },
+      {
+        "term": "healthcare",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "tensorflow",
+    "pytorch",
+    "spark",
+    "docker",
+    "kubernetes",
+    "tableau",
+    "looker",
+    "r"
+  ],
+  "annotated_by": "hand"
+}

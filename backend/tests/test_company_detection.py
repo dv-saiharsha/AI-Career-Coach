@@ -18,6 +18,20 @@ class TestFindAtsLink:
         html = '<iframe src="https://acme.recruitee.com/embed"></iframe>'
         assert company_detection.find_ats_link(html) == ("recruitee", "acme")
 
+    def test_finds_a_workday_career_board(self):
+        url = "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        assert company_detection.find_ats_link(url) == (
+            "workday", "nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        )
+
+    def test_finds_amazon_jobs_and_microsoft_careers(self):
+        assert company_detection.find_ats_link("https://www.amazon.jobs/en/") == (
+            "amazon_jobs", "www.amazon.jobs"
+        )
+        assert company_detection.find_ats_link("https://apply.careers.microsoft.com/careers") == (
+            "microsoft_jobs", "apply.careers.microsoft.com"
+        )
+
     def test_ignores_a_workable_job_detail_link(self):
         """apply.workable.com/j/<shortcode> is a job link, not the account
         slug — a naive capture would mistake "j" itself for the slug."""
@@ -43,6 +57,26 @@ class TestDetectOne:
         row, message = company_detection.detect_one({"name": "Acme", "careers_url": "https://acme.example/careers"})
         assert row["ats_type"] == "manual_review"
         assert "robots.txt" in message
+
+    def test_default_workday_probe_is_limited_to_one_page(self, monkeypatch):
+        _allow_robots(monkeypatch)
+        probed = []
+        monkeypatch.setattr(
+            company_detection.ats_boards,
+            "fetch_workday_board",
+            lambda board, query_key, max_pages=None: probed.append((board, max_pages))
+            or [{"title": "Engineer"}],
+        )
+        row, _ = company_detection.detect_one(
+            {
+                "name": "NVIDIA",
+                "careers_url": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite",
+            },
+            fetch=lambda url: (200, "<html></html>"),
+        )
+
+        assert row["ats_type"] == "workday"
+        assert probed == [("nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite", 1)]
 
     def test_a_matched_and_confirmed_link_wins(self, monkeypatch):
         _allow_robots(monkeypatch)

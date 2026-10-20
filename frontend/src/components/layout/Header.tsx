@@ -32,9 +32,7 @@ interface HeaderProps {
 function getBreadcrumb(pathname: string): { group: string; title: string } {
   if (pathname === '/dashboard') return { group: 'Overview', title: 'Dashboard' }
   if (pathname.startsWith('/resume')) {
-    if (pathname === '/resume/results') return { group: 'Prepare', title: 'ATS Match Results' }
-    if (pathname === '/resume/tailor') return { group: 'Prepare', title: 'Resume Tailor' }
-    return { group: 'Prepare', title: 'ATS Check' }
+    return { group: 'Prepare', title: 'Resume Match & Optimization' }
   }
   if (pathname.startsWith('/interview')) {
     if (pathname === '/interview/session') return { group: 'Prepare', title: 'Live Simulation' }

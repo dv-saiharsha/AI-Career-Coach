@@ -39,8 +39,10 @@ class ProfileUpdateSchema(BaseModel):
     current_title: Optional[str] = Field(default=None, max_length=120)
     seniority: Optional[str] = Field(default=None, max_length=60)
     primary_target_role: Optional[str] = Field(default=None, max_length=120)
+    # avatar_path is deliberately NOT accepted here: only POST /user/avatar/confirm may set it
+    # (after checking the object belongs to the caller). If a client could write it, it could
+    # point at someone else's photo and be handed a signed link to it.
     avatar_url: Optional[str] = Field(default=None, max_length=2048)
-    avatar_path: Optional[str] = Field(default=None, max_length=1024)
     # Written by the dashboard's resume reminder, which lands after onboarding
     # for users who skipped upload. Onboarding itself still goes through
     # /onboarding — this is the same pointer, set later.
@@ -148,3 +150,21 @@ class ActivityItemSchema(BaseModel):
 
 class ActivityResponseSchema(BaseModel):
     items: List[ActivityItemSchema]
+
+
+class AvatarUploadRequestSchema(BaseModel):
+    content_type: str = Field(max_length=100)
+
+
+class AvatarUploadSchema(BaseModel):
+    """What the browser needs to POST one photo straight to Cloud Storage."""
+
+    url: str
+    fields: dict[str, str]
+    path: str
+    max_bytes: int
+    expires_in: int
+
+
+class AvatarConfirmSchema(BaseModel):
+    path: str = Field(max_length=300)

@@ -1,0 +1,19 @@
+{
+  "displayName": "HireLoom: no successful crawl for 2 hours",
+  "documentation": {
+    "content": "No hireloom-crawler execution has succeeded in 2 hours, though it is scheduled every 20 minutes. Check that the Cloud Scheduler job hireloom-crawler-every-20m is enabled and that executions are not all failing.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "no succeeded executions",
+      "conditionAbsent": {
+        "filter": "resource.type = \"cloud_run_job\" AND resource.labels.job_name = \"hireloom-crawler\" AND metric.type = \"run.googleapis.com/job/completed_execution_count\" AND metric.labels.result = \"succeeded\"",
+        "aggregations": [{ "alignmentPeriod": "1200s", "perSeriesAligner": "ALIGN_SUM" }],
+        "duration": "7200s"
+      }
+    }
+  ],
+  "alertStrategy": { "autoClose": "86400s" }
+}

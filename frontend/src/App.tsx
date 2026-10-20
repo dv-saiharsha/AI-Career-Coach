@@ -1,14 +1,12 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { LandingPage } from '@/pages/LandingPage'
 import { CheckoutPage } from '@/pages/checkout/CheckoutPage'
 import { PaymentSuccessPage } from '@/pages/checkout/PaymentSuccessPage'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { ResumeUploadPage } from '@/pages/resume/ResumeUploadPage'
-import { ResumeResultsPage } from '@/pages/resume/ResumeResultsPage'
-import { ResumeTailorPage } from '@/pages/resume/ResumeTailorPage'
+import { ResumeMatchPage } from '@/pages/resume/ResumeMatchPage'
 import { InterviewSetupPage } from '@/pages/interview/InterviewSetupPage'
 import { InterviewSessionPage } from '@/pages/interview/InterviewSessionPage'
 import { InterviewFeedbackPage } from '@/pages/interview/InterviewFeedbackPage'
@@ -17,6 +15,7 @@ import { ProgressPage } from '@/pages/progress/ProgressPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { ProfilePage } from '@/pages/profile/ProfilePage'
 import { JobsPage } from '@/pages/jobs/JobsPage'
+import { JobDetailsPage } from '@/pages/jobs/JobDetailsPage'
 import { ApplicationsPage } from '@/pages/applications/ApplicationsPage'
 import { OffersPage } from '@/pages/offers/OffersPage'
 import { CoverLetterPage } from '@/pages/cover-letter/CoverLetterPage'
@@ -24,9 +23,13 @@ import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { SignupPage } from '@/pages/auth/SignupPage'
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
-import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
-import { AuthCallbackPage } from '@/pages/auth/AuthCallbackPage'
+import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+
+function ResumeLegacyRedirect() {
+  const location = useLocation()
+  return <Navigate to={`/resume/match${location.search}`} replace state={location.state} />
+}
 
 export function App() {
   return (
@@ -42,8 +45,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       {/* Authenticated Application Shell */}
       <Route element={<ProtectedRoute />}>
@@ -51,10 +53,11 @@ export function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
 
           {/* Resume Analyzer Module */}
-          <Route path="/resume" element={<Navigate to="/resume/upload" replace />} />
-          <Route path="/resume/upload" element={<ResumeUploadPage />} />
-          <Route path="/resume/results" element={<ResumeResultsPage />} />
-          <Route path="/resume/tailor" element={<ResumeTailorPage />} />
+          <Route path="/resume" element={<Navigate to="/resume/match" replace />} />
+          <Route path="/resume/match" element={<ResumeMatchPage />} />
+          <Route path="/resume/upload" element={<ResumeLegacyRedirect />} />
+          <Route path="/resume/results" element={<ResumeLegacyRedirect />} />
+          <Route path="/resume/tailor" element={<ResumeLegacyRedirect />} />
 
           {/* Interview Coach Module */}
           <Route path="/interview" element={<Navigate to="/interview/setup" replace />} />
@@ -64,6 +67,7 @@ export function App() {
 
           {/* Job Portal */}
           <Route path="/jobs" element={<JobsPage />} />
+          <Route path="/jobs/:jobId" element={<JobDetailsPage />} />
 
           {/* Application Pipeline */}
           <Route path="/applications" element={<ApplicationsPage />} />

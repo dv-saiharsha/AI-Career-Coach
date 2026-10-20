@@ -28,7 +28,7 @@ from app.models.tailor_cache import TailorCache
 
 TTL_HOURS = 24
 
-CacheKind = Literal["preview", "quick_tailor"]
+CacheKind = Literal["preview", "quick_tailor", "smart_tailor:faang", "smart_tailor:original"]
 
 
 def _target_pages_clause(target_pages: int | None):

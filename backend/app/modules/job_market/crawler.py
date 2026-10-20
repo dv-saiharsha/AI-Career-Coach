@@ -68,6 +68,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -79,7 +80,7 @@ from app.modules.job_market import ats_boards, enrichment, geo, ingestion, jsonl
 logger = logging.getLogger(__name__)
 
 # A row closes once its company has successfully crawled it as missing this
-# many times in a row.
+# many times in a row, and it has gone unseen for JOB_CLOSE_MIN_UNSEEN_HOURS.
 CLOSE_AFTER_MISSED_CRAWLS = 2
 
 DEFAULT_TIMEOUT_SECONDS = 20
@@ -88,7 +89,10 @@ RETRY_BACKOFF_BASE_SECONDS = 1.0
 
 # ATS types this module knows how to crawl. "manual_review" companies are
 # skipped outright — there is nothing to fetch until a human resolves one.
-_ATS_DISPATCH = ("greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee", "jsonld")
+_ATS_DISPATCH = (
+    "greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee",
+    "workday", "amazon_jobs", "microsoft_jobs", "jsonld",
+)
 
 
 class _Retryable(Exception):
@@ -98,9 +102,13 @@ class _Retryable(Exception):
 
 
 def _raw_fetch(
-    url: str, etag: str | None, last_modified: str | None, timeout: int
+    url: str,
+    etag: str | None,
+    last_modified: str | None,
+    timeout: int,
+    json_body: dict | None = None,
 ) -> tuple[int, str, str | None, str | None]:
-    """One HTTP GET. Returns (status, body, response_etag, response_last_modified).
+    """One HTTP request. Returns (status, body, response_etag, response_last_modified).
 
     Raises _Retryable on a timeout, connection error, or 5xx — anything else
     (200, 304, 404, ...) is returned, not raised, exactly like
@@ -111,12 +119,15 @@ def _raw_fetch(
         "User-Agent": f"HireLoomBot/1.0 (job crawler; +mailto:{contact})",
         "Accept": "application/json, text/html;q=0.9",
     }
-    if etag:
+    if json_body is not None:
+        headers["Content-Type"] = "application/json"
+    if etag and json_body is None:
         headers["If-None-Match"] = etag
-    if last_modified:
+    if last_modified and json_body is None:
         headers["If-Modified-Since"] = last_modified
 
-    request = urllib.request.Request(url, headers=headers)
+    data = json.dumps(json_body).encode("utf-8") if json_body is not None else None
+    request = urllib.request.Request(url, data=data, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             body = response.read().decode("utf-8", errors="replace")
@@ -135,12 +146,18 @@ def _raw_fetch(
 
 
 def _fetch_with_retry(
-    url: str, etag: str | None, last_modified: str | None, timeout: int = DEFAULT_TIMEOUT_SECONDS
+    url: str,
+    etag: str | None,
+    last_modified: str | None,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    json_body: dict | None = None,
 ) -> tuple[int, str, str | None, str | None]:
     last_exc: _Retryable | None = None
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            return _raw_fetch(url, etag, last_modified, timeout)
+            if json_body is None:
+                return _raw_fetch(url, etag, last_modified, timeout)
+            return _raw_fetch(url, etag, last_modified, timeout, json_body)
         except _Retryable as exc:
             last_exc = exc
             if attempt < RETRY_ATTEMPTS - 1:
@@ -183,11 +200,20 @@ def _make_fetch(company: Company, min_interval_ms: int):
     """
     captured = {"etag": None, "last_modified": None, "not_modified": False, "error": None}
 
-    def fetch(url: str) -> tuple[int, str]:
+    def fetch(url: str, json_body: dict | None = None) -> tuple[int, str]:
         domain = urlsplit(url).netloc
         _throttle(domain, min_interval_ms)
         try:
-            status, body, etag, last_modified = _fetch_with_retry(url, company.etag, company.last_modified)
+            if company.ats_type in {"amazon_jobs", "microsoft_jobs"}:
+                status, body, etag, last_modified = _fetch_with_retry(url, None, None)
+            elif json_body is None:
+                status, body, etag, last_modified = _fetch_with_retry(
+                    url, company.etag, company.last_modified
+                )
+            else:
+                status, body, etag, last_modified = _fetch_with_retry(
+                    url, None, None, json_body=json_body
+                )
         except _Retryable as exc:
             captured["error"] = str(exc)
             return 599, ""
@@ -251,6 +277,28 @@ def _crawl_one(company: Company, min_interval_ms: int) -> CompanyResult:
     )
 
 
+# IDs per set-based UPDATE: well under any driver or planner limit.
+_BULK_CHUNK = 5000
+
+
+def _bulk_update(db: Session, ids: list[int], values: dict) -> None:
+    """The same values on many rows, one UPDATE per chunk of ids.
+
+    Why not per-row ORM attributes: the ORM batches only consecutive rows
+    that changed exactly the same columns, and bookkeeping like missed_streak
+    = 0 is a change on some rows and not others, so a crawl's updates went
+    out a few at a time. Over a remote database (~80 ms a round trip through
+    the Cloud SQL proxy) that was tens of minutes per crawl.
+
+    synchronize_session="evaluate" applies the same values to the objects
+    already loaded, so the rest of the run sees what was written.
+    """
+    for start in range(0, len(ids), _BULK_CHUNK):
+        db.query(JobListing).filter(JobListing.id.in_(ids[start:start + _BULK_CHUNK])).update(
+            values, synchronize_session="evaluate"
+        )
+
+
 def _reconcile_company_rows(
     db: Session, company: Company, rows: list[dict], not_modified: bool
 ) -> tuple[int, int, int]:
@@ -262,25 +310,61 @@ def _reconcile_company_rows(
     this. A row with no external_id (a JSON-LD posting with no @id) cannot
     be reconciled this way and is silently skipped — the same accepted,
     disclosed gap that index's own comment already names.
+
+    The existing-row lookup below also matches rows with no company_id yet
+    by (source, ats_slug) — via external_id's own embedded prefix, e.g.
+    "greenhouse:mongodb:" — not just company_id == company.id. Without
+    that, a company whose board the older ingestion.py sweep already wrote
+    rows for (company_id NULL there — that sweep never links one) crashes
+    the whole run: this crawl builds the exact same (source, company,
+    external_id) key, sees no match by company_id, and tries to INSERT a
+    second row into ix_job_listings_ats_identity's unique index, which
+    rejects it.
+
+    Matching by *name* here was tried first and is wrong: it crashed on its
+    own first live run too, against a company this same fix was meant to
+    protect. ats_boards.normalise_greenhouse() (and _lever) take a row's
+    `company` value from the board's own API response (job.company_name, or
+    the slug title-cased), never from this table's `name` column, so the
+    two can disagree in real data — the legacy row and this table both say
+    "mongodb" is the same board, but one spells it "Mongodb" and Greenhouse
+    itself spells it "MongoDB". ats_slug has no such ambiguity: every
+    adapter embeds it verbatim in external_id, so matching on that prefix
+    finds the legacy row regardless of what either side calls the company.
     """
     now = datetime.now(timezone.utc)
+    existing_filter = JobListing.company_id == company.id
+    if company.ats_slug:
+        existing_filter = or_(
+            existing_filter,
+            and_(
+                JobListing.company_id.is_(None),
+                JobListing.source == company.ats_type,
+                JobListing.external_id.like(f"{company.ats_type}:{company.ats_slug}:%"),
+            ),
+        )
     existing = {
         (row.source, row.company, row.external_id): row
-        for row in db.query(JobListing).filter(JobListing.company_id == company.id).all()
+        for row in db.query(JobListing).filter(existing_filter).all()
     }
 
     if not_modified:
         # Nothing changed on the board, by the server's own word — every
         # currently-open row is re-confirmed rather than silently aging
         # toward closure while this company's content sits still.
-        for row in existing.values():
-            if row.status == "open":
-                row.last_seen_at = now
-                row.missed_streak = 0
+        #
+        # One set-based UPDATE per chunk, not a dirty attribute per row: the
+        # ORM batches only consecutive rows that changed the same columns, and
+        # missed_streak = 0 is a change on some rows and not others, so per-row
+        # writes went out a few at a time. Over a remote database that was
+        # minutes per crawl; most boards answer 304, so this is the hot path.
+        open_ids = [row.id for row in existing.values() if row.status == "open" and row.id is not None]
+        _bulk_update(db, open_ids, {JobListing.last_seen_at: now, JobListing.missed_streak: 0})
         return 0, 0, 0
 
     new_count = updated_count = closed_count = 0
     seen_keys: set[tuple[str | None, str, str | None]] = set()
+    seen_ids: list[int] = []
 
     for item in rows:
         external_id = item.get("external_id")
@@ -300,6 +384,11 @@ def _reconcile_company_rows(
                 external_id=external_id,
                 company_id=company.id,
                 first_seen_at=now,
+                status="open",
+                closed_at=None,
+                missed_streak=0,
+                last_seen_at=now,
+                fetched_at=now,
             )
             db.add(row)
             existing[key] = row
@@ -307,29 +396,51 @@ def _reconcile_company_rows(
         elif row.content_hash != digest:
             updated_count += 1
 
+        # Content goes through the ORM, so only columns whose values really
+        # changed are written.
         for column in (
             "query_key", "title", "location", "work_mode", "salary_range", "description",
             "skills", "apply_url", "posted_at", "department", "salary_min", "salary_max", "salary_currency",
         ):
             if item.get(column) is not None:
                 setattr(row, column, item[column])
-
         row.content_hash = digest
-        row.company_id = company.id
-        row.status = "open"
-        row.closed_at = None
-        row.missed_streak = 0
-        row.last_seen_at = now
-        row.fetched_at = now
 
+        # The bookkeeping every seen row gets (seen now, open, no misses) is
+        # identical, so it is one set-based UPDATE after the loop instead of a
+        # dirty attribute per row: see _bulk_update.
+        if row.id is not None:
+            seen_ids.append(row.id)
+
+    _bulk_update(db, seen_ids, {
+        JobListing.company_id: company.id,
+        JobListing.status: "open",
+        JobListing.closed_at: None,
+        JobListing.missed_streak: 0,
+        JobListing.last_seen_at: now,
+        JobListing.fetched_at: now,
+    })
+
+    # Open rows the board no longer lists: one more miss each, closed at the
+    # threshold. Grouped by the current streak so each group is one UPDATE
+    # with literal values, for the same reason as _bulk_update.
+    unseen_cutoff = now - timedelta(hours=settings.JOB_CLOSE_MIN_UNSEEN_HOURS)
+    groups: dict[tuple[int, bool], list[int]] = {}
     for key, row in existing.items():
-        if key in seen_keys or row.status != "open":
+        if key in seen_keys or row.status != "open" or row.id is None:
             continue
-        row.missed_streak += 1
-        if row.missed_streak >= CLOSE_AFTER_MISSED_CRAWLS:
-            row.status = "closed"
-            row.closed_at = now
-            closed_count += 1
+        streak = row.missed_streak or 0
+        last_seen = row.last_seen_at
+        if last_seen is not None and last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)  # SQLite returns naive
+        closes = streak + 1 >= CLOSE_AFTER_MISSED_CRAWLS and (last_seen is None or last_seen <= unseen_cutoff)
+        groups.setdefault((streak, closes), []).append(row.id)
+    for (streak, closes), ids in groups.items():
+        values = {JobListing.missed_streak: streak + 1}
+        if closes:
+            values.update({JobListing.status: "closed", JobListing.closed_at: now})
+            closed_count += len(ids)
+        _bulk_update(db, ids, values)
 
     return new_count, updated_count, closed_count
 
@@ -376,10 +487,15 @@ def _enrichment_request_cap() -> int:
     """How many postings this run may enrich, derived from
     JOB_ENRICH_MAX_COST_PER_RUN_USD and the pessimistic per-request cost
     above — a real, checked-before-spending cap, not an aspirational one."""
+    if not getattr(ingestion.llm_client, "supports_batch", False):
+        # No batch API (Ollama): nothing bills, but each posting is its own
+        # sequential request, so the bound is a request count, not dollars.
+        # 0 turns enrichment off.
+        return max(0, settings.OLLAMA_ENRICH_MAX_PER_RUN)
     return max(1, int(settings.JOB_ENRICH_MAX_COST_PER_RUN_USD / _worst_case_cost_per_request_usd()))
 
 
-def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
+def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> dict:
     """Batch-enrich currently-open rows with no enriched_at, oldest-fetched
     first, up to _enrichment_request_cap() of them. A backlog bigger than
     the cap is not lost — enriched_at stays null on whatever wasn't reached,
@@ -394,7 +510,7 @@ def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
         .all()
     )
     if not pending_rows:
-        return
+        return {"pending": 0, "cap": cap, "enriched": 0, "failed": 0}
 
     pending = {
         str(row.id): {"title": row.title, "company": row.company, "description": row.description or ""}
@@ -429,6 +545,10 @@ def _enrich_pending(db: Session, run: CrawlRun, errors: list[str]) -> None:
         "crawl enrichment: %d pending (cap %d), %d enriched, %d failed, $%.4f",
         len(pending_rows), cap, report.newly_enriched, report.enrichment_failures, report.claude_cost_usd(),
     )
+    return {
+        "pending": len(pending_rows), "cap": cap,
+        "enriched": report.newly_enriched, "failed": report.enrichment_failures,
+    }
 
 
 def run_crawl(
@@ -461,10 +581,16 @@ def run_crawl(
                 results[company.id] = CompanyResult(error=str(exc))
 
     errors: list[str] = []
+    # Per crawler (ATS type): what it fetched and what that became.
+    by_crawler: dict[str, dict] = {}
     for company in companies:
         result = results[company.id]
         run.companies_attempted += 1
         company.last_crawled_at = datetime.now(timezone.utc)
+        tally = by_crawler.setdefault(company.ats_type, {
+            "companies": 0, "failed": 0, "fetched": 0, "new": 0, "updated": 0, "duplicates": 0, "errors": [],
+        })
+        tally["companies"] += 1
 
         if result.error:
             company.consecutive_failures += 1
@@ -472,6 +598,9 @@ def run_crawl(
             company.last_error = result.error[:2000]
             run.companies_failed += 1
             errors.append(f"{company.name}: {result.error}")
+            tally["failed"] += 1
+            if len(tally["errors"]) < 5:
+                tally["errors"].append(f"{company.name}: {result.error[:200]}")
             continue
 
         company.consecutive_failures = 0
@@ -489,16 +618,50 @@ def run_crawl(
         run.jobs_new += new_count
         run.jobs_updated += updated_count
         run.jobs_closed += closed_count
+        fetched = 0 if result.not_modified else len(result.rows)
+        tally["fetched"] += fetched
+        tally["new"] += new_count
+        tally["updated"] += updated_count
+        # Fetched again and already stored unchanged.
+        tally["duplicates"] += max(0, fetched - new_count - updated_count)
 
-    _enrich_pending(db, run, errors)
+    # Committed here, before enrichment — not just at the very end. Every
+    # company's crawl result is the actual product of this run; enrichment
+    # is a nice-to-have on top of it. Without this checkpoint, an enrichment
+    # failure (a real one: this exact bug shipped once, and an Anthropic API
+    # error crashed the whole run before its one and only db.commit(),
+    # silently discarding every company crawled and every row reconciled)
+    # would lose the entire run's real work along with it.
+    db.commit()
+
+    enrichment = {"pending": 0, "cap": 0, "enriched": 0, "failed": 0}
+    try:
+        enrichment = _enrich_pending(db, run, errors)
+    except Exception as exc:  # noqa: BLE001 - enrichment failing must not lose the crawl above
+        db.rollback()
+        logger.exception("crawl enrichment failed, crawl results already committed")
+        errors.append(f"enrichment failed: {exc}")
+
     run.jobs_closed += _cleanup_retention(db)
     run.errors = json.dumps(errors[:50])
+    run.stats = json.dumps({
+        "fetched": sum(t["fetched"] for t in by_crawler.values()),
+        "duplicates": sum(t["duplicates"] for t in by_crawler.values()),
+        "enrichment": enrichment,
+        "by_crawler": by_crawler,
+    })
     run.ended_at = datetime.now(timezone.utc)
     db.commit()
 
     logger.info(
-        "crawl run %s: %d/%d companies ok, %d new, %d updated, %d closed",
+        "crawl run %s: %d/%d companies ok, %d new, %d updated, %d closed, %d enriched",
         run.id, run.companies_succeeded, run.companies_attempted,
-        run.jobs_new, run.jobs_updated, run.jobs_closed,
+        run.jobs_new, run.jobs_updated, run.jobs_closed, enrichment["enriched"],
     )
+    for crawler, tally in sorted(by_crawler.items()):
+        logger.info(
+            "crawl run %s [%s]: %d companies (%d failed), %d fetched, %d new, %d updated, %d duplicates%s",
+            run.id, crawler, tally["companies"], tally["failed"], tally["fetched"], tally["new"],
+            tally["updated"], tally["duplicates"], f", errors: {tally['errors']}" if tally["errors"] else "",
+        )
     return run

@@ -159,6 +159,10 @@ _SECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("skills", re.compile(r"^\s*(technical\s+|core\s+|key\s+)?(skills|competencies|proficiencies|technologies)\b|^\s*areas of expertise\b", re.I)),
     ("education", re.compile(r"^\s*education\b|^\s*academic\b|^\s*coursework\b", re.I)),
     ("certifications", re.compile(r"^\s*certifications?\b|^\s*licen[cs]es?\b|^\s*credentials\b", re.I)),
+    # Their own sections so their lines are not read as the body of whatever
+    # section came before them (an award listed under PROJECTS as a project).
+    ("publications", re.compile(r"^\s*publications?\b|^\s*research\s+papers?\b", re.I)),
+    ("awards", re.compile(r"^\s*(awards?|honou?rs|achievements?|accomplishments)\b", re.I)),
 ]
 
 # A heading is a short line. Without this, a sentence merely *containing* the

@@ -1,0 +1,233 @@
+{
+  "jd_id": "security-engineer-mid-23810",
+  "role": "security-engineer",
+  "level_from_title": "mid",
+  "listing": {
+    "id": 23810,
+    "title": "Security Infrastructure Engineer",
+    "company": "higgsfieldai",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "No level word ('lead cross-functional projects' is a verb): senior from '7+ years' (source years).",
+    "'infrastructure security or security engineering' is an either/or ('area').",
+    "'(AWS, Kubernetes, Terraform)' name the cloud, orchestrator and infrastructure-as-code tool: all required, with infrastructure as code.",
+    "'securing ML workloads' is required as 'ML workloads'; its examples (training or inference infrastructure, GPU clusters, model-serving platforms) are not separate skills.",
+    "'networking, operating systems, and cryptography fundamentals' -> three required skills.",
+    "Nice to have: sandboxing, container isolation, secure execution environments, CSPM, incident response, security monitoring, SOC 2."
+  ],
+  "expected": {
+    "job_title": "Security Infrastructure Engineer",
+    "seniority": "senior",
+    "seniority_source": "years",
+    "min_years_experience": 7,
+    "required_skills": [
+      {
+        "name": "infrastructure security",
+        "evidence": "infrastructure security or security engineering",
+        "alternative_group": "area"
+      },
+      {
+        "name": "security engineering",
+        "evidence": "infrastructure security or security engineering",
+        "alternative_group": "area"
+      },
+      {
+        "name": "aws",
+        "evidence": "AWS",
+        "alternative_group": null
+      },
+      {
+        "name": "kubernetes",
+        "evidence": "Kubernetes",
+        "alternative_group": null
+      },
+      {
+        "name": "terraform",
+        "evidence": "Terraform",
+        "alternative_group": null
+      },
+      {
+        "name": "infrastructure as code",
+        "evidence": "infrastructure-as-code",
+        "alternative_group": null
+      },
+      {
+        "name": "ml workloads",
+        "evidence": "securing ML workloads",
+        "alternative_group": null
+      },
+      {
+        "name": "networking",
+        "evidence": "networking",
+        "alternative_group": null
+      },
+      {
+        "name": "operating systems",
+        "evidence": "operating systems",
+        "alternative_group": null
+      },
+      {
+        "name": "cryptography",
+        "evidence": "cryptography",
+        "alternative_group": null
+      },
+      {
+        "name": "container security",
+        "evidence": "container and infrastructure security practices",
+        "alternative_group": null
+      },
+      {
+        "name": "vulnerability management",
+        "evidence": "infrastructure security practices and vulnerability management",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "sandboxing",
+        "evidence": "sandboxing",
+        "alternative_group": null
+      },
+      {
+        "name": "container isolation",
+        "evidence": "container isolation",
+        "alternative_group": null
+      },
+      {
+        "name": "secure execution environments",
+        "evidence": "secure execution environments",
+        "alternative_group": null
+      },
+      {
+        "name": "cspm",
+        "evidence": "CSPM",
+        "alternative_group": null
+      },
+      {
+        "name": "incident response",
+        "evidence": "Incident response",
+        "alternative_group": null
+      },
+      {
+        "name": "security monitoring",
+        "evidence": "security monitoring",
+        "alternative_group": null
+      },
+      {
+        "name": "soc 2",
+        "evidence": "SOC 2",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "aws",
+      "kubernetes",
+      "terraform"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "own cloud and ML infrastructure security",
+      "design network segmentation"
+    ],
+    "ats_keywords": [
+      {
+        "term": "infrastructure security",
+        "weight": 1.0
+      },
+      {
+        "term": "security engineering",
+        "weight": 1.0
+      },
+      {
+        "term": "aws",
+        "weight": 1.0
+      },
+      {
+        "term": "kubernetes",
+        "weight": 1.0
+      },
+      {
+        "term": "terraform",
+        "weight": 1.0
+      },
+      {
+        "term": "infrastructure as code",
+        "weight": 1.0
+      },
+      {
+        "term": "ml workloads",
+        "weight": 1.0
+      },
+      {
+        "term": "networking",
+        "weight": 1.0
+      },
+      {
+        "term": "operating systems",
+        "weight": 1.0
+      },
+      {
+        "term": "cryptography",
+        "weight": 1.0
+      },
+      {
+        "term": "container security",
+        "weight": 1.0
+      },
+      {
+        "term": "vulnerability management",
+        "weight": 1.0
+      },
+      {
+        "term": "security infrastructure engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "sandboxing",
+        "weight": 0.5
+      },
+      {
+        "term": "container isolation",
+        "weight": 0.5
+      },
+      {
+        "term": "secure execution environments",
+        "weight": 0.5
+      },
+      {
+        "term": "cspm",
+        "weight": 0.5
+      },
+      {
+        "term": "incident response",
+        "weight": 0.5
+      },
+      {
+        "term": "security monitoring",
+        "weight": 0.5
+      },
+      {
+        "term": "soc 2",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "gcp",
+    "azure",
+    "python",
+    "go",
+    "docker",
+    "splunk",
+    "iso 27001",
+    "java",
+    "ansible",
+    "wiz"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "WHY WORK AT HIGGSFIELD AI?\n\nHiggsfield AI is the fastest-scaling generative AI company in history, hitting $500M in annual revenue run rate, 25M+ users worldwide, 6M+ generations per day, and powering 390 of Fortune 500 brands.\n\nWe're building at the absolute frontier of AI-powered video creation and next-generation creative tools. Joining Higgsfield means becoming part of a high-impact team shaping the future of AI-native experiences, at a company that isn't just moving fast, but rewriting what fast looks like.\n\n\n\n\nROLE OVERVIEW\n\nWe're looking for a hands-on Infrastructure Security Engineer to own security across our cloud and ML infrastructure — the platform that trains our models and serves millions of generations a day.\n\nThe work spans tenant isolation for user-deployed apps, GPU cluster security, and model protection from training pipeline to serving. You'll sit between Security, DevOps, and ML Engineering.\n\nYou'll own both immediate implementation work and long-term operational responsibility: cloud and ML infrastructure security, vulnerability management, monitoring, and access governance.\n\n\n\n\nKEY RESPONSIBILITIES\n\nCloud & Network Security\n\n - Evaluate, implement, and maintain cloud security tooling.\n\n - Own infrastructure and container vulnerability management across our cloud environments, and drive remediation.\n\n - Design and implement network segmentation to tighten internal security boundaries.\n\n - Build centralized security monitoring across cloud infrastructure.\n\nCorporate Access Control \n\n - Own access governance and credential management across cloud and internal tooling.\n\n - Partner with Engineering, DevOps, and IT to raise identity and access management standards.\n\nTechnical Leadership:\n\n - Set the technical direction for infrastructure security and lead cross-functional projects turning the standards you set into tooling and guardrails engineers actually ship with.\n\n\n\nRequirements:\n\n -  7+ years in infrastructure security or security engineering, including time at a high- growth startup.\n\n - Deep hands-on experience securing a major cloud provider and a container orchestrator, managed with infrastructure-as-code (AWS, Kubernetes, Terraform).\n\n - Experience securing ML workloads — training or inference infrastructure, GPU clusters, or model-serving platforms.\n\n - Solid networking, operating systems, and cryptography fundamentals.\n\n - Strong grasp of container and infrastructure security practices and vulnerability management.\n\n - Comfortable working cross-functionally with DevOps, Engineering, and ML teams; able to independently find and close security gaps.\n\n - High agency.\n\n\n\nNice to have\n\n - Experience with sandboxing, container isolation, or secure execution environments for untrusted code.\n\n - Experience with CSPM rollouts.\n\n - Incident response and security monitoring experience.\n\n - Familiarity with SOC 2 or similar frameworks.\n\n\n\n\nCOMPENSATION & BENEFITS\n\n• We offer a competitive and thoughtfully structured compensation package designed to align with impact, experience, and long-term growth.\n\n• Base Salary: The anticipated salary range for this role is $165,000 - $250,000, depending on experience, skills, scope, and location.\n\n• Equity: In addition to cash compensation, employees are eligible to participate in the company’s stock option program and share in Higgsfield’s long-term growth. •\n\n• Benefits: We offer a comprehensive benefits package designed to support employees professionally and personally\n\n• The opportunity to work on ambitious AI products alongside a highly experienced, fast-moving, and international team.\n\n• Significant ownership, direct impact, and opportunities for professional growth as the company scales.\n\n \n\nThis is a hybrid role based in the San Francisco Bay Area. Team members are expected to work from our San Francisco office three full days per week, with the remaining days worked remotely and are expected to be available during agreed working hours and to maintain sufficient overlap with the relevant team’s time zone. We value in-person collaboration, active communication, responsiveness, and close partnership across teams.\n\n\n\nHiggsfield AI is an equal opportunity employer. We are committed to building a diverse and inclusive team and do not discriminate on the basis of race, color, religion, sex, gender identity or expression, sexual orientation, national origin, age, disability, veteran status, or any other protected characteristic."
+}

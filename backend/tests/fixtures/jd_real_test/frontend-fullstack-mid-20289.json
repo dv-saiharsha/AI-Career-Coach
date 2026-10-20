@@ -1,0 +1,250 @@
+{
+  "jd_id": "frontend-fullstack-mid-20289",
+  "role": "frontend-fullstack",
+  "level_from_title": "mid",
+  "listing": {
+    "id": 20289,
+    "title": "Full-Stack SWE, Data Acquisition (Foundations)",
+    "company": "openai",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "No level word ('skilled' is not one): mid from '4+ years' (source years).",
+    "'frontend frameworks (React, Vue, or similar)' -> one group ('frontend'); 'backend technologies such as Python, Node.js, or Go' -> one group ('backend'); 'cloud platforms (AWS, GCP, or Azure)' -> one group ('cloud').",
+    "'RESTful APIs, GraphQL, and database design (SQL and NoSQL)' -> five required skills.",
+    "'container orchestration (Kubernetes, Docker)' -> container orchestration, Kubernetes, Docker.",
+    "'web crawling and large-scale data processing is a plus' -> preferred.",
+    "'building data-intensive applications' is too vague to name a skill; not listed.",
+    "Degree: BS/MS/PhD, no 'or equivalent' -> required."
+  ],
+  "expected": {
+    "job_title": "Full-Stack SWE, Data Acquisition (Foundations)",
+    "seniority": "mid",
+    "seniority_source": "years",
+    "min_years_experience": 4,
+    "required_skills": [
+      {
+        "name": "full stack development",
+        "evidence": "full-stack development",
+        "alternative_group": null
+      },
+      {
+        "name": "react",
+        "evidence": "React, Vue, or similar",
+        "alternative_group": "frontend"
+      },
+      {
+        "name": "vue",
+        "evidence": "React, Vue, or similar",
+        "alternative_group": "frontend"
+      },
+      {
+        "name": "python",
+        "evidence": "Python, Node.js, or Go",
+        "alternative_group": "backend"
+      },
+      {
+        "name": "node",
+        "evidence": "Python, Node.js, or Go",
+        "alternative_group": "backend"
+      },
+      {
+        "name": "go",
+        "evidence": "Python, Node.js, or Go",
+        "alternative_group": "backend"
+      },
+      {
+        "name": "rest apis",
+        "evidence": "RESTful APIs",
+        "alternative_group": null
+      },
+      {
+        "name": "graphql",
+        "evidence": "GraphQL",
+        "alternative_group": null
+      },
+      {
+        "name": "database design",
+        "evidence": "database design",
+        "alternative_group": null
+      },
+      {
+        "name": "sql",
+        "evidence": "SQL and NoSQL",
+        "alternative_group": null
+      },
+      {
+        "name": "nosql",
+        "evidence": "NoSQL",
+        "alternative_group": null
+      },
+      {
+        "name": "aws",
+        "evidence": "AWS, GCP, or Azure",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "gcp",
+        "evidence": "AWS, GCP, or Azure",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "azure",
+        "evidence": "AWS, GCP, or Azure",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "container orchestration",
+        "evidence": "container orchestration",
+        "alternative_group": null
+      },
+      {
+        "name": "kubernetes",
+        "evidence": "Kubernetes, Docker",
+        "alternative_group": null
+      },
+      {
+        "name": "docker",
+        "evidence": "Docker",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "web crawling",
+        "evidence": "web crawling",
+        "alternative_group": null
+      },
+      {
+        "name": "large scale data processing",
+        "evidence": "large-scale data processing",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "react",
+      "vue",
+      "python",
+      "node",
+      "go",
+      "graphql",
+      "sql",
+      "nosql",
+      "aws",
+      "gcp",
+      "azure",
+      "kubernetes",
+      "docker"
+    ],
+    "education": [
+      {
+        "name": "BS/MS/PhD in Computer Science",
+        "required": true,
+        "evidence": "BS/MS/PhD in Computer Science or a related field"
+      }
+    ],
+    "certifications": [],
+    "responsibilities": [
+      "develop full-stack applications for data acquisition",
+      "design and implement APIs"
+    ],
+    "ats_keywords": [
+      {
+        "term": "full stack development",
+        "weight": 1.0
+      },
+      {
+        "term": "react",
+        "weight": 1.0
+      },
+      {
+        "term": "vue",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "node",
+        "weight": 1.0
+      },
+      {
+        "term": "go",
+        "weight": 1.0
+      },
+      {
+        "term": "rest apis",
+        "weight": 1.0
+      },
+      {
+        "term": "graphql",
+        "weight": 1.0
+      },
+      {
+        "term": "database design",
+        "weight": 1.0
+      },
+      {
+        "term": "sql",
+        "weight": 1.0
+      },
+      {
+        "term": "nosql",
+        "weight": 1.0
+      },
+      {
+        "term": "aws",
+        "weight": 1.0
+      },
+      {
+        "term": "gcp",
+        "weight": 1.0
+      },
+      {
+        "term": "azure",
+        "weight": 1.0
+      },
+      {
+        "term": "container orchestration",
+        "weight": 1.0
+      },
+      {
+        "term": "kubernetes",
+        "weight": 1.0
+      },
+      {
+        "term": "docker",
+        "weight": 1.0
+      },
+      {
+        "term": "full stack swe data acquisition foundations",
+        "weight": 0.8
+      },
+      {
+        "term": "web crawling",
+        "weight": 0.5
+      },
+      {
+        "term": "large scale data processing",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "java",
+    "typescript",
+    "angular",
+    "terraform",
+    "postgresql",
+    "mongodb",
+    "spark",
+    "kafka",
+    "rust",
+    "redis"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "Overview:\nThe Data Acquisition team within the Foundations organization at OpenAI is responsible for all aspects of data collection to support our model training operations. Our team manages web crawling and GPTBot services and works closely with Data Processing, Architecture, and Scaling teams. We are looking for a skilled Full-Stack Engineer to join our Data Acquisition team to build and optimize the interfaces and tools that power our data infrastructure.\n\n\n\n\nRESPONSIBILITIES:\n\n - Develop and maintain full-stack applications that support data acquisition, including internal tools and dashboards.\n\n - Collaborate closely with cross-functional teams, including Data Processing, Architecture, and Scaling, to ensure seamless data ingestion and workflow management.\n\n - Design and implement APIs to facilitate data interactions between internal services and external data sources.\n\n - Enhance user experience by developing intuitive web-based interfaces for managing and monitoring data pipelines.\n\n - Optimize backend services for performance, scalability, and security in a distributed computing environment.\n\n - Work with legal and compliance teams to ensure our data acquisition processes adhere to privacy regulations and best practices.\n\n - Deploy and maintain infrastructure using Kubernetes and Infrastructure-as-Code (IaC) methodologies.\n\n - Analyze system performance, conduct experiments, and improve data workflows to maximize efficiency.\n\n\nQUALIFICATIONS:\n\n - BS/MS/PhD in Computer Science or a related field.\n\n - 4+ years of industry experience in full-stack development.\n\n - Proficiency in frontend frameworks (React, Vue, or similar) and backend technologies such as Python, Node.js, or Go.\n\n - Strong expertise in RESTful APIs, GraphQL, and database design (SQL and NoSQL).\n\n - Experience building data-intensive applications that handle large-scale datasets.\n\n - Familiarity with cloud platforms (AWS, GCP, or Azure) and container orchestration (Kubernetes, Docker).\n\n - Prior experience with web crawling and large-scale data processing is a plus.\n\n - Strong problem-solving skills and ability to balance multiple tasks in a fast-moving environment.\n\n - Excellent communication and collaboration skills.\n\n\n\nAbout OpenAI\n\nOpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. \n\nWe are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. \n\nFor additional information, please see OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement https://cdn.openai.com/policies/eeo-policy-statement.pdf.\n\nBackground checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.\n\nTo notify OpenAI that you believe this job posting is non-compliant, please submit a report through this form https://form.asana.com/?d=57018692298241&k=5MqR40fZd7jlxVUh5J-UeA. No response will be provided to inquiries unrelated to job posting compliance.\n\nWe are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this link https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&d=57018692298241.\n\nOpenAI Global Applicant Privacy Policy https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\n\nAt OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology."
+}

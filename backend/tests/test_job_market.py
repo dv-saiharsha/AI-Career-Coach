@@ -287,3 +287,105 @@ class TestDomainClassification:
         from app.modules.job_market.services import domain_for
 
         assert domain_for("Chief Vibes Officer") is None
+
+
+class TestJobDetailsRoute:
+    @pytest.fixture
+    def client(self, db_session):
+        from fastapi.testclient import TestClient
+
+        from app.core.deps import AuthenticatedUser, get_current_user
+        from app.core.database import get_db
+        from app.main import app
+
+        app.dependency_overrides[get_db] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+            id="detail-route-user", email="candidate@example.com"
+        )
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    def test_returns_source_details_for_a_closed_listing(self, client, db_session):
+        row = add_job(db_session, "Backend Engineer", status="closed", description="Build APIs.")
+        row.source = "greenhouse"
+        row.apply_url = "https://jobs.example.com/role"
+        db_session.commit()
+
+        response = client.get(f"/api/jobs/{row.id}")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["description"] == "Build APIs."
+        assert body["source"] == "greenhouse"
+        assert body["externalId"] == row.external_id
+        assert body["status"] == "closed"
+        assert body["applyUrl"] == "https://jobs.example.com/role"
+
+    def test_workday_details_are_fetched_and_cached_on_first_open(self, client, db_session, monkeypatch):
+        row = add_job(db_session, "Software Engineer", description=None)
+        row.source = "workday"
+        row.query_key = "workday:nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+        row.apply_url = "https://nvidia.wd5.myworkdayjobs.com/job/US/Engineer_JR1"
+        db_session.commit()
+        calls = []
+
+        def fetch_detail(board, apply_url):
+            calls.append((board, apply_url))
+            return (
+                "Build reliable cloud systems.",
+                "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/US/Engineer_JR1",
+            )
+
+        monkeypatch.setattr(
+            "app.modules.job_market.router.ats_boards.fetch_workday_detail", fetch_detail
+        )
+
+        first = client.get(f"/api/jobs/{row.id}")
+        second = client.get(f"/api/jobs/{row.id}")
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["description"] == "Build reliable cloud systems."
+        assert first.json()["applyUrl"].startswith("https://nvidia.wd5.myworkdayjobs.com/")
+        assert second.json()["description"] == first.json()["description"]
+        assert len(calls) == 1
+
+    def test_microsoft_description_is_fetched_and_cached_on_first_open(self, client, db_session, monkeypatch):
+        row = add_job(db_session, "Site Reliability Engineer", description=None)
+        row.source = "microsoft_jobs"
+        row.apply_url = "https://apply.careers.microsoft.com/careers/job/123"
+        db_session.commit()
+        calls = []
+
+        def fetch_detail(apply_url, expected_title):
+            calls.append((apply_url, expected_title))
+            return "Keep production services reliable."
+
+        monkeypatch.setattr(
+            "app.modules.job_market.router.ats_boards.fetch_microsoft_detail", fetch_detail
+        )
+
+        first = client.get(f"/api/jobs/{row.id}")
+        second = client.get(f"/api/jobs/{row.id}")
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["description"] == "Keep production services reliable."
+        assert first.json()["applyUrl"] == "https://apply.careers.microsoft.com/careers/job/123"
+        assert second.json()["description"] == first.json()["description"]
+        assert len(calls) == 1
+
+    def test_missing_job_returns_404(self, client):
+        assert client.get("/api/jobs/999999").status_code == 404
+
+    @pytest.mark.parametrize(
+        "apply_url",
+        ["javascript:alert(1)", "https://user:secret@example.com/job", "http://[invalid"],
+    )
+    def test_unsafe_application_url_is_not_returned(self, client, db_session, apply_url):
+        row = add_job(db_session, "Backend Engineer")
+        row.apply_url = apply_url
+        db_session.commit()
+
+        response = client.get(f"/api/jobs/{row.id}")
+
+        assert response.status_code == 200
+        assert response.json()["applyUrl"] is None

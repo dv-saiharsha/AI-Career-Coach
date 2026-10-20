@@ -1,13 +1,14 @@
 import json
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AuthenticatedUser, get_current_user
 from app.models.profile import Profile
-from app.modules.job_market import matching, scheduler, services
-from app.schemas.job import JobFeedSchema
+from app.modules.job_market import ats_boards, crawl_status, matching, services
+from app.schemas.job import JobDetailSchema, JobFeedSchema
 
 router = APIRouter()
 
@@ -66,12 +67,81 @@ def list_jobs(
         # compatibility. There is nothing left to queue a refresh for; the
         # crawler keeps the table current on its own schedule.
         "refreshing": refreshing,
-        # Real, or absent. next_run_at() is None until job_market/scheduler.py's
-        # older in-process sweep has completed a pass — a process with it
-        # disabled (JOB_SWEEP_ENABLED=false, the production default once the
-        # worker service is running) says nothing rather than advertising a
-        # schedule it is not keeping.
-        "next_sync_at": (
-            scheduler.next_run_at().isoformat() if scheduler.next_run_at() else None
-        ),
+        # The crawl worker's next scheduled run, from crawl_runs; absent when
+        # it has never run or is not keeping its schedule, rather than
+        # advertising a time nothing will keep.
+        "next_sync_at": _next_sync(db),
+    }
+
+
+def _next_sync(db: Session) -> str | None:
+    status = crawl_status.scheduler_status(db)
+    return None if status["overdue"] else status["next_run_at"]
+
+
+@router.get("/scheduler-status")
+def scheduler_status(
+    db: Session = Depends(get_db),
+    _user: AuthenticatedUser = Depends(get_current_user),
+):
+    """The hourly crawl: last run time and counts (per crawler), whether one
+    is running now, and when the next one is due. A database read; the worker
+    itself runs in its own process (app/worker.py)."""
+    return crawl_status.scheduler_status(db)
+
+
+@router.get("/{job_id}", response_model=JobDetailSchema)
+def get_job_details(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Return one stored posting, including closed listings opened by URL."""
+    from app.models.job import JobListing
+
+    row = db.query(JobListing).filter(JobListing.id == job_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if row.source == "workday" and not row.description:
+        board = row.query_key.split(":", 1)[1] if ":" in row.query_key else ""
+        description, apply_url = ats_boards.fetch_workday_detail(board, row.apply_url)
+        changed = False
+        if description:
+            row.description = description
+            changed = True
+        if apply_url and apply_url != row.apply_url:
+            row.apply_url = apply_url
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(row)
+    elif row.source == "microsoft_jobs" and not row.description:
+        description = ats_boards.fetch_microsoft_detail(row.apply_url, row.title)
+        if description:
+            row.description = description
+            db.commit()
+            db.refresh(row)
+
+    try:
+        parsed_url = urlsplit((row.apply_url or "").strip())
+        safe_apply_url = (
+            row.apply_url
+            if parsed_url.scheme.lower() in {"http", "https"}
+            and parsed_url.hostname
+            and parsed_url.username is None
+            and parsed_url.password is None
+            else None
+        )
+    except ValueError:
+        safe_apply_url = None
+
+    return {
+        **services.to_payload(row),
+        "applyUrl": safe_apply_url,
+        "source": row.source,
+        "externalId": row.external_id,
+        "status": row.status,
+        "postedAt": row.posted_at.isoformat() if row.posted_at else None,
+        "closedAt": row.closed_at.isoformat() if row.closed_at else None,
     }

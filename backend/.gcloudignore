@@ -1,0 +1,5 @@
+# What `gcloud builds submit backend` uploads. Without this file gcloud falls
+# back to .gitignore; stated explicitly so a secret can never ride along.
+.gcloudignore
+#!include:.dockerignore
+.git

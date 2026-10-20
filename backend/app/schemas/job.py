@@ -59,7 +59,13 @@ class JobListingSchema(BaseModel):
     description: Optional[str] = None
     skills: List[str]
     postedDaysAgo: int
+    # "posted": postedDaysAgo counts from the posting date; "first_seen": the
+    # source gave none, so it counts from when the crawler first saw it.
+    dateSource: Literal["posted", "first_seen"] = "posted"
     applyUrl: str
+    source: Optional[str] = None
+    externalId: Optional[str] = None
+    status: Optional[Literal["open", "closed"]] = None
 
     # Enrichment. All optional and all None until a posting has been through
     # Claude — a card with no data must render as "unknown", never as a
@@ -86,6 +92,15 @@ class JobListingSchema(BaseModel):
     # None whenever the caller has no primary resume on file — matching is
     # skipped entirely in that case, not computed with a placeholder input.
     match: Optional[JobMatchSchema] = None
+
+
+class JobDetailSchema(JobListingSchema):
+    """Source-backed fields needed by the full job-details page."""
+
+    applyUrl: Optional[str] = None
+    status: Literal["open", "closed"]
+    postedAt: Optional[str] = None
+    closedAt: Optional[str] = None
 
 
 class FilterCountsSchema(BaseModel):

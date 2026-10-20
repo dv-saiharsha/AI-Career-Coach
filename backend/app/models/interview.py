@@ -1,5 +1,4 @@
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -8,12 +7,12 @@ from app.core.database import Base
 class InterviewSession(Base):
     __tablename__ = "interview_sessions"
     id = Column(Integer, primary_key=True, index=True)
-    # References auth.users(id) in Supabase Postgres — see resume.py's
-    # ResumeAnalysis.user_id for why this isn't an SQLAlchemy-level FK.
-    # with_variant: Postgres' UUID type raises on SQLite, which DB_URL
-    # defaults to. Postgres DDL and behaviour are unchanged.
+    # The sign-in provider's user id (a Firebase uid), stored as text. NOT a UUID:
+    # Firebase gives brand-new accounts a 28-character id; only users imported from
+    # Supabase have UUID-shaped ids. No SQLAlchemy FK either: the identity lives in
+    # Firebase, not in a table this backend owns.
     user_id = Column(
-        UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=False, index=True
+        String, nullable=False, index=True
     )
     role = Column(String, nullable=False)
     seniority = Column(String, nullable=False)

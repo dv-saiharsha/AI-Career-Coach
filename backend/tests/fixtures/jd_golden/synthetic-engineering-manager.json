@@ -1,0 +1,171 @@
+{
+  "jd_id": "synthetic-engineering-manager",
+  "role": "engineering-manager",
+  "synthetic": true,
+  "why_chosen": "SYNTHETIC (written for this test, not one of the 17 seed JDs). A manager title, a degree 'or equivalent experience', one required and one preferred certification, and a messy source: HTML tags and entities, a benefits block and an EEO statement that must be cleaned away.",
+  "judgment_calls": [
+    "Title 'Engineering Manager' states the level: seniority 'manager', seniority_source 'stated'.",
+    "'8+ years ... including 3+ years managing engineers' -> min_years_experience 8 (the overall figure, not the managing subset).",
+    "'Bachelor's degree ... or equivalent practical experience' -> education required: false (agreed).",
+    "'Must hold the AWS Certified Solutions Architect certification' -> required: true. 'Certified Kubernetes Administrator (CKA) is a plus' -> required: false.",
+    "'AWS, GCP, or Azure' is an either/or: alternative_group 'cloud'. AWS is also named inside the certification; that does not change its skill entry.",
+    "'managing engineers' is experience context for the years figure, not a skill.",
+    "Benefits (salary, equity, insurance, 401(k), PTO, stipend, remote, offsites) and the EEO / accommodation text are not skills or responsibilities: nothing from them may appear anywhere in the output."
+  ],
+  "jd_text": "<h2>Engineering Manager, Platform Infrastructure</h2>\n<p><strong>Northwind Labs</strong> builds tools for developers &amp; operators.&nbsp;As Engineering Manager you will lead the team behind our internal developer platform.</p>\n<h3>What you'll do</h3>\n<ul>\n<li>Lead and grow a team of 8 platform engineers</li>\n<li>Own the on-call rotation and the incident response process</li>\n<li>Set the roadmap for our internal developer platform</li>\n<li>Partner with security and finance on compliance and cloud cost</li>\n</ul>\n<h3>Requirements</h3>\n<ul>\n<li>8+ years of software engineering experience, including 3+ years managing engineers</li>\n<li>Hands-on expertise with Kubernetes and Terraform in production</li>\n<li>Production experience with a major cloud: AWS, GCP, or Azure</li>\n<li>Strong incident management and capacity planning practices</li>\n<li>Bachelor's degree in Computer Science or equivalent practical experience</li>\n<li>Must hold the AWS Certified Solutions Architect certification</li>\n</ul>\n<h3>Nice to have</h3>\n<ul>\n<li>Experience with Go and Prometheus</li>\n<li>Certified Kubernetes Administrator (CKA) is a plus</li>\n</ul>\n<h3>Benefits</h3>\n<ul>\n<li>Competitive salary and equity</li>\n<li>Medical, dental and vision insurance</li>\n<li>401(k) with 4% company match</li>\n<li>Unlimited PTO and a $2,000 learning stipend</li>\n<li>Remote-friendly with quarterly offsites</li>\n</ul>\n<p>Northwind Labs is an equal opportunity employer. We do not discriminate on the basis of race, religion, color, national origin, gender, sexual orientation, age, marital status, veteran status, or disability status. If you need a reasonable accommodation during the application process, contact people@northwind.example.</p>\n",
+  "expected": {
+    "job_title": "Engineering Manager, Platform Infrastructure",
+    "seniority": "manager",
+    "seniority_source": "stated",
+    "min_years_experience": 8,
+    "required_skills": [
+      {
+        "name": "kubernetes",
+        "evidence": "Kubernetes and Terraform",
+        "alternative_group": null
+      },
+      {
+        "name": "terraform",
+        "evidence": "Kubernetes and Terraform",
+        "alternative_group": null
+      },
+      {
+        "name": "aws",
+        "evidence": "AWS, GCP, or Azure",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "gcp",
+        "evidence": "AWS, GCP, or Azure",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "azure",
+        "evidence": "AWS, GCP, or Azure",
+        "alternative_group": "cloud"
+      },
+      {
+        "name": "incident management",
+        "evidence": "incident management",
+        "alternative_group": null
+      },
+      {
+        "name": "capacity planning",
+        "evidence": "capacity planning",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "go",
+        "evidence": "Experience with Go and Prometheus",
+        "alternative_group": null
+      },
+      {
+        "name": "prometheus",
+        "evidence": "Experience with Go and Prometheus",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "kubernetes",
+      "terraform",
+      "aws",
+      "gcp",
+      "azure",
+      "go",
+      "prometheus"
+    ],
+    "education": [
+      {
+        "name": "Bachelor's degree in Computer Science",
+        "required": false,
+        "evidence": "Bachelor's degree in Computer Science or equivalent practical experience"
+      }
+    ],
+    "certifications": [
+      {
+        "name": "AWS Certified Solutions Architect",
+        "required": true,
+        "evidence": "Must hold the AWS Certified Solutions Architect certification"
+      },
+      {
+        "name": "Certified Kubernetes Administrator (CKA)",
+        "required": false,
+        "evidence": "Certified Kubernetes Administrator (CKA) is a plus"
+      }
+    ],
+    "responsibilities": [
+      "lead and grow a team of 8 platform engineers",
+      "own the on-call rotation and the incident response process",
+      "set the roadmap for the internal developer platform",
+      "partner with security and finance on compliance and cloud cost"
+    ],
+    "ats_keywords": [
+      {
+        "term": "kubernetes",
+        "weight": 1.0
+      },
+      {
+        "term": "terraform",
+        "weight": 1.0
+      },
+      {
+        "term": "aws",
+        "weight": 1.0
+      },
+      {
+        "term": "gcp",
+        "weight": 1.0
+      },
+      {
+        "term": "azure",
+        "weight": 1.0
+      },
+      {
+        "term": "incident management",
+        "weight": 1.0
+      },
+      {
+        "term": "capacity planning",
+        "weight": 1.0
+      },
+      {
+        "term": "engineering manager",
+        "weight": 0.8
+      },
+      {
+        "term": "go",
+        "weight": 0.5
+      },
+      {
+        "term": "prometheus",
+        "weight": 0.5
+      },
+      {
+        "term": "platform",
+        "weight": 0.4
+      },
+      {
+        "term": "developer platform",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "401 k",
+    "dental",
+    "pto",
+    "equity",
+    "remote",
+    "stipend",
+    "offsites",
+    "equal opportunity employer",
+    "reasonable accommodation",
+    "discrimination",
+    "python",
+    "java",
+    "docker"
+  ],
+  "annotated_by": "hand"
+}

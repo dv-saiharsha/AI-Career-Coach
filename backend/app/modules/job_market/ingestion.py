@@ -7,11 +7,11 @@ job_market/crawler.py — reading the `companies` table, covering all six ATS
 adapters plus the JSON-LD fallback, with the close-after-2-misses lifecycle —
 is what backend/scripts/run_crawl.py and the worker process
 (app/worker.py) actually run in production. This module is what
-job_market/scheduler.py's older in-process sweep still calls locally
-(JOB_SWEEP_ENABLED, default on for a single dev process); production disables
-it (docker-compose.prod.yml) since `worker` now covers the same ground and
-more. It is kept working rather than deleted because retiring it outright is
-a separate, later decision — not a rider on removing JSearch.
+job_market/scheduler.py's older in-process sweep still calls when a process
+opts in with JOB_SWEEP_ENABLED=true — off by default everywhere now that
+`worker` covers the same ground and more. It is kept working rather than
+deleted because retiring it outright is a separate, later decision — not a
+rider on removing JSearch.
 
 Cost shape. Only one half spends money:
 
@@ -38,7 +38,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.core.llm import llm_client
+from app.core.config import settings
+from app.core.llm import LLMProviderError, llm_client
 from app.models.job import JobListing
 from app.modules.job_market import ats_boards, boards_registry, enrichment, geo
 
@@ -166,14 +167,59 @@ def _collect_boards(report: SweepReport) -> dict[str, dict]:
     return candidates
 
 
-def _enrich(pending: dict[str, dict], report: SweepReport) -> dict[str, dict]:
-    """Batch-enrich pending postings. Returns {content_hash: facts}."""
-    if not pending or not llm_client.available:
-        if pending and not llm_client.available:
-            report.errors.append("ANTHROPIC_API_KEY not configured — postings stored unenriched")
-        return {}
+def _enrich_sequentially(pending: dict[str, dict], report: SweepReport) -> dict[str, dict]:
+    """One request per posting, for a provider with no batch API (Ollama).
 
-    # Beta namespace, not client.messages.batches: the pinned SDK (0.39.0)
+    Bounded by OLLAMA_ENRICH_MAX_PER_RUN so a large backlog cannot hold a
+    crawl run for hours; the postings not reached keep enriched_at NULL and
+    the next run's own query picks them up. A posting whose request fails is
+    NOT returned, so it also stays un-enriched and is retried, rather than
+    being stamped as enriched with empty facts. If the server is unreachable
+    or the model isn't pulled, every remaining request would fail the same
+    way, so the loop stops there.
+    """
+    limit = max(0, settings.OLLAMA_ENRICH_MAX_PER_RUN)
+    items = list(pending.items())[:limit]
+    if len(items) < len(pending):
+        logger.info(
+            "enrichment: %d of %d pending postings this run (OLLAMA_ENRICH_MAX_PER_RUN=%d); the rest next run",
+            len(items), len(pending), limit,
+        )
+
+    facts: dict[str, dict] = {}
+    for key, item in items:
+        try:
+            facts[key] = enrichment.extract_facts(
+                llm_client, item.get("title", ""), item.get("company", ""), item.get("description") or ""
+            )
+        except LLMProviderError as exc:
+            report.enrichment_failures += 1
+            logger.warning("enrichment: posting %s failed (%s): %s", key, exc.kind, exc)
+            if exc.kind in ("unreachable", "model_missing"):
+                report.errors.append(f"job enrichment stopped early: {exc}")
+                break
+    report.newly_enriched = len(facts)
+    return facts
+
+
+def _enrich(pending: dict[str, dict], report: SweepReport) -> dict[str, dict]:
+    """Enrich pending postings. Returns {content_hash: facts}.
+
+    Anthropic: one Message Batch for all of them. Anything without a batch API
+    (Ollama): one request each, capped, in _enrich_sequentially.
+    """
+    if not pending:
+        return {}
+    if not llm_client.available:
+        if getattr(llm_client, "provider", "anthropic") == "anthropic":
+            report.errors.append("ANTHROPIC_API_KEY not configured — postings stored unenriched")
+        else:
+            report.errors.append("LLM provider unavailable — postings stored unenriched")
+        return {}
+    if not getattr(llm_client, "supports_batch", False):
+        return _enrich_sequentially(pending, report)
+
+    # Beta namespace, not client.messages.batches: the pinned SDK (0.40.0)
     # exposes batches only under client.beta.messages. Importing the non-beta
     # path raises ModuleNotFoundError before a batch is ever created.
     from anthropic.types.beta.message_create_params import MessageCreateParamsNonStreaming

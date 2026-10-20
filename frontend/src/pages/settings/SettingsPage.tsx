@@ -34,7 +34,7 @@ import { getPasswordStrength } from '@/lib/passwordStrength'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
-import { supabase } from '@/lib/supabase'
+import { friendlyAuthError } from '@/lib/authErrors'
 import { profileService, downloadJson } from '@/services/profileService'
 import { notificationsService } from '@/services/notificationsService'
 import type { NotificationItem } from '@/types/notifications'
@@ -92,14 +92,19 @@ function SettingsSection({
 }
 
 function AccountSettings() {
-  const { user } = useAuth()
+  const { user, updateDisplayName, changeEmail, changePassword } = useAuth()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [savingInfo, setSavingInfo] = useState(false)
+  const [currentPasswordForEmail, setCurrentPasswordForEmail] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+  // A Google-only account has no password to change and no email of its own to
+  // change: both come from Google.
+  const hasPassword = user?.providers.includes('password') ?? false
 
   useEffect(() => {
     const [f, l] = splitName(user?.fullName ?? '')
@@ -119,17 +124,23 @@ function AccountSettings() {
       toast.error('Email is required.')
       return
     }
-    const emailChanged = email.trim() !== user?.email
+    const emailChanged = hasPassword && email.trim() !== user?.email
+    if (emailChanged && !currentPasswordForEmail) {
+      toast.error('Enter your current password to change your email address.')
+      return
+    }
     setSavingInfo(true)
     try {
-      const { error } = await supabase.auth.updateUser({
-        ...(emailChanged ? { email: email.trim() } : {}),
-        data: { full_name: `${firstName.trim()} ${lastName.trim()}`.trim() },
-      })
-      if (error) throw error
-      toast.success(emailChanged ? 'Saved — check your inbox to confirm the new email address.' : 'Account information saved.')
+      await updateDisplayName(`${firstName.trim()} ${lastName.trim()}`.trim())
+      if (emailChanged) {
+        await changeEmail(email.trim(), currentPasswordForEmail)
+        setCurrentPasswordForEmail('')
+        toast.success(`Saved. We sent a link to ${email.trim()}; your email changes once you open it.`)
+      } else {
+        toast.success('Account information saved.')
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not save your changes.')
+      toast.error(friendlyAuthError(err, 'Could not save your changes.'))
     } finally {
       setSavingInfo(false)
     }
@@ -147,15 +158,19 @@ function AccountSettings() {
       toast.error('Passwords do not match.')
       return
     }
+    if (!currentPassword) {
+      toast.error('Enter your current password.')
+      return
+    }
     setSavingPassword(true)
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
-      if (error) throw error
+      await changePassword(currentPassword, newPassword)
       toast.success('Password updated.')
+      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not update your password.')
+      toast.error(friendlyAuthError(err, 'Could not update your password.'))
     } finally {
       setSavingPassword(false)
     }
@@ -175,8 +190,24 @@ function AccountSettings() {
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="email">Email address</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!hasPassword} />
+            {!hasPassword && (
+              <p className="text-[10px] text-muted-foreground">Your email address comes from your Google account.</p>
+            )}
           </div>
+          {hasPassword && email.trim() !== (user?.email ?? '') && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="currentPasswordForEmail">Current password</Label>
+              <PasswordField
+                id="currentPasswordForEmail"
+                value={currentPasswordForEmail}
+                onChange={(e) => setCurrentPasswordForEmail(e.target.value)}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Needed to change your email. We will send a confirmation link to the new address first.
+              </p>
+            </div>
+          )}
         </div>
         <Button className="mt-[15px] gap-2" onClick={saveInfo} disabled={!infoChanged || savingInfo}>
           {savingInfo && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -184,8 +215,13 @@ function AccountSettings() {
         </Button>
       </SettingsSection>
 
+      {hasPassword ? (
       <SettingsSection title="Password" description="Choose a strong password you don't use elsewhere.">
         <div className="grid grid-cols-1 gap-[13px] sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="currentPassword">Current password</Label>
+            <PasswordField id="currentPassword" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="newPassword">New password</Label>
             <PasswordField id="newPassword" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
@@ -203,12 +239,19 @@ function AccountSettings() {
           variant="outline"
           className="mt-[15px] gap-2"
           onClick={updatePassword}
-          disabled={!canUpdatePassword || savingPassword}
+          disabled={!canUpdatePassword || !currentPassword || savingPassword}
         >
           {savingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
           Update password
         </Button>
       </SettingsSection>
+      ) : (
+        <SettingsSection title="Password" description="You sign in with Google.">
+          <p className="text-[11px] text-muted-foreground">
+            There is no HireLoom password to change. Your Google account controls how you sign in.
+          </p>
+        </SettingsSection>
+      )}
     </div>
   )
 }
@@ -410,9 +453,8 @@ function NotificationsSettings() {
 }
 
 function IntegrationsSettings() {
-  const { session } = useAuth()
-  const providers = session?.user.identities?.map((identity) => identity.provider) ?? []
-  const googleConnected = providers.includes('google')
+  const { user } = useAuth()
+  const googleConnected = user?.providers.includes('google') ?? false
 
   return (
     <SettingsSection title="Connected accounts" description="Services linked to your HireLoom sign-in.">

@@ -1,5 +1,4 @@
 from sqlalchemy import CheckConstraint, Column, DateTime, Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -21,11 +20,11 @@ class CrawlRun(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     trigger = Column(String(16), nullable=False, default="scheduled", server_default="scheduled")
-    # Supabase auth user id, when a human triggered this from the admin API.
+    # Firebase uid (text), when a human triggered this from the admin API.
     # Null for the worker's own scheduled loop. No SQLAlchemy ForeignKey —
     # auth.users lives in Supabase, not a table this backend owns a model
     # for, matching how user_id is already handled on JobApplication et al.
-    triggered_by = Column(UUID(as_uuid=False).with_variant(String(36), "sqlite"), nullable=True)
+    triggered_by = Column(String, nullable=True)
 
     started_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     ended_at = Column(DateTime(timezone=True), nullable=True)
@@ -41,6 +40,9 @@ class CrawlRun(Base):
     # variable-length list on a backend (SQLite in dev) with no array type.
     errors = Column(Text, nullable=False, default="[]", server_default="[]")
     cost_usd = Column(Float, nullable=False, default=0.0, server_default="0")
+    # JSON object: per-crawler counts (fetched, new, updated, duplicates,
+    # companies, failed, errors) and enrichment counts. See crawler.run_crawl.
+    stats = Column(Text, nullable=False, default="{}", server_default="{}")
 
     __table_args__ = (
         CheckConstraint("trigger IN ('scheduled', 'manual')", name="ck_crawl_runs_trigger"),

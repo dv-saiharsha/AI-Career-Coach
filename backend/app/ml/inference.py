@@ -27,6 +27,16 @@ _model = None
 _calibration: list[list[float]] | None = None
 
 
+class ScoringModelUnavailable(RuntimeError):
+    """The trained ATS model file isn't on this machine.
+
+    A RuntimeError subclass so anything already catching RuntimeError still
+    works. Callers that can degrade check model_available() first; the ones
+    that cannot (compile_and_score) catch this and answer in plain words
+    instead of a bare 500.
+    """
+
+
 def _load_calibration() -> list[list[float]]:
     """Anchor points mapping raw model output to the reported score.
 
@@ -82,7 +92,9 @@ def _load_model():
     global _model
     if _model is None:
         if not MODEL_PATH.exists():
-            raise RuntimeError(f"No trained model at {MODEL_PATH} — run scripts/train_ats_model.py first.")
+            raise ScoringModelUnavailable(
+                f"No trained model at {MODEL_PATH} — run scripts/train_ats_model.py first."
+            )
         _model = joblib.load(MODEL_PATH)
     return _model
 

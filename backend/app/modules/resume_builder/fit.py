@@ -39,6 +39,11 @@ Least costly to the candidate first, and relevance-aware throughout:
   3. Whole roles, oldest first, never the most recent two.
   4. The tools list, then the technical list, down to the JD-relevant ones.
 
+Projects (least relevant first) and the publications/awards lists are trimmed
+between steps 1 and 2; payloads without them take exactly the ladder above.
+The "tailored" ladder (LADDERS) moves the summary after the skills, since a
+job-targeted summary is worth more than the tail of the skills list.
+
 Every step is recorded and returned, because a resume that quietly lost the
 candidate's first job is worse than one that says it did.
 """
@@ -89,42 +94,92 @@ def _rank_bullets(experiences: list[dict], keywords: set[str]) -> list[dict]:
     return ranked
 
 
-def _trim_step(data: dict, state: dict) -> str | None:
-    """Apply one rung of the ladder in place. Returns what it did, or None
-    when there is nothing further to give."""
-    experiences: list[dict] = data.get("experiences") or []
-
-    # 1. Bullets past the cap, oldest role first.
-    cap = state["bullet_cap"]
-    if cap > MIN_BULLETS_PER_ROLE:
-        over = [e for e in experiences if len(e.get("bullets") or []) > cap]
-        if over:
-            for exp in over:
-                exp["bullets"] = exp["bullets"][:cap]
-            state["bullet_cap"] = cap - 1
-            return f"kept the {cap} most relevant bullets per role"
+def _trim_bullet_cap(data: dict, state: dict) -> str | None:
+    """1. Bullets past a per-entry cap, for roles and projects alike."""
+    entries = (data.get("experiences") or []) + (data.get("projects") or [])
+    while state["bullet_cap"] > MIN_BULLETS_PER_ROLE:
+        cap = state["bullet_cap"]
         state["bullet_cap"] = cap - 1
-        return _trim_step(data, state)
+        over = [e for e in entries if len(e.get("bullets") or []) > cap]
+        if over:
+            for entry in over:
+                entry["bullets"] = entry["bullets"][:cap]
+            return f"kept the {cap} most relevant bullets per role"
+    return None
 
-    # 2. The summary.
+
+def _trim_projects(data: dict, state: dict) -> str | None:
+    """Projects beyond the first, last one first. Callers that rank projects
+    by relevance put the least relevant last."""
+    projects = data.get("projects") or []
+    if len(projects) > 1:
+        dropped = projects.pop()
+        return f"dropped the least relevant project ({dropped.get('name') or 'untitled'})"
+    return None
+
+
+def _trim_lists(data: dict, state: dict) -> str | None:
+    """Publications, then awards: the sections least tied to the target job."""
+    for key in ("publications", "awards"):
+        if data.get(key):
+            data[key] = []
+            return f"dropped the {key} section to make room"
+    return None
+
+
+def _trim_summary(data: dict, state: dict) -> str | None:
+    """2. The summary."""
     if data.get("summary"):
         data["summary"] = ""
         return "dropped the summary — the experience section already says it"
+    return None
 
-    # 3. Whole roles, oldest first.
+
+def _trim_roles(data: dict, state: dict) -> str | None:
+    """3. Whole roles, oldest first."""
+    experiences: list[dict] = data.get("experiences") or []
     if len(experiences) > MIN_ROLES:
         dropped = experiences.pop()
         title = dropped.get("title") or "a role"
         company = dropped.get("company") or ""
         return f"dropped the oldest role ({title}{' at ' + company if company else ''})"
+    return None
 
-    # 4. Skills, tools before technical.
+
+def _trim_skills(data: dict, state: dict) -> str | None:
+    """4. Skills, tools before technical; grouped skills lose their last
+    (least relevant) items, last group first."""
+    groups = data.get("skill_groups") or []
+    if groups:
+        for group in reversed(groups):
+            if len(group.get("items") or []) > 3:
+                group["items"] = group["items"][: max(3, len(group["items"]) - 3)]
+                return f"shortened the {group.get('category', 'skills')} skills list"
+        return None
     for key in ("tools_skills", "technical_skills"):
         skills = data.get(key) or []
         if len(skills) > 4:
             data[key] = skills[: max(4, len(skills) - 4)]
             return f"shortened the {key.replace('_', ' ')} list"
+    return None
 
+
+# The default ladder, as documented at the top of this module. The tailored
+# ladder keeps the job-specific summary until late: there the summary is the
+# most targeted text on the page, not a restatement of the experience section.
+LADDERS = {
+    "default": (_trim_bullet_cap, _trim_projects, _trim_lists, _trim_summary, _trim_roles, _trim_skills),
+    "tailored": (_trim_bullet_cap, _trim_projects, _trim_lists, _trim_skills, _trim_summary, _trim_roles),
+}
+
+
+def _trim_step(data: dict, state: dict, ladder: str = "default") -> str | None:
+    """Apply one rung of the ladder in place. Returns what it did, or None
+    when there is nothing further to give."""
+    for step in LADDERS[ladder]:
+        note = step(data, state)
+        if note is not None:
+            return note
     return None
 
 
@@ -133,6 +188,7 @@ def fit_to_pages(
     target_pages: int,
     jd_keywords: set[str] | None = None,
     density: str | None = None,
+    ladder: str = "default",
 ) -> dict[str, Any]:
     """Render, compile and trim until the PDF is `target_pages` or fewer.
 
@@ -150,11 +206,14 @@ def fit_to_pages(
     working = {
         **data,
         "experiences": _rank_bullets(data.get("experiences") or [], jd_keywords or set()),
+        "projects": _rank_bullets(data.get("projects") or [], jd_keywords or set()),
     }
     # Starting cap is the longest role's bullet count, so the first pass is a
     # real compile of everything the candidate has rather than a pre-trimmed
     # guess at what might fit.
-    longest = max((len(e.get("bullets") or []) for e in working["experiences"]), default=0)
+    longest = max(
+        (len(e.get("bullets") or []) for e in working["experiences"] + working["projects"]), default=0
+    )
     state = {"bullet_cap": max(longest, MIN_BULLETS_PER_ROLE)}
 
     adjustments: list[str] = []
@@ -165,7 +224,7 @@ def fit_to_pages(
     for _ in range(MAX_PASSES):
         if pages <= target_pages:
             break
-        note = _trim_step(working, state)
+        note = _trim_step(working, state, ladder)
         if note is None:
             # Nothing left to cut. Returning the over-length document is the
             # honest outcome; the alternative is deleting content the

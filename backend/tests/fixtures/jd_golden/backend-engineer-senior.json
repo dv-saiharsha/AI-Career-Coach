@@ -1,0 +1,201 @@
+{
+  "jd_id": "backend-engineer-senior",
+  "role": "backend-engineer",
+  "seniority_in_seed": "senior",
+  "why_chosen": "A senior role dense with 'one of X, Y or Z' alternatives (language, database, queue): the either/or scoring test.",
+  "judgment_calls": [
+    "Three either/or groups: language (Go/Java/Python), database (PostgreSQL/MySQL), queue (Kafka/SQS/RabbitMQ). Every alternative is listed; recall is scored per group (one member found counts as found).",
+    "'indexing', 'transactions' and 'replication' are listed under 'database internals' as separate skills.",
+    "'high-reliability', 'financial transactions' and 'payments infrastructure' are domain context, not skills: they appear only in ats_keywords.",
+    "The mentoring and ledger-redesign sentence is responsibilities, not requirements."
+  ],
+  "expected": {
+    "job_title": "Senior Backend Engineer",
+    "seniority": "senior",
+    "seniority_source": "stated",
+    "min_years_experience": 6,
+    "required_skills": [
+      {
+        "name": "distributed systems",
+        "evidence": "distributed systems",
+        "alternative_group": null
+      },
+      {
+        "name": "go",
+        "evidence": "Go, Java, or Python",
+        "alternative_group": "language"
+      },
+      {
+        "name": "java",
+        "evidence": "Go, Java, or Python",
+        "alternative_group": "language"
+      },
+      {
+        "name": "python",
+        "evidence": "Go, Java, or Python",
+        "alternative_group": "language"
+      },
+      {
+        "name": "database internals",
+        "evidence": "database internals",
+        "alternative_group": null
+      },
+      {
+        "name": "indexing",
+        "evidence": "indexing",
+        "alternative_group": null
+      },
+      {
+        "name": "transactions",
+        "evidence": "transactions",
+        "alternative_group": null
+      },
+      {
+        "name": "replication",
+        "evidence": "replication",
+        "alternative_group": null
+      },
+      {
+        "name": "postgresql",
+        "evidence": "PostgreSQL or MySQL",
+        "alternative_group": "database"
+      },
+      {
+        "name": "mysql",
+        "evidence": "PostgreSQL or MySQL",
+        "alternative_group": "database"
+      },
+      {
+        "name": "message queues",
+        "evidence": "message queues",
+        "alternative_group": null
+      },
+      {
+        "name": "kafka",
+        "evidence": "Kafka, SQS, or RabbitMQ",
+        "alternative_group": "queue"
+      },
+      {
+        "name": "sqs",
+        "evidence": "Kafka, SQS, or RabbitMQ",
+        "alternative_group": "queue"
+      },
+      {
+        "name": "rabbitmq",
+        "evidence": "Kafka, SQS, or RabbitMQ",
+        "alternative_group": "queue"
+      },
+      {
+        "name": "idempotent api design",
+        "evidence": "idempotent API design",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [],
+    "tools_technologies": [
+      "go",
+      "java",
+      "python",
+      "postgresql",
+      "mysql",
+      "kafka",
+      "sqs",
+      "rabbitmq"
+    ],
+    "education": [],
+    "certifications": [],
+    "responsibilities": [
+      "lead the redesign of the ledger service",
+      "mentor two mid-level engineers"
+    ],
+    "ats_keywords": [
+      {
+        "term": "distributed systems",
+        "weight": 1.0
+      },
+      {
+        "term": "go",
+        "weight": 1.0
+      },
+      {
+        "term": "java",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "database internals",
+        "weight": 1.0
+      },
+      {
+        "term": "indexing",
+        "weight": 1.0
+      },
+      {
+        "term": "transactions",
+        "weight": 1.0
+      },
+      {
+        "term": "replication",
+        "weight": 1.0
+      },
+      {
+        "term": "postgresql",
+        "weight": 1.0
+      },
+      {
+        "term": "mysql",
+        "weight": 1.0
+      },
+      {
+        "term": "message queues",
+        "weight": 1.0
+      },
+      {
+        "term": "kafka",
+        "weight": 1.0
+      },
+      {
+        "term": "sqs",
+        "weight": 1.0
+      },
+      {
+        "term": "rabbitmq",
+        "weight": 1.0
+      },
+      {
+        "term": "idempotent api design",
+        "weight": 1.0
+      },
+      {
+        "term": "backend engineer",
+        "weight": 0.8
+      },
+      {
+        "term": "payments",
+        "weight": 0.4
+      },
+      {
+        "term": "ledger",
+        "weight": 0.4
+      },
+      {
+        "term": "financial transactions",
+        "weight": 0.4
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "aws",
+    "kubernetes",
+    "docker",
+    "redis",
+    "terraform",
+    "graphql",
+    "rest",
+    "javascript"
+  ],
+  "annotated_by": "hand"
+}

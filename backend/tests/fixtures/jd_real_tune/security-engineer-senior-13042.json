@@ -1,0 +1,224 @@
+{
+  "jd_id": "security-engineer-senior-13042",
+  "role": "security-engineer",
+  "level_from_title": "senior",
+  "listing": {
+    "id": 13042,
+    "title": "Staff Security Researcher",
+    "company": "GitLab",
+    "source": "career_coach_test.job_listings (crawled)"
+  },
+  "real": true,
+  "title_in_description": false,
+  "judgment_calls": [
+    "'Staff Security Research Engineer' in the text: staff -> lead (stated). 'Senior Manager' names whom the role reports to, not its level. Years 7.",
+    "'security research, penetration testing, or offensive security' -> one group ('area').",
+    "'Ruby, Go, Python, TypeScript, or Rust' -> one group ('language'). 'AI frameworks is an asset' -> preferred.",
+    "'discovering and exploiting vulnerabilities' -> vulnerability discovery. 'AI attack vectors including prompt injection, agent manipulation' -> prompt injection, agent manipulation. 'clear risk assessments' -> risk assessment. Reading code, leading objectives and communication are not listed.",
+    "Nice to have: distributed systems, DevSecOps platforms, GitLab; certifications OSCP, OSCE, GPEN (not required)."
+  ],
+  "expected": {
+    "job_title": "Staff Security Researcher",
+    "seniority": "lead",
+    "seniority_source": "stated",
+    "min_years_experience": 7,
+    "required_skills": [
+      {
+        "name": "security research",
+        "evidence": "security research, penetration testing, or offensive security",
+        "alternative_group": "area"
+      },
+      {
+        "name": "penetration testing",
+        "evidence": "security research, penetration testing, or offensive security",
+        "alternative_group": "area"
+      },
+      {
+        "name": "offensive security",
+        "evidence": "security research, penetration testing, or offensive security",
+        "alternative_group": "area"
+      },
+      {
+        "name": "vulnerability discovery",
+        "evidence": "discovering and exploiting vulnerabilities",
+        "alternative_group": null
+      },
+      {
+        "name": "ruby",
+        "evidence": "Ruby, Go, Python, TypeScript, or Rust",
+        "alternative_group": "language"
+      },
+      {
+        "name": "go",
+        "evidence": "Ruby, Go, Python, TypeScript, or Rust",
+        "alternative_group": "language"
+      },
+      {
+        "name": "python",
+        "evidence": "Ruby, Go, Python, TypeScript, or Rust",
+        "alternative_group": "language"
+      },
+      {
+        "name": "typescript",
+        "evidence": "Ruby, Go, Python, TypeScript, or Rust",
+        "alternative_group": "language"
+      },
+      {
+        "name": "rust",
+        "evidence": "Ruby, Go, Python, TypeScript, or Rust",
+        "alternative_group": "language"
+      },
+      {
+        "name": "prompt injection",
+        "evidence": "prompt injection",
+        "alternative_group": null
+      },
+      {
+        "name": "agent manipulation",
+        "evidence": "agent manipulation",
+        "alternative_group": null
+      },
+      {
+        "name": "risk assessment",
+        "evidence": "risk assessments",
+        "alternative_group": null
+      }
+    ],
+    "preferred_skills": [
+      {
+        "name": "ai frameworks",
+        "evidence": "AI frameworks",
+        "alternative_group": null
+      },
+      {
+        "name": "distributed systems",
+        "evidence": "distributed systems",
+        "alternative_group": null
+      },
+      {
+        "name": "devsecops",
+        "evidence": "DevSecOps platforms",
+        "alternative_group": null
+      },
+      {
+        "name": "gitlab",
+        "evidence": "Experience with GitLab",
+        "alternative_group": null
+      }
+    ],
+    "tools_technologies": [
+      "ruby",
+      "go",
+      "python",
+      "typescript",
+      "rust",
+      "gitlab"
+    ],
+    "education": [],
+    "certifications": [
+      {
+        "name": "OSCP",
+        "required": false,
+        "evidence": "Security certifications such as OSCP, OSCE, GPEN, or similar"
+      },
+      {
+        "name": "OSCE",
+        "required": false,
+        "evidence": "Security certifications such as OSCP, OSCE, GPEN, or similar"
+      },
+      {
+        "name": "GPEN",
+        "required": false,
+        "evidence": "Security certifications such as OSCP, OSCE, GPEN, or similar"
+      }
+    ],
+    "responsibilities": [
+      "conduct security research on AI and agentic surfaces",
+      "develop proof-of-concept exploits"
+    ],
+    "ats_keywords": [
+      {
+        "term": "security research",
+        "weight": 1.0
+      },
+      {
+        "term": "penetration testing",
+        "weight": 1.0
+      },
+      {
+        "term": "offensive security",
+        "weight": 1.0
+      },
+      {
+        "term": "vulnerability discovery",
+        "weight": 1.0
+      },
+      {
+        "term": "ruby",
+        "weight": 1.0
+      },
+      {
+        "term": "go",
+        "weight": 1.0
+      },
+      {
+        "term": "python",
+        "weight": 1.0
+      },
+      {
+        "term": "typescript",
+        "weight": 1.0
+      },
+      {
+        "term": "rust",
+        "weight": 1.0
+      },
+      {
+        "term": "prompt injection",
+        "weight": 1.0
+      },
+      {
+        "term": "agent manipulation",
+        "weight": 1.0
+      },
+      {
+        "term": "risk assessment",
+        "weight": 1.0
+      },
+      {
+        "term": "staff security researcher",
+        "weight": 0.8
+      },
+      {
+        "term": "ai frameworks",
+        "weight": 0.5
+      },
+      {
+        "term": "distributed systems",
+        "weight": 0.5
+      },
+      {
+        "term": "devsecops",
+        "weight": 0.5
+      },
+      {
+        "term": "gitlab",
+        "weight": 0.5
+      }
+    ]
+  },
+  "forbidden_skills": [
+    "java",
+    "c++",
+    "burp suite",
+    "kubernetes",
+    "aws",
+    "metasploit",
+    "cissp",
+    "owasp",
+    "docker",
+    "javascript"
+  ],
+  "annotated_by": "hand, before any analyzer run on this posting",
+  "jd_text": "GitLab is the intelligent orchestration platform for DevSecOps. GitLab enables organizations to increase developer productivity, improve operational efficiency, reduce security and compliance risk, and accelerate digital transformation. More than 50 million registered users and more than 50% of the Fortune 100* trust GitLab to ship better, more secure software faster.\n\nThe same principles built into our products are reflected in how our team works: we embrace AI as a core productivity multiplier, with all team members expected to incorporate AI into their daily workflows to drive efficiency, innovation, and impact. GitLab is where careers accelerate, innovation flourishes, and every voice is valued. Our high-performance culture is driven by our values and continuous knowledge exchange, enabling our team members to reach their full potential while collaborating with industry leaders to solve complex problems. Co-create the future with us as we build technology that transforms how the world develops software.\n\n*Fortune 500® is a registered trademark of Fortune Media IP Limited, used under license. Claim based on GitLab data. Fortune 100 refers to the top 20% ranked companies in the 2025 Fortune 500 list, published in June 2025. Fortune and Fortune Media IP Limited are not affiliated with, and do not endorse products or services of GitLab.\n\nAn overview of the role\n\nWe are seeking a Staff Security Research Engineer to join our Application Security Team to conduct cutting-edge security research on GitLab's AI-powered DevSecOps capabilities. As GitLab transforms software development through intelligent collaboration between developers and specialized AI agents, we need security researchers who can proactively identify and validate vulnerabilities before they impact our platform or customers.\n\nIn this role, you'll be at the forefront of security research, working with our GitLab DevSecOps platform, Duo Agent Platform, GitLab Duo Chat, and AI workflows that represent the future of human/AI collaborative development. You'll develop novel testing methodologies (including for AI agent security), conduct hands-on penetration testing, and translate emerging threats into actionable security improvements. Your research will directly influence how we build and secure the next generation of AI-powered DevSecOps tools, ensuring GitLab remains the most secure software factory platform on the market.\n\nThis position offers the unique opportunity to help shape security and AI security practices in one of the world's largest DevSecOps platforms, working with engineering teams who are pushing the boundaries of what's possible with AI-assisted software development. You'll have access to cutting-edge AI systems and the freedom to explore creative attack scenarios while contributing to the security of millions of developers worldwide.\n\nThis role reports to the Senior Manager of Application Security\n\nWhat you'll do:\n\nConduct security research in two or more specialty areas.\n\nIdentify novel, systemic, and chained vulnerabilities in GitLab, where individual weaknesses combine for outsized impact.\n\nValidate security vulnerabilities through hands-on testing, developing proof-of-concept exploits that demonstrate real-world attack scenarios.\n\nAssess emerging industry vulnerability classes against the GitLab codebase in your areas of expertise, and drive remediation of the class rather than the instance.\n\nConduct security research into GitLab's AI and agentic surfaces, and participate in defining the security requirements that engineering teams build against.\n\nBuild the tooling and automation that scales security research, including agent-assisted vulnerability discovery across our codebase.\n\nResearch the security posture of open source tools and dependencies integrated with GitLab, report findings to their maintainers, and track mitigation following our responsible disclosure guidelines.\n\nSolve technical problems of high scope, complexity, and ambiguity.\n\nDefine and implement security technical and process improvements.\n\nContribute to the team roadmap.\n\nProvide actionable and constructive feedback to the engineering teams that need to act on your findings.\n\nMentor and advise other individual contributors within the team, and sometimes outside of it.\n\nShare knowledge and novel vulnerability types with the security community.\n\nWhat you'll bring\n\n7+ years of experience in security research, penetration testing, or offensive security roles\n\nHands-on experience discovering and exploiting vulnerabilities.\n\nBe a subject matter expert (SME) of at least two technical areas impacting the security of the product.\n\nProficiency in one or more of Ruby, Go, Python, TypeScript, or Rust. Experience in AI frameworks is an asset.\n\nAbility to read and analyze code across multiple languages and codebases.\n\nUnderstanding of AI attack vectors including prompt injection, agent manipulation, and workflow exploitation\n\nExperience leading technical objectives in cross-functional teams\n\nExcellent written communication skills with an ability to articulate complex topics in a clear and concise manner.\n\nAbility to translate complex technical findings into clear risk assessments and remediation recommendations\n\nStrong analytical and problem-solving skills with creative thinking about attack scenarios\n\nNice to have: Published security research or conference presentations; Background in software engineering with distributed systems expertise; Security certifications such as OSCP, OSCE, GPEN, or similar; Experience with GitLab or similar DevSecOps platforms\n\nAbout the team\n\nSecurity Researchers are a part of our Application Security team, who address complex security challenges facing GitLab and its customers to enable GitLab to be the most secure software factory platform on the market. We focus on systemic product security risks and work cross-functionally to mitigate them while maintaining Engineering's development velocity.\nThe base salary range for this role’s listed level is currently for residents of the United States only. This range is intended to reflect the role's base salary rate in locations throughout the US. Grade level and salary ranges are determined through interviews and a review of education, experience, knowledge, skills, abilities of the applicant, equity with other team members, alignment with market data, and geographic location. The base salary range does not include any bonuses, equity, or benefits. See more information on our benefits and equity. Sales roles are also eligible for incentive pay targeted at up to 100% of the offered base salary.\n\nUnited States Salary Range\n$168,000—$238,000 USD\n\nHow GitLab Supports Full-Time Employees\n\nBenefits to support your health, finances, and well-being\n\nFlexible Paid Time Off\n\nTeam Member Resource Groups\n\nEquity Compensation & Employee Stock Purchase Plan\n\nGrowth and Development Fund\n\nParental Leave\n\nPlease note that we welcome interest from candidates with varying levels of experience; many successful candidates do not meet every single requirement. Additionally, studies have shown that people from underrepresented groups are less likely to apply to a job unless they meet every single qualification. If you're excited about this role, please apply and allow our recruiters to assess your application.\n\nCountry Hiring Guidelines: GitLab hires new team members in countries around the world. All of our roles are remote, however some roles may carry specific location-based eligibility requirements. Our Talent Acquisition team can help answer any questions about location after starting the recruiting process.\n\nPrivacy Policy: Please review our Recruitment Privacy Policy. Your privacy is important to us.\n\nGitLab is proud to be an equal opportunity workplace and is an affirmative action employer. GitLab’s policies and practices relating to recruitment, employment, career development and advancement, promotion, and retirement are based solely on merit, regardless of race, color, religion, ancestry, sex (including pregnancy, lactation, sexual orientation, gender identity, or gender expression), national origin, age, citizenship, marital status, mental or physical disability, genetic information (including family medical history), discharge status from the military, protected veteran status (which includes disabled veterans, recently separated veterans, active duty wartime or campaign badge veterans, and Armed Forces service medal veterans), or any other basis protected by law. GitLab will not tolerate discrimination or harassment based on any of these characteristics. See also GitLab’s EEO Policy and EEO is the Law. If you have a disability or special need that requires accommodation, please let us know during the recruiting process."
+}
