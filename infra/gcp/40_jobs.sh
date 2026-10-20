@@ -15,8 +15,12 @@
 source "$(dirname "$0")/lib.sh"
 banner
 
+# JOBS=crawler deploys only the crawler: it never calls the model (enrichment is
+# off), so it needs neither the GPU service nor ALLOWED_ORIGINS. JOBS=all (the
+# default) also deploys the hourly enricher, which does.
+JOBS="${JOBS:-all}"
 ollama_url="$(gc run services describe "${OLLAMA_SERVICE}" --region "${GPU_REGION}" --format='value(status.url)' 2>/dev/null || true)"
-if [[ -z "${ollama_url}" ]]; then
+if [[ -z "${ollama_url}" && "${JOBS}" == "all" ]]; then
   [[ "${APPLY}" == "1" ]] && { echo "Run 30_ollama.sh first: the jobs need its URL." >&2; exit 1; }
   ollama_url="https://<${OLLAMA_SERVICE} url, from 30_ollama.sh>"
 fi
@@ -80,9 +84,10 @@ schedule() {  # scheduler job name, cron, run job name
 }
 
 deploy_job "${CRAWLER_JOB}" "-m,app.worker,--once" "OLLAMA_ENRICH_MAX_PER_RUN=0"
-deploy_job "${ENRICHER_JOB}" "scripts/enrich_jobs.py,--confirm,--limit,150" "OLLAMA_ENRICH_MAX_PER_RUN=150"
-
 schedule "${CRAWLER_JOB}-every-20m" "${CRAWL_SCHEDULE}" "${CRAWLER_JOB}"
-schedule "${ENRICHER_JOB}-hourly" "${ENRICH_SCHEDULE}" "${ENRICHER_JOB}"
+if [[ "${JOBS}" == "all" ]]; then
+  deploy_job "${ENRICHER_JOB}" "scripts/enrich_jobs.py,--confirm,--limit,150" "OLLAMA_ENRICH_MAX_PER_RUN=150"
+  schedule "${ENRICHER_JOB}-hourly" "${ENRICH_SCHEDULE}" "${ENRICHER_JOB}"
+fi
 
 say "Run one now (optional): gcloud run jobs execute ${CRAWLER_JOB} --region ${REGION} --wait"
