@@ -190,7 +190,8 @@ class TestPurge:
         assert set(store.blobs) == {keep, f"avatars/{BOB}/bob.png"}
 
     def test_without_keep_removes_every_photo_of_that_user(self, store):
-        store.add(f"avatars/{ALICE}/a.png"); store.add(f"avatars/{BOB}/b.png")
+        store.add(f"avatars/{ALICE}/a.png")
+        store.add(f"avatars/{BOB}/b.png")
         assert avatars.purge(ALICE) is True
         assert list(store.blobs) == [f"avatars/{BOB}/b.png"]
 
@@ -198,7 +199,8 @@ class TestPurge:
         store.add(f"avatars/{ALICE}/a.png")
         store.fail_deletes = True
         assert avatars.purge(ALICE) is False
-        store.fail_deletes = False; store.fail_listing = True
+        store.fail_deletes = False
+        store.fail_listing = True
         assert avatars.purge(ALICE) is False
 
     def test_unconfigured_has_nothing_to_delete(self, monkeypatch):
@@ -210,21 +212,25 @@ class TestPurge:
 
 class TestRead:
     def test_a_read_url_is_signed_as_the_signer_for_an_hour_and_cached(self, store):
-        path = f"avatars/{ALICE}/a.png"; store.add(path)
-        first = avatars.read_url(path); second = avatars.read_url(path)
+        path = f"avatars/{ALICE}/a.png"
+        store.add(path)
+        first = avatars.read_url(path)
+        second = avatars.read_url(path)
         assert first == second and len(store.signed_reads) == 1
         kwargs = store.signed_reads[0][1]
         assert kwargs["version"] == "v4" and kwargs["method"] == "GET"
         assert kwargs["service_account_email"] == SIGNER and kwargs["expiration"].total_seconds() == 3600
 
     def test_the_cache_is_dropped_when_photos_are_purged(self, store):
-        path = f"avatars/{ALICE}/a.png"; store.add(path)
+        path = f"avatars/{ALICE}/a.png"
+        store.add(path)
         avatars.read_url(path)
         avatars.purge(ALICE)
         assert path not in avatars._read_cache
 
     def test_display_prefers_the_stored_photo_and_falls_back_to_the_providers(self, store, monkeypatch):
-        path = f"avatars/{ALICE}/a.png"; store.add(path)
+        path = f"avatars/{ALICE}/a.png"
+        store.add(path)
         assert avatars.display_url(path, "https://google/pic") == f"https://signed.example/{path}?sig=1"
         assert avatars.display_url(None, "https://google/pic") == "https://google/pic"
 
@@ -291,8 +297,10 @@ class TestEndpoints:
 
     def test_removing_the_photo_clears_it_and_restores_the_providers_picture(self, api):
         client, session, store = api
-        path = f"avatars/{ALICE}/a.png"; store.add(path)
-        session.get(Profile, ALICE).avatar_path = path; session.commit()
+        path = f"avatars/{ALICE}/a.png"
+        store.add(path)
+        session.get(Profile, ALICE).avatar_path = path
+        session.commit()
         response = client.delete("/api/user/avatar")
         assert response.status_code == 200 and response.json()["avatar_url"] == "https://google/pic"
         assert session.get(Profile, ALICE).avatar_path is None and not store.blobs
@@ -313,7 +321,8 @@ class TestEndpoints:
 
     def test_erasing_the_account_deletes_the_photos_first(self, api, monkeypatch):
         client, session, store = api
-        store.add(f"avatars/{ALICE}/a.png"); store.add(f"avatars/{BOB}/b.png")
+        store.add(f"avatars/{ALICE}/a.png")
+        store.add(f"avatars/{BOB}/b.png")
         monkeypatch.setattr(profile_router, "delete_auth_user", lambda uid: True)
         body = client.delete("/api/user/account?confirm=DELETE").json()
         assert body["avatar_deleted"] is True
@@ -321,7 +330,8 @@ class TestEndpoints:
 
     def test_a_storage_failure_during_erasure_is_reported_and_the_rest_still_happens(self, api, monkeypatch):
         client, session, store = api
-        store.add(f"avatars/{ALICE}/a.png"); store.fail_deletes = True
+        store.add(f"avatars/{ALICE}/a.png")
+        store.fail_deletes = True
         monkeypatch.setattr(profile_router, "delete_auth_user", lambda uid: True)
         response = client.delete("/api/user/account?confirm=DELETE")
         assert response.status_code == 200 and response.json()["avatar_deleted"] is False

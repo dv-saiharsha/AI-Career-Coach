@@ -257,7 +257,7 @@ def _rewrite_prompt(
         f"{' (' + analysis.seniority + ' level)' if analysis.seniority != 'unknown' else ''}\n\n"
         f"WHAT THE ROLE DOES:\n{responsibilities}\n\n"
         f"MOST IMPORTANT REQUIREMENTS:\n" + ("\n".join(needs) or "(none extracted)") + "\n\n"
-        f"CANDIDATE EVIDENCE FOR THEM:\n" + ("\n".join(evidence) or "(none)") + "\n\n"
+        "CANDIDATE EVIDENCE FOR THEM:\n" + ("\n".join(evidence) or "(none)") + "\n\n"
         f"ALLOWED JD TERMS (supported by the resume): {', '.join(supported) or 'none'}\n"
         f"DO NOT CLAIM (no evidence in the resume): {', '.join(forbidden) or 'none'}\n\n"
         f"FACTS:\n" + "\n".join(f"- {f}" for f in facts) + "\n\n"

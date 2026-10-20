@@ -379,7 +379,10 @@ class TestReconciliation:
         db.commit()
 
         updates = []
-        listener = lambda conn, cursor, stmt, *a: updates.append(stmt) if stmt.lstrip().upper().startswith("UPDATE") else None
+        def listener(conn, cursor, stmt, *a):
+            if stmt.lstrip().upper().startswith("UPDATE"):
+                updates.append(stmt)
+
         event.listen(db.get_bind(), "before_cursor_execute", listener)
         try:
             crawler._reconcile_company_rows(db, company, [], not_modified=True)
@@ -404,7 +407,10 @@ class TestReconciliation:
 
         rows[5] = board_row("greenhouse:acme:5", title="Staff Engineer")  # one real change
         updates = []
-        listener = lambda conn, cursor, stmt, *a: updates.append(stmt) if stmt.lstrip().upper().startswith("UPDATE") else None
+        def listener(conn, cursor, stmt, *a):
+            if stmt.lstrip().upper().startswith("UPDATE"):
+                updates.append(stmt)
+
         event.listen(db.get_bind(), "before_cursor_execute", listener)
         try:
             new, updated, closed = crawler._reconcile_company_rows(db, company, rows, not_modified=False)
@@ -431,7 +437,10 @@ class TestReconciliation:
         db.commit()
 
         updates = []
-        listener = lambda conn, cursor, stmt, *a: updates.append(stmt) if stmt.lstrip().upper().startswith("UPDATE") else None
+        def listener(conn, cursor, stmt, *a):
+            if stmt.lstrip().upper().startswith("UPDATE"):
+                updates.append(stmt)
+
         event.listen(db.get_bind(), "before_cursor_execute", listener)
         try:
             new, updated, closed = crawler._reconcile_company_rows(db, company, [], not_modified=False)
